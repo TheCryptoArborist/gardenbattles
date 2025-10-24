@@ -1,5 +1,8 @@
 import { useState, useEffect } from 'react';
 import { X, Plus, Trash2 } from 'lucide-react';
+import { useSignAndExecuteTransaction } from '@mysten/dapp-kit';
+import { Transaction } from '@mysten/sui/transactions';
+import { SUI_CONFIG } from '@/lib/sui-config';
 
 interface NFTCollection {
   id: string;
@@ -17,6 +20,10 @@ export default function AdminPanel({ adminAddress, currentAddress }: AdminPanelP
   const [collections, setCollections] = useState<NFTCollection[]>([]);
   const [newCollectionName, setNewCollectionName] = useState('');
   const [newCollectionType, setNewCollectionType] = useState('');
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [statusMessage, setStatusMessage] = useState('');
+  
+  const { mutate: signAndExecuteTransaction } = useSignAndExecuteTransaction();
 
   const isAdmin = currentAddress?.toLowerCase() === adminAddress.toLowerCase();
   
@@ -50,22 +57,129 @@ export default function AdminPanel({ adminAddress, currentAddress }: AdminPanelP
     localStorage.setItem('allowed_nft_collections', JSON.stringify(newCollections));
   };
 
-  const addCollection = () => {
+  const addCollection = async () => {
     if (!newCollectionName.trim() || !newCollectionType.trim()) return;
+    
+    const collectionType = newCollectionType.trim();
+    setIsProcessing(true);
+    setStatusMessage('Submitting transaction to whitelist collection on-chain...');
 
-    const newCollection: NFTCollection = {
-      id: Date.now().toString(),
-      name: newCollectionName.trim(),
-      type: newCollectionType.trim()
-    };
+    try {
+      const tx = new Transaction();
+      
+      tx.moveCall({
+        target: `${SUI_CONFIG.PACKAGE_ID}::${SUI_CONFIG.MODULE}::whitelist_collection`,
+        typeArguments: [collectionType],
+        arguments: [
+          tx.object(SUI_CONFIG.CONFIG_ID),
+        ],
+      });
 
-    saveCollections([...collections, newCollection]);
-    setNewCollectionName('');
-    setNewCollectionType('');
+      await new Promise<void>((resolve, reject) => {
+        signAndExecuteTransaction(
+          {
+            transaction: tx,
+            chain: 'sui:mainnet',
+          },
+          {
+            onSuccess: () => {
+              setStatusMessage('✅ Collection whitelisted on-chain!');
+              
+              const newCollection: NFTCollection = {
+                id: Date.now().toString(),
+                name: newCollectionName.trim(),
+                type: collectionType
+              };
+
+              saveCollections([...collections, newCollection]);
+              setNewCollectionName('');
+              setNewCollectionType('');
+              
+              setTimeout(() => {
+                setStatusMessage('');
+                setIsProcessing(false);
+              }, 3000);
+              
+              resolve();
+            },
+            onError: (error) => {
+              console.error('Whitelist collection failed:', error);
+              setStatusMessage(`❌ Failed: ${error.message || 'Transaction rejected'}`);
+              setTimeout(() => {
+                setStatusMessage('');
+                setIsProcessing(false);
+              }, 5000);
+              reject(error);
+            },
+          }
+        );
+      });
+    } catch (error: any) {
+      console.error('Error whitelisting collection:', error);
+      setStatusMessage(`❌ Error: ${error.message || 'Unknown error'}`);
+      setTimeout(() => {
+        setStatusMessage('');
+        setIsProcessing(false);
+      }, 5000);
+    }
   };
 
-  const removeCollection = (id: string) => {
-    saveCollections(collections.filter(c => c.id !== id));
+  const removeCollection = async (id: string) => {
+    const collection = collections.find(c => c.id === id);
+    if (!collection) return;
+
+    setIsProcessing(true);
+    setStatusMessage('Removing collection from on-chain whitelist...');
+
+    try {
+      const tx = new Transaction();
+      
+      tx.moveCall({
+        target: `${SUI_CONFIG.PACKAGE_ID}::${SUI_CONFIG.MODULE}::remove_collection`,
+        typeArguments: [collection.type],
+        arguments: [
+          tx.object(SUI_CONFIG.CONFIG_ID),
+        ],
+      });
+
+      await new Promise<void>((resolve, reject) => {
+        signAndExecuteTransaction(
+          {
+            transaction: tx,
+            chain: 'sui:mainnet',
+          },
+          {
+            onSuccess: () => {
+              setStatusMessage('✅ Collection removed from on-chain whitelist!');
+              saveCollections(collections.filter(c => c.id !== id));
+              
+              setTimeout(() => {
+                setStatusMessage('');
+                setIsProcessing(false);
+              }, 3000);
+              
+              resolve();
+            },
+            onError: (error) => {
+              console.error('Remove collection failed:', error);
+              setStatusMessage(`❌ Failed: ${error.message || 'Transaction rejected'}`);
+              setTimeout(() => {
+                setStatusMessage('');
+                setIsProcessing(false);
+              }, 5000);
+              reject(error);
+            },
+          }
+        );
+      });
+    } catch (error: any) {
+      console.error('Error removing collection:', error);
+      setStatusMessage(`❌ Error: ${error.message || 'Unknown error'}`);
+      setTimeout(() => {
+        setStatusMessage('');
+        setIsProcessing(false);
+      }, 5000);
+    }
   };
 
   if (!isAdmin) {
@@ -305,18 +419,18 @@ export default function AdminPanel({ adminAddress, currentAddress }: AdminPanelP
 
               <button
                 onClick={addCollection}
-                disabled={!newCollectionName.trim() || !newCollectionType.trim()}
+                disabled={!newCollectionName.trim() || !newCollectionType.trim() || isProcessing}
                 style={{
-                  background: newCollectionName.trim() && newCollectionType.trim()
+                  background: newCollectionName.trim() && newCollectionType.trim() && !isProcessing
                     ? 'linear-gradient(45deg, #00ff00, #00cc00)'
                     : 'rgba(100, 100, 100, 0.3)',
-                  color: newCollectionName.trim() && newCollectionType.trim() ? '#000' : '#666',
+                  color: newCollectionName.trim() && newCollectionType.trim() && !isProcessing ? '#000' : '#666',
                   padding: '12px 24px',
                   borderRadius: '9999px',
                   border: '2px solid #00ff00',
                   fontWeight: 'bold',
                   fontSize: '14px',
-                  cursor: newCollectionName.trim() && newCollectionType.trim() ? 'pointer' : 'not-allowed',
+                  cursor: newCollectionName.trim() && newCollectionType.trim() && !isProcessing ? 'pointer' : 'not-allowed',
                   width: '100%',
                   display: 'flex',
                   alignItems: 'center',
@@ -327,23 +441,40 @@ export default function AdminPanel({ adminAddress, currentAddress }: AdminPanelP
                 data-testid="button-add-collection"
               >
                 <Plus size={18} />
-                Add Collection
+                {isProcessing ? 'Processing...' : 'Add Collection (On-Chain)'}
               </button>
+              
+              {statusMessage && (
+                <div style={{
+                  marginTop: '15px',
+                  padding: '12px',
+                  background: statusMessage.startsWith('✅') 
+                    ? 'rgba(0, 255, 0, 0.1)' 
+                    : 'rgba(255, 0, 0, 0.1)',
+                  border: `1px solid ${statusMessage.startsWith('✅') ? '#00ff00' : '#ff0000'}`,
+                  borderRadius: '5px',
+                  color: statusMessage.startsWith('✅') ? '#00ff00' : '#ff0000',
+                  fontSize: '12px',
+                  textAlign: 'center',
+                }}>
+                  {statusMessage}
+                </div>
+              )}
             </div>
 
             <div
               style={{
                 marginTop: '20px',
                 padding: '15px',
-                background: 'rgba(255, 165, 0, 0.1)',
-                border: '1px solid #ffa500',
+                background: 'rgba(0, 255, 0, 0.1)',
+                border: '1px solid #00ff00',
                 borderRadius: '8px',
               }}
             >
-              <p style={{ color: '#ffa500', fontSize: '12px', lineHeight: '1.6', margin: 0 }}>
-                ⚠️ <strong>Important:</strong> The smart contract validates NFT issuer fields. 
-                Collections without an <code>issuer</code> field may be detected but rejected during battle join. 
-                You may need to update the contract to support multiple collection types.
+              <p style={{ color: '#00ff00', fontSize: '12px', lineHeight: '1.6', margin: 0 }}>
+                ✅ <strong>Blockchain Whitelist:</strong> Adding or removing collections will submit an on-chain transaction.
+                The smart contract validates NFT types by their full package ID, module, and struct name.
+                Only whitelisted collections can join battles.
               </p>
             </div>
           </div>
