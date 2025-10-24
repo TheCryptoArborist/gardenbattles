@@ -9,379 +9,361 @@ export default function Home() {
       style={{
         background: 'url(/assets/background1.jpg) no-repeat center center fixed',
         backgroundSize: 'cover',
-        color: '#f7fafc',
+        color: 'white',
         minHeight: '100vh',
         margin: 0,
         padding: 0,
+        fontFamily: 'Orbitron, sans-serif',
       }}
     >
-      {/* Header - Centered with logo and nav stacked */}
+      {/* Header */}
       <header 
         style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          zIndex: 100,
-          padding: 'clamp(0.8rem, 3vw, 1rem) 5%',
-          background: 'linear-gradient(#1a4731, transparent)',
-          backdropFilter: 'blur(10px)',
           display: 'flex',
-          justifyContent: 'center',
+          justifyContent: 'space-between',
           alignItems: 'center',
+          padding: '15px 30px',
+          background: 'rgba(0, 50, 0, 0.8)',
+          borderBottom: '2px solid #00ff00',
+          boxShadow: '0 0 15px #00ff00',
         }}
       >
-        <div
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            textAlign: 'center',
-            gap: '0.5rem',
-          }}
-        >
-          <img 
-            src="/assets/tree.jpg" 
-            alt="Battle Garden Logo"
+        <Link href="/">
+          <img
+            src="/assets/thick.png"
+            alt="Thickquidity Logo"
             style={{
-              height: 'clamp(3rem, 10vw, 5rem)',
-              maxWidth: '90%',
-              filter: 'drop-shadow(0 0 10px #34d399)',
-              marginBottom: '0.25rem',
-            }}
-            data-testid="img-logo"
-          />
-          <nav
-            style={{
-              display: 'flex',
-              justifyContent: 'center',
-              flexWrap: 'wrap',
-              gap: '1rem',
-            }}
-          >
-            <Link 
-              href="/"
-              style={{
-                color: '#00ff00',
-                textDecoration: 'none',
-                margin: 'clamp(0.5rem, 1.5vw, 1rem)',
-                fontWeight: 'bold',
-                fontSize: 'clamp(0.8rem, 2.2vw, 1rem)',
-                position: 'relative',
-                transition: 'color 0.3s',
-              }}
-              onMouseEnter={(e) => e.currentTarget.style.color = '#00cc00'}
-              onMouseLeave={(e) => e.currentTarget.style.color = '#00ff00'}
-              data-testid="link-home"
-            >
-              Home
-            </Link>
-            <a
-              href="https://sensational-bubblegum-fd9c7c.netlify.app/"
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{
-                color: '#00ff00',
-                textDecoration: 'none',
-                margin: 'clamp(0.5rem, 1.5vw, 1rem)',
-                fontWeight: 'bold',
-                fontSize: 'clamp(0.8rem, 2.2vw, 1rem)',
-                position: 'relative',
-                transition: 'color 0.3s',
-              }}
-              onMouseEnter={(e) => e.currentTarget.style.color = '#00cc00'}
-              onMouseLeave={(e) => e.currentTarget.style.color = '#00ff00'}
-              data-testid="link-arboretum"
-            >
-              Arboretum
-            </a>
-            <Link 
-              href="/battle"
-              style={{
-                color: '#00ff00',
-                textDecoration: 'none',
-                margin: 'clamp(0.5rem, 1.5vw, 1rem)',
-                fontWeight: 'bold',
-                fontSize: 'clamp(0.8rem, 2.2vw, 1rem)',
-                position: 'relative',
-                transition: 'color 0.3s',
-              }}
-              onMouseEnter={(e) => e.currentTarget.style.color = '#00cc00'}
-              onMouseLeave={(e) => e.currentTarget.style.color = '#00ff00'}
-              data-testid="link-battle"
-            >
-              Battle
-            </Link>
-          </nav>
-        </div>
-      </header>
-
-      {/* Main Content Wrapper */}
-      <div
-        style={{
-          paddingTop: '120px',
-          minHeight: '100vh',
-          display: 'flex',
-          flexDirection: 'column',
-          textAlign: 'center',
-          padding: 'clamp(1rem, 5vw, 2rem)',
-          position: 'relative',
-          zIndex: 2,
-        }}
-      >
-        {/* Hero Section */}
-        <div style={{ maxWidth: '90%', width: '100%', margin: '0 auto', paddingBottom: '3rem' }}>
-          <img 
-            src="/assets/tree.jpg" 
-            alt="Battle Garden Logo"
-            style={{
-              width: '200px',
-              height: '200px',
-              margin: '0 auto clamp(1rem, 3vw, 1.5rem)',
-              display: 'block',
-              filter: 'drop-shadow(0 0 15px #34d399)',
-              borderRadius: '50%',
-              objectFit: 'cover',
-              boxShadow: '0 0 40px #00ff00',
-              border: '4px solid #00ff00',
-            }}
-          />
-          
-          <h1
-            style={{
-              fontSize: 'clamp(1.8rem, 5vw, 3.5rem)',
-              marginBottom: 'clamp(1rem, 3vw, 2rem)',
-              color: '#34d399',
-              textShadow: '0 0 10px #1a4731',
-              fontFamily: 'Orbitron, sans-serif',
-            }}
-          >
-            The Garden Battles
-          </h1>
-
-          <p
-            style={{
-              fontSize: 'clamp(0.9rem, 2.8vw, 1.3rem)',
-              marginBottom: 'clamp(1rem, 3vw, 2rem)',
-              maxWidth: '600px',
-              marginLeft: 'auto',
-              marginRight: 'auto',
-              color: '#00ffcc',
-              textShadow: '0 0 10px #00ff00',
-            }}
-          >
-            Battle your Sapling NFTs in strategic 1v1 turn-based combat. Watch your NFT evolve from seed to full tree as you gain Growth points.
-          </p>
-
-          {/* Connect Wallet Button */}
-          <div style={{ marginBottom: 'clamp(2rem, 4vw, 3rem)' }}>
-            <ConnectButton 
-              connectText="Connect Wallet"
-              style={{
-                background: 'linear-gradient(45deg, #34d399, #d4a017)',
-                color: '#1a4731',
-                padding: 'clamp(0.6rem, 1.8vw, 0.9rem) clamp(1.2rem, 2.8vw, 2rem)',
-                borderRadius: '9999px',
-                fontWeight: 'bold',
-                fontSize: 'clamp(0.8rem, 2.2vw, 1.1rem)',
-                border: 'none',
-                cursor: 'pointer',
-                transition: 'transform 0.3s, box-shadow 0.3s',
-              }}
-            />
-          </div>
-
-          {account && (
-            <p
-              style={{
-                fontSize: '0.8rem',
-                color: '#d4a017',
-                marginTop: '0.5rem',
-              }}
-            >
-              Connected: {account.address.slice(0, 6)}...{account.address.slice(-4)}
-            </p>
-          )}
-
-          {/* CTA Button */}
-          <Link 
-            href="/battle"
-            style={{
-              display: 'inline-block',
-              background: 'linear-gradient(45deg, #34d399, #d4a017)',
-              color: '#1a4731',
-              padding: 'clamp(0.6rem, 1.8vw, 0.9rem) clamp(1.2rem, 2.8vw, 2rem)',
-              borderRadius: '9999px',
-              textDecoration: 'none',
-              fontWeight: 'bold',
-              fontSize: 'clamp(0.8rem, 2.2vw, 1.1rem)',
-              position: 'relative',
-              overflow: 'hidden',
-              transition: 'transform 0.3s, box-shadow 0.3s',
-              marginTop: '2rem',
+              width: '80px',
+              cursor: 'pointer',
+              filter: 'drop-shadow(0 0 15px #00ff00)',
+              transition: 'transform 0.3s ease, filter 0.3s ease',
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.transform = 'scale(1.15)';
-              e.currentTarget.style.boxShadow = '0 0 20px #34d399';
+              e.currentTarget.style.transform = 'scale(1.1)';
+              e.currentTarget.style.filter = 'drop-shadow(0 0 25px #00cc00)';
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.transform = 'scale(1)';
-              e.currentTarget.style.boxShadow = 'none';
+              e.currentTarget.style.filter = 'drop-shadow(0 0 15px #00ff00)';
+            }}
+            data-testid="logo-home"
+          />
+        </Link>
+
+        <nav style={{ display: 'flex', gap: '10px' }}>
+          <Link 
+            href="/"
+            style={{
+              color: '#00ff00',
+              margin: '0 10px',
+              textDecoration: 'none',
+              fontSize: '16px',
+              transition: 'color 0.3s ease',
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.color = '#00cc00'}
+            onMouseLeave={(e) => e.currentTarget.style.color = '#00ff00'}
+            data-testid="link-home"
+          >
+            Home
+          </Link>
+          <a
+            href="https://sensational-bubblegum-fd9c7c.netlify.app/"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              color: '#00ff00',
+              margin: '0 10px',
+              textDecoration: 'none',
+              fontSize: '16px',
+              transition: 'color 0.3s ease',
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.color = '#00cc00'}
+            onMouseLeave={(e) => e.currentTarget.style.color = '#00ff00'}
+            data-testid="link-arboretum"
+          >
+            Arboretum
+          </a>
+        </nav>
+
+        <ConnectButton 
+          connectText="Connect Wallet"
+          style={{
+            padding: '10px 20px',
+            border: '2px solid #00ff00',
+            background: 'linear-gradient(45deg, rgba(0, 100, 0, 0.5), rgba(0, 150, 0, 0.5))',
+            color: 'white',
+            fontSize: '16px',
+            fontFamily: 'Orbitron, sans-serif',
+            cursor: 'pointer',
+            transition: 'all 0.3s ease',
+            boxShadow: '0 0 10px #00ff00, 0 0 5px #000000',
+            borderRadius: '8px',
+            textTransform: 'uppercase',
+          }}
+        />
+      </header>
+
+      {/* Hero Section with Character */}
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          minHeight: 'calc(100vh - 100px)',
+          padding: '40px 20px',
+          position: 'relative',
+        }}
+      >
+        {/* Hero Character */}
+        <img 
+          src="/assets/hero.png" 
+          alt="Tree Warrior"
+          className="explosion"
+          style={{
+            width: '400px',
+            maxWidth: '90vw',
+            height: 'auto',
+            marginBottom: '30px',
+            filter: 'drop-shadow(0 0 30px #00ff00)',
+          }}
+          data-testid="img-hero"
+        />
+
+        {/* Title */}
+        <h1
+          style={{
+            fontSize: 'clamp(2rem, 6vw, 4rem)',
+            marginBottom: '20px',
+            color: '#00ff00',
+            textShadow: '0 0 20px #00ff00, 0 0 40px #00ff00',
+            fontFamily: 'Orbitron, sans-serif',
+            fontWeight: 'bold',
+            textAlign: 'center',
+          }}
+        >
+          The Garden Battles
+        </h1>
+
+        {/* Subtitle */}
+        <p
+          style={{
+            fontSize: 'clamp(1rem, 3vw, 1.5rem)',
+            marginBottom: '30px',
+            maxWidth: '700px',
+            textAlign: 'center',
+            color: '#00ffcc',
+            lineHeight: '1.6',
+          }}
+        >
+          Battle your Sapling NFTs in strategic 1v1 turn-based combat on the Sui blockchain. 
+          Watch your NFT evolve from seed to full tree as you gain Growth points!
+        </p>
+
+        {/* CTA Buttons */}
+        <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap', justifyContent: 'center' }}>
+          <Link 
+            href="/battle"
+            style={{
+              padding: '15px 40px',
+              border: '2px solid #00ff00',
+              background: 'linear-gradient(45deg, rgba(0, 100, 0, 0.5), rgba(0, 150, 0, 0.5))',
+              color: 'white',
+              fontSize: '18px',
+              fontFamily: 'Orbitron, sans-serif',
+              cursor: 'pointer',
+              transition: 'all 0.3s ease',
+              boxShadow: '0 0 10px #00ff00',
+              borderRadius: '8px',
+              textTransform: 'uppercase',
+              textDecoration: 'none',
+              display: 'inline-block',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = '#00ff00';
+              e.currentTarget.style.color = '#000';
+              e.currentTarget.style.boxShadow = '0 0 25px #00ff00';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'linear-gradient(45deg, rgba(0, 100, 0, 0.5), rgba(0, 150, 0, 0.5))';
+              e.currentTarget.style.color = 'white';
+              e.currentTarget.style.boxShadow = '0 0 10px #00ff00';
             }}
             data-testid="button-enter-battle"
           >
             Enter The Garden Battle
           </Link>
 
-          {/* Info Cards */}
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(min(200px, 100%), 1fr))',
-              gap: 'clamp(0.8rem, 2.5vw, 1.5rem)',
-              maxWidth: '1200px',
-              margin: '3rem auto 0',
-            }}
-          >
-            {/* Mission */}
-            <div
-              style={{
-                padding: 'clamp(0.8rem, 2.5vw, 1.5rem)',
-                background: 'linear-gradient(#276749, #1a4731)',
-                borderRadius: '0.75rem',
-                textAlign: 'center',
-              }}
-            >
-              <h3
-                style={{
-                  fontSize: 'clamp(1.2rem, 3vw, 1.5rem)',
-                  marginBottom: 'clamp(0.6rem, 1.8vw, 1rem)',
-                  color: '#d4a017',
-                }}
-              >
-                Mission
-              </h3>
-              <p style={{ fontSize: 'clamp(0.8rem, 2.2vw, 0.9rem)' }}>
-                Battle your Sapling NFTs in strategic 1v1 turn-based combat. Watch your NFT evolve from seed to full tree as you gain Growth points.
-              </p>
-            </div>
-
-            {/* Tokenomics */}
-            <div
-              style={{
-                padding: 'clamp(0.8rem, 2.5vw, 1.5rem)',
-                background: 'linear-gradient(#276749, #1a4731)',
-                borderRadius: '0.75rem',
-                textAlign: 'center',
-              }}
-            >
-              <h3
-                style={{
-                  fontSize: 'clamp(1.2rem, 3vw, 1.5rem)',
-                  marginBottom: 'clamp(0.6rem, 1.8vw, 1rem)',
-                  color: '#d4a017',
-                }}
-              >
-                Tokenomics
-              </h3>
-              <ul
-                style={{
-                  listStyleType: 'none',
-                  padding: 0,
-                  fontSize: 'clamp(0.8rem, 2.2vw, 0.9rem)',
-                }}
-              >
-                <li>Entry Fee: 3 SUI</li>
-                <li>Winner Reward: 5 SUI</li>
-                <li>30 Unique Abilities</li>
-                <li>4 Evolution Stages</li>
-              </ul>
-            </div>
-
-            {/* NFTs */}
-            <div
-              style={{
-                padding: 'clamp(0.8rem, 2.5vw, 1.5rem)',
-                background: 'linear-gradient(#276749, #1a4731)',
-                borderRadius: '0.75rem',
-                textAlign: 'center',
-              }}
-            >
-              <h3
-                style={{
-                  fontSize: 'clamp(1.2rem, 3vw, 1.5rem)',
-                  marginBottom: 'clamp(0.6rem, 1.8vw, 1rem)',
-                  color: '#d4a017',
-                }}
-              >
-                NFTrees
-              </h3>
-              <p style={{ fontSize: 'clamp(0.8rem, 2.2vw, 0.9rem)' }}>
-                Sapling NFTs unlock battle access and evolve visually as they grow. Seed → Sapling → Mature → Full Tree.
-              </p>
-            </div>
-          </div>
-
-          {/* Social Links */}
-          <div style={{ marginTop: '3rem', marginBottom: '3rem' }}>
-            <p style={{ fontSize: '0.9rem', marginBottom: '1rem', color: '#2dd4bf' }}>
-              Join the $TREE Forest
-            </p>
-            <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
-              <a 
-                href="https://x.com/thickquidity" 
-                target="_blank" 
-                rel="noopener noreferrer"
-                style={{ color: '#34d399', fontSize: '0.9rem', textDecoration: 'underline' }}
-              >
-                X
-              </a>
-              <a 
-                href="https://t.me/thickquidity" 
-                target="_blank" 
-                rel="noopener noreferrer"
-                style={{ color: '#34d399', fontSize: '0.9rem', textDecoration: 'underline' }}
-              >
-                Telegram
-              </a>
-              <a 
-                href="https://sui.io/" 
-                target="_blank" 
-                rel="noopener noreferrer"
-                style={{ color: '#34d399', fontSize: '0.9rem', textDecoration: 'underline' }}
-              >
-                SUI Network
-              </a>
-            </div>
-          </div>
-        </div>
-
-        {/* Footer */}
-        <footer
-          style={{
-            textAlign: 'center',
-            padding: '1.5rem',
-            background: 'rgba(26, 71, 49, 0.8)',
-            borderTop: '2px solid #34d399',
-            marginTop: 'auto',
-          }}
-        >
-          <a
-            href="https://sui.io/"
+          <a 
+            href="https://sensational-bubblegum-fd9c7c.netlify.app/"
             target="_blank"
             rel="noopener noreferrer"
             style={{
-              color: '#2dd4bf',
+              padding: '15px 40px',
+              border: '2px solid #00ff00',
+              background: 'transparent',
+              color: '#00ff00',
+              fontSize: '18px',
+              fontFamily: 'Orbitron, sans-serif',
+              cursor: 'pointer',
+              transition: 'all 0.3s ease',
+              boxShadow: '0 0 10px #00ff00',
+              borderRadius: '8px',
+              textTransform: 'uppercase',
               textDecoration: 'none',
-              transition: 'color 0.3s',
+              display: 'inline-block',
             }}
-            onMouseEnter={(e) => e.currentTarget.style.color = '#34d399'}
-            onMouseLeave={(e) => e.currentTarget.style.color = '#2dd4bf'}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = '#00ff00';
+              e.currentTarget.style.color = '#000';
+              e.currentTarget.style.boxShadow = '0 0 25px #00ff00';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'transparent';
+              e.currentTarget.style.color = '#00ff00';
+              e.currentTarget.style.boxShadow = '0 0 10px #00ff00';
+            }}
+            data-testid="button-arboretum"
           >
-            Powered by SUI
+            Visit Arboretum
           </a>
-        </footer>
+        </div>
+
+        {/* Info Cards */}
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+            gap: '25px',
+            maxWidth: '1200px',
+            width: '100%',
+            marginTop: '60px',
+          }}
+        >
+          {/* Mission Card */}
+          <div
+            style={{
+              padding: '25px',
+              background: 'rgba(0, 50, 0, 0.8)',
+              border: '2px solid #00ff00',
+              borderRadius: '15px',
+              boxShadow: '0 0 15px #00ff00',
+            }}
+          >
+            <h3
+              style={{
+                fontSize: '24px',
+                marginBottom: '15px',
+                color: '#00ff00',
+                textShadow: '0 0 5px #00ff00',
+              }}
+            >
+              Mission
+            </h3>
+            <p style={{ color: '#00ffcc', fontSize: '16px', lineHeight: '1.5' }}>
+              Battle your Sapling NFTs in strategic 1v1 turn-based combat. Watch your NFT evolve from seed to full tree as you gain Growth points.
+            </p>
+          </div>
+
+          {/* Tokenomics Card */}
+          <div
+            style={{
+              padding: '25px',
+              background: 'rgba(0, 50, 0, 0.8)',
+              border: '2px solid #00ff00',
+              borderRadius: '15px',
+              boxShadow: '0 0 15px #00ff00',
+            }}
+          >
+            <h3
+              style={{
+                fontSize: '24px',
+                marginBottom: '15px',
+                color: '#00ff00',
+                textShadow: '0 0 5px #00ff00',
+              }}
+            >
+              Tokenomics
+            </h3>
+            <ul style={{ listStyleType: 'none', padding: 0, color: '#00ffcc', fontSize: '16px' }}>
+              <li style={{ marginBottom: '10px' }}>✓ Entry Fee: 3 SUI</li>
+              <li style={{ marginBottom: '10px' }}>✓ Winner Reward: 5 SUI</li>
+              <li style={{ marginBottom: '10px' }}>✓ 30 Unique Abilities</li>
+              <li>✓ 4 Evolution Stages</li>
+            </ul>
+          </div>
+
+          {/* NFTrees Card */}
+          <div
+            style={{
+              padding: '25px',
+              background: 'rgba(0, 50, 0, 0.8)',
+              border: '2px solid #00ff00',
+              borderRadius: '15px',
+              boxShadow: '0 0 15px #00ff00',
+            }}
+          >
+            <h3
+              style={{
+                fontSize: '24px',
+                marginBottom: '15px',
+                color: '#00ff00',
+                textShadow: '0 0 5px #00ff00',
+              }}
+            >
+              NFTrees
+            </h3>
+            <p style={{ color: '#00ffcc', fontSize: '16px', lineHeight: '1.5' }}>
+              Sapling NFTs unlock battle access and evolve visually as they grow. Seed → Sapling → Mature → Full Tree.
+            </p>
+          </div>
+        </div>
       </div>
+
+      {/* Footer */}
+      <footer
+        style={{
+          textAlign: 'center',
+          padding: '25px',
+          background: 'rgba(0, 50, 0, 0.8)',
+          borderTop: '2px solid #00ff00',
+          boxShadow: '0 0 15px #00ff00',
+          position: 'relative',
+        }}
+      >
+        <a
+          href="https://x.com/thickquidity"
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            color: '#00ffcc',
+            textDecoration: 'none',
+            transition: 'color 0.3s ease, text-shadow 0.3s ease',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.color = '#00ffff';
+            e.currentTarget.style.textShadow = '0 0 10px #00ffff, 0 0 20px #00ffff, 0 0 30px #00ffff';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.color = '#00ffcc';
+            e.currentTarget.style.textShadow = 'none';
+          }}
+        >
+          Powered by SUI | Join Thickquidity
+        </a>
+        <div
+          style={{
+            position: 'absolute',
+            bottom: '10px',
+            right: '15px',
+            fontSize: '12px',
+            color: '#00ff00',
+            opacity: 0.7,
+          }}
+        >
+          Based Dev
+        </div>
+      </footer>
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link } from 'wouter';
 import { Trophy } from 'lucide-react';
 import { useSuiWallet } from '@/hooks/useSuiWallet';
@@ -28,6 +28,13 @@ export default function Battle() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogMessage, setDialogMessage] = useState('');
   const [hasScanned, setHasScanned] = useState(false);
+  const [playerAnimation, setPlayerAnimation] = useState('');
+  const [opponentAnimation, setOpponentAnimation] = useState('');
+  const [prevPlayerGrowth, setPrevPlayerGrowth] = useState<number | null>(null);
+  const [prevOpponentGrowth, setPrevOpponentGrowth] = useState<number | null>(null);
+  
+  const playerAnimationTimer = useRef<NodeJS.Timeout | null>(null);
+  const opponentAnimationTimer = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     async function autoJoinBattle() {
@@ -79,6 +86,69 @@ export default function Battle() {
     ? (battleState.winner.toLowerCase() === address?.toLowerCase() ? 'player' : 'opponent')
     : null;
 
+  // Trigger animations when growth changes with proper cleanup
+  useEffect(() => {
+    if (playerGrowth !== prevPlayerGrowth && prevPlayerGrowth !== null) {
+      // Clear any existing animation timer
+      if (playerAnimationTimer.current) {
+        clearTimeout(playerAnimationTimer.current);
+      }
+      
+      // Force animation restart by clearing class first
+      setPlayerAnimation('');
+      
+      // Use requestAnimationFrame to ensure DOM updates before applying new animation
+      requestAnimationFrame(() => {
+        const newAnimation = playerGrowth > prevPlayerGrowth ? 'grow-green' : 'shake';
+        setPlayerAnimation(newAnimation);
+        
+        // Schedule cleanup
+        playerAnimationTimer.current = setTimeout(() => {
+          setPlayerAnimation('');
+          playerAnimationTimer.current = null;
+        }, 2000);
+      });
+    }
+    setPrevPlayerGrowth(playerGrowth);
+  }, [playerGrowth, prevPlayerGrowth]);
+
+  useEffect(() => {
+    if (opponentGrowth !== prevOpponentGrowth && prevOpponentGrowth !== null) {
+      // Clear any existing animation timer
+      if (opponentAnimationTimer.current) {
+        clearTimeout(opponentAnimationTimer.current);
+      }
+      
+      // Force animation restart by clearing class first
+      setOpponentAnimation('');
+      
+      // Use requestAnimationFrame to ensure DOM updates before applying new animation
+      requestAnimationFrame(() => {
+        const newAnimation = opponentGrowth > prevOpponentGrowth ? 'grow-green' : 'shake';
+        setOpponentAnimation(newAnimation);
+        
+        // Schedule cleanup
+        opponentAnimationTimer.current = setTimeout(() => {
+          setOpponentAnimation('');
+          opponentAnimationTimer.current = null;
+        }, 2000);
+      });
+    }
+    setPrevOpponentGrowth(opponentGrowth);
+  }, [opponentGrowth, prevOpponentGrowth]);
+
+  // Cleanup timers on unmount
+  useEffect(() => {
+    return () => {
+      if (playerAnimationTimer.current) {
+        clearTimeout(playerAnimationTimer.current);
+      }
+      if (opponentAnimationTimer.current) {
+        clearTimeout(opponentAnimationTimer.current);
+      }
+    };
+  }, []);
+
   let battleStatus = 'Connect wallet to start!';
   if (isConnected && !battleState) {
     battleStatus = 'Searching for Sapling NFT...';
@@ -119,8 +189,8 @@ export default function Battle() {
       >
         <Link href="/">
           <img
-            src="/assets/tree.jpg"
-            alt="Battle Garden Logo"
+            src="/assets/thick.png"
+            alt="Thickquidity Logo"
             style={{
               width: '80px',
               cursor: 'pointer',
@@ -179,7 +249,7 @@ export default function Battle() {
         </div>
       </header>
 
-      {/* Title Image */}
+      {/* Title Image with animation */}
       <img
         src="/assets/backgrounda.jpg"
         alt="The Garden Battles"
@@ -190,9 +260,7 @@ export default function Battle() {
           maxHeight: '300px',
           margin: '25px auto 10px',
           display: 'block',
-          borderRadius: '15px',
-          boxShadow: '0 0 30px #00ff00',
-          border: '3px solid #00ff00',
+          animation: 'explodeAndShrink 2s ease-out forwards',
         }}
         data-testid="img-battle-title"
       />
@@ -219,6 +287,7 @@ export default function Battle() {
           }}
         >
           <div
+            className={playerAnimation}
             style={{
               width: '240px',
               height: '336px',
@@ -330,6 +399,7 @@ export default function Battle() {
           }}
         >
           <div
+            className={opponentAnimation}
             style={{
               width: '240px',
               height: '336px',
@@ -545,6 +615,7 @@ export default function Battle() {
           background: 'rgba(0, 50, 0, 0.8)',
           borderTop: '2px solid #00ff00',
           boxShadow: '0 0 15px #00ff00',
+          position: 'relative',
         }}
       >
         <a
@@ -567,6 +638,18 @@ export default function Battle() {
         >
           Powered by SUI
         </a>
+        <div
+          style={{
+            position: 'absolute',
+            bottom: '10px',
+            right: '15px',
+            fontSize: '12px',
+            color: '#00ff00',
+            opacity: 0.7,
+          }}
+        >
+          Based Dev
+        </div>
       </footer>
 
       <BattleDialog 
