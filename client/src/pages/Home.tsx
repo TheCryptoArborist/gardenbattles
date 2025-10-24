@@ -4,6 +4,7 @@ import { Link } from 'wouter';
 export default function Home() {
   const [speechBubbleVisible, setSpeechBubbleVisible] = useState(false);
   const [currentPhrase, setCurrentPhrase] = useState(0);
+  const [arboretumModalOpen, setArboretumModalOpen] = useState(false);
 
   const phrases = [
     "Get your $TREE roots started!",
@@ -157,6 +158,27 @@ export default function Home() {
               data-testid="link-social"
             >
               Social
+            </a>
+            <a
+              href="#"
+              onClick={(e) => {
+                e.preventDefault();
+                setArboretumModalOpen(true);
+              }}
+              style={{
+                color: '#f7fafc',
+                textDecoration: 'none',
+                margin: 'clamp(0.5rem, 1.5vw, 1rem)',
+                fontWeight: 'bold',
+                fontSize: 'clamp(0.8rem, 2.2vw, 1rem)',
+                transition: 'color 0.3s',
+                cursor: 'pointer',
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.color = '#34d399')}
+              onMouseLeave={(e) => (e.currentTarget.style.color = '#f7fafc')}
+              data-testid="link-arboretum"
+            >
+              Arboretum
             </a>
             <Link
               href="/battle"
@@ -1051,6 +1073,126 @@ export default function Home() {
           {phrases[currentPhrase]}
         </div>
       </div>
+
+      {/* Arboretum Coming Soon Modal */}
+      {arboretumModalOpen && (
+        <div
+          onClick={() => setArboretumModalOpen(false)}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100vw',
+            height: '100vh',
+            background: 'rgba(0, 0, 0, 0.8)',
+            zIndex: 200,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 'clamp(1rem, 3vw, 2rem)',
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              position: 'relative',
+              width: 'clamp(300px, 90vw, 600px)',
+              background: 'linear-gradient(#1a4731, #276749)',
+              border: '3px solid #d4a017',
+              borderRadius: '10px',
+              boxShadow: '0 0 20px rgba(52, 211, 153, 0.6)',
+              padding: 'clamp(2rem, 5vw, 3rem)',
+              textAlign: 'center',
+            }}
+          >
+            <h2
+              style={{
+                fontSize: 'clamp(1.5rem, 4vw, 2.5rem)',
+                color: '#d4a017',
+                marginBottom: 'clamp(1rem, 3vw, 1.5rem)',
+                textShadow: '0 0 10px rgba(212, 160, 23, 0.5)',
+              }}
+            >
+              The Arboretum
+            </h2>
+            <p
+              style={{
+                fontSize: 'clamp(1rem, 2.5vw, 1.2rem)',
+                color: '#f7fafc',
+                marginBottom: 'clamp(1.5rem, 4vw, 2rem)',
+                lineHeight: '1.6',
+              }}
+            >
+              Coming Soon in Q4 2025
+            </p>
+            <p
+              style={{
+                fontSize: 'clamp(0.9rem, 2.2vw, 1rem)',
+                color: '#34d399',
+                marginBottom: 'clamp(1.5rem, 4vw, 2rem)',
+                lineHeight: '1.6',
+              }}
+            >
+              The Arboretum will be your gateway to explore, collect, and nurture your NFT forest. 
+              Stay tuned for exclusive features, enhanced battle mechanics, and community-driven growth!
+            </p>
+            <button
+              onClick={() => setArboretumModalOpen(false)}
+              style={{
+                background: 'linear-gradient(45deg, #34d399, #d4a017)',
+                color: '#1a4731',
+                padding: 'clamp(0.6rem, 1.8vw, 0.8rem) clamp(1.2rem, 2.8vw, 2rem)',
+                borderRadius: '9999px',
+                border: 'none',
+                fontWeight: 'bold',
+                fontSize: 'clamp(0.8rem, 2.2vw, 1rem)',
+                cursor: 'pointer',
+                transition: 'transform 0.3s, box-shadow 0.3s',
+                boxShadow: '0 0 15px rgba(52, 211, 153, 0.6)',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'scale(1.1)';
+                e.currentTarget.style.boxShadow = '0 0 20px #34d399';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'scale(1)';
+                e.currentTarget.style.boxShadow = '0 0 15px rgba(52, 211, 153, 0.6)';
+              }}
+              data-testid="button-close-arboretum"
+            >
+              Got it!
+            </button>
+            <button
+              onClick={() => setArboretumModalOpen(false)}
+              style={{
+                position: 'absolute',
+                top: 'clamp(10px, 2vw, 15px)',
+                right: 'clamp(10px, 2vw, 15px)',
+                width: 'clamp(30px, 8vw, 40px)',
+                height: 'clamp(30px, 8vw, 40px)',
+                background: '#1a4731',
+                color: '#d4a017',
+                borderRadius: '50%',
+                border: 'none',
+                fontSize: 'clamp(1rem, 2.5vw, 1.2rem)',
+                cursor: 'pointer',
+                transition: 'transform 0.3s, box-shadow 0.3s',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'scale(1.2)';
+                e.currentTarget.style.boxShadow = '0 0 15px #34d399';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'scale(1)';
+                e.currentTarget.style.boxShadow = '';
+              }}
+              data-testid="button-close-arboretum-x"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
