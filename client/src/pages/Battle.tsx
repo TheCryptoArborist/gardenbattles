@@ -694,7 +694,7 @@ export default function Battle() {
       <WaitingOverlay isWaiting={isWaiting} />
       
       <AdminPanel 
-        adminAddress="0xcc8efa0e60a6632f1d948345095fd5a55eb37022fbc2646e5ce10046eb95c3e6"
+        adminAddress="0x8d73665b159d406d1bd208782cbba5304900ecafbde23f957f77843b5ea06961"
         currentAddress={address || null}
       />
 
