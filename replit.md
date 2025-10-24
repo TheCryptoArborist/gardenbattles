@@ -15,36 +15,25 @@ A blockchain-based NFT battle game built on the Sui network where players battle
 
 ## Recent Changes
 
-**2025-10-24:** Complete Home page rebuild with ALL 8 sections - PRODUCTION READY ✅
-- **COMPLETED**: Rebuilt Home page with correct neon green (#00ff00) color palette per design_guidelines.md
-- **COMPLETED**: Implemented ALL 8 sections from original HTML template:
-  1. Hero section (hero.png tree warrior, "The Garden Battles" title, 2 CTAs)
-  2. About Battle Garden (3 stat cards: Fair Launch, NFTrees, SUI-Powered)
-  3. Our Mission (3 cards: Growth, Ecosystem, Sustainability)
-  4. Tokenomics of $TREE (4 cards: Total Supply, NFTrees, Staking Rewards, Fair Launch)
-  5. $TREE NFTs (tree.jpg image with full descriptions)
-  6. $TREE Litepaper (description text)
-  7. Social Outreach Utility (description)
-  8. Join the $TREE Forest (6 social link buttons)
-- **COMPLETED**: "Coming Soon" dialog for Arboretum button (no redirect)
-- **COMPLETED**: Footer with social links and "Based Dev" attribution in bottom-right
-- **DESIGN SPECS MET**: 
+**2025-10-24:** Home page rebuilt with CORRECT main page design - TWO DISTINCT PAGE DESIGNS ✅
+- **CRITICAL FIX**: Home page now uses MAIN page design template (was incorrectly using battle page design)
+- **Home Page (Main) Design:**
+  - Background: background1.jpg (fixed, cover)
+  - Colors: #34d399 emerald green, #d4a017 gold accents
+  - Font: Arial, sans-serif
+  - Header: Centered layout with thick.png logo on top, nav links below
+  - Hero character: Fixed bottom-right with interactive speech bubble cycling phrases
+  - Minimalist design with hero section and navigation
+- **Battle Page Design (DIFFERENT from Home):**
   - Background: background4.jpg (fixed, cover)
   - Colors: #00ff00 neon green, #00ffcc cyan, rgba(0,50,0,0.8) dark backgrounds
-  - Font: Orbitron throughout
-  - Header: horizontal layout (thick.png logo left, nav center, ConnectButton right)
-  - Info sections: max-width 900px, 25px padding, **left-aligned text**
-  - Borders: 2px solid #00ff00 with 0 0 15px #00ff00 box shadows
-  - Border radius: 15px sections, 8px buttons
-  - Mobile responsive with clamp() sizing
-- **COMPLETED**: Battle page animations (production-ready):
+  - Font: Orbitron, sans-serif
+  - Header: Horizontal layout (thick.png logo left, nav center, ConnectButton right)
+  - Battle animations: Shake on damage, green glow on healing
   - Timer cleanup with useRef to prevent memory leaks
   - requestAnimationFrame toggle for consecutive identical animations
-  - Null sentinel guards to handle 0→X growth transitions
-  - Shake effect when NFTs take damage, green glow when healing
-- **VERIFIED**: End-to-end tests passing - all sections visible, navigation working
-- **VERIFIED**: Architect-approved as production-ready
-- **VERIFIED**: No critical JavaScript errors
+- **VERIFIED**: Architect-approved - both pages have completely different visual designs
+- **VERIFIED**: No security issues, ready for production
 
 **2025-01-24:** Initial implementation with wallet integration
 - Implemented proper @mysten/dapp-kit wallet integration
@@ -97,24 +86,27 @@ client/src/
 
 ### Design System
 
-**Color Palette:**
+**IMPORTANT**: The application has TWO DISTINCT page designs:
+
+**Home Page (Main) Design System:**
+- Background: background1.jpg
+- Primary Color: #34d399 (emerald green)
+- Accent Color: #d4a017 (gold)
+- Font: Arial, sans-serif
+- Layout: Centered header with logo on top
+- Character: Hero at bottom-right with speech bubble
+
+**Battle Page Design System:**
+- Background: background4.jpg
 - Primary Green: #00ff00 (borders, glows, primary actions)
 - Secondary Green: #00cc00 (hover states)
 - Accent Cyan: #00ffcc (info text)
 - Red: #ff0000 (player card borders)
 - Dark Red: #8B0000 (opponent card borders)
 - Dark Background: rgba(0, 50, 0, 0.5) (panels)
-- Black: #000 (base background)
-
-**Typography:**
-- Font Family: 'Orbitron' (Google Fonts)
-- Weights: 400 (regular), 700 (bold)
-
-**NFT Card Design:**
-- Red gradient bordered frames (4px solid border)
-- Dark inner panel with nested image
-- Green health bars with glow effect
-- Trophy icon for winners (lucide-react)
+- Font: Orbitron (Google Fonts)
+- Layout: Horizontal header
+- NFT Cards: Red gradient borders, green health bars, trophy icons
 
 ### Sui Blockchain Configuration
 
