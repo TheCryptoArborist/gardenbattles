@@ -15,22 +15,36 @@ A blockchain-based NFT battle game built on the Sui network where players battle
 
 ## Recent Changes
 
-**2025-10-24:** Complete redesign matching original HTML templates - PRODUCTION READY
-- **COMPLETED**: Rebuilt Home page with hero.png character (tree warrior) and explosion animation
-- **COMPLETED**: Replaced all logos with thick.png (Thickquidity transparent logo) on both pages
-- **COMPLETED**: Added title banner with explodeAndShrink animation on Battle page
-- **COMPLETED**: Added "Based Dev" attribution text in bottom-right corner of all footers
-- **COMPLETED**: Implemented production-ready battle animations:
+**2025-10-24:** Complete Home page rebuild with ALL 8 sections - PRODUCTION READY ✅
+- **COMPLETED**: Rebuilt Home page with correct neon green (#00ff00) color palette per design_guidelines.md
+- **COMPLETED**: Implemented ALL 8 sections from original HTML template:
+  1. Hero section (hero.png tree warrior, "The Garden Battles" title, 2 CTAs)
+  2. About Battle Garden (3 stat cards: Fair Launch, NFTrees, SUI-Powered)
+  3. Our Mission (3 cards: Growth, Ecosystem, Sustainability)
+  4. Tokenomics of $TREE (4 cards: Total Supply, NFTrees, Staking Rewards, Fair Launch)
+  5. $TREE NFTs (tree.jpg image with full descriptions)
+  6. $TREE Litepaper (description text)
+  7. Social Outreach Utility (description)
+  8. Join the $TREE Forest (6 social link buttons)
+- **COMPLETED**: "Coming Soon" dialog for Arboretum button (no redirect)
+- **COMPLETED**: Footer with social links and "Based Dev" attribution in bottom-right
+- **DESIGN SPECS MET**: 
+  - Background: background4.jpg (fixed, cover)
+  - Colors: #00ff00 neon green, #00ffcc cyan, rgba(0,50,0,0.8) dark backgrounds
+  - Font: Orbitron throughout
+  - Header: horizontal layout (thick.png logo left, nav center, ConnectButton right)
+  - Info sections: max-width 900px, 25px padding, **left-aligned text**
+  - Borders: 2px solid #00ff00 with 0 0 15px #00ff00 box shadows
+  - Border radius: 15px sections, 8px buttons
+  - Mobile responsive with clamp() sizing
+- **COMPLETED**: Battle page animations (production-ready):
   - Timer cleanup with useRef to prevent memory leaks
   - requestAnimationFrame toggle for consecutive identical animations
   - Null sentinel guards to handle 0→X growth transitions
-  - Shake effect when NFTs take damage
-  - Green glow effect when NFTs heal/gain growth
-  - All animations run for full 2-second duration
-- **VERIFIED**: All images loading correctly (hero.png, thick.png, backgrounds, NFT stages)
-- **VERIFIED**: All animations functional and architect-approved
-- **VERIFIED**: No JavaScript errors, no memory leaks, no race conditions
-- **VERIFIED**: All sections properly scrollable on both pages
+  - Shake effect when NFTs take damage, green glow when healing
+- **VERIFIED**: End-to-end tests passing - all sections visible, navigation working
+- **VERIFIED**: Architect-approved as production-ready
+- **VERIFIED**: No critical JavaScript errors
 
 **2025-01-24:** Initial implementation with wallet integration
 - Implemented proper @mysten/dapp-kit wallet integration
