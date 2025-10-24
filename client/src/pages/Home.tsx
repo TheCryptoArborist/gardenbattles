@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { Link } from 'wouter';
 
 export default function Home() {
-  const [bookletOpen, setBookletOpen] = useState(false);
   const [speechBubbleVisible, setSpeechBubbleVisible] = useState(false);
   const [currentPhrase, setCurrentPhrase] = useState(0);
 
@@ -111,6 +110,54 @@ export default function Home() {
             >
               Mission
             </a>
+            <a
+              href="#tokenomics"
+              style={{
+                color: '#f7fafc',
+                textDecoration: 'none',
+                margin: 'clamp(0.5rem, 1.5vw, 1rem)',
+                fontWeight: 'bold',
+                fontSize: 'clamp(0.8rem, 2.2vw, 1rem)',
+                transition: 'color 0.3s',
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.color = '#34d399')}
+              onMouseLeave={(e) => (e.currentTarget.style.color = '#f7fafc')}
+              data-testid="link-tokenomics"
+            >
+              Tokenomics
+            </a>
+            <a
+              href="#nfts"
+              style={{
+                color: '#f7fafc',
+                textDecoration: 'none',
+                margin: 'clamp(0.5rem, 1.5vw, 1rem)',
+                fontWeight: 'bold',
+                fontSize: 'clamp(0.8rem, 2.2vw, 1rem)',
+                transition: 'color 0.3s',
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.color = '#34d399')}
+              onMouseLeave={(e) => (e.currentTarget.style.color = '#f7fafc')}
+              data-testid="link-nfts"
+            >
+              NFTs
+            </a>
+            <a
+              href="#social"
+              style={{
+                color: '#f7fafc',
+                textDecoration: 'none',
+                margin: 'clamp(0.5rem, 1.5vw, 1rem)',
+                fontWeight: 'bold',
+                fontSize: 'clamp(0.8rem, 2.2vw, 1rem)',
+                transition: 'color 0.3s',
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.color = '#34d399')}
+              onMouseLeave={(e) => (e.currentTarget.style.color = '#f7fafc')}
+              data-testid="link-social"
+            >
+              Social
+            </a>
             <Link
               href="/battle"
               style={{
@@ -174,8 +221,8 @@ export default function Home() {
             Join the $TREE movement, a fair launch token with robust utility and thick liquidity for a thriving DeFi ecosystem.
           </p>
           <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
-            <Link
-              href="/battle"
+            <a
+              href="#join"
               style={{
                 display: 'inline-block',
                 background: 'linear-gradient(45deg, #34d399, #d4a017)',
@@ -186,6 +233,7 @@ export default function Home() {
                 fontWeight: 'bold',
                 fontSize: 'clamp(0.8rem, 2.2vw, 1.1rem)',
                 transition: 'transform 0.3s, box-shadow 0.3s',
+                boxShadow: '0 0 15px rgba(52, 211, 153, 0.6), 0 0 30px rgba(52, 211, 153, 0.3)',
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.transform = 'scale(1.15)';
@@ -195,10 +243,10 @@ export default function Home() {
                 e.currentTarget.style.transform = 'scale(1)';
                 e.currentTarget.style.boxShadow = '0 0 15px rgba(52, 211, 153, 0.6), 0 0 30px rgba(52, 211, 153, 0.3)';
               }}
-              data-testid="button-battle"
+              data-testid="button-grow"
             >
-              Play Battle Garden
-            </Link>
+              Grow with $TREE
+            </a>
             <a
               href="https://app.turbos.finance/#/trade?input=0x2::sui::SUI&output=0x6c5a609f6d0288523ce4a6ed87d19ae127f62073ab75fd9b0b1c9b455d4895cf::tree::TREE"
               target="_blank"
@@ -213,6 +261,7 @@ export default function Home() {
                 fontWeight: 'bold',
                 fontSize: 'clamp(0.8rem, 2.2vw, 1.1rem)',
                 transition: 'transform 0.3s, box-shadow 0.3s',
+                boxShadow: '0 0 15px rgba(52, 211, 153, 0.6), 0 0 30px rgba(52, 211, 153, 0.3)',
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.transform = 'scale(1.15)';
@@ -234,87 +283,89 @@ export default function Home() {
       <section
         id="about"
         style={{
-          minHeight: '100vh',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: 'clamp(2rem, 8vw, 4rem) clamp(1rem, 5vw, 2rem)',
+          padding: 'clamp(2rem, 6vw, 4rem) clamp(0.8rem, 4vw, 1.5rem)',
           position: 'relative',
           zIndex: 2,
         }}
       >
         <div
           style={{
-            maxWidth: '900px',
-            background: 'rgba(26, 71, 49, 0.85)',
-            backdropFilter: 'blur(10px)',
-            borderRadius: '20px',
-            padding: 'clamp(1.5rem, 5vw, 3rem)',
-            border: '2px solid #34d399',
-            boxShadow: '0 0 30px rgba(52, 211, 153, 0.3)',
+            maxWidth: '1200px',
+            margin: '0 auto',
+            padding: 'clamp(0.8rem, 2.5vw, 1.5rem)',
+            background: 'rgba(26, 71, 49, 0.8)',
+            borderRadius: '1rem',
+            position: 'relative',
+            border: '2px solid rgba(52, 211, 153, 0.3)',
           }}
         >
           <h2
             style={{
-              fontSize: 'clamp(1.8rem, 5vw, 3rem)',
-              color: '#d4a017',
-              marginBottom: 'clamp(1rem, 3vw, 2rem)',
+              fontSize: 'clamp(1.5rem, 4vw, 2.5rem)',
               textAlign: 'center',
-              textShadow: '0 0 10px rgba(212, 160, 23, 0.5)',
+              marginBottom: 'clamp(1rem, 3vw, 2rem)',
+              textShadow: '0 0 10px #1a4731',
+              color: '#f7fafc',
             }}
             data-testid="heading-about"
           >
             About $TREE
           </h2>
-          <p
+          <div
             style={{
-              fontSize: 'clamp(1rem, 2.5vw, 1.2rem)',
-              lineHeight: '1.8',
-              marginBottom: '1.5rem',
-              color: '#f7fafc',
-            }}
-            data-testid="text-about-description"
-          >
-            $TREE is a fair launch token built on the Sui blockchain, designed to create a thriving DeFi ecosystem 
-            with robust utility and thick liquidity. We're planting the seeds to financial freedom with the water 
-            droplets of the SUI network.
-          </p>
-          <p
-            style={{
-              fontSize: 'clamp(1rem, 2.5vw, 1.2rem)',
-              lineHeight: '1.8',
-              marginBottom: '1.5rem',
-              color: '#f7fafc',
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(min(250px, 100%), 1fr))',
+              gap: 'clamp(0.8rem, 2.5vw, 1.5rem)',
             }}
           >
-            Our ecosystem includes:
-          </p>
-          <ul
-            style={{
-              fontSize: 'clamp(0.95rem, 2.3vw, 1.1rem)',
-              lineHeight: '1.8',
-              marginLeft: 'clamp(1rem, 3vw, 2rem)',
-              color: '#f7fafc',
-              listStyle: 'none',
-            }}
-          >
-            <li style={{ marginBottom: '0.8rem' }}>
-              <span style={{ color: '#34d399', marginRight: '0.5rem' }}>🌱</span>
-              <strong>Battle Garden:</strong> Stake your NFTs in strategic turn-based battles
-            </li>
-            <li style={{ marginBottom: '0.8rem' }}>
-              <span style={{ color: '#34d399', marginRight: '0.5rem' }}>💧</span>
-              <strong>Deep Liquidity:</strong> Built on Sui for fast, low-cost transactions
-            </li>
-            <li style={{ marginBottom: '0.8rem' }}>
-              <span style={{ color: '#34d399', marginRight: '0.5rem' }}>🌳</span>
-              <strong>Community Driven:</strong> Fair launch with no team allocation
-            </li>
-            <li style={{ marginBottom: '0.8rem' }}>
-              <span style={{ color: '#34d399', marginRight: '0.5rem' }}>⚡</span>
-              <strong>Real Utility:</strong> NFT battles, staking, and governance
-            </li>
-          </ul>
+            <div>
+              <p style={{ marginBottom: 'clamp(0.8rem, 2vw, 1rem)', fontSize: 'clamp(0.8rem, 2.2vw, 0.9rem)' }}>
+                $TREE, powered by THICKQUIDITY on the SUI blockchain, is a fair launch token designed for utility and growth.
+                Inspired by the resilience of ancient forests, we aim to foster financial prosperity, ecosystem stability,
+                and sustainable wealth creation with thick liquidity to support long-term growth.
+              </p>
+              <p style={{ marginBottom: 'clamp(0.8rem, 2vw, 1rem)', fontSize: 'clamp(0.8rem, 2.2vw, 0.9rem)' }}>
+                Built on the SUI network's high-speed, low-cost infrastructure, $TREE combines purpose with potential.
+                Whether you're a crypto sapling or a seasoned arborist, THICKQUIDITY invites you to stake your $TREE
+                and grow with us toward a greener financial future with robust project utility. Stake your TREE on moonbags.io, and Turbos.finance
+              </p>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'clamp(0.6rem, 1.8vw, 0.8rem)' }}>
+              <div
+                style={{
+                  background: '#276749',
+                  padding: 'clamp(0.6rem, 1.8vw, 0.9rem)',
+                  borderRadius: '0.5rem',
+                  textAlign: 'center',
+                }}
+              >
+                <h3 style={{ fontSize: 'clamp(1rem, 2.8vw, 1.3rem)', color: '#d4a017' }}>1B</h3>
+                <p style={{ fontSize: 'clamp(0.8rem, 2.2vw, 0.9rem)' }}>Total $TREE Supply</p>
+              </div>
+              <div
+                style={{
+                  background: '#276749',
+                  padding: 'clamp(0.6rem, 1.8vw, 0.9rem)',
+                  borderRadius: '0.5rem',
+                  textAlign: 'center',
+                }}
+              >
+                <h3 style={{ fontSize: 'clamp(1rem, 2.8vw, 1.3rem)', color: '#d4a017' }}>NFTrees</h3>
+                <p style={{ fontSize: 'clamp(0.8rem, 2.2vw, 0.9rem)' }}>Utility NFTrees in development</p>
+              </div>
+              <div
+                style={{
+                  background: '#276749',
+                  padding: 'clamp(0.6rem, 1.8vw, 0.9rem)',
+                  borderRadius: '0.5rem',
+                  textAlign: 'center',
+                }}
+              >
+                <h3 style={{ fontSize: 'clamp(1rem, 2.8vw, 1.3rem)', color: '#d4a017' }}>SUI-Powered</h3>
+                <p style={{ fontSize: 'clamp(0.8rem, 2.2vw, 0.9rem)' }}>Fast, Scalable Blockchain</p>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -322,128 +373,353 @@ export default function Home() {
       <section
         id="mission"
         style={{
-          minHeight: '100vh',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: 'clamp(2rem, 8vw, 4rem) clamp(1rem, 5vw, 2rem)',
+          padding: 'clamp(2rem, 6vw, 4rem) clamp(0.8rem, 4vw, 1.5rem)',
+          position: 'relative',
+          zIndex: 2,
+        }}
+      >
+        <h2
+          style={{
+            fontSize: 'clamp(1.5rem, 4vw, 2.5rem)',
+            textAlign: 'center',
+            marginBottom: 'clamp(1rem, 3vw, 2rem)',
+            textShadow: '0 0 10px #1a4731',
+            color: '#f7fafc',
+          }}
+          data-testid="heading-mission"
+        >
+          Our Mission
+        </h2>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(min(200px, 100%), 1fr))',
+            gap: 'clamp(0.8rem, 2.5vw, 1.5rem)',
+            maxWidth: '1200px',
+            margin: '0 auto',
+          }}
+        >
+          <div
+            style={{
+              padding: 'clamp(0.8rem, 2.5vw, 1.5rem)',
+              background: 'linear-gradient(#276749, #1a4731)',
+              borderRadius: '0.75rem',
+              textAlign: 'center',
+              position: 'relative',
+              overflow: 'hidden',
+            }}
+          >
+            <h3 style={{ fontSize: 'clamp(1.2rem, 3vw, 1.5rem)', marginBottom: 'clamp(0.6rem, 1.8vw, 1rem)', color: '#d4a017' }}>
+              Growth
+            </h3>
+            <p style={{ fontSize: 'clamp(0.8rem, 2.2vw, 0.9rem)' }}>
+              Empower financial prosperity through innovative DeFi solutions and project utility on the SUI chain.
+              $TREE holders can stake, trade, and grow their wealth with cutting-edge tools and thick liquidity.
+            </p>
+          </div>
+          <div
+            style={{
+              padding: 'clamp(0.8rem, 2.5vw, 1.5rem)',
+              background: 'linear-gradient(#276749, #1a4731)',
+              borderRadius: '0.75rem',
+              textAlign: 'center',
+              position: 'relative',
+              overflow: 'hidden',
+            }}
+          >
+            <h3 style={{ fontSize: 'clamp(1.2rem, 3vw, 1.5rem)', marginBottom: 'clamp(0.6rem, 1.8vw, 1rem)', color: '#d4a017' }}>
+              Ecosystem
+            </h3>
+            <p style={{ fontSize: 'clamp(0.8rem, 2.2vw, 0.9rem)' }}>
+              Build a robust ecosystem where $TREE's thick liquidity ensures stability and growth.
+              Our fair launch approach fosters collaboration and shared success for all members.
+            </p>
+          </div>
+          <div
+            style={{
+              padding: 'clamp(0.8rem, 2.5vw, 1.5rem)',
+              background: 'linear-gradient(#276749, #1a4731)',
+              borderRadius: '0.75rem',
+              textAlign: 'center',
+              position: 'relative',
+              overflow: 'hidden',
+            }}
+          >
+            <h3 style={{ fontSize: 'clamp(1.2rem, 3vw, 1.5rem)', marginBottom: 'clamp(0.6rem, 1.8vw, 1rem)', color: '#d4a017' }}>
+              Sustainability
+            </h3>
+            <p style={{ fontSize: 'clamp(0.8rem, 2.2vw, 0.9rem)' }}>
+              Ensure long-term wealth with secure, transparent blockchain technology.
+              Our roots are built to last, supporting a thriving future with strong project utility.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* Tokenomics Section */}
+      <section
+        id="tokenomics"
+        style={{
+          padding: 'clamp(2rem, 6vw, 4rem) clamp(0.8rem, 4vw, 1.5rem)',
           position: 'relative',
           zIndex: 2,
         }}
       >
         <div
           style={{
-            maxWidth: '900px',
-            background: 'rgba(26, 71, 49, 0.85)',
-            backdropFilter: 'blur(10px)',
-            borderRadius: '20px',
-            padding: 'clamp(1.5rem, 5vw, 3rem)',
-            border: '2px solid #34d399',
-            boxShadow: '0 0 30px rgba(52, 211, 153, 0.3)',
+            maxWidth: '1200px',
+            margin: '0 auto',
+            padding: 'clamp(0.8rem, 2.5vw, 1.5rem)',
+            background: 'rgba(26, 71, 49, 0.8)',
+            borderRadius: '1rem',
+            position: 'relative',
+            border: '2px solid rgba(52, 211, 153, 0.3)',
           }}
         >
           <h2
             style={{
-              fontSize: 'clamp(1.8rem, 5vw, 3rem)',
-              color: '#d4a017',
-              marginBottom: 'clamp(1rem, 3vw, 2rem)',
+              fontSize: 'clamp(1.5rem, 4vw, 2.5rem)',
               textAlign: 'center',
-              textShadow: '0 0 10px rgba(212, 160, 23, 0.5)',
-            }}
-            data-testid="heading-mission"
-          >
-            Our Mission
-          </h2>
-          <p
-            style={{
-              fontSize: 'clamp(1rem, 2.5vw, 1.2rem)',
-              lineHeight: '1.8',
-              marginBottom: '1.5rem',
+              marginBottom: 'clamp(1rem, 3vw, 2rem)',
+              textShadow: '0 0 10px #1a4731',
               color: '#f7fafc',
             }}
-            data-testid="text-mission-description"
+            data-testid="heading-tokenomics"
           >
-            To create a sustainable DeFi ecosystem on Sui that combines gaming, NFTs, and decentralized finance 
-            in a way that's accessible to everyone. We believe in:
-          </p>
+            Tokenomics of $TREE
+          </h2>
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
-              gap: 'clamp(1rem, 3vw, 2rem)',
-              marginTop: 'clamp(1.5rem, 4vw, 2.5rem)',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(min(180px, 100%), 1fr))',
+              gap: 'clamp(0.8rem, 2.5vw, 1.5rem)',
             }}
           >
             <div
               style={{
-                background: 'rgba(52, 211, 153, 0.1)',
-                padding: 'clamp(1rem, 3vw, 1.5rem)',
-                borderRadius: '15px',
-                border: '1px solid #34d399',
+                padding: 'clamp(0.8rem, 2vw, 1.2rem)',
+                background: '#276749',
+                borderRadius: '0.75rem',
+                textAlign: 'center',
               }}
             >
-              <h3
-                style={{
-                  fontSize: 'clamp(1.2rem, 3vw, 1.5rem)',
-                  color: '#34d399',
-                  marginBottom: '0.8rem',
-                }}
-              >
+              <h3 style={{ fontSize: 'clamp(1rem, 2.8vw, 1.3rem)', color: '#d4a017', marginBottom: 'clamp(0.4rem, 1.2vw, 0.6rem)' }}>
+                Total Supply
+              </h3>
+              <p style={{ fontSize: 'clamp(0.8rem, 2.2vw, 0.9rem)' }}>
+                1,000,000,000 $TREE tokens, ensuring a robust foundation for ecosystem growth.
+              </p>
+            </div>
+            <div
+              style={{
+                padding: 'clamp(0.8rem, 2vw, 1.2rem)',
+                background: '#276749',
+                borderRadius: '0.75rem',
+                textAlign: 'center',
+              }}
+            >
+              <h3 style={{ fontSize: 'clamp(1rem, 2.8vw, 1.3rem)', color: '#d4a017', marginBottom: 'clamp(0.4rem, 1.2vw, 0.6rem)' }}>
+                NFTrees
+              </h3>
+              <p style={{ fontSize: 'clamp(0.8rem, 2.2vw, 0.9rem)' }}>
+                Utility NFTrees in development.
+              </p>
+            </div>
+            <div
+              style={{
+                padding: 'clamp(0.8rem, 2vw, 1.2rem)',
+                background: '#276749',
+                borderRadius: '0.75rem',
+                textAlign: 'center',
+              }}
+            >
+              <h3 style={{ fontSize: 'clamp(1rem, 2.8vw, 1.3rem)', color: '#d4a017', marginBottom: 'clamp(0.4rem, 1.2vw, 0.6rem)' }}>
+                Staking Rewards
+              </h3>
+              <p style={{ fontSize: 'clamp(0.8rem, 2.2vw, 0.9rem)' }}>
+                Earn passive income by staking $TREE in our DeFi pools on SUI.
+              </p>
+            </div>
+            <div
+              style={{
+                padding: 'clamp(0.8rem, 2vw, 1.2rem)',
+                background: '#276749',
+                borderRadius: '0.75rem',
+                textAlign: 'center',
+              }}
+            >
+              <h3 style={{ fontSize: 'clamp(1rem, 2.8vw, 1.3rem)', color: '#d4a017', marginBottom: 'clamp(0.4rem, 1.2vw, 0.6rem)' }}>
                 Fair Launch
               </h3>
-              <p style={{ fontSize: 'clamp(0.9rem, 2.2vw, 1rem)', color: '#f7fafc', lineHeight: '1.6' }}>
-                No presale, no team tokens. Everyone starts equal in the $TREE forest.
-              </p>
-            </div>
-            <div
-              style={{
-                background: 'rgba(212, 160, 23, 0.1)',
-                padding: 'clamp(1rem, 3vw, 1.5rem)',
-                borderRadius: '15px',
-                border: '1px solid #d4a017',
-              }}
-            >
-              <h3
-                style={{
-                  fontSize: 'clamp(1.2rem, 3vw, 1.5rem)',
-                  color: '#d4a017',
-                  marginBottom: '0.8rem',
-                }}
-              >
-                Innovation
-              </h3>
-              <p style={{ fontSize: 'clamp(0.9rem, 2.2vw, 1rem)', color: '#f7fafc', lineHeight: '1.6' }}>
-                Bringing unique NFT battle mechanics and yield generation to the Sui ecosystem.
-              </p>
-            </div>
-            <div
-              style={{
-                background: 'rgba(52, 211, 153, 0.1)',
-                padding: 'clamp(1rem, 3vw, 1.5rem)',
-                borderRadius: '15px',
-                border: '1px solid #34d399',
-              }}
-            >
-              <h3
-                style={{
-                  fontSize: 'clamp(1.2rem, 3vw, 1.5rem)',
-                  color: '#34d399',
-                  marginBottom: '0.8rem',
-                }}
-              >
-                Community
-              </h3>
-              <p style={{ fontSize: 'clamp(0.9rem, 2.2vw, 1rem)', color: '#f7fafc', lineHeight: '1.6' }}>
-                Built by the community, for the community. Your voice shapes the future of $TREE.
+              <p style={{ fontSize: 'clamp(0.8rem, 2.2vw, 0.9rem)' }}>
+                Launched off moonbags.io, focused on utility and thick liquidity for sustained growth.
               </p>
             </div>
           </div>
-          <div
+        </div>
+      </section>
+
+      {/* NFTs Section */}
+      <section
+        id="nfts"
+        style={{
+          padding: 'clamp(2rem, 6vw, 4rem) clamp(0.8rem, 4vw, 1.5rem)',
+          position: 'relative',
+          zIndex: 2,
+        }}
+      >
+        <div
+          style={{
+            textAlign: 'center',
+            maxWidth: '1200px',
+            margin: '0 auto',
+            padding: 'clamp(0.8rem, 2.5vw, 1.5rem)',
+            background: 'rgba(26, 71, 49, 0.8)',
+            borderRadius: '1rem',
+            position: 'relative',
+            border: '2px solid rgba(52, 211, 153, 0.3)',
+          }}
+        >
+          <img
+            src="/assets/tree.jpg"
+            alt="$TREE NFT Preview"
             style={{
-              marginTop: 'clamp(2rem, 5vw, 3rem)',
-              textAlign: 'center',
+              maxWidth: '100%',
+              height: 'auto',
+              maxHeight: 'clamp(50px, 15vw, 80px)',
+              margin: '0 auto clamp(1rem, 3vw, 1.5rem)',
+              display: 'block',
+              filter: 'drop-shadow(0 0 15px #34d399)',
             }}
+            data-testid="img-nft-preview"
+          />
+          <h2
+            style={{
+              fontSize: 'clamp(1.5rem, 4vw, 2.5rem)',
+              textAlign: 'center',
+              marginBottom: 'clamp(1rem, 3vw, 2rem)',
+              textShadow: '0 0 10px #1a4731',
+              color: '#f7fafc',
+            }}
+            data-testid="heading-nfts"
           >
+            $TREE NFTs
+          </h2>
+          <p style={{ fontSize: 'clamp(0.8rem, 2.2vw, 0.9rem)', marginBottom: 'clamp(0.8rem, 2vw, 1rem)', maxWidth: '600px', marginLeft: 'auto', marginRight: 'auto' }}>
+            $TREE NFTs unlock monthly SUI airdrops from staking pools, funded by developers, with 80% of sales fueling $TREE buybacks for locked liquidity. 5% will be donated to treefund.org and be livestreamed on Youtube, with reciept for verification.
+          </p>
+          <p style={{ fontSize: 'clamp(0.8rem, 2.2vw, 0.9rem)', marginBottom: 'clamp(0.8rem, 2vw, 1rem)', maxWidth: '600px', marginLeft: 'auto', marginRight: 'auto' }}>
+            Gain access to explosive gaming opportunities as a holder, and unlock ongoing ecosystem benefits. Crafted with stunning worldly tree designs and arborist-inspired details, 5% of every sale supports treefund.org, donated live on The Crypto Arborist's YouTube. NFT Games will begin development in Q4 2025.
+          </p>
+          <div>
+            <Link
+              href="/battle"
+              style={{
+                display: 'inline-block',
+                background: 'linear-gradient(45deg, #34d399, #d4a017)',
+                color: '#1a4731',
+                padding: 'clamp(0.6rem, 1.8vw, 0.9rem) clamp(1.2rem, 2.8vw, 2rem)',
+                borderRadius: '9999px',
+                textDecoration: 'none',
+                fontWeight: 'bold',
+                fontSize: 'clamp(0.8rem, 2.2vw, 1.1rem)',
+                transition: 'transform 0.3s, box-shadow 0.3s',
+                boxShadow: '0 0 15px rgba(52, 211, 153, 0.6), 0 0 30px rgba(52, 211, 153, 0.3)',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'scale(1.15)';
+                e.currentTarget.style.boxShadow = '0 0 20px #34d399';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'scale(1)';
+                e.currentTarget.style.boxShadow = '0 0 15px rgba(52, 211, 153, 0.6), 0 0 30px rgba(52, 211, 153, 0.3)';
+              }}
+              data-testid="button-nft-battle"
+            >
+              Play Battle Garden
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* Social Section */}
+      <section
+        id="social"
+        style={{
+          padding: 'clamp(2rem, 6vw, 4rem) clamp(0.8rem, 4vw, 1.5rem)',
+          position: 'relative',
+          zIndex: 2,
+        }}
+      >
+        <div
+          style={{
+            textAlign: 'center',
+            maxWidth: '1200px',
+            margin: '0 auto',
+            padding: 'clamp(0.8rem, 2.5vw, 1.5rem)',
+            background: 'rgba(26, 71, 49, 0.8)',
+            borderRadius: '1rem',
+            position: 'relative',
+            border: '2px solid rgba(52, 211, 153, 0.3)',
+          }}
+        >
+          <h2
+            style={{
+              fontSize: 'clamp(1.5rem, 4vw, 2.5rem)',
+              textAlign: 'center',
+              marginBottom: 'clamp(1rem, 3vw, 2rem)',
+              textShadow: '0 0 10px #1a4731',
+              color: '#f7fafc',
+            }}
+            data-testid="heading-social"
+          >
+            Social Outreach Utility
+          </h2>
+          <p style={{ fontSize: 'clamp(0.8rem, 2.2vw, 0.9rem)', marginBottom: 'clamp(0.8rem, 2vw, 1rem)', maxWidth: '600px', marginLeft: 'auto', marginRight: 'auto' }}>
+            Join @thecryptoarborist on YouTube for explosive $TREE content, diving deep into the DeFi ecosystem, SUI blockchain, and the growth of the $TREE universe.
+            The Crypto Arborist collaborates with team members across various projects to expand our reach and cultivate a thriving community through engaging discussions and insights.
+          </p>
+        </div>
+      </section>
+
+      {/* Join Section */}
+      <section
+        id="join"
+        style={{
+          padding: 'clamp(2rem, 6vw, 4rem) clamp(0.8rem, 4vw, 1.5rem)',
+          position: 'relative',
+          zIndex: 2,
+        }}
+      >
+        <div
+          style={{
+            maxWidth: '1200px',
+            margin: '0 auto',
+            padding: 'clamp(0.8rem, 2.5vw, 1.5rem)',
+            background: 'rgba(26, 71, 49, 0.8)',
+            borderRadius: '1rem',
+            position: 'relative',
+            border: '2px solid rgba(52, 211, 153, 0.3)',
+          }}
+        >
+          <h2
+            style={{
+              fontSize: 'clamp(1.5rem, 4vw, 2.5rem)',
+              textAlign: 'center',
+              marginBottom: 'clamp(1rem, 3vw, 2rem)',
+              textShadow: '0 0 10px #1a4731',
+              color: '#f7fafc',
+            }}
+            data-testid="heading-join"
+          >
+            Join the $TREE Forest
+          </h2>
+          <p style={{ fontSize: 'clamp(0.8rem, 2.2vw, 0.9rem)', marginBottom: 'clamp(1rem, 3vw, 2rem)', textAlign: 'center' }}>
+            Stake your $TREE in the SUI network and watch your financial freedom blossom.
+            Connect with our thriving ecosystem of crypto arborists, leverage our robust utility,
+            and cultivate wealth in a decentralized world with thick liquidity. Follow us on social platforms for updates!
+          </p>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 'clamp(0.8rem, 2vw, 1.2rem)', flexWrap: 'wrap' }}>
             <a
               href="https://app.turbos.finance/#/trade?input=0x2::sui::SUI&output=0x6c5a609f6d0288523ce4a6ed87d19ae127f62073ab75fd9b0b1c9b455d4895cf::tree::TREE"
               target="_blank"
@@ -452,29 +728,279 @@ export default function Home() {
                 display: 'inline-block',
                 background: 'linear-gradient(45deg, #34d399, #d4a017)',
                 color: '#1a4731',
-                padding: 'clamp(0.8rem, 2vw, 1rem) clamp(1.5rem, 3.5vw, 2.5rem)',
+                padding: 'clamp(0.6rem, 1.8vw, 0.9rem) clamp(1.2rem, 2.8vw, 2rem)',
                 borderRadius: '9999px',
                 textDecoration: 'none',
                 fontWeight: 'bold',
-                fontSize: 'clamp(0.9rem, 2.3vw, 1.2rem)',
+                fontSize: 'clamp(0.8rem, 2.2vw, 1.1rem)',
                 transition: 'transform 0.3s, box-shadow 0.3s',
-                boxShadow: '0 0 15px rgba(52, 211, 153, 0.6)',
+                boxShadow: '0 0 15px rgba(52, 211, 153, 0.6), 0 0 30px rgba(52, 211, 153, 0.3)',
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.transform = 'scale(1.1)';
-                e.currentTarget.style.boxShadow = '0 0 25px #34d399';
+                e.currentTarget.style.transform = 'scale(1.05)';
+                e.currentTarget.style.boxShadow = '0 0 15px #34d399';
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.transform = 'scale(1)';
-                e.currentTarget.style.boxShadow = '0 0 15px rgba(52, 211, 153, 0.6)';
+                e.currentTarget.style.boxShadow = '0 0 15px rgba(52, 211, 153, 0.6), 0 0 30px rgba(52, 211, 153, 0.3)';
               }}
-              data-testid="button-join-mission"
+              data-testid="button-buy"
             >
-              Join the $TREE Movement
+              BUY $TREE
+            </a>
+            <a
+              href="https://x.com/thickquidity"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                display: 'inline-block',
+                background: 'linear-gradient(45deg, #34d399, #d4a017)',
+                color: '#1a4731',
+                padding: 'clamp(0.6rem, 1.8vw, 0.9rem) clamp(1.2rem, 2.8vw, 2rem)',
+                borderRadius: '9999px',
+                textDecoration: 'none',
+                fontWeight: 'bold',
+                fontSize: 'clamp(0.8rem, 2.2vw, 1.1rem)',
+                transition: 'transform 0.3s, box-shadow 0.3s',
+                boxShadow: '0 0 15px rgba(52, 211, 153, 0.6), 0 0 30px rgba(52, 211, 153, 0.3)',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'scale(1.05)';
+                e.currentTarget.style.boxShadow = '0 0 15px #34d399';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'scale(1)';
+                e.currentTarget.style.boxShadow = '0 0 15px rgba(52, 211, 153, 0.6), 0 0 30px rgba(52, 211, 153, 0.3)';
+              }}
+              data-testid="button-x"
+            >
+              X
+            </a>
+            <a
+              href="https://youtube.com/@thecryptoarborist"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                display: 'inline-block',
+                background: 'linear-gradient(45deg, #34d399, #d4a017)',
+                color: '#1a4731',
+                padding: 'clamp(0.6rem, 1.8vw, 0.9rem) clamp(1.2rem, 2.8vw, 2rem)',
+                borderRadius: '9999px',
+                textDecoration: 'none',
+                fontWeight: 'bold',
+                fontSize: 'clamp(0.8rem, 2.2vw, 1.1rem)',
+                transition: 'transform 0.3s, box-shadow 0.3s',
+                boxShadow: '0 0 15px rgba(52, 211, 153, 0.6), 0 0 30px rgba(52, 211, 153, 0.3)',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'scale(1.05)';
+                e.currentTarget.style.boxShadow = '0 0 15px #34d399';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'scale(1)';
+                e.currentTarget.style.boxShadow = '0 0 15px rgba(52, 211, 153, 0.6), 0 0 30px rgba(52, 211, 153, 0.3)';
+              }}
+              data-testid="button-youtube"
+            >
+              YouTube
+            </a>
+            <a
+              href="https://t.me/thickquidity"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                display: 'inline-block',
+                background: 'linear-gradient(45deg, #34d399, #d4a017)',
+                color: '#1a4731',
+                padding: 'clamp(0.6rem, 1.8vw, 0.9rem) clamp(1.2rem, 2.8vw, 2rem)',
+                borderRadius: '9999px',
+                textDecoration: 'none',
+                fontWeight: 'bold',
+                fontSize: 'clamp(0.8rem, 2.2vw, 1.1rem)',
+                transition: 'transform 0.3s, box-shadow 0.3s',
+                boxShadow: '0 0 15px rgba(52, 211, 153, 0.6), 0 0 30px rgba(52, 211, 153, 0.3)',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'scale(1.05)';
+                e.currentTarget.style.boxShadow = '0 0 15px #34d399';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'scale(1)';
+                e.currentTarget.style.boxShadow = '0 0 15px rgba(52, 211, 153, 0.6), 0 0 30px rgba(52, 211, 153, 0.3)';
+              }}
+              data-testid="button-telegram"
+            >
+              Telegram
+            </a>
+            <a
+              href="https://sui.io"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                display: 'inline-block',
+                background: 'linear-gradient(45deg, #34d399, #d4a017)',
+                color: '#1a4731',
+                padding: 'clamp(0.6rem, 1.8vw, 0.9rem) clamp(1.2rem, 2.8vw, 2rem)',
+                borderRadius: '9999px',
+                textDecoration: 'none',
+                fontWeight: 'bold',
+                fontSize: 'clamp(0.8rem, 2.2vw, 1.1rem)',
+                transition: 'transform 0.3s, box-shadow 0.3s',
+                boxShadow: '0 0 15px rgba(52, 211, 153, 0.6), 0 0 30px rgba(52, 211, 153, 0.3)',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'scale(1.05)';
+                e.currentTarget.style.boxShadow = '0 0 15px #34d399';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'scale(1)';
+                e.currentTarget.style.boxShadow = '0 0 15px rgba(52, 211, 153, 0.6), 0 0 30px rgba(52, 211, 153, 0.3)';
+              }}
+              data-testid="button-sui"
+            >
+              SUI Network
+            </a>
+            <a
+              href="https://dexscreener.com/sui/0xaa133ce1f8fd55d85b6fc87c1b3054cb717d83be477ef3635c661c21fbdfa0ee"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                display: 'inline-block',
+                background: 'linear-gradient(45deg, #34d399, #d4a017)',
+                color: '#1a4731',
+                padding: 'clamp(0.6rem, 1.8vw, 0.9rem) clamp(1.2rem, 2.8vw, 2rem)',
+                borderRadius: '9999px',
+                textDecoration: 'none',
+                fontWeight: 'bold',
+                fontSize: 'clamp(0.8rem, 2.2vw, 1.1rem)',
+                transition: 'transform 0.3s, box-shadow 0.3s',
+                boxShadow: '0 0 15px rgba(52, 211, 153, 0.6), 0 0 30px rgba(52, 211, 153, 0.3)',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'scale(1.05)';
+                e.currentTarget.style.boxShadow = '0 0 15px #34d399';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'scale(1)';
+                e.currentTarget.style.boxShadow = '0 0 15px rgba(52, 211, 153, 0.6), 0 0 30px rgba(52, 211, 153, 0.3)';
+              }}
+              data-testid="button-dexscreener"
+            >
+              Dexscreener
             </a>
           </div>
         </div>
       </section>
+
+      {/* Footer */}
+      <footer
+        style={{
+          padding: 'clamp(1.5rem, 4vw, 2.5rem) clamp(0.8rem, 3vw, 1.5rem)',
+          background: 'linear-gradient(#1a4731, #276749)',
+          textAlign: 'center',
+          zIndex: 2,
+          position: 'relative',
+        }}
+      >
+        <p style={{ fontSize: 'clamp(0.8rem, 2.2vw, 1rem)', marginBottom: 'clamp(0.6rem, 1.8vw, 1rem)', color: '#f7fafc' }}>
+          © 2025 THICKQUIDITY ($TREE). All rights reserved.
+        </p>
+        <p style={{ fontSize: 'clamp(0.8rem, 2.2vw, 1rem)', marginBottom: 'clamp(0.6rem, 1.8vw, 1rem)', color: '#f7fafc' }}>
+          Growing the future of finance, one branch at a time.
+        </p>
+        <div style={{ display: 'flex', justifyContent: 'center', gap: 'clamp(0.8rem, 2.5vw, 1.5rem)', marginTop: 'clamp(0.8rem, 2vw, 1.2rem)', flexWrap: 'wrap' }}>
+          <a
+            href="https://app.turbos.finance/#/trade?input=0x2::sui::SUI&output=0x6c5a609f6d0288523ce4a6ed87d19ae127f62073ab75fd9b0b1c9b455d4895cf::tree::TREE"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              color: '#f7fafc',
+              textDecoration: 'none',
+              fontSize: 'clamp(0.8rem, 2.2vw, 1rem)',
+              transition: 'color 0.3s',
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.color = '#d4a017')}
+            onMouseLeave={(e) => (e.currentTarget.style.color = '#f7fafc')}
+          >
+            BUY $TREE
+          </a>
+          <a
+            href="https://x.com/thickquidity"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              color: '#f7fafc',
+              textDecoration: 'none',
+              fontSize: 'clamp(0.8rem, 2.2vw, 1rem)',
+              transition: 'color 0.3s',
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.color = '#d4a017')}
+            onMouseLeave={(e) => (e.currentTarget.style.color = '#f7fafc')}
+          >
+            X
+          </a>
+          <a
+            href="https://youtube.com/@thecryptoarborist"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              color: '#f7fafc',
+              textDecoration: 'none',
+              fontSize: 'clamp(0.8rem, 2.2vw, 1rem)',
+              transition: 'color 0.3s',
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.color = '#d4a017')}
+            onMouseLeave={(e) => (e.currentTarget.style.color = '#f7fafc')}
+          >
+            YouTube
+          </a>
+          <a
+            href="https://t.me/thickquidity"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              color: '#f7fafc',
+              textDecoration: 'none',
+              fontSize: 'clamp(0.8rem, 2.2vw, 1rem)',
+              transition: 'color 0.3s',
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.color = '#d4a017')}
+            onMouseLeave={(e) => (e.currentTarget.style.color = '#f7fafc')}
+          >
+            Telegram
+          </a>
+          <a
+            href="https://sui.io"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              color: '#f7fafc',
+              textDecoration: 'none',
+              fontSize: 'clamp(0.8rem, 2.2vw, 1rem)',
+              transition: 'color 0.3s',
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.color = '#d4a017')}
+            onMouseLeave={(e) => (e.currentTarget.style.color = '#f7fafc')}
+          >
+            SUI Network
+          </a>
+          <a
+            href="https://dexscreener.com/sui/0xaa133ce1f8fd55d85b6fc87c1b3054cb717d83be477ef3635c661c21fbdfa0ee"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              color: '#f7fafc',
+              textDecoration: 'none',
+              fontSize: 'clamp(0.8rem, 2.2vw, 1rem)',
+              transition: 'color 0.3s',
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.color = '#d4a017')}
+            onMouseLeave={(e) => (e.currentTarget.style.color = '#f7fafc')}
+          >
+            Dexscreener
+          </a>
+        </div>
+      </footer>
 
       {/* Hero Character */}
       <div
@@ -525,75 +1051,6 @@ export default function Home() {
           {phrases[currentPhrase]}
         </div>
       </div>
-
-      {/* Booklet Modal Placeholder */}
-      {bookletOpen && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            width: '100vw',
-            height: '100vh',
-            background: 'rgba(0, 0, 0, 0.8)',
-            zIndex: 200,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: 'clamp(1rem, 3vw, 2rem)',
-          }}
-          onClick={() => setBookletOpen(false)}
-        >
-          <div
-            style={{
-              position: 'relative',
-              width: 'clamp(300px, 90vw, 800px)',
-              height: 'clamp(400px, 60vh, 600px)',
-              background: 'linear-gradient(#1a4731, #276749)',
-              border: '3px solid #d4a017',
-              borderRadius: '10px',
-              boxShadow: '0 0 20px rgba(52, 211, 153, 0.6)',
-              padding: '2rem',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <p style={{ fontSize: 'clamp(1rem, 3vw, 1.5rem)', color: '#f7fafc', textAlign: 'center' }}>
-              Litepaper content coming soon!
-            </p>
-            <button
-              onClick={() => setBookletOpen(false)}
-              style={{
-                position: 'absolute',
-                top: 'clamp(10px, 2vw, 15px)',
-                right: 'clamp(10px, 2vw, 15px)',
-                width: 'clamp(30px, 8vw, 40px)',
-                height: 'clamp(30px, 8vw, 40px)',
-                background: '#1a4731',
-                color: '#d4a017',
-                borderRadius: '50%',
-                border: 'none',
-                fontSize: 'clamp(1rem, 2.5vw, 1.2rem)',
-                cursor: 'pointer',
-                transition: 'transform 0.3s, box-shadow 0.3s',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = 'scale(1.2)';
-                e.currentTarget.style.boxShadow = '0 0 15px #34d399';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'scale(1)';
-                e.currentTarget.style.boxShadow = '';
-              }}
-              data-testid="button-close-litepaper"
-            >
-              ✕
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
