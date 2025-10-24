@@ -640,9 +640,11 @@ module 0x7144301fe39dae2363f57e13d5e8650934a1adf5817a46b64ac5e86a9cffea80::battl
             battle.p1_growth = clamp(battle.p1_growth, 0, 100);
             battle.p2_growth = clamp(battle.p2_growth, 0, 100);
             if (battle.p1_growth >= 100) {
-                finish_and_payout(battle, battle.player1, ctx);
+                let winner = battle.player1;
+                finish_and_payout(battle, winner, ctx);
             } else if (battle.p2_growth == 0) {
-                finish_and_payout(battle, battle.player1, ctx);
+                let winner = battle.player1;
+                finish_and_payout(battle, winner, ctx);
             } else {
                 battle.turn = 1;
                 emit_update(battle);
@@ -660,9 +662,11 @@ module 0x7144301fe39dae2363f57e13d5e8650934a1adf5817a46b64ac5e86a9cffea80::battl
             battle.p2_growth = clamp(battle.p2_growth, 0, 100);
             battle.p1_growth = clamp(battle.p1_growth, 0, 100);
             if (battle.p2_growth >= 100) {
-                finish_and_payout(battle, battle.player2, ctx);
+                let winner = battle.player2;
+                finish_and_payout(battle, winner, ctx);
             } else if (battle.p1_growth == 0) {
-                finish_and_payout(battle, battle.player2, ctx);
+                let winner = battle.player2;
+                finish_and_payout(battle, winner, ctx);
             } else {
                 battle.turn = 0;
                 emit_update(battle);
