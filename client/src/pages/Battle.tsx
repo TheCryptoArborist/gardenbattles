@@ -23,6 +23,7 @@ export default function Battle() {
     joinBattle,
     useAbility,
     getFirstValidSaplingNft,
+    setTestGrowth,
   } = useSuiWallet();
 
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -259,6 +260,95 @@ export default function Battle() {
         }}
         data-testid="img-battle-title"
       />
+
+      {/* ===== TEMPORARY TEST PANEL - REMOVE AFTER TESTING ===== */}
+      {setTestGrowth && battleState && (
+        <div
+          style={{
+            background: 'rgba(255, 255, 0, 0.1)',
+            border: '2px solid #ffff00',
+            borderRadius: '8px',
+            padding: '15px',
+            margin: '10px auto 20px',
+            maxWidth: '680px',
+            textAlign: 'center',
+          }}
+        >
+          <h3 style={{ color: '#ffff00', margin: '0 0 10px 0', fontSize: '14px' }}>
+            🧪 TEST MODE - NFT Image Testing
+          </h3>
+          <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', flexWrap: 'wrap' }}>
+            <button
+              onClick={() => setTestGrowth(10, 10)}
+              style={{
+                background: '#00ff00',
+                color: '#000',
+                border: 'none',
+                borderRadius: '4px',
+                padding: '8px 12px',
+                cursor: 'pointer',
+                fontSize: '12px',
+                fontWeight: 'bold',
+              }}
+              data-testid="button-test-seed"
+            >
+              Seed (0-25)
+            </button>
+            <button
+              onClick={() => setTestGrowth(35, 40)}
+              style={{
+                background: '#00ff00',
+                color: '#000',
+                border: 'none',
+                borderRadius: '4px',
+                padding: '8px 12px',
+                cursor: 'pointer',
+                fontSize: '12px',
+                fontWeight: 'bold',
+              }}
+              data-testid="button-test-sapling"
+            >
+              Sapling (26-50)
+            </button>
+            <button
+              onClick={() => setTestGrowth(60, 65)}
+              style={{
+                background: '#00ff00',
+                color: '#000',
+                border: 'none',
+                borderRadius: '4px',
+                padding: '8px 12px',
+                cursor: 'pointer',
+                fontSize: '12px',
+                fontWeight: 'bold',
+              }}
+              data-testid="button-test-mature"
+            >
+              Mature (51-75)
+            </button>
+            <button
+              onClick={() => setTestGrowth(85, 90)}
+              style={{
+                background: '#00ff00',
+                color: '#000',
+                border: 'none',
+                borderRadius: '4px',
+                padding: '8px 12px',
+                cursor: 'pointer',
+                fontSize: '12px',
+                fontWeight: 'bold',
+              }}
+              data-testid="button-test-tree"
+            >
+              Full Tree (76-100)
+            </button>
+          </div>
+          <p style={{ color: '#ffff00', fontSize: '11px', margin: '8px 0 0 0' }}>
+            Click buttons to see different NFT growth stages
+          </p>
+        </div>
+      )}
+      {/* ===== END TEST PANEL ===== */}
 
       {/* Battle Area */}
       <div

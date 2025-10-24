@@ -23,9 +23,17 @@ interface SuiWalletContextType {
   useAbility: (abilityId: number) => Promise<void>;
   getFirstValidSaplingNft: (owner: string) => Promise<string | null>;
   ConnectWalletButton: () => JSX.Element;
+  // Test mode helpers
+  setTestGrowth?: (playerGrowth: number, opponentGrowth: number) => void;
 }
 
 const SuiWalletContext = createContext<SuiWalletContextType | null>(null);
+
+// ===== TEMPORARY TESTING CONFIG - REMOVE AFTER TESTING =====
+const TEST_MODE = true;
+const TEST_WALLET_ADDRESS = '0x8d73665b159d406d1bd208782cbba5304900ecafbde23f957f77843b5ea06961';
+const TEST_NFT_ID = '0xtest_sapling_nft_mock_object_id_12345678';
+// ===== END TESTING CONFIG =====
 
 export function SuiWalletProvider({ children }: { children: ReactNode }) {
   const currentAccount = useCurrentAccount();
@@ -61,6 +69,14 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
 
   const getFirstValidSaplingNft = useCallback(async (owner: string): Promise<string | null> => {
     console.log('Scanning for Sapling NFTs...');
+    
+    // ===== TEMPORARY TESTING LOGIC - REMOVE AFTER TESTING =====
+    if (TEST_MODE && owner.toLowerCase() === TEST_WALLET_ADDRESS.toLowerCase()) {
+      console.log('🧪 TEST MODE: Simulating Sapling NFT for test wallet');
+      console.log('🧪 Test NFT ID:', TEST_NFT_ID);
+      return TEST_NFT_ID;
+    }
+    // ===== END TESTING LOGIC =====
     
     const kiosks = new Set<string>();
     let cursor: string | null = null;
@@ -188,8 +204,36 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
   }, [address, suiClient]);
 
   const joinBattle = useCallback(async (nftId: string) => {
-    if (!address || !randomObjectId) {
-      throw new Error('Wallet not connected or random object not initialized');
+    if (!address) {
+      throw new Error('Wallet not connected');
+    }
+
+    // ===== TEMPORARY TESTING LOGIC - REMOVE AFTER TESTING =====
+    if (TEST_MODE && address.toLowerCase() === TEST_WALLET_ADDRESS.toLowerCase()) {
+      console.log('🧪 TEST MODE: Setting up mock battle state');
+      
+      // Simulate a mock battle with varying growth levels to test NFT images
+      const mockGrowth = Math.floor(Math.random() * 100); // Random growth 0-100
+      
+      setBattleState({
+        battleId: '0xmock_battle_id_12345',
+        player1: address,
+        player2: '0xmock_opponent_address_67890',
+        player1Moves: [0, 5, 10],
+        player2Moves: [1, 6, 11],
+        player1Growth: mockGrowth,
+        player2Growth: Math.floor(Math.random() * 100),
+        winner: null,
+      });
+      
+      setIsWaiting(false);
+      console.log('🧪 Mock battle created with player growth:', mockGrowth);
+      return Promise.resolve();
+    }
+    // ===== END TESTING LOGIC =====
+
+    if (!randomObjectId) {
+      throw new Error('Random object not initialized');
     }
 
     try {
@@ -308,6 +352,19 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
     );
   }, []);
 
+  // ===== TEMPORARY TESTING FUNCTION - REMOVE AFTER TESTING =====
+  const setTestGrowth = useCallback((playerGrowth: number, opponentGrowth: number) => {
+    if (TEST_MODE && battleState) {
+      setBattleState({
+        ...battleState,
+        player1Growth: playerGrowth,
+        player2Growth: opponentGrowth,
+      });
+      console.log('🧪 Updated growth - Player:', playerGrowth, 'Opponent:', opponentGrowth);
+    }
+  }, [battleState]);
+  // ===== END TESTING FUNCTION =====
+
   const value: SuiWalletContextType = {
     address,
     isConnected,
@@ -317,6 +374,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
     useAbility,
     getFirstValidSaplingNft,
     ConnectWalletButton,
+    setTestGrowth: TEST_MODE ? setTestGrowth : undefined,
   };
 
   return (
