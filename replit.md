@@ -15,6 +15,14 @@ A blockchain-based NFT battle game built on the Sui network where players battle
 
 ## Recent Changes
 
+**2025-10-24:** Fixed critical bugs and image loading
+- **FIXED**: Copied all assets from `public/assets/` to `client/public/assets/` for Vite compatibility
+- **FIXED**: NFT scanning infinite loop by replacing `isJoining` state with `hasScanned` flag
+- **FIXED**: All images now loading (backgrounds, logos, NFT evolution stages)
+- **VERIFIED**: Wallet configured with `preferredWallets={['Sui Wallet']}` to prioritize Sui Wallet
+- **VERIFIED**: All scrolling content visible on both Home and Battle pages
+- Added hover effects (scale 1.05) to NFT cards for visual feedback
+
 **2025-01-24:** Complete implementation with exact design matching
 - Fixed Battle page to match exact screenshot layout (red-bordered NFT cards with dark gradient backgrounds)
 - Fixed Home page with navigation to Arboretum (TREE token site)
