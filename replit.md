@@ -15,6 +15,19 @@ A blockchain-based NFT battle game built on the Sui network where players battle
 
 ## Recent Changes
 
+**2025-10-24:** Admin Panel & Multi-Collection NFT Support Added ✅
+- **NEW: Admin Panel for NFT Collection Management**
+  - Admin-only button appears on Battle page when admin wallet connects
+  - Add/remove NFT collections dynamically without code changes
+  - Collections stored in localStorage for persistence
+  - Visual interface with green cyberpunk theme matching Battle page
+  - Default collection: Tree Roots NFT (0xf1207462f6ee39938cd9f6e93285e4dc0a8034d49cb6bfb55cb5a827ba4f0cb6::tree_roots::Nft)
+- **NFT Detection System Updated:**
+  - Scans for NFTs from ALL allowed collections (not just single type)
+  - Checks both wallet and kiosks for supported NFTs
+  - Admin can whitelist multiple NFT collections on-the-fly
+- **Admin Address:** 0xcc8efa0e60a6632f1d948345095fd5a55eb37022fbc2646e5ce10046eb95c3e6
+
 **2025-10-24:** Smart Contract Integration VERIFIED & CRITICAL BUG FIXED ✅
 - **CRITICAL FIX**: Removed incorrect `typeArguments` from join_queue transaction call
   - Frontend was passing `typeArguments: ['0x2::sui::SUI']` to non-generic Move function

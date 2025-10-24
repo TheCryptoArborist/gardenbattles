@@ -62,6 +62,14 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
   const getFirstValidSaplingNft = useCallback(async (owner: string): Promise<string | null> => {
     console.log('Scanning for Sapling NFTs...');
     
+    // Get allowed collections from localStorage
+    const stored = localStorage.getItem('allowed_nft_collections');
+    const allowedTypes = stored 
+      ? JSON.parse(stored).map((c: any) => c.type)
+      : [SUI_CONFIG.SAPLING_STRUCT];
+    
+    console.log('Allowed NFT types:', allowedTypes);
+    
     const kiosks = new Set<string>();
     let cursor: string | null = null;
 
@@ -90,11 +98,11 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
             if (kioskId) kiosks.add(kioskId);
           }
 
-          // Check for directly held Sapling NFT
-          if (type === SUI_CONFIG.SAPLING_STRUCT) {
+          // Check for directly held NFT from any allowed collection
+          if (allowedTypes.includes(type)) {
             const id = obj?.data?.objectId;
             if (id) {
-              console.log('Found Sapling NFT:', id);
+              console.log('Found allowed NFT:', type, id);
               return id;
             }
           }
@@ -116,8 +124,8 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
               options: { showType: true },
             });
 
-            if (obj?.data?.type === SUI_CONFIG.SAPLING_STRUCT) {
-              console.log(`Found Sapling NFT in kiosk ${kioskId}: ${nftId}`);
+            if (obj?.data?.type && allowedTypes.includes(obj.data.type)) {
+              console.log(`Found allowed NFT in kiosk ${kioskId}:`, obj.data.type, nftId);
               return nftId;
             }
           }
@@ -126,7 +134,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      console.warn('No valid Sapling NFT found');
+      console.warn('No valid NFT found from allowed collections');
       return null;
     } catch (err) {
       console.error('Error scanning for NFTs:', err);

@@ -3,9 +3,10 @@ import { Link } from 'wouter';
 import { Trophy } from 'lucide-react';
 import { ConnectButton } from '@mysten/dapp-kit';
 import { useSuiWallet } from '@/hooks/useSuiWallet';
-import { MOVE_LABELS } from '@/lib/sui-config';
+import { MOVE_LABELS, SUI_CONFIG } from '@/lib/sui-config';
 import BattleDialog from '@/components/BattleDialog';
 import WaitingOverlay from '@/components/WaitingOverlay';
+import AdminPanel from '@/components/AdminPanel';
 
 function getNFTImage(growth: number): string {
   if (growth <= 25) return '/assets/seed.jpg';
@@ -686,6 +687,11 @@ export default function Battle() {
         onClose={() => setDialogOpen(false)}
       />
       <WaitingOverlay isWaiting={isWaiting} />
+      
+      <AdminPanel 
+        adminAddress="0xcc8efa0e60a6632f1d948345095fd5a55eb37022fbc2646e5ce10046eb95c3e6"
+        currentAddress={address || null}
+      />
 
       {/* Arboretum Coming Soon Modal */}
       {arboretumModalOpen && (
