@@ -19,6 +19,14 @@ export default function AdminPanel({ adminAddress, currentAddress }: AdminPanelP
   const [newCollectionType, setNewCollectionType] = useState('');
 
   const isAdmin = currentAddress?.toLowerCase() === adminAddress.toLowerCase();
+  
+  console.log('AdminPanel Check:', {
+    currentAddress,
+    adminAddress,
+    isAdmin,
+    currentLower: currentAddress?.toLowerCase(),
+    adminLower: adminAddress.toLowerCase()
+  });
 
   useEffect(() => {
     const stored = localStorage.getItem('allowed_nft_collections');

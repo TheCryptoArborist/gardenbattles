@@ -40,25 +40,29 @@ export default function Battle() {
 
   useEffect(() => {
     async function autoJoinBattle() {
-      if (isConnected && address && !battleState && !hasScanned) {
-        setHasScanned(true);
-        try {
-          setDialogOpen(true);
-          setDialogMessage('Scanning for Sapling NFTs in your wallet...');
-          
-          const nftId = await getFirstValidSaplingNft(address);
-          
-          if (nftId) {
-            setDialogMessage('Sapling NFT found! Joining battle queue...');
-            await joinBattle(nftId);
-            setDialogMessage('Successfully joined battle queue! Waiting for opponent...');
-          } else {
-            setDialogMessage('No Sapling NFT found in your wallet. You need a Sapling NFT from the Battle Garden contract to play.');
+      if (isConnected && address && !battleState) {
+        if (!hasScanned) {
+          setHasScanned(true);
+          try {
+            setDialogOpen(true);
+            setDialogMessage('Scanning for NFTs in your wallet and kiosks...');
+            
+            const nftId = await getFirstValidSaplingNft(address);
+            
+            if (nftId) {
+              setDialogMessage('NFT found! Joining battle queue...');
+              await joinBattle(nftId);
+              setDialogMessage('Successfully joined battle queue! Waiting for opponent...');
+            } else {
+              setDialogMessage('No whitelisted NFT found. Contact admin to whitelist your NFT collection.');
+            }
+          } catch (error: any) {
+            setDialogOpen(true);
+            setDialogMessage(error.message || 'Failed to join battle');
           }
-        } catch (error: any) {
-          setDialogOpen(true);
-          setDialogMessage(error.message || 'Failed to join battle');
         }
+      } else if (!isConnected) {
+        setHasScanned(false);
       }
     }
     autoJoinBattle();
