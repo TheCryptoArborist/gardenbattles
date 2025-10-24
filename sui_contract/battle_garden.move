@@ -1,0 +1,598 @@
+module 0x7144301fe39dae2363f57e13d5e8650934a1adf5817a46b64ac5e86a9cffea80::battle_garden {
+    use sui::object::{Self, ID, UID};
+    use sui::tx_context::{Self, TxContext};
+    use sui::transfer;
+    use sui::event;
+    use sui::balance::{Self, Balance};
+    use sui::coin::{Self, Coin};
+    use sui::sui::SUI;
+    use sui::random::{Self, Random};
+    use std::option::{Self, Option};
+    use std::vector;
+    use std::string::{String};
+
+    const EAdminOnly: u64 = 100;
+    const ENftIssuerMismatch: u64 = 101;
+    const EUnauthorizedPlayer: u64 = 102;
+    const EBattleFinished: u64 = 103;
+    const EInsufficientPayment: u64 = 104;
+    const EInsufficientVault: u64 = 105;
+    const EInvalidAbilityName: u64 = 106;
+    const EPaused: u64 = 107;
+    const ENoPendingToCancel: u64 = 108;
+    const EInvalidMove: u64 = 109;
+    const EInvalidEconomics: u64 = 110;
+
+    struct Status has copy, drop, store {
+        block_turns: u8,
+        next_turn_penalty: u64,
+        poison_ticks: u8,
+        poison_dpt: u64,
+    }
+
+    struct Config has key {
+        id: UID,
+        admin: address,
+        issuer: address,
+        treasury: address,
+        entry_fee: u64,
+        winner_payout: u64,
+        treasury_share: u64,
+        paused: bool,
+    }
+
+    struct MatchmakingQueue has key {
+        id: UID,
+        waiting: Option<Pending>,
+        bank: Balance<SUI>,
+    }
+
+    struct Pending has copy, drop, store {
+        player: address,
+        entry_fee_snapshot: u64,
+    }
+
+    struct Battle has key {
+        id: UID,
+        player1: address,
+        player2: address,
+        p1_growth: u64,
+        p2_growth: u64,
+        turn: u8,
+        finished: bool,
+        winner: Option<address>,
+        p1_moves: vector<u8>,
+        p2_moves: vector<u8>,
+        p1_status: Status,
+        p2_status: Status,
+        vault: Balance<SUI>,
+        battle_entry_fee: u64,
+        winner_payout: u64,
+        treasury_share: u64,
+        treasury_addr: address,
+    }
+
+    struct SaplingNFT has key, store {
+        id: UID,
+        issuer: address,
+        name: String,
+    }
+
+    struct MintCap has key, store {
+        id: UID,
+    }
+
+    struct BattleUpdate has copy, drop {
+        battle_id: ID,
+        player1: address,
+        player2: address,
+        player1_moves: vector<u8>,
+        player2_moves: vector<u8>,
+        player1_growth: u64,
+        player2_growth: u64,
+        winner: Option<address>,
+    }
+
+    struct ConfigUpdated has copy, drop {
+        entry_fee: u64,
+        winner_payout: u64,
+        treasury_share: u64,
+    }
+
+    struct BATTLE_GARDEN has drop {}
+
+    fun add_growth(arg0: u64, arg1: u64): u64 {
+        clamp(arg0 + arg1, 0, 100)
+    }
+
+    fun apply_damage(arg0: u64, arg1: &mut Status): u64 {
+        if (arg1.block_turns > 0) {
+            arg1.block_turns = arg1.block_turns - 1;
+            0
+        } else {
+            arg0
+        }
+    }
+
+    fun clamp(arg0: u64, arg1: u64, arg2: u64): u64 {
+        if (arg0 < arg1) {
+            arg1
+        } else if (arg0 > arg2) {
+            arg2
+        } else {
+            arg0
+        }
+    }
+
+    fun clone_vec_u8(arg0: &vector<u8>): vector<u8> {
+        let v0 = vector::empty<u8>();
+        let i = 0;
+        while (i < vector::length(arg0)) {
+            vector::push_back(&mut v0, *vector::borrow(arg0, i));
+            i = i + 1;
+        };
+        v0
+    }
+
+    fun contains_u8(v: &vector<u8>, val: u8): bool {
+        let i = 0;
+        while (i < vector::length(v)) {
+            if (*vector::borrow(v, i) == val) {
+                return true
+            };
+            i = i + 1;
+        };
+        false
+    }
+
+    fun emit_update(arg0: &Battle) {
+        let update = BattleUpdate {
+            battle_id: object::uid_to_inner(&arg0.id),
+            player1: arg0.player1,
+            player2: arg0.player2,
+            player1_moves: clone_vec_u8(&arg0.p1_moves),
+            player2_moves: clone_vec_u8(&arg0.p2_moves),
+            player1_growth: arg0.p1_growth,
+            player2_growth: arg0.p2_growth,
+            winner: arg0.winner,
+        };
+        event::emit(update);
+    }
+
+    fun eq_str(arg0: vector<u8>, arg1: vector<u8>): bool {
+        if (vector::length(&arg0) != vector::length(&arg1)) {
+            return false
+        };
+        let i = 0;
+        while (i < vector::length(&arg0)) {
+            if (*vector::borrow(&arg0, i) != *vector::borrow(&arg1, i)) {
+                return false
+            };
+            i = i + 1;
+        };
+        true
+    }
+
+    fun finish_and_payout(arg0: &mut Battle, arg1: address, arg2: &mut TxContext) {
+        assert!(!arg0.finished, EBattleFinished);
+        arg0.finished = true;
+        arg0.winner = option::some(arg1);
+        assert!(balance::value(&arg0.vault) >= arg0.winner_payout + arg0.treasury_share, EInsufficientVault);
+        let payout = balance::split(&mut arg0.vault, arg0.winner_payout);
+        transfer::public_transfer(coin::from_balance(payout, arg2), arg1);
+        let treasury_cut = balance::split(&mut arg0.vault, arg0.treasury_share);
+        transfer::public_transfer(coin::from_balance(treasury_cut, arg2), arg0.treasury_addr);
+        let remaining = balance::value(&arg0.vault);
+        if (remaining > 0) {
+            let rem = balance::split(&mut arg0.vault, remaining);
+            transfer::public_transfer(coin::from_balance(rem, arg2), arg1);
+        };
+        emit_update(arg0);
+    }
+
+    fun gen_moves(_arg0: &Random, _arg1: &mut TxContext): vector<u8> {
+        let attacks = vector::empty<u8>();
+        vector::push_back(&mut attacks, 1);
+        vector::push_back(&mut attacks, 2);
+        vector::push_back(&mut attacks, 3);
+        vector::push_back(&mut attacks, 4);
+        vector::push_back(&mut attacks, 5);
+        vector::push_back(&mut attacks, 6);
+        vector::push_back(&mut attacks, 7);
+
+        let supports = vector::empty<u8>();
+        vector::push_back(&mut supports, 8);
+        vector::push_back(&mut supports, 9);
+        vector::push_back(&mut supports, 10);
+        vector::push_back(&mut supports, 11);
+        vector::push_back(&mut supports, 12);
+        vector::push_back(&mut supports, 13);
+        vector::push_back(&mut supports, 20);
+        vector::push_back(&mut supports, 21);
+        vector::push_back(&mut supports, 22);
+        vector::push_back(&mut supports, 23);
+        vector::push_back(&mut supports, 24);
+        vector::push_back(&mut supports, 25);
+        vector::push_back(&mut supports, 26);
+        vector::push_back(&mut supports, 27);
+        vector::push_back(&mut supports, 28);
+        vector::push_back(&mut supports, 29);
+        vector::push_back(&mut supports, 30);
+
+        let moves = vector::empty<u8>();
+        let rng = random::new_generator(_arg0, _arg1);
+        let attacks_len: u64 = vector::length(&attacks);
+        let supports_len: u64 = vector::length(&supports);
+        let idx1 = random::generate_u64(&mut rng) % attacks_len;
+        let idx2 = random::generate_u64(&mut rng) % attacks_len;
+        if (idx1 == idx2) {
+            idx2 = (idx1 + 1) % attacks_len;
+        };
+        vector::push_back(&mut moves, *vector::borrow(&attacks, idx1));
+        vector::push_back(&mut moves, *vector::borrow(&attacks, idx2));
+        let idx3 = random::generate_u64(&mut rng) % supports_len;
+        let idx4 = random::generate_u64(&mut rng) % supports_len;
+        if (idx3 == idx4) {
+            idx4 = (idx3 + 1) % supports_len;
+        };
+        vector::push_back(&mut moves, *vector::borrow(&supports, idx3));
+        vector::push_back(&mut moves, *vector::borrow(&supports, idx4));
+        moves
+    }
+
+    fun init(_witness: BATTLE_GARDEN, ctx: &mut TxContext) {
+        let sender = tx_context::sender(ctx);
+        let config = Config {
+            id: object::new(ctx),
+            admin: sender,
+            issuer: sender,
+            treasury: sender,
+            entry_fee: 3000000000,
+            winner_payout: 5000000000,
+            treasury_share: 1000000000,
+            paused: false,
+        };
+        let queue = MatchmakingQueue {
+            id: object::new(ctx),
+            waiting: option::none(),
+            bank: balance::zero(),
+        };
+        let mint_cap = MintCap {
+            id: object::new(ctx),
+        };
+        transfer::share_object(config);
+        transfer::share_object(queue);
+        transfer::public_transfer(mint_cap, sender);
+    }
+
+    #[allow(lint(public_random))]
+    public fun join_queue(config: &Config, queue: &mut MatchmakingQueue, nft: &SaplingNFT, payment: Coin<SUI>, rand: &Random, ctx: &mut TxContext) {
+        assert!(!config.paused, EPaused);
+        assert!(nft.issuer == config.issuer, ENftIssuerMismatch);
+        let sender = tx_context::sender(ctx);
+        let entry_fee = if (option::is_some(&queue.waiting)) {
+            let pending_ref = option::borrow(&queue.waiting);
+            pending_ref.entry_fee_snapshot
+        } else {
+            config.entry_fee
+        };
+        assert!(coin::value(&payment) >= entry_fee, EInsufficientPayment);
+        balance::join(&mut queue.bank, coin::into_balance(coin::split(&mut payment, entry_fee, ctx)));
+        if (coin::value(&payment) > 0) {
+            transfer::public_transfer(payment, sender);
+        } else {
+            coin::destroy_zero(payment);
+        };
+        if (option::is_some(&queue.waiting)) {
+            let pending = option::extract(&mut queue.waiting);
+            spawn_battle(queue, pending.player, sender, pending.entry_fee_snapshot, config, rand, ctx);
+        } else {
+            let pending = Pending {
+                player: sender,
+                entry_fee_snapshot: entry_fee,
+            };
+            option::fill(&mut queue.waiting, pending);
+        };
+    }
+
+    public fun cancel_queue(queue: &mut MatchmakingQueue, ctx: &mut TxContext) {
+        assert!(option::is_some(&queue.waiting), ENoPendingToCancel);
+        let pending_ref = option::borrow(&queue.waiting);
+        let sender = tx_context::sender(ctx);
+        assert!(pending_ref.player == sender, EUnauthorizedPlayer);
+        let pending = option::extract(&mut queue.waiting);
+        let fee = pending.entry_fee_snapshot;
+        let refund = balance::split(&mut queue.bank, fee);
+        transfer::public_transfer(coin::from_balance(refund, ctx), sender);
+    }
+
+    public fun withdraw_from_queue(config: &Config, queue: &mut MatchmakingQueue, ctx: &mut TxContext) {
+        assert!(tx_context::sender(ctx) == config.admin, EAdminOnly);
+        let amount = balance::value(&queue.bank);
+        if (amount > 0) {
+            let withdraw_bal = balance::split(&mut queue.bank, amount);
+            transfer::public_transfer(coin::from_balance(withdraw_bal, ctx), config.treasury);
+        };
+    }
+
+    fun map_ability_name(name: vector<u8>): u8 {
+        if (eq_str(name, b"ThornSpikeBomb")) { 1 }
+        else if (eq_str(name, b"RazorLeafSword")) { 2 }
+        else if (eq_str(name, b"TumbleweedMace")) { 3 }
+        else if (eq_str(name, b"ShovelSpear")) { 4 }
+        else if (eq_str(name, b"ThornedWhip")) { 5 }
+        else if (eq_str(name, b"AcornSlingshot")) { 6 }
+        else if (eq_str(name, b"StoneNunchuck")) { 7 }
+        else if (eq_str(name, b"CactusShield")) { 8 }
+        else if (eq_str(name, b"LifeAbsorb")) { 9 }
+        else if (eq_str(name, b"Poison")) { 10 }
+        else if (eq_str(name, b"WitherTouch")) { 11 }
+        else if (eq_str(name, b"PollenCloud")) { 12 }
+        else if (eq_str(name, b"FungalRot")) { 13 }
+        else if (eq_str(name, b"RootsUp")) { 20 }
+        else if (eq_str(name, b"SunBeam")) { 21 }
+        else if (eq_str(name, b"RainStorm")) { 22 }
+        else if (eq_str(name, b"WhiteMold")) { 23 }
+        else if (eq_str(name, b"GreenhouseGas")) { 24 }
+        else if (eq_str(name, b"PotassiumPowerUp")) { 25 }
+        else if (eq_str(name, b"PhotosyntheticSurge")) { 26 }
+        else if (eq_str(name, b"BarkskinArmor")) { 27 }
+        else if (eq_str(name, b"SapOverflow")) { 28 }
+        else if (eq_str(name, b"CloudCover")) { 29 }
+        else if (eq_str(name, b"ShadowCanopy")) { 30 }
+        else { 0 }
+    }
+
+    public fun mint_sapling(_cap: &MintCap, config: &Config, recipient: address, name: String, ctx: &mut TxContext) {
+        let nft = SaplingNFT {
+            id: object::new(ctx),
+            issuer: config.issuer,
+            name,
+        };
+        transfer::public_transfer(nft, recipient);
+    }
+
+    public fun destroy_mint_cap(cap: MintCap) {
+        let MintCap { id } = cap;
+        object::delete(id);
+    }
+
+    fun miss(_arg0: &Random, _arg1: &mut TxContext, arg2: u64): bool {
+        let rng = random::new_generator(_arg0, _arg1);
+        random::generate_u64(&mut rng) % 100 < arg2
+    }
+
+    fun rand_inclusive(_arg0: &Random, _arg1: &mut TxContext, arg2: u64, arg3: u64): u64 {
+        if (arg3 <= arg2) {
+            return arg2
+        };
+        let rng = random::new_generator(_arg0, _arg1);
+        arg2 + (random::generate_u64(&mut rng) % (arg3 - arg2 + 1))
+    }
+
+    fun resolve_move(move_id: u8, self_growth: &mut u64, opp_growth: &mut u64, self_status: &mut Status, opp_status: &mut Status, rand: &Random, ctx: &mut TxContext) {
+        if (move_id == 1) {
+            *opp_growth = sub_growth(*opp_growth, apply_damage(10, opp_status));
+        } else if (move_id == 2) {
+            *opp_growth = sub_growth(*opp_growth, apply_damage(8, opp_status));
+        } else if (move_id == 3) {
+            *opp_growth = sub_growth(*opp_growth, apply_damage(12, opp_status));
+        } else if (move_id == 4) {
+            *opp_growth = sub_growth(*opp_growth, apply_damage(7, opp_status));
+        } else if (move_id == 5) {
+            *opp_growth = sub_growth(*opp_growth, apply_damage(9, opp_status));
+        } else if (move_id == 6) {
+            *opp_growth = sub_growth(*opp_growth, apply_damage(6, opp_status));
+        } else if (move_id == 7) {
+            *opp_growth = sub_growth(*opp_growth, apply_damage(11, opp_status));
+        } else if (move_id == 8) {
+            self_status.block_turns = 1;
+            *opp_growth = sub_growth(*opp_growth, 5);
+        } else if (move_id == 9) {
+            *opp_growth = sub_growth(*opp_growth, apply_damage(8, opp_status));
+            *self_growth = add_growth(*self_growth, 4);
+        } else if (move_id == 10) {
+            opp_status.poison_ticks = 2;
+            opp_status.poison_dpt = 5;
+        } else if (move_id == 11) {
+            if (!miss(rand, ctx, 20)) {
+                *opp_growth = sub_growth(*opp_growth, apply_damage(15, opp_status));
+            }
+        } else if (move_id == 12) {
+            if (!miss(rand, ctx, 50)) {
+                *opp_growth = sub_growth(*opp_growth, apply_damage(10, opp_status));
+            } else {
+                opp_status.block_turns = opp_status.block_turns + 1;
+            }
+        } else if (move_id == 13) {
+            *opp_growth = sub_growth(*opp_growth, apply_damage(7, opp_status));
+            opp_status.next_turn_penalty = opp_status.next_turn_penalty + 3;
+        } else if (move_id == 20) {
+            *self_growth = add_growth(*self_growth, 10);
+        } else if (move_id == 21) {
+            *self_growth = add_growth(*self_growth, rand_inclusive(rand, ctx, 8, 12));
+        } else if (move_id == 22) {
+            *self_growth = add_growth(*self_growth, 15);
+        } else if (move_id == 23) {
+            let bonus = if (miss(rand, ctx, 20)) { 5 } else { 0 };
+            *self_growth = add_growth(*self_growth, 10 + bonus);
+        } else if (move_id == 24) {
+            *self_growth = add_growth(*self_growth, rand_inclusive(rand, ctx, 12, 18));
+        } else if (move_id == 25) {
+            if (!miss(rand, ctx, 10)) {
+                *self_growth = add_growth(*self_growth, 20);
+            }
+        } else if (move_id == 26) {
+            *self_growth = add_growth(*self_growth, rand_inclusive(rand, ctx, 15, 20));
+        } else if (move_id == 27) {
+            *self_growth = add_growth(*self_growth, 10);
+            self_status.block_turns = 1;
+        } else if (move_id == 28) {
+            *self_growth = add_growth(*self_growth, 12);
+        } else if (move_id == 29) {
+            *self_growth = add_growth(*self_growth, 8);
+            if (!miss(rand, ctx, 50)) {
+                self_status.block_turns = self_status.block_turns + 1;
+            }
+        } else if (move_id == 30) {
+            *self_growth = add_growth(*self_growth, rand_inclusive(rand, ctx, 10, 15));
+        };
+    }
+
+    public fun set_economics(config: &mut Config, entry_fee: u64, winner_payout: u64, treasury_share: u64, ctx: &mut TxContext) {
+        assert!(tx_context::sender(ctx) == config.admin, EAdminOnly);
+        assert!(winner_payout + treasury_share <= 2 * entry_fee, EInvalidEconomics);
+        config.entry_fee = entry_fee;
+        config.winner_payout = winner_payout;
+        config.treasury_share = treasury_share;
+        let updated = ConfigUpdated {
+            entry_fee,
+            winner_payout,
+            treasury_share,
+        };
+        event::emit(updated);
+    }
+
+    public fun set_paused(config: &mut Config, paused: bool, ctx: &mut TxContext) {
+        assert!(tx_context::sender(ctx) == config.admin, EAdminOnly);
+        config.paused = paused;
+    }
+
+    public fun admin_close(battle: &mut Battle, config: &Config, ctx: &mut TxContext) {
+        assert!(tx_context::sender(ctx) == config.admin, EAdminOnly);
+        assert!(!battle.finished, EBattleFinished);
+        battle.finished = true;
+        battle.winner = option::none();
+        let total = balance::value(&battle.vault);
+        let half = total / 2;
+        let p1_refund = balance::split(&mut battle.vault, half);
+        transfer::public_transfer(coin::from_balance(p1_refund, ctx), battle.player1);
+        let p2_refund = balance::split(&mut battle.vault, half);
+        transfer::public_transfer(coin::from_balance(p2_refund, ctx), battle.player2);
+        let remaining = balance::value(&battle.vault);
+        if (remaining > 0) {
+            let rem = balance::split(&mut battle.vault, remaining);
+            transfer::public_transfer(coin::from_balance(rem, ctx), battle.player1);
+        };
+        emit_update(battle);
+    }
+
+    fun spawn_battle(queue: &mut MatchmakingQueue, player1: address, player2: address, entry_fee: u64, config: &Config, rand: &Random, ctx: &mut TxContext) {
+        let p1_status = Status { block_turns: 0, next_turn_penalty: 0, poison_ticks: 0, poison_dpt: 0 };
+        let p2_status = Status { block_turns: 0, next_turn_penalty: 0, poison_ticks: 0, poison_dpt: 0 };
+        let battle = Battle {
+            id: object::new(ctx),
+            player1,
+            player2,
+            p1_growth: 0,
+            p2_growth: 0,
+            turn: 0,
+            finished: false,
+            winner: option::none(),
+            p1_moves: gen_moves(rand, ctx),
+            p2_moves: gen_moves(rand, ctx),
+            p1_status,
+            p2_status,
+            vault: balance::split(&mut queue.bank, 2 * entry_fee),
+            battle_entry_fee: entry_fee,
+            winner_payout: config.winner_payout,
+            treasury_share: config.treasury_share,
+            treasury_addr: config.treasury,
+        };
+        let update = BattleUpdate {
+            battle_id: object::uid_to_inner(&battle.id),
+            player1,
+            player2,
+            player1_moves: clone_vec_u8(&battle.p1_moves),
+            player2_moves: clone_vec_u8(&battle.p2_moves),
+            player1_growth: 0,
+            player2_growth: 0,
+            winner: option::none(),
+        };
+        event::emit(update);
+        transfer::share_object(battle);
+    }
+
+    fun sub_growth(arg0: u64, arg1: u64): u64 {
+        if (arg0 > arg1) {
+            arg0 - arg1
+        } else {
+            0
+        }
+    }
+
+    public fun surrender(battle: &mut Battle, ctx: &mut TxContext) {
+        assert!(!battle.finished, EBattleFinished);
+        let sender = tx_context::sender(ctx);
+        let winner = if (sender == battle.player1) {
+            battle.player2
+        } else if (sender == battle.player2) {
+            battle.player1
+        } else {
+            abort EUnauthorizedPlayer
+        };
+        finish_and_payout(battle, winner, ctx);
+    }
+
+    #[allow(lint(public_random))]
+    public fun use_ability(battle: &mut Battle, ability_name: vector<u8>, rand: &Random, ctx: &mut TxContext) {
+        let move_id = map_ability_name(ability_name);
+        assert!(move_id != 0, EInvalidAbilityName);
+        use_ability_id(battle, move_id, rand, ctx);
+    }
+
+    #[allow(lint(public_random))]
+    public fun use_ability_id(battle: &mut Battle, move_id: u8, rand: &Random, ctx: &mut TxContext) {
+        assert!(!battle.finished, EBattleFinished);
+        let sender = tx_context::sender(ctx);
+        let is_player_turn = if (battle.turn == 0) {
+            assert!(sender == battle.player1, EUnauthorizedPlayer);
+            contains_u8(&battle.p1_moves, move_id)
+        } else {
+            assert!(sender == battle.player2, EUnauthorizedPlayer);
+            contains_u8(&battle.p2_moves, move_id)
+        };
+        assert!(is_player_turn, EInvalidMove);
+        if (battle.turn == 0) {
+            if (battle.p1_status.next_turn_penalty > 0) {
+                battle.p1_growth = sub_growth(battle.p1_growth, battle.p1_status.next_turn_penalty);
+                battle.p1_status.next_turn_penalty = 0;
+            };
+            if (battle.p1_status.poison_ticks > 0) {
+                battle.p1_growth = sub_growth(battle.p1_growth, battle.p1_status.poison_dpt);
+                battle.p1_status.poison_ticks = battle.p1_status.poison_ticks - 1;
+            };
+            resolve_move(move_id, &mut battle.p1_growth, &mut battle.p2_growth, &mut battle.p1_status, &mut battle.p2_status, rand, ctx);
+            battle.p1_growth = clamp(battle.p1_growth, 0, 100);
+            battle.p2_growth = clamp(battle.p2_growth, 0, 100);
+            if (battle.p1_growth >= 100) {
+                finish_and_payout(battle, battle.player1, ctx);
+            } else if (battle.p2_growth == 0) {
+                finish_and_payout(battle, battle.player1, ctx);
+            } else {
+                battle.turn = 1;
+                emit_update(battle);
+            };
+        } else {
+            if (battle.p2_status.next_turn_penalty > 0) {
+                battle.p2_growth = sub_growth(battle.p2_growth, battle.p2_status.next_turn_penalty);
+                battle.p2_status.next_turn_penalty = 0;
+            };
+            if (battle.p2_status.poison_ticks > 0) {
+                battle.p2_growth = sub_growth(battle.p2_growth, battle.p2_status.poison_dpt);
+                battle.p2_status.poison_ticks = battle.p2_status.poison_ticks - 1;
+            };
+            resolve_move(move_id, &mut battle.p2_growth, &mut battle.p1_growth, &mut battle.p2_status, &mut battle.p1_status, rand, ctx);
+            battle.p2_growth = clamp(battle.p2_growth, 0, 100);
+            battle.p1_growth = clamp(battle.p1_growth, 0, 100);
+            if (battle.p2_growth >= 100) {
+                finish_and_payout(battle, battle.player2, ctx);
+            } else if (battle.p1_growth == 0) {
+                finish_and_payout(battle, battle.player2, ctx);
+            } else {
+                battle.turn = 0;
+                emit_update(battle);
+            };
+        };
+    }
+}

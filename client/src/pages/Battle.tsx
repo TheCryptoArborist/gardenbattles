@@ -28,24 +28,40 @@ function NFTCard({ growth, isPlayer, isWinner, label }: NFTCardProps) {
         className={`relative flex items-center justify-center transition-all duration-300 ${isWinner ? 'grow-green' : ''}`}
         style={{
           width: '240px',
-          height: '336px',
-          borderRadius: '12px',
-          background: 'rgba(255, 255, 255, 0.1)',
-          overflow: 'hidden',
+          height: '320px',
+          borderRadius: '20px',
+          background: 'linear-gradient(135deg, rgba(60, 20, 20, 0.9), rgba(40, 15, 15, 0.9))',
+          border: '4px solid',
+          borderColor: isWinner ? '#00ff00' : (isPlayer ? '#ff0000' : '#8B0000'),
+          padding: '20px',
           boxShadow: isWinner 
-            ? '0 0 20px #00ff00, 0 0 40px #00ff00' 
+            ? '0 0 40px #00ff00, inset 0 0 20px rgba(0,255,0,0.2)' 
             : isPlayer 
-              ? '0 0 15px #00ff00' 
-              : '0 0 15px #ff0000'
+              ? '0 0 20px #ff0000, inset 0 0 10px rgba(255,0,0,0.1)' 
+              : '0 0 20px #8B0000, inset 0 0 10px rgba(139,0,0,0.1)'
         }}
         data-testid={`nft-card-${isPlayer ? 'player' : 'opponent'}`}
       >
-        <img 
-          src={getNFTImage(growth)} 
-          alt={label}
-          className="max-w-[90%] max-h-[90%] object-contain rounded-lg"
-          data-testid={`nft-image-${isPlayer ? 'player' : 'opponent'}`}
-        />
+        <div
+          style={{
+            width: '100%',
+            height: '100%',
+            borderRadius: '12px',
+            background: 'linear-gradient(135deg, #2a2a2a, #1a1a1a)',
+            padding: '12px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            border: '2px solid rgba(100, 100, 100, 0.3)'
+          }}
+        >
+          <img 
+            src={getNFTImage(growth)} 
+            alt={label}
+            className="max-w-full max-h-full object-contain rounded-lg"
+            data-testid={`nft-image-${isPlayer ? 'player' : 'opponent'}`}
+          />
+        </div>
         {isWinner && (
           <div 
             className="absolute inset-0 z-10 pointer-events-none flex items-center justify-center"
@@ -64,26 +80,28 @@ function NFTCard({ growth, isPlayer, isWinner, label }: NFTCardProps) {
         )}
       </div>
       <div 
-        className="mt-2 px-2 w-60"
+        className="mt-3 w-60"
         style={{
-          background: 'rgba(0, 0, 0, 0.8)',
-          borderRadius: '6px',
-          padding: '2px',
+          background: '#000',
+          borderRadius: '8px',
+          padding: '4px',
+          border: '2px solid #00ff00',
           boxShadow: '0 0 10px #00ff00'
         }}
       >
         <div 
-          className="h-4 rounded transition-all duration-300"
+          className="h-5 rounded transition-all duration-300"
           style={{
             width: `${growth}%`,
-            background: 'linear-gradient(to right, #00ff00, #00cc00)'
+            background: 'linear-gradient(to right, #00ff00, #00cc00)',
+            boxShadow: '0 0 10px #00ff00'
           }}
           data-testid={`health-bar-${isPlayer ? 'player' : 'opponent'}`}
         />
       </div>
       <p 
         className="mt-2 text-base md:text-lg font-sans"
-        style={{ color: '#00ffcc' }}
+        style={{ color: 'white' }}
         data-testid={`text-growth-${isPlayer ? 'player' : 'opponent'}`}
       >
         {label}: {growth}
@@ -107,7 +125,6 @@ export default function Battle() {
   const [dialogMessage, setDialogMessage] = useState('');
   const [isJoining, setIsJoining] = useState(false);
 
-  // Automatically join battle when wallet connects (if not already in battle)
   useEffect(() => {
     async function autoJoinBattle() {
       if (isConnected && address && !battleState && !isJoining) {
@@ -145,7 +162,6 @@ export default function Battle() {
     }
   };
 
-  // Determine player and opponent growth
   const isPlayer1 = battleState && address && battleState.player1?.toLowerCase() === address.toLowerCase();
   const playerGrowth = battleState 
     ? (isPlayer1 ? battleState.player1Growth : battleState.player2Growth)
@@ -176,28 +192,28 @@ export default function Battle() {
     <div 
       className="min-h-screen flex flex-col text-white font-sans"
       style={{
-        backgroundImage: 'url(/assets/background4.jpg)',
-        backgroundSize: 'cover',
-        backgroundPosition: 'center center',
-        backgroundRepeat: 'no-repeat',
-        backgroundAttachment: 'fixed',
-        backgroundColor: '#000'
+        background: '#000',
+        backgroundImage: 'radial-gradient(circle at 50% 50%, rgba(0, 50, 0, 0.3) 0%, #000 100%)'
       }}
     >
       <Header />
 
       <main className="flex-1 flex flex-col items-center px-4 py-8">
-        {/* Title */}
-        <h1 
-          className="text-3xl md:text-5xl font-bold mb-8 explode-shrink"
-          style={{
-            color: '#00ff00',
-            textShadow: '0 0 10px #00ff00'
-          }}
-          data-testid="text-battle-title"
-        >
-          The Garden Battles
-        </h1>
+        {/* Title Image */}
+        <div className="mb-8">
+          <img 
+            src="/assets/backgrounda.jpg" 
+            alt="The Garden Battles" 
+            className="h-auto rounded-xl"
+            style={{
+              maxWidth: '600px',
+              width: '100%',
+              boxShadow: '0 0 30px #00ff00',
+              border: '3px solid #00ff00'
+            }}
+            data-testid="img-battle-title"
+          />
+        </div>
 
         {/* Battle Area */}
         <div className="flex flex-col md:flex-row items-center justify-center mb-8 w-full max-w-5xl">
@@ -209,10 +225,11 @@ export default function Battle() {
           />
           
           <div 
-            className="text-4xl md:text-6xl font-bold mx-4 md:mx-8 my-4 md:my-0"
+            className="text-6xl md:text-8xl font-bold mx-6 md:mx-12 my-4 md:my-0"
             style={{
               color: '#00ff00',
-              textShadow: '0 0 10px #00ff00'
+              textShadow: '0 0 20px #00ff00, 0 0 40px #00ff00',
+              fontFamily: 'Orbitron, sans-serif'
             }}
             data-testid="text-vs"
           >
@@ -230,12 +247,11 @@ export default function Battle() {
         {/* Battle Options */}
         {playerMoves.length > 0 && (
           <div 
-            className="w-full max-w-3xl p-4 rounded-xl mb-4 flex flex-wrap justify-center gap-2 overflow-y-auto"
+            className="w-full max-w-4xl p-6 rounded-2xl mb-6 flex flex-wrap justify-center gap-3"
             style={{
-              background: 'rgba(0, 50, 0, 0.8)',
+              background: 'rgba(0, 50, 0, 0.5)',
               border: '2px solid #00ff00',
-              boxShadow: '0 0 15px #00ff00',
-              maxHeight: '200px'
+              boxShadow: '0 0 20px #00ff00'
             }}
             data-testid="battle-options"
           >
@@ -244,25 +260,26 @@ export default function Battle() {
                 key={moveId}
                 onClick={() => handleUseAbility(moveId)}
                 disabled={winner !== null}
-                className="px-4 py-2 text-sm md:text-base font-sans transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-6 py-3 text-base font-sans transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
                 style={{
                   border: '2px solid #00ff00',
-                  background: 'transparent',
+                  background: 'rgba(0, 100, 0, 0.3)',
                   color: 'white',
-                  boxShadow: '0 0 10px #00ff00',
-                  borderRadius: '8px'
+                  boxShadow: '0 0 15px #00ff00',
+                  borderRadius: '10px',
+                  fontFamily: 'Orbitron, sans-serif'
                 }}
                 onMouseEnter={(e) => {
                   if (!winner) {
                     e.currentTarget.style.background = '#00ff00';
                     e.currentTarget.style.color = '#000';
-                    e.currentTarget.style.boxShadow = '0 0 25px #00ff00';
+                    e.currentTarget.style.boxShadow = '0 0 30px #00ff00';
                   }
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.background = 'transparent';
+                  e.currentTarget.style.background = 'rgba(0, 100, 0, 0.3)';
                   e.currentTarget.style.color = 'white';
-                  e.currentTarget.style.boxShadow = '0 0 10px #00ff00';
+                  e.currentTarget.style.boxShadow = '0 0 15px #00ff00';
                 }}
                 data-testid={`button-ability-${moveId}`}
               >
@@ -273,50 +290,32 @@ export default function Battle() {
         )}
 
         {/* Battle Info */}
-        <p 
-          className="text-lg md:text-xl mb-2"
-          style={{ color: '#00ffcc' }}
-          data-testid="text-entry-fee"
-        >
-          3 SUI per Battle
-        </p>
-        <p 
-          className="text-lg md:text-xl font-bold"
-          style={{ color: '#ffff00' }}
-          data-testid="text-battle-status"
-        >
-          {battleStatus}
-        </p>
-
-        {/* Info Section */}
         <div 
-          className="w-full max-w-4xl mt-12 p-6 md:p-8 rounded-2xl"
+          className="text-center p-6 rounded-xl"
           style={{
-            background: 'rgba(0, 50, 0, 0.8)',
+            background: 'rgba(0, 50, 0, 0.6)',
             border: '2px solid #00ff00',
-            boxShadow: '0 0 15px #00ff00'
+            boxShadow: '0 0 20px #00ff00'
           }}
         >
-          <h2 
-            className="text-2xl md:text-3xl font-bold mb-4"
-            style={{
+          <p 
+            className="text-2xl md:text-3xl mb-3 font-bold"
+            style={{ 
               color: '#00ff00',
-              textShadow: '0 0 5px #00ff00'
+              textShadow: '0 0 10px #00ff00',
+              fontFamily: 'Orbitron, sans-serif'
             }}
+            data-testid="text-entry-fee"
           >
-            How to Play
-          </h2>
-          <ul 
-            className="list-disc ml-6 space-y-2 text-base md:text-lg"
+            3 SUI per Battle
+          </p>
+          <p 
+            className="text-lg md:text-xl"
             style={{ color: '#00ffcc' }}
+            data-testid="text-battle-status"
           >
-            <li>Connect your Sui wallet containing a Sapling NFT</li>
-            <li>Pay 3 SUI to enter the matchmaking queue</li>
-            <li>Wait for an opponent to join</li>
-            <li>Take turns using your assigned abilities</li>
-            <li>First to reach 100 Growth wins 5 SUI!</li>
-            <li>Watch your NFT evolve as you gain Growth points</li>
-          </ul>
+            {battleStatus}
+          </p>
         </div>
       </main>
 

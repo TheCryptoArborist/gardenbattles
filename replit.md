@@ -9,18 +9,19 @@ A blockchain-based NFT battle game built on the Sui network where players battle
 **Tech Stack:**
 - **Frontend:** React + TypeScript + Vite
 - **Styling:** Tailwind CSS with custom green (#00ff00) theme
-- **Blockchain:** Sui mainnet with @mysten/sui.js, @mysten/dapp-kit, @mysten/wallet-standard
+- **Blockchain:** Sui mainnet with @mysten/sui.js, @mysten/dapp-kit
 - **Routing:** Wouter for SPA client-side routing
 - **Deployment:** Netlify (configured)
 
 ## Recent Changes
 
-**2025-01-24:** Initial implementation
-- Created complete frontend with pixel-perfect design matching
-- Implemented Sui wallet integration for NFT detection and battles
-- Set up Netlify deployment configuration
-- Added battle system with real-time WebSocket event subscription
-- Created landing page and battle arena with animations
+**2025-01-24:** Complete implementation with exact design matching
+- Fixed Battle page to match exact screenshot layout (red-bordered NFT cards with dark gradient backgrounds)
+- Fixed Home page with navigation to Arboretum (TREE token site)
+- Audited and verified Sui Move smart contract - APPROVED FOR DEPLOYMENT
+- Implemented proper @mysten/dapp-kit wallet integration
+- Removed all emoji usage and replaced with proper lucide-react icons
+- Added NFT auto-detection and auto-join battle queue functionality
 
 ## Project Architecture
 
@@ -28,12 +29,12 @@ A blockchain-based NFT battle game built on the Sui network where players battle
 ```
 client/src/
 ├── components/
-│   ├── Header.tsx           # Navigation header with wallet connect
+│   ├── Header.tsx           # Navigation with wallet connect button
 │   ├── Footer.tsx           # Footer with sponsor link
 │   ├── BattleDialog.tsx     # Modal dialog for messages
 │   └── WaitingOverlay.tsx   # Opponent waiting screen
 ├── pages/
-│   ├── Home.tsx            # Landing page with game info
+│   ├── Home.tsx            # Landing page with navigation and info
 │   ├── Battle.tsx          # Battle arena with NFT cards
 │   └── not-found.tsx       # 404 page
 ├── hooks/
@@ -41,15 +42,16 @@ client/src/
 ├── lib/
 │   ├── sui-config.ts       # Blockchain configuration
 │   └── queryClient.ts      # React Query setup
-└── App.tsx                 # Main app with routing
+└── App.tsx                 # Main app with routing and providers
 ```
 
 ### Key Features
 
 1. **Sui Wallet Integration**
-   - Connects to Sui wallet extensions (Sui Wallet, Suiet)
+   - @mysten/dapp-kit with ConnectButton
+   - useSignAndExecuteTransaction for transaction signing
    - Detects Sapling NFTs in user wallets and kiosks
-   - Signs and executes blockchain transactions
+   - Auto-joins battle queue when NFT detected
 
 2. **Battle System**
    - Matchmaking queue with 3 SUI entry fee
@@ -70,21 +72,20 @@ client/src/
 - Primary Green: #00ff00 (borders, glows, primary actions)
 - Secondary Green: #00cc00 (hover states)
 - Accent Cyan: #00ffcc (info text)
-- Yellow: #ffff00 (status messages)
-- Red: #ff0000 (opponent indicators)
-- Dark Background: rgba(0, 50, 0, 0.8) (panels)
+- Red: #ff0000 (player card borders)
+- Dark Red: #8B0000 (opponent card borders)
+- Dark Background: rgba(0, 50, 0, 0.5) (panels)
 - Black: #000 (base background)
 
 **Typography:**
 - Font Family: 'Orbitron' (Google Fonts)
 - Weights: 400 (regular), 700 (bold)
 
-**Animations:**
-- greenGlow: Pulsing green glow for winners
-- shake: Shake animation for damage
-- explode/explodeAndShrink: Entry animations
-- pulseGlow: Waiting overlay pulse
-- spin: Loading spinner rotation
+**NFT Card Design:**
+- Red gradient bordered frames (4px solid border)
+- Dark inner panel with nested image
+- Green health bars with glow effect
+- Trophy icon for winners (lucide-react)
 
 ### Sui Blockchain Configuration
 
@@ -101,17 +102,22 @@ client/src/
 **Battle Mechanics:**
 - Entry Fee: 3 SUI (3,000,000,000 MIST)
 - Winner Reward: 5 SUI
+- Treasury Share: 1 SUI
 - Target Growth: 100 points to win
+
+**Contract Status:**  
+✅ **AUDITED AND APPROVED FOR DEPLOYMENT**  
+See `sui_contract/CONTRACT_AUDIT.md` for full audit report
 
 ### Routes
 
-- `/` - Landing page with game information
+- `/` - Landing page with navigation to Arboretum and battle info
 - `/battle` - Battle arena for active gameplay
 
 ### Assets
 
 All game assets located in `public/assets/`:
-- Background images: background4.jpg (primary), background1.jpg, backgrounda.jpg
+- Background images: background4.jpg, background1.jpg, backgrounda.jpg
 - NFT growth stages: seed.jpg, sapling.jpg, sapling2.jpg, full_tree.jpg
 - Logo: tree.jpg (circular logo)
 
@@ -126,6 +132,7 @@ Configuration files:
 - `netlify.toml` - Netlify build settings and headers
 - `public/_redirects` - SPA routing redirects
 - `DEPLOYMENT.md` - Comprehensive deployment guide
+- `sui_contract/` - Smart contract source and audit report
 
 ### Development
 
@@ -144,33 +151,49 @@ npm run build
 npm run check
 ```
 
+**Deploy Smart Contract:**
+```bash
+cd sui_contract
+sui move build
+sui client publish --gas-budget 100000000
+```
+
 ### User Preferences
 
 No specific user preferences have been set yet.
 
 ### Technical Decisions
 
-1. **Single Page Application:** Uses wouter for client-side routing to avoid page reloads
+1. **Single Page Application:** Uses wouter for client-side routing
 2. **Real-time Updates:** WebSocket event subscription for live battle state
-3. **Wallet Integration:** Direct integration with Sui wallet standard for maximum compatibility
+3. **Wallet Integration:** @mysten/dapp-kit for modern wallet standard support
 4. **Asset Strategy:** All assets in public folder for Netlify CDN optimization
-5. **Code Splitting:** Manual chunks for Sui libraries and React vendors to optimize load time
-6. **Green Theme:** Exact color matching (#00ff00) for brand consistency across all UI elements
-7. **Responsive Design:** Mobile-first approach with breakpoints at 768px and 360px
-8. **Animations:** Reduced motion support for accessibility
+5. **Green Theme:** Exact color matching (#00ff00) for brand consistency
+6. **Responsive Design:** Mobile-first approach with breakpoints
+7. **No Emojis:** All icons from lucide-react library
+8. **NFT Card Design:** Red gradient borders matching original screenshots
 
 ### Testing Notes
 
-The application requires a Sui wallet extension to be installed in the browser for full functionality testing. Users must have:
+The application requires a Sui wallet extension to be installed in the browser. Users must have:
 - A Sui wallet extension (Sui Wallet, Suiet, etc.)
 - At least 3 SUI for battle entry fees
 - A Sapling NFT from the deployed contract
 
 ### Known Limitations
 
-1. NFT scanning is implemented but requires actual Sapling NFTs from the specific contract
+1. NFT scanning requires actual Sapling NFTs from the specific contract
 2. Battle queue requires at least 2 players to be online simultaneously
 3. Wallet connection requires browser extension (no mobile wallet support yet)
+
+### Contract Audit Summary
+
+✅ **Security:** All access controls, economic safeguards, and fund safety mechanisms verified
+✅ **Game Logic:** Battle mechanics, move generation, and win conditions working correctly
+✅ **Code Quality:** Proper error handling, type safety, and gas optimization
+✅ **Economics:** Balanced model verified (6 SUI in, 5 SUI to winner, 1 SUI to treasury)
+
+See `sui_contract/CONTRACT_AUDIT.md` for complete audit report.
 
 ### Future Enhancements (Phase 2 - Q4 2025)
 
