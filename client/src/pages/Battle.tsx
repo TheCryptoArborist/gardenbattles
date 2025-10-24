@@ -121,8 +121,8 @@ export default function Battle() {
       >
         <Link href="/">
           <img
-            src="/assets/thick.png"
-            alt="Thickquidity Logo"
+            src="/assets/tree.jpg"
+            alt="Battle Garden Logo"
             style={{
               width: '80px',
               cursor: 'pointer',
@@ -183,7 +183,7 @@ export default function Battle() {
 
       {/* Title Image */}
       <img
-        src="/assets/garden.png"
+        src="/assets/backgrounda.jpg"
         alt="The Garden Battles"
         style={{
           width: '100%',
@@ -192,6 +192,9 @@ export default function Battle() {
           maxHeight: '300px',
           margin: '25px auto 10px',
           display: 'block',
+          borderRadius: '15px',
+          boxShadow: '0 0 30px #00ff00',
+          border: '3px solid #00ff00',
         }}
         data-testid="img-battle-title"
       />
@@ -233,7 +236,10 @@ export default function Battle() {
               zIndex: 1,
               background: 'rgba(255, 255, 255, 0.1)',
               overflow: 'hidden',
+              cursor: 'pointer',
             }}
+            onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
+            onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
             data-testid="nft-card-player"
           >
             <img
@@ -341,7 +347,10 @@ export default function Battle() {
               zIndex: 1,
               background: 'rgba(255, 255, 255, 0.1)',
               overflow: 'hidden',
+              cursor: 'pointer',
             }}
+            onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
+            onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
             data-testid="nft-card-opponent"
           >
             <img

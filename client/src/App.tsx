@@ -4,15 +4,16 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { SuiClientProvider, WalletProvider } from '@mysten/dapp-kit';
-import { getFullnodeUrl } from '@mysten/sui.js/client';
 import { SuiWalletProvider } from "@/hooks/useSuiWallet";
+import { SUI_CONFIG } from "@/lib/sui-config";
 import Home from "@/pages/Home";
 import Battle from "@/pages/Battle";
 import NotFound from "@/pages/not-found";
 import '@mysten/dapp-kit/dist/index.css';
 
+// Use exact SUI MAIN PUBLIC FULL NODE ENDPOINTS
 const networks = {
-  mainnet: { url: getFullnodeUrl('mainnet') },
+  mainnet: { url: SUI_CONFIG.RPC_URL },
 };
 
 function Router() {
@@ -29,7 +30,7 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <SuiClientProvider networks={networks} defaultNetwork="mainnet">
-        <WalletProvider autoConnect>
+        <WalletProvider autoConnect preferredWallets={['Sui Wallet']}>
           <SuiWalletProvider>
             <TooltipProvider>
               <Toaster />

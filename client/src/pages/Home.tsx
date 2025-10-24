@@ -62,7 +62,7 @@ export default function Home() {
             <Link 
               href="/"
               style={{
-                color: '#f7fafc',
+                color: '#00ff00',
                 textDecoration: 'none',
                 margin: 'clamp(0.5rem, 1.5vw, 1rem)',
                 fontWeight: 'bold',
@@ -70,8 +70,8 @@ export default function Home() {
                 position: 'relative',
                 transition: 'color 0.3s',
               }}
-              onMouseEnter={(e) => e.currentTarget.style.color = '#34d399'}
-              onMouseLeave={(e) => e.currentTarget.style.color = '#f7fafc'}
+              onMouseEnter={(e) => e.currentTarget.style.color = '#00cc00'}
+              onMouseLeave={(e) => e.currentTarget.style.color = '#00ff00'}
               data-testid="link-home"
             >
               Home
@@ -81,7 +81,7 @@ export default function Home() {
               target="_blank"
               rel="noopener noreferrer"
               style={{
-                color: '#f7fafc',
+                color: '#00ff00',
                 textDecoration: 'none',
                 margin: 'clamp(0.5rem, 1.5vw, 1rem)',
                 fontWeight: 'bold',
@@ -89,8 +89,8 @@ export default function Home() {
                 position: 'relative',
                 transition: 'color 0.3s',
               }}
-              onMouseEnter={(e) => e.currentTarget.style.color = '#34d399'}
-              onMouseLeave={(e) => e.currentTarget.style.color = '#f7fafc'}
+              onMouseEnter={(e) => e.currentTarget.style.color = '#00cc00'}
+              onMouseLeave={(e) => e.currentTarget.style.color = '#00ff00'}
               data-testid="link-arboretum"
             >
               Arboretum
@@ -98,7 +98,7 @@ export default function Home() {
             <Link 
               href="/battle"
               style={{
-                color: '#f7fafc',
+                color: '#00ff00',
                 textDecoration: 'none',
                 margin: 'clamp(0.5rem, 1.5vw, 1rem)',
                 fontWeight: 'bold',
@@ -106,8 +106,8 @@ export default function Home() {
                 position: 'relative',
                 transition: 'color 0.3s',
               }}
-              onMouseEnter={(e) => e.currentTarget.style.color = '#34d399'}
-              onMouseLeave={(e) => e.currentTarget.style.color = '#f7fafc'}
+              onMouseEnter={(e) => e.currentTarget.style.color = '#00cc00'}
+              onMouseLeave={(e) => e.currentTarget.style.color = '#00ff00'}
               data-testid="link-battle"
             >
               Battle
@@ -165,8 +165,8 @@ export default function Home() {
               maxWidth: '600px',
               marginLeft: 'auto',
               marginRight: 'auto',
-              color: '#4a2f2f',
-              textShadow: '0 0 15px #1a4731, 0 0 25px rgba(52, 211, 153, 0.5), 2px 2px 5px rgba(0, 0, 0, 0.5)',
+              color: '#00ffcc',
+              textShadow: '0 0 10px #00ff00',
             }}
           >
             Battle your Sapling NFTs in strategic 1v1 turn-based combat. Watch your NFT evolve from seed to full tree as you gain Growth points.
