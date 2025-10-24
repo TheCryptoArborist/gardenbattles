@@ -32,6 +32,7 @@ export default function Battle() {
   const [opponentAnimation, setOpponentAnimation] = useState('');
   const [prevPlayerGrowth, setPrevPlayerGrowth] = useState<number | null>(null);
   const [prevOpponentGrowth, setPrevOpponentGrowth] = useState<number | null>(null);
+  const [arboretumModalOpen, setArboretumModalOpen] = useState(false);
   
   const playerAnimationTimer = useRef<NodeJS.Timeout | null>(null);
   const opponentAnimationTimer = useRef<NodeJS.Timeout | null>(null);
@@ -222,15 +223,18 @@ export default function Battle() {
             Home
           </Link>
           <a
-            href="https://sensational-bubblegum-fd9c7c.netlify.app/"
-            target="_blank"
-            rel="noopener noreferrer"
+            href="#"
+            onClick={(e) => {
+              e.preventDefault();
+              setArboretumModalOpen(true);
+            }}
             style={{
               color: '#00ff00',
               margin: '0 10px',
               textDecoration: 'none',
               fontSize: '16px',
               transition: 'color 0.3s ease',
+              cursor: 'pointer',
             }}
             onMouseEnter={(e) => e.currentTarget.style.color = '#00cc00'}
             onMouseLeave={(e) => e.currentTarget.style.color = '#00ff00'}
@@ -682,6 +686,131 @@ export default function Battle() {
         onClose={() => setDialogOpen(false)}
       />
       <WaitingOverlay isWaiting={isWaiting} />
+
+      {/* Arboretum Coming Soon Modal */}
+      {arboretumModalOpen && (
+        <div
+          onClick={() => setArboretumModalOpen(false)}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100vw',
+            height: '100vh',
+            background: 'rgba(0, 0, 0, 0.9)',
+            zIndex: 200,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 'clamp(1rem, 3vw, 2rem)',
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              position: 'relative',
+              width: 'clamp(300px, 90vw, 600px)',
+              background: 'linear-gradient(rgba(0, 50, 0, 0.95), rgba(0, 80, 0, 0.95))',
+              border: '3px solid #00ff00',
+              borderRadius: '10px',
+              boxShadow: '0 0 30px rgba(0, 255, 0, 0.6)',
+              padding: 'clamp(2rem, 5vw, 3rem)',
+              textAlign: 'center',
+            }}
+          >
+            <h2
+              style={{
+                fontSize: 'clamp(1.5rem, 4vw, 2.5rem)',
+                color: '#00ff00',
+                marginBottom: 'clamp(1rem, 3vw, 1.5rem)',
+                textShadow: '0 0 10px rgba(0, 255, 0, 0.8)',
+                fontFamily: 'Orbitron, sans-serif',
+              }}
+            >
+              The Arboretum
+            </h2>
+            <p
+              style={{
+                fontSize: 'clamp(1rem, 2.5vw, 1.2rem)',
+                color: '#00ffcc',
+                marginBottom: 'clamp(1.5rem, 4vw, 2rem)',
+                lineHeight: '1.6',
+                fontFamily: 'Orbitron, sans-serif',
+              }}
+            >
+              Coming Soon in Q4 2025
+            </p>
+            <p
+              style={{
+                fontSize: 'clamp(0.9rem, 2.2vw, 1rem)',
+                color: '#fff',
+                marginBottom: 'clamp(1.5rem, 4vw, 2rem)',
+                lineHeight: '1.6',
+                fontFamily: 'Orbitron, sans-serif',
+              }}
+            >
+              The Arboretum will be your gateway to explore, collect, and nurture your NFT forest. 
+              Stay tuned for exclusive features, enhanced battle mechanics, and community-driven growth!
+            </p>
+            <button
+              onClick={() => setArboretumModalOpen(false)}
+              style={{
+                background: 'linear-gradient(45deg, #00ff00, #00cc00)',
+                color: '#000',
+                padding: 'clamp(0.6rem, 1.8vw, 0.8rem) clamp(1.2rem, 2.8vw, 2rem)',
+                borderRadius: '9999px',
+                border: '2px solid #00ff00',
+                fontWeight: 'bold',
+                fontSize: 'clamp(0.8rem, 2.2vw, 1rem)',
+                cursor: 'pointer',
+                transition: 'transform 0.3s, box-shadow 0.3s',
+                boxShadow: '0 0 15px rgba(0, 255, 0, 0.6)',
+                fontFamily: 'Orbitron, sans-serif',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'scale(1.1)';
+                e.currentTarget.style.boxShadow = '0 0 25px #00ff00';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'scale(1)';
+                e.currentTarget.style.boxShadow = '0 0 15px rgba(0, 255, 0, 0.6)';
+              }}
+              data-testid="button-close-arboretum"
+            >
+              Got it!
+            </button>
+            <button
+              onClick={() => setArboretumModalOpen(false)}
+              style={{
+                position: 'absolute',
+                top: 'clamp(10px, 2vw, 15px)',
+                right: 'clamp(10px, 2vw, 15px)',
+                width: 'clamp(30px, 8vw, 40px)',
+                height: 'clamp(30px, 8vw, 40px)',
+                background: 'rgba(0, 50, 0, 0.8)',
+                color: '#00ff00',
+                borderRadius: '50%',
+                border: '2px solid #00ff00',
+                fontSize: 'clamp(1rem, 2.5vw, 1.2rem)',
+                cursor: 'pointer',
+                transition: 'transform 0.3s, box-shadow 0.3s',
+                fontFamily: 'Orbitron, sans-serif',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'scale(1.2)';
+                e.currentTarget.style.boxShadow = '0 0 15px #00ff00';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'scale(1)';
+                e.currentTarget.style.boxShadow = '';
+              }}
+              data-testid="button-close-arboretum-x"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
