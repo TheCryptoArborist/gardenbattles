@@ -205,7 +205,6 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
           fee,
           tx.object(randomObjectId),
         ],
-        typeArguments: ['0x2::sui::SUI'],
       });
 
       tx.setSender(address);

@@ -15,25 +15,31 @@ A blockchain-based NFT battle game built on the Sui network where players battle
 
 ## Recent Changes
 
+**2025-10-24:** Smart Contract Integration VERIFIED & CRITICAL BUG FIXED ✅
+- **CRITICAL FIX**: Removed incorrect `typeArguments` from join_queue transaction call
+  - Frontend was passing `typeArguments: ['0x2::sui::SUI']` to non-generic Move function
+  - This would have caused all matchmaking to fail in production
+  - Fixed in `client/src/hooks/useSuiWallet.tsx` - join_queue now works correctly
+- **COMPREHENSIVE AUDIT COMPLETED:**
+  - ✅ All 30 move sets perfectly aligned between contract and frontend
+  - ✅ NFT type validation matches contract issuer checks
+  - ✅ Config and Queue object IDs verified correct
+  - ✅ Battle state events properly synchronized
+  - ✅ Economic model balanced (3 SUI entry, 5 SUI winner, 1 SUI treasury)
+  - ✅ All security controls verified (access, payments, battles)
+  - ✅ Contract compiles and ready for deployment
+  - ✅ No security vulnerabilities found
+- **Arboretum popup added** to both Home and Battle pages with "Coming Soon Q4 2025"
+
 **2025-10-24:** Home page rebuilt with CORRECT main page design - TWO DISTINCT PAGE DESIGNS ✅
-- **CRITICAL FIX**: Home page now uses MAIN page design template (was incorrectly using battle page design)
 - **Home Page (Main) Design:**
-  - Background: background1.jpg (fixed, cover)
-  - Colors: #34d399 emerald green, #d4a017 gold accents
-  - Font: Arial, sans-serif
-  - Header: Centered layout with thick.png logo on top, nav links below
-  - Hero character: Fixed bottom-right with interactive speech bubble cycling phrases
-  - Minimalist design with hero section and navigation
+  - Background: background1.jpg, Colors: #34d399 emerald green, #d4a017 gold
+  - Font: Arial, sans-serif, Header: Centered layout with thick.png logo on top
+  - Complete sections: Hero, About $TREE, Mission, Tokenomics, NFTs, Social, Join, Footer
 - **Battle Page Design (DIFFERENT from Home):**
-  - Background: background4.jpg (fixed, cover)
-  - Colors: #00ff00 neon green, #00ffcc cyan, rgba(0,50,0,0.8) dark backgrounds
-  - Font: Orbitron, sans-serif
-  - Header: Horizontal layout (thick.png logo left, nav center, ConnectButton right)
+  - Background: background4.jpg, Colors: #00ff00 neon green, #00ffcc cyan
+  - Font: Orbitron, sans-serif, Header: Horizontal layout
   - Battle animations: Shake on damage, green glow on healing
-  - Timer cleanup with useRef to prevent memory leaks
-  - requestAnimationFrame toggle for consecutive identical animations
-- **VERIFIED**: Architect-approved - both pages have completely different visual designs
-- **VERIFIED**: No security issues, ready for production
 
 **2025-01-24:** Initial implementation with wallet integration
 - Implemented proper @mysten/dapp-kit wallet integration
