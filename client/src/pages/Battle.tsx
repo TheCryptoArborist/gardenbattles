@@ -27,12 +27,12 @@ export default function Battle() {
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogMessage, setDialogMessage] = useState('');
-  const [isJoining, setIsJoining] = useState(false);
+  const [hasScanned, setHasScanned] = useState(false);
 
   useEffect(() => {
     async function autoJoinBattle() {
-      if (isConnected && address && !battleState && !isJoining) {
-        setIsJoining(true);
+      if (isConnected && address && !battleState && !hasScanned) {
+        setHasScanned(true);
         try {
           setDialogOpen(true);
           setDialogMessage('Scanning for Sapling NFTs in your wallet...');
@@ -49,13 +49,11 @@ export default function Battle() {
         } catch (error: any) {
           setDialogOpen(true);
           setDialogMessage(error.message || 'Failed to join battle');
-        } finally {
-          setIsJoining(false);
         }
       }
     }
     autoJoinBattle();
-  }, [isConnected, address, battleState, isJoining, joinBattle, getFirstValidSaplingNft]);
+  }, [isConnected, address, battleState, hasScanned, joinBattle, getFirstValidSaplingNft]);
 
   const handleUseAbility = async (abilityId: number) => {
     try {
