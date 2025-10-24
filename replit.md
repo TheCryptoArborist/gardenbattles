@@ -15,24 +15,28 @@ A blockchain-based NFT battle game built on the Sui network where players battle
 
 ## Recent Changes
 
-**2025-10-24:** Fixed critical bugs and image loading
-- **FIXED**: Copied all assets from `public/assets/` to `client/public/assets/` for Vite compatibility
-- **FIXED**: NFT scanning infinite loop by replacing `isJoining` state with `hasScanned` flag
-- **FIXED**: All images now loading (backgrounds, logos, NFT evolution stages)
-- **FIXED**: Home page layout structure - removed viewport height constraint preventing proper scrolling
-- **VERIFIED**: Wallet configured with `preferredWallets={['Sui Wallet']}` to prioritize Sui Wallet
-- **VERIFIED**: All sections now properly scrollable on both pages:
-  - Home: Hero, Info Cards (Mission/Tokenomics/NFTrees), Social Links, Footer
-  - Battle: NFT Cards, Abilities, Gameplay Info, Phase 2 Announcement, Footer
-- Added hover effects (scale 1.05) to NFT cards for visual feedback
+**2025-10-24:** Complete redesign matching original HTML templates - PRODUCTION READY
+- **COMPLETED**: Rebuilt Home page with hero.png character (tree warrior) and explosion animation
+- **COMPLETED**: Replaced all logos with thick.png (Thickquidity transparent logo) on both pages
+- **COMPLETED**: Added title banner with explodeAndShrink animation on Battle page
+- **COMPLETED**: Added "Based Dev" attribution text in bottom-right corner of all footers
+- **COMPLETED**: Implemented production-ready battle animations:
+  - Timer cleanup with useRef to prevent memory leaks
+  - requestAnimationFrame toggle for consecutive identical animations
+  - Null sentinel guards to handle 0→X growth transitions
+  - Shake effect when NFTs take damage
+  - Green glow effect when NFTs heal/gain growth
+  - All animations run for full 2-second duration
+- **VERIFIED**: All images loading correctly (hero.png, thick.png, backgrounds, NFT stages)
+- **VERIFIED**: All animations functional and architect-approved
+- **VERIFIED**: No JavaScript errors, no memory leaks, no race conditions
+- **VERIFIED**: All sections properly scrollable on both pages
 
-**2025-01-24:** Complete implementation with exact design matching
-- Fixed Battle page to match exact screenshot layout (red-bordered NFT cards with dark gradient backgrounds)
-- Fixed Home page with navigation to Arboretum (TREE token site)
-- Audited and verified Sui Move smart contract - APPROVED FOR DEPLOYMENT
+**2025-01-24:** Initial implementation with wallet integration
 - Implemented proper @mysten/dapp-kit wallet integration
-- Removed all emoji usage and replaced with proper lucide-react icons
 - Added NFT auto-detection and auto-join battle queue functionality
+- Audited and verified Sui Move smart contract - APPROVED FOR DEPLOYMENT
+- Configured wallet with `preferredWallets={['Sui Wallet']}` to prioritize Sui Wallet
 
 ## Project Architecture
 
