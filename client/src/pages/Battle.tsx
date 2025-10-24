@@ -47,11 +47,12 @@ export default function Battle() {
             setDialogOpen(true);
             setDialogMessage('Scanning for NFTs in your wallet and kiosks...');
             
-            const nftId = await getFirstValidSaplingNft(address);
+            const nftData = await getFirstValidSaplingNft(address);
             
-            if (nftId) {
-              setDialogMessage('NFT found! Joining battle queue...');
-              await joinBattle(nftId);
+            if (nftData) {
+              const locationText = nftData.location === 'kiosk' ? 'in your kiosk' : 'in your wallet';
+              setDialogMessage(`NFT found ${locationText}! Joining battle queue...`);
+              await joinBattle(nftData);
               setDialogMessage('Successfully joined battle queue! Waiting for opponent...');
             } else {
               setDialogMessage('No whitelisted NFT found. Contact admin to whitelist your NFT collection.');

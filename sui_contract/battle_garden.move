@@ -7,12 +7,14 @@ module 0x7144301fe39dae2363f57e13d5e8650934a1adf5817a46b64ac5e86a9cffea80::battl
     use sui::coin::{Self, Coin};
     use sui::sui::SUI;
     use sui::random::{Self, Random};
+    use sui::kiosk::{Self, Kiosk, KioskOwnerCap};
     use std::option::{Self, Option};
     use std::vector;
     use std::string::{String};
+    use std::type_name::{Self, TypeName};
 
     const EAdminOnly: u64 = 100;
-    const ENftIssuerMismatch: u64 = 101;
+    const ENftNotWhitelisted: u64 = 101;
     const EUnauthorizedPlayer: u64 = 102;
     const EBattleFinished: u64 = 103;
     const EInsufficientPayment: u64 = 104;
@@ -33,12 +35,12 @@ module 0x7144301fe39dae2363f57e13d5e8650934a1adf5817a46b64ac5e86a9cffea80::battl
     struct Config has key {
         id: UID,
         admin: address,
-        issuer: address,
         treasury: address,
         entry_fee: u64,
         winner_payout: u64,
         treasury_share: u64,
         paused: bool,
+        whitelisted_collections: vector<TypeName>,
     }
 
     struct MatchmakingQueue has key {
@@ -242,15 +244,19 @@ module 0x7144301fe39dae2363f57e13d5e8650934a1adf5817a46b64ac5e86a9cffea80::battl
 
     fun init(_witness: BATTLE_GARDEN, ctx: &mut TxContext) {
         let sender = tx_context::sender(ctx);
+        
+        let mut whitelisted = vector::empty<TypeName>();
+        vector::push_back(&mut whitelisted, type_name::get<SaplingNFT>());
+        
         let config = Config {
             id: object::new(ctx),
             admin: sender,
-            issuer: sender,
             treasury: sender,
             entry_fee: 3000000000,
             winner_payout: 5000000000,
             treasury_share: 1000000000,
             paused: false,
+            whitelisted_collections: whitelisted,
         };
         let queue = MatchmakingQueue {
             id: object::new(ctx),
@@ -265,10 +271,16 @@ module 0x7144301fe39dae2363f57e13d5e8650934a1adf5817a46b64ac5e86a9cffea80::battl
         transfer::public_transfer(mint_cap, sender);
     }
 
+    fun is_collection_whitelisted<T: key + store>(config: &Config): bool {
+        let nft_type = type_name::get<T>();
+        vector::contains(&config.whitelisted_collections, &nft_type)
+    }
+
     #[allow(lint(public_random))]
-    public fun join_queue(config: &Config, queue: &mut MatchmakingQueue, nft: &SaplingNFT, payment: Coin<SUI>, rand: &Random, ctx: &mut TxContext) {
+    public fun join_queue<T: key + store>(config: &Config, queue: &mut MatchmakingQueue, _nft: &T, payment: Coin<SUI>, rand: &Random, ctx: &mut TxContext) {
         assert!(!config.paused, EPaused);
-        assert!(nft.issuer == config.issuer, ENftIssuerMismatch);
+        assert!(is_collection_whitelisted<T>(config), ENftNotWhitelisted);
+        
         let sender = tx_context::sender(ctx);
         let entry_fee = if (option::is_some(&queue.waiting)) {
             let pending_ref = option::borrow(&queue.waiting);
@@ -292,6 +304,68 @@ module 0x7144301fe39dae2363f57e13d5e8650934a1adf5817a46b64ac5e86a9cffea80::battl
                 entry_fee_snapshot: entry_fee,
             };
             option::fill(&mut queue.waiting, pending);
+        };
+    }
+
+    #[allow(lint(public_random))]
+    public fun join_queue_from_kiosk<T: key + store>(
+        config: &Config,
+        queue: &mut MatchmakingQueue,
+        kiosk: &mut Kiosk,
+        cap: &KioskOwnerCap,
+        nft_id: ID,
+        payment: Coin<SUI>,
+        rand: &Random,
+        ctx: &mut TxContext
+    ) {
+        assert!(!config.paused, EPaused);
+        assert!(is_collection_whitelisted<T>(config), ENftNotWhitelisted);
+        
+        let _nft = kiosk::borrow_val<T>(kiosk, cap, nft_id);
+        
+        let sender = tx_context::sender(ctx);
+        let entry_fee = if (option::is_some(&queue.waiting)) {
+            let pending_ref = option::borrow(&queue.waiting);
+            pending_ref.entry_fee_snapshot
+        } else {
+            config.entry_fee
+        };
+        assert!(coin::value(&payment) >= entry_fee, EInsufficientPayment);
+        balance::join(&mut queue.bank, coin::into_balance(coin::split(&mut payment, entry_fee, ctx)));
+        if (coin::value(&payment) > 0) {
+            transfer::public_transfer(payment, sender);
+        } else {
+            coin::destroy_zero(payment);
+        };
+        
+        kiosk::return_val(kiosk, _nft);
+        
+        if (option::is_some(&queue.waiting)) {
+            let pending = option::extract(&mut queue.waiting);
+            spawn_battle(queue, pending.player, sender, pending.entry_fee_snapshot, config, rand, ctx);
+        } else {
+            let pending = Pending {
+                player: sender,
+                entry_fee_snapshot: entry_fee,
+            };
+            option::fill(&mut queue.waiting, pending);
+        };
+    }
+
+    public fun whitelist_collection<T: key + store>(config: &mut Config, ctx: &mut TxContext) {
+        assert!(tx_context::sender(ctx) == config.admin, EAdminOnly);
+        let nft_type = type_name::get<T>();
+        if (!vector::contains(&config.whitelisted_collections, &nft_type)) {
+            vector::push_back(&mut config.whitelisted_collections, nft_type);
+        };
+    }
+
+    public fun remove_collection<T: key + store>(config: &mut Config, ctx: &mut TxContext) {
+        assert!(tx_context::sender(ctx) == config.admin, EAdminOnly);
+        let nft_type = type_name::get<T>();
+        let (exists, idx) = vector::index_of(&config.whitelisted_collections, &nft_type);
+        if (exists) {
+            vector::remove(&mut config.whitelisted_collections, idx);
         };
     }
 
@@ -343,10 +417,11 @@ module 0x7144301fe39dae2363f57e13d5e8650934a1adf5817a46b64ac5e86a9cffea80::battl
         else { 0 }
     }
 
-    public fun mint_sapling(_cap: &MintCap, config: &Config, recipient: address, name: String, ctx: &mut TxContext) {
+    public fun mint_sapling(_cap: &MintCap, recipient: address, name: String, ctx: &mut TxContext) {
+        let sender = tx_context::sender(ctx);
         let nft = SaplingNFT {
             id: object::new(ctx),
-            issuer: config.issuer,
+            issuer: sender,
             name,
         };
         transfer::public_transfer(nft, recipient);

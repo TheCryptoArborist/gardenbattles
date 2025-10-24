@@ -15,6 +15,18 @@ A blockchain-based NFT battle game built on the Sui network where players battle
 
 ## Recent Changes
 
+**2025-10-24:** Contract Updated for Generic NFT Types + Kiosk Support ✅
+- **MAJOR CONTRACT UPDATE - REQUIRES REDEPLOYMENT:**
+  - Removed single-type restriction (SaplingNFT with `issuer` field)
+  - Added generic NFT type support with collection whitelist
+  - Added `join_queue<T>` for wallet-held NFTs (with typeArgument)
+  - Added `join_queue_from_kiosk<T>` for kiosk-locked NFTs
+  - Admin functions: `whitelist_collection<T>` and `remove_collection<T>`
+  - Updated frontend to detect NFT location (wallet vs kiosk) and call appropriate function
+  - Frontend now returns NFT metadata: `{ nftId, nftType, location, kioskId?, kioskCapId? }`
+  - Removed invalid `typeArguments` bug from previous contract integration
+- **See DEPLOYMENT_INSTRUCTIONS.md for full deployment guide**
+
 **2025-10-24:** Admin Panel & Multi-Collection NFT Support Added ✅
 - **NEW: Admin Panel for NFT Collection Management**
   - Admin-only button appears on Battle page when admin wallet connects
@@ -133,11 +145,15 @@ client/src/
 **RPC:** https://fullnode.mainnet.sui.io:443
 
 **Smart Contract:**
-- Package ID: `0x7144301fe39dae2363f57e13d5e8650934a1adf5817a46b64ac5e86a9cffea80`
-- Module: `battle_garden`
-- Config ID: `0x06c2b903bf9f805d8882e686d504a09593740deb2bc1a39eb67378e44089c749`
-- Matchmaking Queue: `0x33bdce1ff2ba8a655e3601975f59808a1bcf4b3259bc9e7bbea79e91a50c37b4`
-- Sapling NFT Type: `0x7144301fe39dae2363f57e13d5e8650934a1adf5817a46b64ac5e86a9cffea80::battle_garden::SaplingNFT`
+- **⚠️ OLD CONTRACT (NEEDS REDEPLOYMENT):**
+  - Package ID: `0x7144301fe39dae2363f57e13d5e8650934a1adf5817a46b64ac5e86a9cffea80`
+  - Config ID: `0x06c2b903bf9f805d8882e686d504a09593740deb2bc1a39eb67378e44089c749`
+  - Queue: `0x33bdce1ff2ba8a655e3601975f59808a1bcf4b3259bc9e7bbea79e91a50c37b4`
+- **✅ UPDATED CONTRACT (in sui_contract/ folder - ready to deploy):**
+  - Module: `battle_garden`
+  - Supports ANY NFT type via whitelist (no more `issuer` field requirement)
+  - Kiosk integration: battle without withdrawing NFTs
+  - Admin-managed collection whitelist
 
 **Battle Mechanics:**
 - Entry Fee: 3 SUI (3,000,000,000 MIST)

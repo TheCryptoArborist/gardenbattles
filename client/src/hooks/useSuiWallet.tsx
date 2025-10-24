@@ -19,9 +19,9 @@ interface SuiWalletContextType {
   isConnected: boolean;
   battleState: BattleState | null;
   isWaiting: boolean;
-  joinBattle: (nftId: string) => Promise<void>;
+  joinBattle: (nftData: { nftId: string; nftType: string; location: 'wallet' | 'kiosk'; kioskId?: string; kioskCapId?: string }) => Promise<void>;
   useAbility: (abilityId: number) => Promise<void>;
-  getFirstValidSaplingNft: (owner: string) => Promise<string | null>;
+  getFirstValidSaplingNft: (owner: string) => Promise<{ nftId: string; nftType: string; location: 'wallet' | 'kiosk'; kioskId?: string; kioskCapId?: string } | null>;
   ConnectWalletButton: () => JSX.Element;
 }
 
@@ -59,7 +59,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
     ensureRandomObject();
   }, [suiClient]);
 
-  const getFirstValidSaplingNft = useCallback(async (owner: string): Promise<string | null> => {
+  const getFirstValidSaplingNft = useCallback(async (owner: string): Promise<{ nftId: string; nftType: string; location: 'wallet' | 'kiosk'; kioskId?: string; kioskCapId?: string } | null> => {
     console.log('Scanning for Sapling NFTs...');
     
     // Get allowed collections from localStorage
@@ -70,7 +70,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
     
     console.log('Allowed NFT types:', allowedTypes);
     
-    const kiosks = new Set<string>();
+    const kiosks = new Map<string, string>(); // kioskId -> ownerCapId
     let cursor: string | null = null;
 
     try {
@@ -88,6 +88,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
 
           // Check for kiosk ownership caps
           if (type.includes('::kiosk::KioskOwnerCap')) {
+            const ownerCapId = obj?.data?.objectId;
             const kioskId = 
               // @ts-ignore
               obj?.data?.content?.fields?.for?.fields?.kiosk_id ||
@@ -95,15 +96,17 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
               obj?.data?.content?.fields?.kiosk_id ||
               // @ts-ignore
               obj?.data?.content?.fields?.for;
-            if (kioskId) kiosks.add(kioskId);
+            if (kioskId && ownerCapId) {
+              kiosks.set(kioskId, ownerCapId);
+            }
           }
 
           // Check for directly held NFT from any allowed collection
           if (allowedTypes.includes(type)) {
             const id = obj?.data?.objectId;
             if (id) {
-              console.log('Found allowed NFT:', type, id);
-              return id;
+              console.log('Found allowed NFT in wallet:', type, id);
+              return { nftId: id, nftType: type, location: 'wallet' };
             }
           }
         }
@@ -112,7 +115,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
       } while (cursor);
 
       // Check inside kiosks
-      for (const kioskId of Array.from(kiosks)) {
+      for (const [kioskId, ownerCapId] of Array.from(kiosks.entries())) {
         try {
           const fields = await suiClient.getDynamicFields({ parentId: kioskId });
           for (const field of fields.data) {
@@ -126,7 +129,13 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
 
             if (obj?.data?.type && allowedTypes.includes(obj.data.type)) {
               console.log(`Found allowed NFT in kiosk ${kioskId}:`, obj.data.type, nftId);
-              return nftId;
+              return {
+                nftId,
+                nftType: obj.data.type,
+                location: 'kiosk',
+                kioskId,
+                kioskCapId: ownerCapId
+              };
             }
           }
         } catch (err) {
@@ -195,7 +204,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
     subscribe();
   }, [address, suiClient]);
 
-  const joinBattle = useCallback(async (nftId: string) => {
+  const joinBattle = useCallback(async (nftData: { nftId: string; nftType: string; location: 'wallet' | 'kiosk'; kioskId?: string; kioskCapId?: string }) => {
     if (!address || !randomObjectId) {
       throw new Error('Wallet not connected or random object not initialized');
     }
@@ -204,16 +213,37 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
       const tx = new Transaction();
       const [fee] = tx.splitCoins(tx.gas, [tx.pure.u64(SUI_CONFIG.ENTRY_FEE)]);
       
-      tx.moveCall({
-        target: `${SUI_CONFIG.PACKAGE_ID}::${SUI_CONFIG.MODULE}::join_queue`,
-        arguments: [
-          tx.object(SUI_CONFIG.CONFIG_ID),
-          tx.object(SUI_CONFIG.MATCHMAKING_QUEUE_ID),
-          tx.object(nftId),
-          fee,
-          tx.object(randomObjectId),
-        ],
-      });
+      if (nftData.location === 'wallet') {
+        // NFT is in wallet - use standard join_queue
+        tx.moveCall({
+          target: `${SUI_CONFIG.PACKAGE_ID}::${SUI_CONFIG.MODULE}::join_queue`,
+          typeArguments: [nftData.nftType],
+          arguments: [
+            tx.object(SUI_CONFIG.CONFIG_ID),
+            tx.object(SUI_CONFIG.MATCHMAKING_QUEUE_ID),
+            tx.object(nftData.nftId),
+            fee,
+            tx.object(randomObjectId),
+          ],
+        });
+      } else if (nftData.location === 'kiosk' && nftData.kioskId && nftData.kioskCapId) {
+        // NFT is in kiosk - use join_queue_from_kiosk
+        tx.moveCall({
+          target: `${SUI_CONFIG.PACKAGE_ID}::${SUI_CONFIG.MODULE}::join_queue_from_kiosk`,
+          typeArguments: [nftData.nftType],
+          arguments: [
+            tx.object(SUI_CONFIG.CONFIG_ID),
+            tx.object(SUI_CONFIG.MATCHMAKING_QUEUE_ID),
+            tx.object(nftData.kioskId),
+            tx.object(nftData.kioskCapId),
+            tx.pure.id(nftData.nftId),
+            fee,
+            tx.object(randomObjectId),
+          ],
+        });
+      } else {
+        throw new Error('Invalid NFT location data');
+      }
 
       tx.setSender(address);
 
