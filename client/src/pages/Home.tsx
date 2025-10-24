@@ -1,270 +1,385 @@
 import { Link } from 'wouter';
-import Header from '@/components/Header';
-import Footer from '@/components/Footer';
+import { ConnectButton, useCurrentAccount } from '@mysten/dapp-kit';
 
 export default function Home() {
+  const account = useCurrentAccount();
+
   return (
     <div 
-      className="min-h-screen flex flex-col text-white font-sans"
       style={{
-        background: '#000',
-        backgroundImage: 'radial-gradient(circle at 50% 50%, rgba(0, 50, 0, 0.3) 0%, #000 100%)'
+        background: 'url(/assets/background1.jpg) no-repeat center center fixed',
+        backgroundSize: 'cover',
+        color: '#f7fafc',
+        minHeight: '100vh',
+        margin: 0,
+        padding: 0,
       }}
     >
-      <Header />
-
-      <main className="flex-1 flex flex-col items-center justify-center px-4 py-12">
-        {/* Logo */}
-        <div className="mb-8">
+      {/* Header - Centered with logo and nav stacked */}
+      <header 
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          zIndex: 100,
+          padding: 'clamp(0.8rem, 3vw, 1rem) 5%',
+          background: 'linear-gradient(#1a4731, transparent)',
+          backdropFilter: 'blur(10px)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            textAlign: 'center',
+            gap: '0.5rem',
+          }}
+        >
           <img 
             src="/assets/tree.jpg" 
-            alt="Battle Garden Logo" 
-            className="rounded-full"
+            alt="Battle Garden Logo"
             style={{
-              width: '200px',
-              height: '200px',
-              objectFit: 'cover',
-              boxShadow: '0 0 40px #00ff00',
-              border: '4px solid #00ff00'
+              height: 'clamp(3rem, 10vw, 5rem)',
+              maxWidth: '90%',
+              filter: 'drop-shadow(0 0 10px #34d399)',
+              marginBottom: '0.25rem',
             }}
             data-testid="img-logo"
           />
-        </div>
-
-        {/* Title */}
-        <h1 
-          className="text-4xl md:text-6xl font-bold mb-6 text-center"
-          style={{
-            color: '#00ff00',
-            textShadow: '0 0 20px #00ff00',
-            fontFamily: 'Orbitron, sans-serif'
-          }}
-          data-testid="text-title"
-        >
-          The Garden Battles
-        </h1>
-
-        {/* Navigation Buttons */}
-        <div className="flex flex-col md:flex-row gap-4 mb-12">
-          <Link href="/">
-            <button
-              className="px-8 py-3 text-lg font-sans transition-all duration-300"
+          <nav
+            style={{
+              display: 'flex',
+              justifyContent: 'center',
+              flexWrap: 'wrap',
+              gap: '1rem',
+            }}
+          >
+            <Link 
+              href="/"
               style={{
-                border: '2px solid #00ff00',
-                background: 'rgba(0, 100, 0, 0.3)',
-                color: 'white',
-                boxShadow: '0 0 15px #00ff00',
-                borderRadius: '10px',
-                fontFamily: 'Orbitron, sans-serif',
-                minWidth: '150px'
+                color: '#f7fafc',
+                textDecoration: 'none',
+                margin: 'clamp(0.5rem, 1.5vw, 1rem)',
+                fontWeight: 'bold',
+                fontSize: 'clamp(0.8rem, 2.2vw, 1rem)',
+                position: 'relative',
+                transition: 'color 0.3s',
               }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = '#00ff00';
-                e.currentTarget.style.color = '#000';
-                e.currentTarget.style.boxShadow = '0 0 30px #00ff00';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'rgba(0, 100, 0, 0.3)';
-                e.currentTarget.style.color = 'white';
-                e.currentTarget.style.boxShadow = '0 0 15px #00ff00';
-              }}
+              onMouseEnter={(e) => e.currentTarget.style.color = '#34d399'}
+              onMouseLeave={(e) => e.currentTarget.style.color = '#f7fafc'}
               data-testid="link-home"
             >
               Home
-            </button>
-          </Link>
-          
-          <a 
-            href="https://sensational-bubblegum-fd9c7c.netlify.app/" 
-            target="_blank" 
-            rel="noopener noreferrer"
-          >
-            <button
-              className="px-8 py-3 text-lg font-sans transition-all duration-300"
+            </Link>
+            <a
+              href="https://sensational-bubblegum-fd9c7c.netlify.app/"
+              target="_blank"
+              rel="noopener noreferrer"
               style={{
-                border: '2px solid #00ff00',
-                background: 'rgba(0, 100, 0, 0.3)',
-                color: 'white',
-                boxShadow: '0 0 15px #00ff00',
-                borderRadius: '10px',
-                fontFamily: 'Orbitron, sans-serif',
-                minWidth: '150px'
+                color: '#f7fafc',
+                textDecoration: 'none',
+                margin: 'clamp(0.5rem, 1.5vw, 1rem)',
+                fontWeight: 'bold',
+                fontSize: 'clamp(0.8rem, 2.2vw, 1rem)',
+                position: 'relative',
+                transition: 'color 0.3s',
               }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = '#00ff00';
-                e.currentTarget.style.color = '#000';
-                e.currentTarget.style.boxShadow = '0 0 30px #00ff00';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'rgba(0, 100, 0, 0.3)';
-                e.currentTarget.style.color = 'white';
-                e.currentTarget.style.boxShadow = '0 0 15px #00ff00';
-              }}
+              onMouseEnter={(e) => e.currentTarget.style.color = '#34d399'}
+              onMouseLeave={(e) => e.currentTarget.style.color = '#f7fafc'}
               data-testid="link-arboretum"
             >
               Arboretum
-            </button>
-          </a>
+            </a>
+            <Link 
+              href="/battle"
+              style={{
+                color: '#f7fafc',
+                textDecoration: 'none',
+                margin: 'clamp(0.5rem, 1.5vw, 1rem)',
+                fontWeight: 'bold',
+                fontSize: 'clamp(0.8rem, 2.2vw, 1rem)',
+                position: 'relative',
+                transition: 'color 0.3s',
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.color = '#34d399'}
+              onMouseLeave={(e) => e.currentTarget.style.color = '#f7fafc'}
+              data-testid="link-battle"
+            >
+              Battle
+            </Link>
+          </nav>
         </div>
+      </header>
 
-        {/* Battle CTA */}
-        <Link href="/battle">
-          <button
-            className="px-12 py-5 text-2xl font-bold uppercase mb-12 transition-all duration-300"
+      {/* Hero Section */}
+      <div
+        style={{
+          minHeight: '100vh',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          textAlign: 'center',
+          padding: 'clamp(1rem, 5vw, 2rem)',
+          position: 'relative',
+          zIndex: 2,
+        }}
+      >
+        <div style={{ maxWidth: '90%', width: '100%' }}>
+          <img 
+            src="/assets/tree.jpg" 
+            alt="Battle Garden Logo"
             style={{
-              border: '3px solid #00ff00',
-              background: 'linear-gradient(45deg, rgba(0, 100, 0, 0.7), rgba(0, 150, 0, 0.7))',
-              color: 'white',
-              boxShadow: '0 0 30px #00ff00',
-              borderRadius: '15px',
-              fontFamily: 'Orbitron, sans-serif'
+              width: '200px',
+              height: '200px',
+              margin: '0 auto clamp(1rem, 3vw, 1.5rem)',
+              display: 'block',
+              filter: 'drop-shadow(0 0 15px #34d399)',
+              borderRadius: '50%',
+              objectFit: 'cover',
+              boxShadow: '0 0 40px #00ff00',
+              border: '4px solid #00ff00',
+            }}
+          />
+          
+          <h1
+            style={{
+              fontSize: 'clamp(1.8rem, 5vw, 3.5rem)',
+              marginBottom: 'clamp(1rem, 3vw, 2rem)',
+              color: '#34d399',
+              textShadow: '0 0 10px #1a4731',
+              fontFamily: 'Orbitron, sans-serif',
+            }}
+          >
+            The Garden Battles
+          </h1>
+
+          <p
+            style={{
+              fontSize: 'clamp(0.9rem, 2.8vw, 1.3rem)',
+              marginBottom: 'clamp(1rem, 3vw, 2rem)',
+              maxWidth: '600px',
+              marginLeft: 'auto',
+              marginRight: 'auto',
+              color: '#4a2f2f',
+              textShadow: '0 0 15px #1a4731, 0 0 25px rgba(52, 211, 153, 0.5), 2px 2px 5px rgba(0, 0, 0, 0.5)',
+            }}
+          >
+            Battle your Sapling NFTs in strategic 1v1 turn-based combat. Watch your NFT evolve from seed to full tree as you gain Growth points.
+          </p>
+
+          {/* Connect Wallet Button */}
+          <div style={{ marginBottom: 'clamp(2rem, 4vw, 3rem)' }}>
+            <ConnectButton 
+              connectText="Connect Wallet"
+              style={{
+                background: 'linear-gradient(45deg, #34d399, #d4a017)',
+                color: '#1a4731',
+                padding: 'clamp(0.6rem, 1.8vw, 0.9rem) clamp(1.2rem, 2.8vw, 2rem)',
+                borderRadius: '9999px',
+                fontWeight: 'bold',
+                fontSize: 'clamp(0.8rem, 2.2vw, 1.1rem)',
+                border: 'none',
+                cursor: 'pointer',
+                transition: 'transform 0.3s, box-shadow 0.3s',
+              }}
+            />
+          </div>
+
+          {account && (
+            <p
+              style={{
+                fontSize: '0.8rem',
+                color: '#d4a017',
+                marginTop: '0.5rem',
+              }}
+            >
+              Connected: {account.address.slice(0, 6)}...{account.address.slice(-4)}
+            </p>
+          )}
+
+          {/* CTA Button */}
+          <Link 
+            href="/battle"
+            style={{
+              display: 'inline-block',
+              background: 'linear-gradient(45deg, #34d399, #d4a017)',
+              color: '#1a4731',
+              padding: 'clamp(0.6rem, 1.8vw, 0.9rem) clamp(1.2rem, 2.8vw, 2rem)',
+              borderRadius: '9999px',
+              textDecoration: 'none',
+              fontWeight: 'bold',
+              fontSize: 'clamp(0.8rem, 2.2vw, 1.1rem)',
+              position: 'relative',
+              overflow: 'hidden',
+              transition: 'transform 0.3s, box-shadow 0.3s',
+              marginTop: '2rem',
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.background = '#00ff00';
-              e.currentTarget.style.color = '#000';
-              e.currentTarget.style.boxShadow = '0 0 50px #00ff00';
-              e.currentTarget.style.transform = 'scale(1.05)';
+              e.currentTarget.style.transform = 'scale(1.15)';
+              e.currentTarget.style.boxShadow = '0 0 20px #34d399';
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.background = 'linear-gradient(45deg, rgba(0, 100, 0, 0.7), rgba(0, 150, 0, 0.7))';
-              e.currentTarget.style.color = 'white';
-              e.currentTarget.style.boxShadow = '0 0 30px #00ff00';
               e.currentTarget.style.transform = 'scale(1)';
+              e.currentTarget.style.boxShadow = 'none';
             }}
             data-testid="button-enter-battle"
           >
             Enter The Garden Battle
-          </button>
-        </Link>
+          </Link>
 
-        {/* Info Panels */}
-        <div className="grid md:grid-cols-3 gap-6 w-full max-w-6xl">
-          {/* Mission */}
-          <div 
-            className="p-6 rounded-xl"
+          {/* Info Cards */}
+          <div
             style={{
-              background: 'rgba(0, 50, 0, 0.5)',
-              border: '2px solid #00ff00',
-              boxShadow: '0 0 15px #00ff00'
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(min(200px, 100%), 1fr))',
+              gap: 'clamp(0.8rem, 2.5vw, 1.5rem)',
+              maxWidth: '1200px',
+              margin: '3rem auto 0',
             }}
           >
-            <h3 
-              className="text-xl font-bold mb-3"
+            {/* Mission */}
+            <div
               style={{
-                color: '#00ff00',
-                textShadow: '0 0 10px #00ff00',
-                fontFamily: 'Orbitron, sans-serif'
+                padding: 'clamp(0.8rem, 2.5vw, 1.5rem)',
+                background: 'linear-gradient(#276749, #1a4731)',
+                borderRadius: '0.75rem',
+                textAlign: 'center',
               }}
             >
-              Mission
-            </h3>
-            <p 
-              className="text-sm leading-relaxed"
-              style={{ color: '#00ffcc' }}
+              <h3
+                style={{
+                  fontSize: 'clamp(1.2rem, 3vw, 1.5rem)',
+                  marginBottom: 'clamp(0.6rem, 1.8vw, 1rem)',
+                  color: '#d4a017',
+                }}
+              >
+                Mission
+              </h3>
+              <p style={{ fontSize: 'clamp(0.8rem, 2.2vw, 0.9rem)' }}>
+                Battle your Sapling NFTs in strategic 1v1 turn-based combat. Watch your NFT evolve from seed to full tree as you gain Growth points.
+              </p>
+            </div>
+
+            {/* Tokenomics */}
+            <div
+              style={{
+                padding: 'clamp(0.8rem, 2.5vw, 1.5rem)',
+                background: 'linear-gradient(#276749, #1a4731)',
+                borderRadius: '0.75rem',
+                textAlign: 'center',
+              }}
             >
-              Battle your Sapling NFTs in strategic 1v1 turn-based combat. Watch your NFT evolve from seed to full tree as you gain Growth points.
-            </p>
+              <h3
+                style={{
+                  fontSize: 'clamp(1.2rem, 3vw, 1.5rem)',
+                  marginBottom: 'clamp(0.6rem, 1.8vw, 1rem)',
+                  color: '#d4a017',
+                }}
+              >
+                Tokenomics
+              </h3>
+              <ul
+                style={{
+                  listStyleType: 'none',
+                  padding: 0,
+                  fontSize: 'clamp(0.8rem, 2.2vw, 0.9rem)',
+                }}
+              >
+                <li>Entry Fee: 3 SUI</li>
+                <li>Winner Reward: 5 SUI</li>
+                <li>30 Unique Abilities</li>
+                <li>4 Evolution Stages</li>
+              </ul>
+            </div>
+
+            {/* NFTs */}
+            <div
+              style={{
+                padding: 'clamp(0.8rem, 2.5vw, 1.5rem)',
+                background: 'linear-gradient(#276749, #1a4731)',
+                borderRadius: '0.75rem',
+                textAlign: 'center',
+              }}
+            >
+              <h3
+                style={{
+                  fontSize: 'clamp(1.2rem, 3vw, 1.5rem)',
+                  marginBottom: 'clamp(0.6rem, 1.8vw, 1rem)',
+                  color: '#d4a017',
+                }}
+              >
+                NFTrees
+              </h3>
+              <p style={{ fontSize: 'clamp(0.8rem, 2.2vw, 0.9rem)' }}>
+                Sapling NFTs unlock battle access and evolve visually as they grow. Seed → Sapling → Mature → Full Tree.
+              </p>
+            </div>
           </div>
 
-          {/* Tokenomics */}
-          <div 
-            className="p-6 rounded-xl"
-            style={{
-              background: 'rgba(0, 50, 0, 0.5)',
-              border: '2px solid #00ff00',
-              boxShadow: '0 0 15px #00ff00'
-            }}
-          >
-            <h3 
-              className="text-xl font-bold mb-3"
-              style={{
-                color: '#00ff00',
-                textShadow: '0 0 10px #00ff00',
-                fontFamily: 'Orbitron, sans-serif'
-              }}
-            >
-              Tokenomics
-            </h3>
-            <ul 
-              className="text-sm space-y-1"
-              style={{ color: '#00ffcc' }}
-            >
-              <li>Entry Fee: 3 SUI</li>
-              <li>Winner Reward: 5 SUI</li>
-              <li>30 Unique Abilities</li>
-              <li>4 Evolution Stages</li>
-            </ul>
-          </div>
-
-          {/* NFTs */}
-          <div 
-            className="p-6 rounded-xl"
-            style={{
-              background: 'rgba(0, 50, 0, 0.5)',
-              border: '2px solid #00ff00',
-              boxShadow: '0 0 15px #00ff00'
-            }}
-          >
-            <h3 
-              className="text-xl font-bold mb-3"
-              style={{
-                color: '#00ff00',
-                textShadow: '0 0 10px #00ff00',
-                fontFamily: 'Orbitron, sans-serif'
-              }}
-            >
-              NFTrees
-            </h3>
-            <p 
-              className="text-sm leading-relaxed"
-              style={{ color: '#00ffcc' }}
-            >
-              Sapling NFTs unlock battle access and evolve visually as they grow. Seed → Sapling → Mature → Full Tree.
+          {/* Social Links */}
+          <div style={{ marginTop: '3rem' }}>
+            <p style={{ fontSize: '0.9rem', marginBottom: '1rem', color: '#2dd4bf' }}>
+              Join the $TREE Forest
             </p>
+            <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
+              <a 
+                href="https://x.com/thickquidity" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                style={{ color: '#34d399', fontSize: '0.9rem', textDecoration: 'underline' }}
+              >
+                X
+              </a>
+              <a 
+                href="https://t.me/thickquidity" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                style={{ color: '#34d399', fontSize: '0.9rem', textDecoration: 'underline' }}
+              >
+                Telegram
+              </a>
+              <a 
+                href="https://sui.io/" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                style={{ color: '#34d399', fontSize: '0.9rem', textDecoration: 'underline' }}
+              >
+                SUI Network
+              </a>
+            </div>
           </div>
         </div>
+      </div>
 
-        {/* Social Links */}
-        <div className="mt-12">
-          <p 
-            className="text-sm mb-3 text-center"
-            style={{ color: '#00ffcc' }}
-          >
-            Join the $TREE Forest
-          </p>
-          <div className="flex gap-4 justify-center">
-            <a 
-              href="https://x.com/thickquidity" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="text-sm hover:underline"
-              style={{ color: '#00ff00' }}
-            >
-              X
-            </a>
-            <a 
-              href="https://t.me/thickquidity" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="text-sm hover:underline"
-              style={{ color: '#00ff00' }}
-            >
-              Telegram
-            </a>
-            <a 
-              href="https://sui.io/" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="text-sm hover:underline"
-              style={{ color: '#00ff00' }}
-            >
-              SUI Network
-            </a>
-          </div>
-        </div>
-      </main>
-
-      <Footer />
+      {/* Footer */}
+      <footer
+        style={{
+          textAlign: 'center',
+          padding: '1.5rem',
+          background: 'rgba(26, 71, 49, 0.8)',
+          borderTop: '2px solid #34d399',
+        }}
+      >
+        <a
+          href="https://sui.io/"
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            color: '#2dd4bf',
+            textDecoration: 'none',
+            transition: 'color 0.3s',
+          }}
+          onMouseEnter={(e) => e.currentTarget.style.color = '#34d399'}
+          onMouseLeave={(e) => e.currentTarget.style.color = '#2dd4bf'}
+        >
+          Powered by SUI
+        </a>
+      </footer>
     </div>
   );
 }

@@ -1,7 +1,8 @@
-// Sui Blockchain Configuration
+// Sui Blockchain Configuration - SUI MAIN PUBLIC FULL NODE ENDPOINTS
 export const SUI_CONFIG = {
   NETWORK: 'mainnet',
   RPC_URL: 'https://fullnode.mainnet.sui.io:443',
+  WS_URL: 'wss://fullnode.mainnet.sui.io:443',
   PACKAGE_ID: '0x7144301fe39dae2363f57e13d5e8650934a1adf5817a46b64ac5e86a9cffea80',
   MODULE: 'battle_garden',
   CONFIG_ID: '0x06c2b903bf9f805d8882e686d504a09593740deb2bc1a39eb67378e44089c749',
