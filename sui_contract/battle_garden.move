@@ -245,8 +245,7 @@ module 0x7144301fe39dae2363f57e13d5e8650934a1adf5817a46b64ac5e86a9cffea80::battl
     fun init(_witness: BATTLE_GARDEN, ctx: &mut TxContext) {
         let sender = tx_context::sender(ctx);
         
-        let mut whitelisted = vector::empty<TypeName>();
-        vector::push_back(&mut whitelisted, type_name::get<SaplingNFT>());
+        let whitelisted = vector::empty<TypeName>();
         
         let config = Config {
             id: object::new(ctx),
@@ -272,7 +271,7 @@ module 0x7144301fe39dae2363f57e13d5e8650934a1adf5817a46b64ac5e86a9cffea80::battl
     }
 
     fun is_collection_whitelisted<T: key + store>(config: &Config): bool {
-        let nft_type = type_name::get<T>();
+        let nft_type = type_name::get_with_original_ids<T>();
         vector::contains(&config.whitelisted_collections, &nft_type)
     }
 
@@ -321,7 +320,7 @@ module 0x7144301fe39dae2363f57e13d5e8650934a1adf5817a46b64ac5e86a9cffea80::battl
         assert!(!config.paused, EPaused);
         assert!(is_collection_whitelisted<T>(config), ENftNotWhitelisted);
         
-        let _nft = kiosk::borrow_val<T>(kiosk, cap, nft_id);
+        let (_nft, borrow) = kiosk::borrow_val<T>(kiosk, cap, nft_id);
         
         let sender = tx_context::sender(ctx);
         let entry_fee = if (option::is_some(&queue.waiting)) {
@@ -338,7 +337,7 @@ module 0x7144301fe39dae2363f57e13d5e8650934a1adf5817a46b64ac5e86a9cffea80::battl
             coin::destroy_zero(payment);
         };
         
-        kiosk::return_val(kiosk, _nft);
+        kiosk::return_val(kiosk, _nft, borrow);
         
         if (option::is_some(&queue.waiting)) {
             let pending = option::extract(&mut queue.waiting);
@@ -354,7 +353,7 @@ module 0x7144301fe39dae2363f57e13d5e8650934a1adf5817a46b64ac5e86a9cffea80::battl
 
     public fun whitelist_collection<T: key + store>(config: &mut Config, ctx: &mut TxContext) {
         assert!(tx_context::sender(ctx) == config.admin, EAdminOnly);
-        let nft_type = type_name::get<T>();
+        let nft_type = type_name::get_with_original_ids<T>();
         if (!vector::contains(&config.whitelisted_collections, &nft_type)) {
             vector::push_back(&mut config.whitelisted_collections, nft_type);
         };
@@ -362,7 +361,7 @@ module 0x7144301fe39dae2363f57e13d5e8650934a1adf5817a46b64ac5e86a9cffea80::battl
 
     public fun remove_collection<T: key + store>(config: &mut Config, ctx: &mut TxContext) {
         assert!(tx_context::sender(ctx) == config.admin, EAdminOnly);
-        let nft_type = type_name::get<T>();
+        let nft_type = type_name::get_with_original_ids<T>();
         let (exists, idx) = vector::index_of(&config.whitelisted_collections, &nft_type);
         if (exists) {
             vector::remove(&mut config.whitelisted_collections, idx);

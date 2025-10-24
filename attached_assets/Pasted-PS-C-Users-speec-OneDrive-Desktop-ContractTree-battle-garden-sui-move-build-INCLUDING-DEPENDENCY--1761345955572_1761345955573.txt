@@ -1,0 +1,135 @@
+PS C:\Users\speec\OneDrive\Desktop\ContractTree\battle_garden> sui move build
+INCLUDING DEPENDENCY Bridge
+INCLUDING DEPENDENCY SuiSystem
+INCLUDING DEPENDENCY Sui
+INCLUDING DEPENDENCY MoveStdlib
+BUILDING battle_garden
+warning[W09002]: unused variable
+    ┌─ .\sources\battle_garden.move:248:13
+    │
+248 │         let mut whitelisted = vector::empty<TypeName>();
+    │             ^^^ Unused local variable 'mut'. Consider removing or prefixing with an underscore: '_mut'
+    │
+    = This warning can be suppressed with '#[allow(unused_variable)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+error[E01002]: unexpected token
+    ┌─ .\sources\battle_garden.move:248:17
+    │
+248 │         let mut whitelisted = vector::empty<TypeName>();
+    │                 ^^^^^^^^^^^
+    │                 │
+    │                 Unexpected 'whitelisted'
+    │                 Expected ';'
+
+error[E03009]: unbound variable
+    ┌─ .\sources\battle_garden.move:249:32
+    │
+249 │         vector::push_back(&mut whitelisted, type_name::get<SaplingNFT>());
+    │                                ^^^^^^^^^^^ Unbound variable 'whitelisted'
+
+warning[W04037]: deprecated usage
+    ┌─ .\sources\battle_garden.move:249:56
+    │
+249 │         vector::push_back(&mut whitelisted, type_name::get<SaplingNFT>());
+    │                                                        ^^^ The function 'std::type_name::get' is deprecated: Renamed to with_defining_ids for clarity.
+    │
+    = This warning can be suppressed with '#[allow(deprecated_usage)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+error[E03009]: unbound variable
+    ┌─ .\sources\battle_garden.move:259:38
+    │
+259 │             whitelisted_collections: whitelisted,
+    │                                      ^^^^^^^^^^^ Unbound variable 'whitelisted'
+
+warning[W04037]: deprecated usage
+    ┌─ .\sources\battle_garden.move:275:35
+    │
+275 │         let nft_type = type_name::get<T>();
+    │                                   ^^^ The function 'std::type_name::get' is deprecated: Renamed to with_defining_ids for clarity.
+    │
+    = This warning can be suppressed with '#[allow(deprecated_usage)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+error[E04005]: expected a single type
+    ┌─ .\sources\battle_garden.move:324:13
+    │
+324 │         let _nft = kiosk::borrow_val<T>(kiosk, cap, nft_id);
+    │             ^^^^ Invalid type for local
+    │
+    ┌─ C:\Users\speec/.move\https___github_com_MystenLabs_sui_git_2cde80b5766b0bc2073908e10f6e3c81c93fd691\crates/sui-framework/packages/sui-framework\sources\kiosk\kiosk.move:600:87
+    │
+600 │ public fun borrow_val<T: key + store>(self: &mut Kiosk, cap: &KioskOwnerCap, id: ID): (T, Borrow) {
+    │                                                                                       ----------- Expected a single type, but found expression list type: '(T, sui::kiosk::Borrow)'
+
+error[E05001]: ability constraint not satisfied
+    ┌─ .\sources\battle_garden.move:341:9
+    │
+341 │         kiosk::return_val(kiosk, _nft);
+    │         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ 'key' constraint not satisifed
+    │
+    ┌─ C:\Users\speec/.move\https___github_com_MystenLabs_sui_git_2cde80b5766b0bc2073908e10f6e3c81c93fd691\crates/sui-framework/packages/sui-framework\sources\kiosk\kiosk.move:600:87
+    │
+600 │ public fun borrow_val<T: key + store>(self: &mut Kiosk, cap: &KioskOwnerCap, id: ID): (T, Borrow) {
+    │                                                                                       ----------- The type '(T, sui::kiosk::Borrow)' does not have the ability 'key'
+    ·
+610 │ public fun return_val<T: key + store>(self: &mut Kiosk, item: T, borrow: Borrow) {
+    │                          --- 'key' constraint declared here
+error[E05001]: ability constraint not satisfied
+    ┌─ .\sources\battle_garden.move:341:9
+    │
+341 │         kiosk::return_val(kiosk, _nft);
+    │         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ 'store' constraint not satisifed
+    │
+    ┌─ C:\Users\speec/.move\https___github_com_MystenLabs_sui_git_2cde80b5766b0bc2073908e10f6e3c81c93fd691\crates/sui-framework/packages/sui-framework\sources\kiosk\kiosk.move:600:87
+    │
+600 │ public fun borrow_val<T: key + store>(self: &mut Kiosk, cap: &KioskOwnerCap, id: ID): (T, Borrow) {
+    │                                                                                       -----------
+    │                                                                                       │   │
+    │                                                                                       │   The type '(T, sui::kiosk::Borrow)' can have the ability 'store' but the type argument 'sui::kiosk::Borrow' does not have the required ability 'store'
+    │                                                                                       The type '(T, sui::kiosk::Borrow)' does not have the ability 'store'
+    ·
+610 │ public fun return_val<T: key + store>(self: &mut Kiosk, item: T, borrow: Borrow) {
+    │                                ----- 'store' constraint declared here
+
+error[E04004]: expected a single non-reference type
+    ┌─ .\sources\battle_garden.move:341:9
+    │
+341 │         kiosk::return_val(kiosk, _nft);
+    │         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Invalid type argument
+    │
+    ┌─ C:\Users\speec/.move\https___github_com_MystenLabs_sui_git_2cde80b5766b0bc2073908e10f6e3c81c93fd691\crates/sui-framework/packages/sui-framework\sources\kiosk\kiosk.move:600:87
+    │
+600 │ public fun borrow_val<T: key + store>(self: &mut Kiosk, cap: &KioskOwnerCap, id: ID): (T, Borrow) {
+    │                                                                                       ----------- Expected a single non-reference type, but found: '(T, sui::kiosk::Borrow)'
+
+error[E04016]: too few arguments
+    ┌─ .\sources\battle_garden.move:341:9
+    │
+341 │         kiosk::return_val(kiosk, _nft);
+    │         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    │         │                │
+    │         │                Found 2 argument(s) here
+    │         Invalid call of 'sui::kiosk::return_val'. The call expected 3 argument(s) but got 2
+    │
+    ┌─ C:\Users\speec/.move\https___github_com_MystenLabs_sui_git_2cde80b5766b0bc2073908e10f6e3c81c93fd691\crates/sui-framework/packages/sui-framework\sources\kiosk\kiosk.move:610:12
+    │
+610 │ public fun return_val<T: key + store>(self: &mut Kiosk, item: T, borrow: Borrow) {
+    │            ---------- Expected 3 argument(s)
+
+warning[W04037]: deprecated usage
+    ┌─ .\sources\battle_garden.move:357:35
+    │
+357 │         let nft_type = type_name::get<T>();
+    │                                   ^^^ The function 'std::type_name::get' is deprecated: Renamed to with_defining_ids for clarity.
+    │
+    = This warning can be suppressed with '#[allow(deprecated_usage)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+warning[W04037]: deprecated usage
+    ┌─ .\sources\battle_garden.move:365:35
+    │
+365 │         let nft_type = type_name::get<T>();
+    │                                   ^^^ The function 'std::type_name::get' is deprecated: Renamed to with_defining_ids for clarity.
+    │
+    = This warning can be suppressed with '#[allow(deprecated_usage)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+Failed to build Move modules: Compilation error.
+PS C:\Users\speec\OneDrive\Deskto
