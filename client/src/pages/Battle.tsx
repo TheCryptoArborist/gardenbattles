@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link } from 'wouter';
 import { Trophy } from 'lucide-react';
+import { ConnectButton } from '@mysten/dapp-kit';
 import { useSuiWallet } from '@/hooks/useSuiWallet';
 import { MOVE_LABELS } from '@/lib/sui-config';
 import BattleDialog from '@/components/BattleDialog';
@@ -22,7 +23,6 @@ export default function Battle() {
     joinBattle,
     useAbility,
     getFirstValidSaplingNft,
-    ConnectWalletButton
   } = useSuiWallet();
 
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -89,20 +89,16 @@ export default function Battle() {
   // Trigger animations when growth changes with proper cleanup
   useEffect(() => {
     if (playerGrowth !== prevPlayerGrowth && prevPlayerGrowth !== null) {
-      // Clear any existing animation timer
       if (playerAnimationTimer.current) {
         clearTimeout(playerAnimationTimer.current);
       }
       
-      // Force animation restart by clearing class first
       setPlayerAnimation('');
       
-      // Use requestAnimationFrame to ensure DOM updates before applying new animation
       requestAnimationFrame(() => {
         const newAnimation = playerGrowth > prevPlayerGrowth ? 'grow-green' : 'shake';
         setPlayerAnimation(newAnimation);
         
-        // Schedule cleanup
         playerAnimationTimer.current = setTimeout(() => {
           setPlayerAnimation('');
           playerAnimationTimer.current = null;
@@ -114,20 +110,16 @@ export default function Battle() {
 
   useEffect(() => {
     if (opponentGrowth !== prevOpponentGrowth && prevOpponentGrowth !== null) {
-      // Clear any existing animation timer
       if (opponentAnimationTimer.current) {
         clearTimeout(opponentAnimationTimer.current);
       }
       
-      // Force animation restart by clearing class first
       setOpponentAnimation('');
       
-      // Use requestAnimationFrame to ensure DOM updates before applying new animation
       requestAnimationFrame(() => {
         const newAnimation = opponentGrowth > prevOpponentGrowth ? 'grow-green' : 'shake';
         setOpponentAnimation(newAnimation);
         
-        // Schedule cleanup
         opponentAnimationTimer.current = setTimeout(() => {
           setOpponentAnimation('');
           opponentAnimationTimer.current = null;
@@ -163,8 +155,12 @@ export default function Battle() {
   return (
     <div
       style={{
-        background: 'url(/assets/background4.jpg) no-repeat center center fixed, #000',
+        backgroundImage: 'url(/assets/background4.jpg)',
         backgroundSize: 'cover',
+        backgroundPosition: 'center center',
+        backgroundAttachment: 'fixed',
+        backgroundRepeat: 'no-repeat',
+        backgroundColor: '#000',
         color: 'white',
         textAlign: 'center',
         fontFamily: 'Orbitron, sans-serif',
@@ -174,7 +170,7 @@ export default function Battle() {
         overflowX: 'hidden',
       }}
     >
-      {/* Header - Horizontal layout */}
+      {/* Header */}
       <header
         style={{
           display: 'flex',
@@ -244,15 +240,14 @@ export default function Battle() {
           </a>
         </nav>
 
-        <div>
-          <ConnectWalletButton />
-        </div>
+        <ConnectButton connectText="Connect Wallet" />
       </header>
 
       {/* Title Image with animation */}
       <img
-        src="/assets/backgrounda.jpg"
+        src="/assets/garden.png"
         alt="The Garden Battles"
+        className="title-image"
         style={{
           width: '100%',
           maxWidth: '680px',
@@ -297,7 +292,9 @@ export default function Battle() {
               alignItems: 'center',
               justifyContent: 'center',
               position: 'relative',
-              boxShadow: winner === 'player' ? '0 0 20px #00ff00, 0 0 40px #00ff00' : '0 0 15px #ff0000',
+              boxShadow: winner === 'player' 
+                ? '0 0 20px #00ff00, 0 0 40px #00ff00' 
+                : '0 0 15px #ff0000',
               transition: 'transform 0.3s ease, box-shadow 0.3s ease',
               marginBottom: '10px',
               zIndex: 1,
@@ -305,8 +302,16 @@ export default function Battle() {
               overflow: 'hidden',
               cursor: 'pointer',
             }}
-            onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
-            onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'scale(1.05)';
+              e.currentTarget.style.boxShadow = '0 0 30px #00ff00';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'scale(1)';
+              e.currentTarget.style.boxShadow = winner === 'player' 
+                ? '0 0 20px #00ff00, 0 0 40px #00ff00' 
+                : '0 0 15px #ff0000';
+            }}
             data-testid="nft-card-player"
           >
             <img
@@ -324,9 +329,13 @@ export default function Battle() {
               <div
                 style={{
                   position: 'absolute',
-                  top: '50%',
-                  left: '50%',
-                  transform: 'translate(-50%, -50%)',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  height: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
                   zIndex: 2,
                 }}
               >
@@ -409,7 +418,9 @@ export default function Battle() {
               alignItems: 'center',
               justifyContent: 'center',
               position: 'relative',
-              boxShadow: winner === 'opponent' ? '0 0 20px #00ff00, 0 0 40px #00ff00' : '0 0 15px #00ff00',
+              boxShadow: winner === 'opponent' 
+                ? '0 0 20px #00ff00, 0 0 40px #00ff00' 
+                : '0 0 15px #00ff00',
               transition: 'transform 0.3s ease, box-shadow 0.3s ease',
               marginBottom: '10px',
               zIndex: 1,
@@ -417,8 +428,16 @@ export default function Battle() {
               overflow: 'hidden',
               cursor: 'pointer',
             }}
-            onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
-            onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'scale(1.05)';
+              e.currentTarget.style.boxShadow = '0 0 30px #00ff00';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'scale(1)';
+              e.currentTarget.style.boxShadow = winner === 'opponent' 
+                ? '0 0 20px #00ff00, 0 0 40px #00ff00' 
+                : '0 0 15px #00ff00';
+            }}
             data-testid="nft-card-opponent"
           >
             <img
@@ -436,9 +455,13 @@ export default function Battle() {
               <div
                 style={{
                   position: 'absolute',
-                  top: '50%',
-                  left: '50%',
-                  transform: 'translate(-50%, -50%)',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  height: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
                   zIndex: 2,
                 }}
               >
@@ -521,6 +544,7 @@ export default function Battle() {
                 margin: '5px',
                 borderRadius: '8px',
                 opacity: winner ? 0.5 : 1,
+                fontFamily: 'Orbitron, sans-serif',
               }}
               onMouseEnter={(e) => {
                 if (!winner) {
@@ -643,7 +667,7 @@ export default function Battle() {
             position: 'absolute',
             bottom: '10px',
             right: '15px',
-            fontSize: '12px',
+            fontSize: '13px',
             color: '#00ff00',
             opacity: 0.7,
           }}
@@ -652,7 +676,7 @@ export default function Battle() {
         </div>
       </footer>
 
-      <BattleDialog 
+      <BattleDialog
         isOpen={dialogOpen}
         message={dialogMessage}
         onClose={() => setDialogOpen(false)}
