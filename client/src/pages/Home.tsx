@@ -116,20 +116,21 @@ export default function Home() {
         </div>
       </header>
 
-      {/* Hero Section */}
+      {/* Main Content Wrapper */}
       <div
         style={{
+          paddingTop: '120px',
           minHeight: '100vh',
           display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
+          flexDirection: 'column',
           textAlign: 'center',
           padding: 'clamp(1rem, 5vw, 2rem)',
           position: 'relative',
           zIndex: 2,
         }}
       >
-        <div style={{ maxWidth: '90%', width: '100%' }}>
+        {/* Hero Section */}
+        <div style={{ maxWidth: '90%', width: '100%', margin: '0 auto', paddingBottom: '3rem' }}>
           <img 
             src="/assets/tree.jpg" 
             alt="Battle Garden Logo"
@@ -322,7 +323,7 @@ export default function Home() {
           </div>
 
           {/* Social Links */}
-          <div style={{ marginTop: '3rem' }}>
+          <div style={{ marginTop: '3rem', marginBottom: '3rem' }}>
             <p style={{ fontSize: '0.9rem', marginBottom: '1rem', color: '#2dd4bf' }}>
               Join the $TREE Forest
             </p>
@@ -354,32 +355,33 @@ export default function Home() {
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Footer */}
-      <footer
-        style={{
-          textAlign: 'center',
-          padding: '1.5rem',
-          background: 'rgba(26, 71, 49, 0.8)',
-          borderTop: '2px solid #34d399',
-        }}
-      >
-        <a
-          href="https://sui.io/"
-          target="_blank"
-          rel="noopener noreferrer"
+        {/* Footer */}
+        <footer
           style={{
-            color: '#2dd4bf',
-            textDecoration: 'none',
-            transition: 'color 0.3s',
+            textAlign: 'center',
+            padding: '1.5rem',
+            background: 'rgba(26, 71, 49, 0.8)',
+            borderTop: '2px solid #34d399',
+            marginTop: 'auto',
           }}
-          onMouseEnter={(e) => e.currentTarget.style.color = '#34d399'}
-          onMouseLeave={(e) => e.currentTarget.style.color = '#2dd4bf'}
         >
-          Powered by SUI
-        </a>
-      </footer>
+          <a
+            href="https://sui.io/"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              color: '#2dd4bf',
+              textDecoration: 'none',
+              transition: 'color 0.3s',
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.color = '#34d399'}
+            onMouseLeave={(e) => e.currentTarget.style.color = '#2dd4bf'}
+          >
+            Powered by SUI
+          </a>
+        </footer>
+      </div>
     </div>
   );
 }

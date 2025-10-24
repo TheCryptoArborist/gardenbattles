@@ -19,8 +19,11 @@ A blockchain-based NFT battle game built on the Sui network where players battle
 - **FIXED**: Copied all assets from `public/assets/` to `client/public/assets/` for Vite compatibility
 - **FIXED**: NFT scanning infinite loop by replacing `isJoining` state with `hasScanned` flag
 - **FIXED**: All images now loading (backgrounds, logos, NFT evolution stages)
+- **FIXED**: Home page layout structure - removed viewport height constraint preventing proper scrolling
 - **VERIFIED**: Wallet configured with `preferredWallets={['Sui Wallet']}` to prioritize Sui Wallet
-- **VERIFIED**: All scrolling content visible on both Home and Battle pages
+- **VERIFIED**: All sections now properly scrollable on both pages:
+  - Home: Hero, Info Cards (Mission/Tokenomics/NFTrees), Social Links, Footer
+  - Battle: NFT Cards, Abilities, Gameplay Info, Phase 2 Announcement, Footer
 - Added hover effects (scale 1.05) to NFT cards for visual feedback
 
 **2025-01-24:** Complete implementation with exact design matching
