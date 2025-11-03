@@ -287,10 +287,13 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
               console.error('Join battle transaction failed - Full error:', JSON.stringify(error, null, 2));
               console.error('Error type:', typeof error);
               console.error('Error keys:', Object.keys(error));
+              console.error('Error object:', error);
               if (error.data) {
-                console.error('Error data:', JSON.stringify(error.data, null, 2));
+                console.error('Error data exists:', error.data);
+                console.error('Error data stringified:', JSON.stringify(error.data, null, 2));
               }
-              reject(new Error(error.message || 'Failed to join battle'));
+              const errorMessage = error.data?.message || error.message || 'Failed to join battle';
+              reject(new Error(errorMessage));
             },
           }
         );
