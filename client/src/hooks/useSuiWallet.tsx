@@ -226,6 +226,25 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
       throw new Error('Wallet not connected or random object not initialized');
     }
 
+    // Check SUI balance first
+    try {
+      const balance = await suiClient.getBalance({ owner: address });
+      const balanceInSui = Number(balance.totalBalance) / 1_000_000_000;
+      const entryFeeInSui = SUI_CONFIG.ENTRY_FEE / 1_000_000_000;
+      const requiredSui = entryFeeInSui + 0.1; // entry fee + ~0.1 SUI gas
+      
+      console.log(`Wallet balance: ${balanceInSui} SUI (required: ${requiredSui} SUI)`);
+      
+      if (balanceInSui < requiredSui) {
+        throw new Error(`Insufficient balance. You have ${balanceInSui.toFixed(2)} SUI but need at least ${requiredSui} SUI (${entryFeeInSui} SUI entry fee + ~0.1 SUI gas)`);
+      }
+    } catch (balanceError: any) {
+      if (balanceError.message?.includes('Insufficient balance')) {
+        throw balanceError;
+      }
+      console.warn('Could not check balance:', balanceError);
+    }
+
     try {
       console.log('Building transaction with NFT data:', {
         nftId: nftData.nftId,
@@ -294,6 +313,12 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
         console.error('DRY RUN FAILED - This is the actual error:', dryRunError);
         console.error('DRY RUN ERROR MESSAGE:', dryRunError?.message);
         console.error('DRY RUN ERROR STACK:', dryRunError?.stack);
+        
+        // Provide helpful error messages
+        if (dryRunError?.message?.includes('No valid gas coins')) {
+          throw new Error('Insufficient SUI for gas fees. You need at least 3.1 SUI in your wallet (3 SUI entry fee + ~0.1 SUI for gas). Please add more SUI to your wallet.');
+        }
+        
         throw new Error(`Transaction validation failed: ${dryRunError?.message || 'Unknown error'}`);
       }
 

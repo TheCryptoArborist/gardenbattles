@@ -22,6 +22,7 @@ export default function AdminPanel({ adminAddresses, currentAddress }: AdminPane
   const [newCollectionType, setNewCollectionType] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [statusMessage, setStatusMessage] = useState('');
+  const [isUpdatingFees, setIsUpdatingFees] = useState(false);
   
   const { mutate: signAndExecuteTransaction } = useSignAndExecuteTransaction();
 
@@ -183,6 +184,63 @@ export default function AdminPanel({ adminAddresses, currentAddress }: AdminPane
     }
   };
 
+  const updateFeesToZero = async () => {
+    setIsUpdatingFees(true);
+    setStatusMessage('Updating battle fees to 0 SUI for testing...');
+
+    try {
+      const tx = new Transaction();
+      
+      // Call set_economics(config, entry_fee=0, winner_payout=0, treasury_share=0)
+      tx.moveCall({
+        target: `${SUI_CONFIG.PACKAGE_ID}::${SUI_CONFIG.MODULE}::set_economics`,
+        arguments: [
+          tx.object(SUI_CONFIG.CONFIG_ID),
+          tx.pure.u64(0), // entry_fee
+          tx.pure.u64(0), // winner_payout
+          tx.pure.u64(0), // treasury_share
+        ],
+      });
+
+      await new Promise<void>((resolve, reject) => {
+        signAndExecuteTransaction(
+          {
+            transaction: tx,
+            chain: 'sui:mainnet',
+          },
+          {
+            onSuccess: () => {
+              setStatusMessage('✅ Battle fees updated to 0 SUI on-chain! You can now test battles.');
+              
+              setTimeout(() => {
+                setStatusMessage('');
+                setIsUpdatingFees(false);
+              }, 5000);
+              
+              resolve();
+            },
+            onError: (error) => {
+              console.error('Update fees failed:', error);
+              setStatusMessage(`❌ Failed: ${error.message || 'Transaction rejected'}`);
+              setTimeout(() => {
+                setStatusMessage('');
+                setIsUpdatingFees(false);
+              }, 5000);
+              reject(error);
+            },
+          }
+        );
+      });
+    } catch (error: any) {
+      console.error('Error updating fees:', error);
+      setStatusMessage(`❌ Error: ${error.message || 'Unknown error'}`);
+      setTimeout(() => {
+        setStatusMessage('');
+        setIsUpdatingFees(false);
+      }, 5000);
+    }
+  };
+
   if (!isAdmin) {
     return null;
   }
@@ -287,6 +345,35 @@ export default function AdminPanel({ adminAddresses, currentAddress }: AdminPane
             >
               NFT Collection Manager
             </h2>
+
+            {/* Testing: Set Fees to 0 */}
+            <div style={{ marginBottom: '20px', padding: '15px', background: 'rgba(255, 100, 0, 0.1)', border: '2px solid #ff6600', borderRadius: '8px' }}>
+              <h3 style={{ color: '#ff6600', fontSize: '16px', marginBottom: '10px' }}>
+                ⚠️ Testing Mode
+              </h3>
+              <p style={{ color: '#fff', fontSize: '14px', marginBottom: '10px', opacity: 0.9 }}>
+                Set battle fees to 0 SUI to test battles without spending SUI
+              </p>
+              <button
+                onClick={updateFeesToZero}
+                disabled={isUpdatingFees}
+                style={{
+                  background: isUpdatingFees ? 'rgba(100, 100, 100, 0.5)' : 'linear-gradient(45deg, #ff6600, #ff8800)',
+                  color: '#fff',
+                  padding: '10px 20px',
+                  borderRadius: '6px',
+                  border: '2px solid #ff6600',
+                  fontWeight: 'bold',
+                  fontSize: '14px',
+                  cursor: isUpdatingFees ? 'not-allowed' : 'pointer',
+                  fontFamily: 'Orbitron, sans-serif',
+                  opacity: isUpdatingFees ? 0.5 : 1,
+                }}
+                data-testid="button-update-fees"
+              >
+                {isUpdatingFees ? 'Updating...' : 'Set Fees to 0 SUI'}
+              </button>
+            </div>
 
             <div style={{ marginBottom: '30px' }}>
               <h3 style={{ color: '#00ffcc', fontSize: '18px', marginBottom: '15px' }}>
