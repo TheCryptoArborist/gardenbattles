@@ -62,6 +62,11 @@ export default function AdminPanel({ adminAddresses, currentAddress }: AdminPane
     if (!newCollectionName.trim() || !newCollectionType.trim()) return;
     
     const collectionType = newCollectionType.trim();
+    // Normalize type: Remove leading 0x if present to match Move's type_name format
+    const normalizedType = collectionType.startsWith('0x') 
+      ? collectionType.slice(2) 
+      : collectionType;
+      
     setIsProcessing(true);
     setStatusMessage('Submitting transaction to whitelist collection on-chain...');
 
@@ -70,7 +75,7 @@ export default function AdminPanel({ adminAddresses, currentAddress }: AdminPane
       
       tx.moveCall({
         target: `${SUI_CONFIG.PACKAGE_ID}::${SUI_CONFIG.MODULE}::whitelist_collection`,
-        typeArguments: [collectionType],
+        typeArguments: [normalizedType],
         arguments: [
           tx.object(SUI_CONFIG.CONFIG_ID),
         ],
@@ -129,6 +134,11 @@ export default function AdminPanel({ adminAddresses, currentAddress }: AdminPane
     const collection = collections.find(c => c.id === id);
     if (!collection) return;
 
+    // Normalize type: Remove leading 0x if present to match Move's type_name format
+    const normalizedType = collection.type.startsWith('0x') 
+      ? collection.type.slice(2) 
+      : collection.type;
+
     setIsProcessing(true);
     setStatusMessage('Removing collection from on-chain whitelist...');
 
@@ -137,7 +147,7 @@ export default function AdminPanel({ adminAddresses, currentAddress }: AdminPane
       
       tx.moveCall({
         target: `${SUI_CONFIG.PACKAGE_ID}::${SUI_CONFIG.MODULE}::remove_collection`,
-        typeArguments: [collection.type],
+        typeArguments: [normalizedType],
         arguments: [
           tx.object(SUI_CONFIG.CONFIG_ID),
         ],
