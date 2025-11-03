@@ -20,9 +20,12 @@ A blockchain-based NFT battle game built on the Sui network where players battle
   - Package ID: 0x6bdfb7a07529f20d971c68ec57e3ac0c3d03b0b309d1624d141df4a102cad01
   - Config ID: 0x35b10278cf1bbebd5a43df3222e490af2796fb78f3a2c4a59e3debf08aef8587
   - Queue ID: 0xd23445c667c5826a6d58636d980d00612a78a921761fd3df18b577d4acb194f2
-  - Admin Wallet: 0x485953e2eadf4aa02af950cf8e914fbd2b67523385e73c36118341459d8d45c4
+  - Admin Wallets: 
+    - 0x485953e2eadf4aa02af950cf8e914fbd2b67523385e73c36118341459d8d45c4 (Contract deployer)
+    - 0x8d73665b159d406d1bd208782cbba5304900ecafbde23f957f77843b5ea06961 (User wallet)
   - Frontend config updated with new deployment IDs
   - All compilation fixes applied (7 total fixes)
+  - Multi-admin support: Both wallets can access Admin Panel
   - Contract ready for production use!
 
 **2025-10-24:** Contract Updated for Generic NFT Types + Kiosk Support ✅
@@ -156,7 +159,9 @@ client/src/
 - **Package ID:** `0x6bdfb7a07529f20d971c68ec57e3ac0c3d03b0b309d1624d141df4a102cad01`
 - **Config ID:** `0x35b10278cf1bbebd5a43df3222e490af2796fb78f3a2c4a59e3debf08aef8587`
 - **Queue ID:** `0xd23445c667c5826a6d58636d980d00612a78a921761fd3df18b577d4acb194f2`
-- **Admin Wallet:** `0x485953e2eadf4aa02af950cf8e914fbd2b67523385e73c36118341459d8d45c4`
+- **Admin Wallets:** 
+  - `0x485953e2eadf4aa02af950cf8e914fbd2b67523385e73c36118341459d8d45c4` (Contract deployer - on-chain admin)
+  - `0x8d73665b159d406d1bd208782cbba5304900ecafbde23f957f77843b5ea06961` (User wallet - frontend admin)
 - **Module:** `battle_garden`
 - **Features:**
   - Supports ANY NFT type via whitelist (no `issuer` field requirement)

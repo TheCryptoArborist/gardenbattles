@@ -694,7 +694,7 @@ export default function Battle() {
       <WaitingOverlay isWaiting={isWaiting} />
       
       <AdminPanel 
-        adminAddress={SUI_CONFIG.ADMIN_ADDRESS}
+        adminAddresses={SUI_CONFIG.ADMIN_ADDRESSES}
         currentAddress={address || null}
       />
 

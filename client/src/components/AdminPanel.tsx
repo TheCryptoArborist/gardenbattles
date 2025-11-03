@@ -11,11 +11,11 @@ interface NFTCollection {
 }
 
 interface AdminPanelProps {
-  adminAddress: string;
+  adminAddresses: readonly string[];
   currentAddress: string | null;
 }
 
-export default function AdminPanel({ adminAddress, currentAddress }: AdminPanelProps) {
+export default function AdminPanel({ adminAddresses, currentAddress }: AdminPanelProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [collections, setCollections] = useState<NFTCollection[]>([]);
   const [newCollectionName, setNewCollectionName] = useState('');
@@ -25,14 +25,15 @@ export default function AdminPanel({ adminAddress, currentAddress }: AdminPanelP
   
   const { mutate: signAndExecuteTransaction } = useSignAndExecuteTransaction();
 
-  const isAdmin = currentAddress?.toLowerCase() === adminAddress.toLowerCase();
+  const isAdmin = currentAddress 
+    ? adminAddresses.some(addr => addr.toLowerCase() === currentAddress.toLowerCase())
+    : false;
   
   console.log('AdminPanel Check:', {
     currentAddress,
-    adminAddress,
+    adminAddresses,
     isAdmin,
     currentLower: currentAddress?.toLowerCase(),
-    adminLower: adminAddress.toLowerCase()
   });
 
   useEffect(() => {

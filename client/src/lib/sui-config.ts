@@ -10,7 +10,10 @@ export const SUI_CONFIG = {
   SAPLING_STRUCT: '0xf1207462f6ee39938cd9f6e93285e4dc0a8034d49cb6bfb55cb5a827ba4f0cb6::tree_roots::Nft',
   ENTRY_FEE: 3_000_000_000, // 3 SUI in MIST
   RANDOM_OBJECT_CANDIDATES: ['0x8', '0x6'],
-  ADMIN_ADDRESS: '0x485953e2eadf4aa02af950cf8e914fbd2b67523385e73c36118341459d8d45c4',
+  ADMIN_ADDRESSES: [
+    '0x485953e2eadf4aa02af950cf8e914fbd2b67523385e73c36118341459d8d45c4', // Contract deployer
+    '0x8d73665b159d406d1bd208782cbba5304900ecafbde23f957f77843b5ea06961', // Your wallet
+  ],
 } as const;
 
 export const MOVE_LABELS: Record<number, string> = {
