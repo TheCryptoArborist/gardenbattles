@@ -26,7 +26,8 @@ A blockchain-based NFT battle game built on the Sui network where players battle
   - Frontend config updated with new deployment IDs
   - All compilation fixes applied (7 total fixes)
   - Multi-admin support: Both wallets can access Admin Panel
-  - Contract ready for production use!
+  - Tree Roots NFT whitelisted successfully (tx: 4jiebMXU6NfoMtkztcK5MCnNLTgVHa4ojvH3SnyXNz1J)
+  - Contract ready for production battles!
 
 **2025-10-24:** Contract Updated for Generic NFT Types + Kiosk Support ✅
 - **MAJOR CONTRACT UPDATE - DEPLOYED:**
