@@ -119,6 +119,16 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
         try {
           const fields = await suiClient.getDynamicFields({ parentId: kioskId });
           for (const field of fields.data) {
+            // Check if this is an Item or Listing field (not a Lock)
+            const fieldType = field?.name?.type || '';
+            console.log('Kiosk field type:', fieldType);
+            
+            // Skip locked items - they cannot be used in battles
+            if (fieldType.includes('::Lock')) {
+              console.log('Skipping locked item');
+              continue;
+            }
+            
             // Get NFT ID from the dynamic field's value, not the field wrapper
             // @ts-ignore
             const nftId = field?.name?.value?.id;
@@ -126,18 +136,23 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
 
             const obj = await suiClient.getObject({
               id: nftId,
-              options: { showType: true },
+              options: { showType: true, showContent: true },
             });
 
             if (obj?.data?.type && allowedTypes.includes(obj.data.type)) {
               console.log(`Found allowed NFT in kiosk ${kioskId}:`, obj.data.type, nftId);
-              return {
-                nftId,
-                nftType: obj.data.type,
-                location: 'kiosk',
-                kioskId,
-                kioskCapId: ownerCapId
-              };
+              console.log('Field details:', field);
+              
+              // Only return if it's in an Item field (can be borrowed)
+              if (fieldType.includes('::Item')) {
+                return {
+                  nftId,
+                  nftType: obj.data.type,
+                  location: 'kiosk',
+                  kioskId,
+                  kioskCapId: ownerCapId
+                };
+              }
             }
           }
         } catch (err) {
