@@ -285,33 +285,45 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
       tx.setSender(address);
       console.log('Transaction built successfully, submitting...');
 
+      console.log('About to sign and execute transaction...');
+      
       return new Promise<void>((resolve, reject) => {
-        signAndExecuteTransaction(
-          {
-            transaction: tx,
-            chain: 'sui:mainnet',
-          },
-          {
-            onSuccess: (result) => {
-              console.log('Join battle transaction succeeded:', result);
-              setIsWaiting(true);
-              listenForBattle();
-              resolve();
+        try {
+          signAndExecuteTransaction(
+            {
+              transaction: tx,
+              chain: 'sui:mainnet',
             },
-            onError: (error: any) => {
-              console.error('Join battle transaction failed - Full error:', JSON.stringify(error, null, 2));
-              console.error('Error type:', typeof error);
-              console.error('Error keys:', Object.keys(error));
-              console.error('Error object:', error);
-              if (error.data) {
-                console.error('Error data exists:', error.data);
-                console.error('Error data stringified:', JSON.stringify(error.data, null, 2));
-              }
-              const errorMessage = error.data?.message || error.message || 'Failed to join battle';
-              reject(new Error(errorMessage));
-            },
-          }
-        );
+            {
+              onSuccess: (result) => {
+                console.log('Join battle transaction succeeded:', result);
+                setIsWaiting(true);
+                listenForBattle();
+                resolve();
+              },
+              onError: (error: any) => {
+                console.error('Join battle transaction failed - Full error:', error);
+                console.error('Error stringified:', JSON.stringify(error, null, 2));
+                console.error('Error type:', typeof error);
+                console.error('Error keys:', error ? Object.keys(error) : 'null');
+                console.error('Error.data:', error?.data);
+                console.error('Error.message:', error?.message);
+                console.error('Error.code:', error?.code);
+                
+                // Try to extract any useful error message
+                let errorMessage = 'Failed to join battle';
+                if (error?.data?.message) errorMessage = error.data.message;
+                else if (error?.message) errorMessage = error.message;
+                
+                console.error('Final error message:', errorMessage);
+                reject(new Error(errorMessage));
+              },
+            }
+          );
+        } catch (err) {
+          console.error('Exception in signAndExecuteTransaction:', err);
+          reject(err);
+        }
       });
     } catch (error: any) {
       console.error('Join battle failed:', error);
