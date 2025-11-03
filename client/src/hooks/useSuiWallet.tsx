@@ -213,16 +213,11 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
       const tx = new Transaction();
       const [fee] = tx.splitCoins(tx.gas, [tx.pure.u64(SUI_CONFIG.ENTRY_FEE)]);
       
-      // Normalize NFT type: Remove leading 0x if present to match Move's type_name format
-      const normalizedType = nftData.nftType.startsWith('0x') 
-        ? nftData.nftType.slice(2) 
-        : nftData.nftType;
-      
       if (nftData.location === 'wallet') {
         // NFT is in wallet - use standard join_queue
         tx.moveCall({
           target: `${SUI_CONFIG.PACKAGE_ID}::${SUI_CONFIG.MODULE}::join_queue`,
-          typeArguments: [normalizedType],
+          typeArguments: [nftData.nftType],
           arguments: [
             tx.object(SUI_CONFIG.CONFIG_ID),
             tx.object(SUI_CONFIG.MATCHMAKING_QUEUE_ID),
@@ -235,7 +230,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
         // NFT is in kiosk - use join_queue_from_kiosk
         tx.moveCall({
           target: `${SUI_CONFIG.PACKAGE_ID}::${SUI_CONFIG.MODULE}::join_queue_from_kiosk`,
-          typeArguments: [normalizedType],
+          typeArguments: [nftData.nftType],
           arguments: [
             tx.object(SUI_CONFIG.CONFIG_ID),
             tx.object(SUI_CONFIG.MATCHMAKING_QUEUE_ID),
