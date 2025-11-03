@@ -285,6 +285,18 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
       tx.setSender(address);
       console.log('Transaction built successfully, submitting...');
 
+      // Dry run the transaction first to see the actual error
+      console.log('Performing dry run to check for errors...');
+      try {
+        const dryRunResult = await tx.build({ client: suiClient });
+        console.log('Dry run successful, transaction bytes:', dryRunResult);
+      } catch (dryRunError: any) {
+        console.error('DRY RUN FAILED - This is the actual error:', dryRunError);
+        console.error('DRY RUN ERROR MESSAGE:', dryRunError?.message);
+        console.error('DRY RUN ERROR STACK:', dryRunError?.stack);
+        throw new Error(`Transaction validation failed: ${dryRunError?.message || 'Unknown error'}`);
+      }
+
       console.log('About to sign and execute transaction...');
       
       return new Promise<void>((resolve, reject) => {
