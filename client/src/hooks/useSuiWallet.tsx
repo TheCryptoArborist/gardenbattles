@@ -273,7 +273,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
             tx.object(SUI_CONFIG.MATCHMAKING_QUEUE_ID),
             tx.object(nftData.kioskId),
             tx.object(nftData.kioskCapId),
-            tx.pure.id(nftData.nftId),
+            tx.pure.address(nftData.nftId), // Try using address instead of id
             fee,
             tx.object(randomObjectId),
           ],
