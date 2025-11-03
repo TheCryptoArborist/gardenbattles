@@ -119,7 +119,9 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
         try {
           const fields = await suiClient.getDynamicFields({ parentId: kioskId });
           for (const field of fields.data) {
-            const nftId = field?.objectId;
+            // Get NFT ID from the dynamic field's value, not the field wrapper
+            // @ts-ignore
+            const nftId = field?.name?.value?.id;
             if (!nftId) continue;
 
             const obj = await suiClient.getObject({
