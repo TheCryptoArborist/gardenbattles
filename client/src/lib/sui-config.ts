@@ -3,13 +3,14 @@ export const SUI_CONFIG = {
   NETWORK: 'mainnet',
   RPC_URL: 'https://fullnode.mainnet.sui.io:443',
   WS_URL: 'wss://fullnode.mainnet.sui.io:443',
-  PACKAGE_ID: '0x7144301fe39dae2363f57e13d5e8650934a1adf5817a46b64ac5e86a9cffea80',
+  PACKAGE_ID: '0x6bdfb7a07529f20d971c68ec57e3ac0c3d03b0b309d1624d141df4a102cad01',
   MODULE: 'battle_garden',
-  CONFIG_ID: '0x06c2b903bf9f805d8882e686d504a09593740deb2bc1a39eb67378e44089c749',
-  MATCHMAKING_QUEUE_ID: '0x33bdce1ff2ba8a655e3601975f59808a1bcf4b3259bc9e7bbea79e91a50c37b4',
+  CONFIG_ID: '0x35b10278cf1bbebd5a43df3222e490af2796fb78f3a2c4a59e3debf08aef8587',
+  MATCHMAKING_QUEUE_ID: '0xd23445c667c5826a6d58636d980d00612a78a921761fd3df18b577d4acb194f2',
   SAPLING_STRUCT: '0xf1207462f6ee39938cd9f6e93285e4dc0a8034d49cb6bfb55cb5a827ba4f0cb6::tree_roots::Nft',
   ENTRY_FEE: 3_000_000_000, // 3 SUI in MIST
   RANDOM_OBJECT_CANDIDATES: ['0x8', '0x6'],
+  ADMIN_ADDRESS: '0x485953e2eadf4aa02af950cf8e914fbd2b67523385e73c36118341459d8d45c4',
 } as const;
 
 export const MOVE_LABELS: Record<number, string> = {

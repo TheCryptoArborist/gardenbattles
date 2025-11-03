@@ -15,8 +15,18 @@ A blockchain-based NFT battle game built on the Sui network where players battle
 
 ## Recent Changes
 
+**2025-11-03:** Contract SUCCESSFULLY DEPLOYED to Sui Mainnet! 🚀
+- **DEPLOYMENT COMPLETE:**
+  - Package ID: 0x6bdfb7a07529f20d971c68ec57e3ac0c3d03b0b309d1624d141df4a102cad01
+  - Config ID: 0x35b10278cf1bbebd5a43df3222e490af2796fb78f3a2c4a59e3debf08aef8587
+  - Queue ID: 0xd23445c667c5826a6d58636d980d00612a78a921761fd3df18b577d4acb194f2
+  - Admin Wallet: 0x485953e2eadf4aa02af950cf8e914fbd2b67523385e73c36118341459d8d45c4
+  - Frontend config updated with new deployment IDs
+  - All compilation fixes applied (7 total fixes)
+  - Contract ready for production use!
+
 **2025-10-24:** Contract Updated for Generic NFT Types + Kiosk Support ✅
-- **MAJOR CONTRACT UPDATE - REQUIRES REDEPLOYMENT:**
+- **MAJOR CONTRACT UPDATE - DEPLOYED:**
   - Removed single-type restriction (SaplingNFT with `issuer` field)
   - Added generic NFT type support with collection whitelist
   - Added `join_queue<T>` for wallet-held NFTs (with typeArgument)
@@ -25,7 +35,6 @@ A blockchain-based NFT battle game built on the Sui network where players battle
   - Updated frontend to detect NFT location (wallet vs kiosk) and call appropriate function
   - Frontend now returns NFT metadata: `{ nftId, nftType, location, kioskId?, kioskCapId? }`
   - Removed invalid `typeArguments` bug from previous contract integration
-- **See DEPLOYMENT_INSTRUCTIONS.md for full deployment guide**
 
 **2025-10-24:** Admin Panel & Multi-Collection NFT Support Added ✅
 - **NEW: Admin Panel for NFT Collection Management**
@@ -38,7 +47,6 @@ A blockchain-based NFT battle game built on the Sui network where players battle
   - Scans for NFTs from ALL allowed collections (not just single type)
   - Checks both wallet and kiosks for supported NFTs
   - Admin can whitelist multiple NFT collections on-the-fly
-- **Admin Address:** 0xcc8efa0e60a6632f1d948345095fd5a55eb37022fbc2646e5ce10046eb95c3e6
 
 **2025-10-24:** Smart Contract Integration VERIFIED & CRITICAL BUG FIXED ✅
 - **CRITICAL FIX**: Removed incorrect `typeArguments` from join_queue transaction call
@@ -144,16 +152,18 @@ client/src/
 **Network:** Sui Mainnet
 **RPC:** https://fullnode.mainnet.sui.io:443
 
-**Smart Contract:**
-- **⚠️ OLD CONTRACT (NEEDS REDEPLOYMENT):**
-  - Package ID: `0x7144301fe39dae2363f57e13d5e8650934a1adf5817a46b64ac5e86a9cffea80`
-  - Config ID: `0x06c2b903bf9f805d8882e686d504a09593740deb2bc1a39eb67378e44089c749`
-  - Queue: `0x33bdce1ff2ba8a655e3601975f59808a1bcf4b3259bc9e7bbea79e91a50c37b4`
-- **✅ UPDATED CONTRACT (in sui_contract/ folder - ready to deploy):**
-  - Module: `battle_garden`
-  - Supports ANY NFT type via whitelist (no more `issuer` field requirement)
+**Smart Contract (DEPLOYED):**
+- **Package ID:** `0x6bdfb7a07529f20d971c68ec57e3ac0c3d03b0b309d1624d141df4a102cad01`
+- **Config ID:** `0x35b10278cf1bbebd5a43df3222e490af2796fb78f3a2c4a59e3debf08aef8587`
+- **Queue ID:** `0xd23445c667c5826a6d58636d980d00612a78a921761fd3df18b577d4acb194f2`
+- **Admin Wallet:** `0x485953e2eadf4aa02af950cf8e914fbd2b67523385e73c36118341459d8d45c4`
+- **Module:** `battle_garden`
+- **Features:**
+  - Supports ANY NFT type via whitelist (no `issuer` field requirement)
   - Kiosk integration: battle without withdrawing NFTs
   - Admin-managed collection whitelist
+  - 14 public functions, 24 security assertions
+  - 30 unique battle moves
 
 **Battle Mechanics:**
 - Entry Fee: 3 SUI (3,000,000,000 MIST)
@@ -162,8 +172,8 @@ client/src/
 - Target Growth: 100 points to win
 
 **Contract Status:**  
-✅ **AUDITED AND APPROVED FOR DEPLOYMENT**  
-See `sui_contract/CONTRACT_AUDIT.md` for full audit report
+✅ **DEPLOYED AND LIVE ON MAINNET**  
+All compilation fixes applied, security verified, ready for production use!
 
 ### Routes
 
