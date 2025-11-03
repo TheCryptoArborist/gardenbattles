@@ -212,11 +212,20 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
     }
 
     try {
+      console.log('Building transaction with NFT data:', {
+        nftId: nftData.nftId,
+        nftType: nftData.nftType,
+        location: nftData.location,
+        kioskId: nftData.kioskId,
+        kioskCapId: nftData.kioskCapId
+      });
+      
       const tx = new Transaction();
       const [fee] = tx.splitCoins(tx.gas, [tx.pure.u64(SUI_CONFIG.ENTRY_FEE)]);
       
       if (nftData.location === 'wallet') {
         // NFT is in wallet - use standard join_queue
+        console.log('Using join_queue for wallet NFT');
         tx.moveCall({
           target: `${SUI_CONFIG.PACKAGE_ID}::${SUI_CONFIG.MODULE}::join_queue`,
           typeArguments: [nftData.nftType],
@@ -230,6 +239,17 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
         });
       } else if (nftData.location === 'kiosk' && nftData.kioskId && nftData.kioskCapId) {
         // NFT is in kiosk - use join_queue_from_kiosk
+        console.log('Using join_queue_from_kiosk for kiosk NFT');
+        console.log('Transaction details:', {
+          target: `${SUI_CONFIG.PACKAGE_ID}::${SUI_CONFIG.MODULE}::join_queue_from_kiosk`,
+          typeArguments: [nftData.nftType],
+          configId: SUI_CONFIG.CONFIG_ID,
+          queueId: SUI_CONFIG.MATCHMAKING_QUEUE_ID,
+          kioskId: nftData.kioskId,
+          kioskCapId: nftData.kioskCapId,
+          nftId: nftData.nftId,
+          randomObjectId
+        });
         tx.moveCall({
           target: `${SUI_CONFIG.PACKAGE_ID}::${SUI_CONFIG.MODULE}::join_queue_from_kiosk`,
           typeArguments: [nftData.nftType],
@@ -248,6 +268,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
       }
 
       tx.setSender(address);
+      console.log('Transaction built successfully, submitting...');
 
       return new Promise<void>((resolve, reject) => {
         signAndExecuteTransaction(
