@@ -256,13 +256,16 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
             chain: 'sui:mainnet',
           },
           {
-            onSuccess: () => {
+            onSuccess: (result) => {
+              console.log('Join battle transaction succeeded:', result);
               setIsWaiting(true);
               listenForBattle();
               resolve();
             },
             onError: (error) => {
-              console.error('Join battle failed:', error);
+              console.error('Join battle transaction failed - Full error:', JSON.stringify(error, null, 2));
+              console.error('Error type:', typeof error);
+              console.error('Error keys:', Object.keys(error));
               reject(new Error(error.message || 'Failed to join battle'));
             },
           }
