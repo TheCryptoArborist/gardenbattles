@@ -460,12 +460,29 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
       tx.setSender(address);
       console.log('Canceling queue and requesting refund...');
 
+      // Dry run to check for errors
+      try {
+        await tx.build({ client: suiClient });
+        console.log('Dry run successful - you are in the queue!');
+      } catch (dryRunError: any) {
+        console.error('DRY RUN FAILED:', dryRunError);
+        const errorMsg = dryRunError?.message || '';
+        
+        if (errorMsg.includes('108')) {
+          throw new Error('❌ You are NOT in the queue. Nothing to refund.');
+        } else if (errorMsg.includes('102')) {
+          throw new Error('❌ This is not your queue entry. Someone else is waiting.');
+        } else {
+          throw new Error(`❌ Cannot refund: ${errorMsg}`);
+        }
+      }
+
       const result = await new Promise((resolve, reject) => {
         signAndExecuteTransaction(
           { transaction: tx },
           {
             onSuccess: (result) => {
-              console.log('Cancel queue transaction succeeded:', result);
+              console.log('✅ REFUND SUCCESSFUL! 3 SUI returned to your wallet');
               resolve(result);
             },
             onError: (error) => {
@@ -482,9 +499,9 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
       return result;
     } catch (error: any) {
       console.error('Cancel queue failed:', error);
-      throw new Error(error.message || 'Failed to leave queue');
+      throw error;
     }
-  }, [address, signAndExecuteTransaction]);
+  }, [address, signAndExecuteTransaction, suiClient]);
 
   const value: SuiWalletContextType = {
     address,
