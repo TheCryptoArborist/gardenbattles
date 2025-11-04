@@ -21,6 +21,7 @@ interface SuiWalletContextType {
   isWaiting: boolean;
   joinBattle: (nftData: { nftId: string; nftType: string; location: 'wallet' | 'kiosk'; kioskId?: string; kioskCapId?: string }) => Promise<void>;
   useAbility: (abilityId: number) => Promise<void>;
+  cancelQueue: () => Promise<any>;
   getFirstValidSaplingNft: (owner: string) => Promise<{ nftId: string; nftType: string; location: 'wallet' | 'kiosk'; kioskId?: string; kioskCapId?: string } | null>;
   ConnectWalletButton: () => JSX.Element;
 }
@@ -441,6 +442,50 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
     );
   }, []);
 
+  const cancelQueue = useCallback(async () => {
+    if (!address) {
+      throw new Error('Wallet not connected');
+    }
+
+    try {
+      const tx = new Transaction();
+      
+      tx.moveCall({
+        target: `${SUI_CONFIG.PACKAGE_ID}::${SUI_CONFIG.MODULE}::cancel_queue`,
+        arguments: [
+          tx.object(SUI_CONFIG.MATCHMAKING_QUEUE_ID),
+        ],
+      });
+
+      tx.setSender(address);
+      console.log('Canceling queue and requesting refund...');
+
+      const result = await new Promise((resolve, reject) => {
+        signAndExecuteTransaction(
+          { transaction: tx },
+          {
+            onSuccess: (result) => {
+              console.log('Cancel queue transaction succeeded:', result);
+              resolve(result);
+            },
+            onError: (error) => {
+              console.error('Cancel queue transaction error:', error);
+              reject(error);
+            },
+          }
+        );
+      });
+      
+      // Clear waiting state
+      setIsWaiting(false);
+      
+      return result;
+    } catch (error: any) {
+      console.error('Cancel queue failed:', error);
+      throw new Error(error.message || 'Failed to leave queue');
+    }
+  }, [address, signAndExecuteTransaction]);
+
   const value: SuiWalletContextType = {
     address,
     isConnected,
@@ -448,6 +493,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
     isWaiting,
     joinBattle,
     useAbility,
+    cancelQueue,
     getFirstValidSaplingNft,
     ConnectWalletButton,
   };

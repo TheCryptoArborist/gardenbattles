@@ -23,6 +23,7 @@ export default function Battle() {
     isWaiting,
     joinBattle,
     useAbility,
+    cancelQueue,
     getFirstValidSaplingNft,
   } = useSuiWallet();
 
@@ -34,9 +35,29 @@ export default function Battle() {
   const [prevPlayerGrowth, setPrevPlayerGrowth] = useState<number | null>(null);
   const [prevOpponentGrowth, setPrevOpponentGrowth] = useState<number | null>(null);
   const [arboretumModalOpen, setArboretumModalOpen] = useState(false);
+  const [isRefunding, setIsRefunding] = useState(false);
   
   const playerAnimationTimer = useRef<NodeJS.Timeout | null>(null);
   const opponentAnimationTimer = useRef<NodeJS.Timeout | null>(null);
+
+  const handleForceRefund = async () => {
+    if (!isConnected) {
+      alert('Please connect your wallet first');
+      return;
+    }
+
+    setIsRefunding(true);
+    try {
+      await cancelQueue();
+      setDialogOpen(true);
+      setDialogMessage('✅ Refund successful! Your 3 SUI has been returned.');
+    } catch (error: any) {
+      setDialogOpen(true);
+      setDialogMessage(`❌ Refund failed: ${error.message}`);
+    } finally {
+      setIsRefunding(false);
+    }
+  };
 
   useEffect(() => {
     async function autoJoinBattle() {
@@ -250,7 +271,30 @@ export default function Battle() {
           </a>
         </nav>
 
-        <ConnectButton connectText="Connect Wallet" />
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          <button
+            onClick={handleForceRefund}
+            disabled={!isConnected || isRefunding}
+            style={{
+              padding: '10px 20px',
+              background: isRefunding ? 'rgba(100, 100, 100, 0.5)' : 'linear-gradient(45deg, #cc0000, #ff3333)',
+              color: '#fff',
+              border: '2px solid #ff0000',
+              borderRadius: '8px',
+              fontSize: '14px',
+              fontFamily: 'Orbitron, sans-serif',
+              fontWeight: 'bold',
+              cursor: (!isConnected || isRefunding) ? 'not-allowed' : 'pointer',
+              textTransform: 'uppercase',
+              boxShadow: isRefunding ? 'none' : '0 0 10px rgba(255, 0, 0, 0.6)',
+              opacity: (!isConnected || isRefunding) ? 0.5 : 1,
+            }}
+            data-testid="button-emergency-refund"
+          >
+            {isRefunding ? 'Processing...' : '🚨 Get Refund'}
+          </button>
+          <ConnectButton connectText="Connect Wallet" />
+        </div>
       </header>
 
       {/* Title Image with animation */}
@@ -691,7 +735,10 @@ export default function Battle() {
         message={dialogMessage}
         onClose={() => setDialogOpen(false)}
       />
-      <WaitingOverlay isWaiting={isWaiting} />
+      <WaitingOverlay 
+        isWaiting={isWaiting} 
+        onLeaveQueue={cancelQueue}
+      />
       
       <AdminPanel 
         adminAddresses={SUI_CONFIG.ADMIN_ADDRESSES}

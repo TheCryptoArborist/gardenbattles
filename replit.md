@@ -15,6 +15,17 @@ A blockchain-based NFT battle game built on the Sui network where players battle
 
 ## Recent Changes
 
+**2025-11-04:** Leave Queue & Refund Feature Added ✅
+- **NEW: Leave Queue Functionality**
+  - Red "Leave Queue & Get Refund" button appears on waiting overlay
+  - Calls on-chain `cancel_queue` function to refund full 3 SUI entry fee
+  - Integrated with wallet transaction signing
+  - Full refund guaranteed - no penalties for leaving queue
+- **Updated WaitingOverlay Component:**
+  - Added manual leave queue button with red gradient styling
+  - Shows loading state while processing refund
+  - Provides user feedback with console logs and alerts
+
 **2025-11-03:** Contract SUCCESSFULLY DEPLOYED to Sui Mainnet! 🚀
 - **DEPLOYMENT COMPLETE:**
   - Package ID: 0x6bdfb7a07529f20d971c68ec57e3ac0c3d03b0b309d1624d141df4a102cad01
@@ -116,6 +127,7 @@ client/src/
 
 2. **Battle System**
    - Matchmaking queue with 3 SUI entry fee
+   - Leave Queue & Get Refund feature (full 3 SUI refund if no opponent joins)
    - Real-time battle state updates via WebSocket events
    - Turn-based ability system with 30 unique moves
    - Dynamic NFT visualization (4 growth stages)
