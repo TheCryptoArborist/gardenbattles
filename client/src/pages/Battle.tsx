@@ -59,36 +59,37 @@ export default function Battle() {
     }
   };
 
-  useEffect(() => {
-    async function autoJoinBattle() {
-      if (isConnected && address && !battleState) {
-        if (!hasScanned) {
-          setHasScanned(true);
-          try {
-            setDialogOpen(true);
-            setDialogMessage('Scanning for NFTs in your wallet and kiosks...');
-            
-            const nftData = await getFirstValidSaplingNft(address);
-            
-            if (nftData) {
-              const locationText = nftData.location === 'kiosk' ? 'in your kiosk' : 'in your wallet';
-              setDialogMessage(`NFT found ${locationText}! Joining battle queue...`);
-              await joinBattle(nftData);
-              setDialogMessage('Successfully joined battle queue! Waiting for opponent...');
-            } else {
-              setDialogMessage('No whitelisted NFT found. Contact admin to whitelist your NFT collection.');
-            }
-          } catch (error: any) {
-            setDialogOpen(true);
-            setDialogMessage(error.message || 'Failed to join battle');
-          }
-        }
-      } else if (!isConnected) {
-        setHasScanned(false);
-      }
-    }
-    autoJoinBattle();
-  }, [isConnected, address, battleState, hasScanned, joinBattle, getFirstValidSaplingNft]);
+  // AUTO-JOIN DISABLED - User must manually join to prevent accidental charges
+  // useEffect(() => {
+  //   async function autoJoinBattle() {
+  //     if (isConnected && address && !battleState) {
+  //       if (!hasScanned) {
+  //         setHasScanned(true);
+  //         try {
+  //           setDialogOpen(true);
+  //           setDialogMessage('Scanning for NFTs in your wallet and kiosks...');
+  //           
+  //           const nftData = await getFirstValidSaplingNft(address);
+  //           
+  //           if (nftData) {
+  //             const locationText = nftData.location === 'kiosk' ? 'in your kiosk' : 'in your wallet';
+  //             setDialogMessage(`NFT found ${locationText}! Joining battle queue...`);
+  //             await joinBattle(nftData);
+  //             setDialogMessage('Successfully joined battle queue! Waiting for opponent...');
+  //           } else {
+  //             setDialogMessage('No whitelisted NFT found. Contact admin to whitelist your NFT collection.');
+  //           }
+  //         } catch (error: any) {
+  //           setDialogOpen(true);
+  //           setDialogMessage(error.message || 'Failed to join battle');
+  //         }
+  //       }
+  //     } else if (!isConnected) {
+  //       setHasScanned(false);
+  //     }
+  //   }
+  //   autoJoinBattle();
+  // }, [isConnected, address, battleState, hasScanned, joinBattle, getFirstValidSaplingNft]);
 
   const handleUseAbility = async (abilityId: number) => {
     try {
