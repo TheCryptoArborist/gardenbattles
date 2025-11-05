@@ -15,6 +15,18 @@ A blockchain-based NFT battle game built on the Sui network where players battle
 
 ## Recent Changes
 
+**2025-11-05:** FIXED MATCHMAKING - Dual Battle Detection System ✅
+- **ROOT CAUSE IDENTIFIED:** WebSocket event subscription was failing silently (invalid URL: wss://localhost:undefined)
+- **SOLUTION IMPLEMENTED:** Dual battle detection system
+  - **Primary:** Event subscription via `suiClient.subscribeEvent` for instant real-time updates
+  - **Fallback:** Polling system queries blockchain every 3 seconds when waiting
+  - **Deduplication:** Map-based tracking ensures only latest event per battle is processed
+  - **On-chain Verification:** Double-checks Battle object `finished` field before loading
+  - **Safe Defaults:** Skips battles that can't be verified (prevents loading stale/finished battles)
+- **RESULT:** Battles are now detected within 3 seconds even if WebSocket fails
+- **TESTING:** Architect reviewed and approved - no race conditions, memory leaks, or false positives
+- **FILES CHANGED:** `client/src/hooks/useSuiWallet.tsx` (added `pollForBattle` function + polling useEffect)
+
 **2025-11-04:** Leave Queue & Refund Feature Added ✅
 - **NEW: Leave Queue Functionality**
   - Red "Leave Queue & Get Refund" button appears on waiting overlay
