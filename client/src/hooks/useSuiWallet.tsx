@@ -37,6 +37,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
   const [isWaiting, setIsWaiting] = useState(false);
   const [randomObjectId, setRandomObjectId] = useState<string | null>(null);
   const [unsubscribeBattle, setUnsubscribeBattle] = useState<(() => void) | null>(null);
+  const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(null);
 
   const address = currentAccount?.address || null;
   const isConnected = !!currentAccount;
@@ -221,6 +222,133 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
 
     subscribe();
   }, [address, suiClient]);
+
+  // Polling backup - queries blockchain for active battles
+  const pollForBattle = useCallback(async () => {
+    if (!address) return;
+
+    try {
+      console.log('🔍 Polling for active battles...');
+      
+      // Query for Battle objects where player1 or player2 is current address
+      const objects = await suiClient.queryEvents({
+        query: {
+          MoveEventType: getBattleUpdateEvent(),
+        },
+        limit: 50, // Get recent battles
+        order: 'descending',
+      });
+
+      console.log(`Found ${objects.data.length} recent battle events`);
+
+      // Track latest event per battle ID to avoid loading stale data
+      const latestBattleEvents = new Map<string, any>();
+
+      for (const event of objects.data) {
+        const e = event.parsedJson as any;
+        
+        if (!e || !e.battle_id || !e.player1 || !e.player2) {
+          continue;
+        }
+
+        const battleId = e.battle_id;
+
+        // Only keep the latest (first encountered in descending order) event per battle
+        if (!latestBattleEvents.has(battleId)) {
+          latestBattleEvents.set(battleId, e);
+        }
+      }
+
+      console.log(`Found ${latestBattleEvents.size} unique battles`);
+
+      // Find the most recent active battle involving this player
+      for (const [battleId, e] of Array.from(latestBattleEvents.entries())) {
+        // Check if this battle involves the current player
+        const isPlayer1 = e.player1?.toLowerCase() === address.toLowerCase();
+        const isPlayer2 = e.player2?.toLowerCase() === address.toLowerCase();
+
+        if (isPlayer1 || isPlayer2) {
+          const isFinished = e.winner && e.winner !== '0x0';
+          
+          console.log('📊 Battle found:', {
+            battleId,
+            player1: e.player1,
+            player2: e.player2,
+            isFinished,
+            growth: `${e.player1_growth}/${e.player2_growth}`
+          });
+
+          // Only load if battle is NOT finished
+          if (!isFinished) {
+            // Double-check by fetching the actual Battle object
+            try {
+              const battleObj = await suiClient.getObject({
+                id: battleId,
+                options: { showContent: true }
+              });
+
+              const content = battleObj.data?.content as any;
+              if (content?.fields?.finished === true) {
+                console.log('⚠️ Battle already finished on-chain, skipping');
+                continue;
+              }
+
+              console.log('✅ ACTIVE BATTLE CONFIRMED!');
+              setBattleState({
+                battleId,
+                player1: e.player1,
+                player2: e.player2,
+                player1Moves: e.player1_moves || [],
+                player2Moves: e.player2_moves || [],
+                player1Growth: Number(e.player1_growth || 0),
+                player2Growth: Number(e.player2_growth || 0),
+                winner: null,
+              });
+
+              setIsWaiting(false);
+              console.log('🎮 Battle loaded from polling!');
+              return true; // Found active battle
+            } catch (objErr) {
+              console.warn('Could not verify battle object:', objErr);
+              // If we can't verify, don't load it (safe default)
+              continue;
+            }
+          }
+        }
+      }
+
+      console.log('No active battles found');
+      return false;
+    } catch (error) {
+      console.error('Poll failed:', error);
+      return false;
+    }
+  }, [address, suiClient]);
+
+  // Start polling when waiting for opponent
+  useEffect(() => {
+    if (isWaiting && address) {
+      console.log('⏱️ Starting battle polling (backup for events)...');
+      
+      // Poll immediately
+      pollForBattle();
+
+      // Then poll every 3 seconds
+      const interval = setInterval(() => {
+        pollForBattle();
+      }, 3000);
+
+      setPollingInterval(interval);
+
+      return () => {
+        console.log('⏹️ Stopping battle polling');
+        clearInterval(interval);
+      };
+    } else if (pollingInterval) {
+      clearInterval(pollingInterval);
+      setPollingInterval(null);
+    }
+  }, [isWaiting, address, pollForBattle]);
 
   const joinBattle = useCallback(async (nftData: { nftId: string; nftType: string; location: 'wallet' | 'kiosk'; kioskId?: string; kioskCapId?: string }) => {
     if (!address || !randomObjectId) {
