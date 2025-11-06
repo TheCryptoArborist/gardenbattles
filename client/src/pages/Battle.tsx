@@ -50,10 +50,10 @@ export default function Battle() {
     try {
       await cancelQueue();
       setDialogOpen(true);
-      setDialogMessage('✅ Refund successful! Your 3 SUI has been returned.');
+      setDialogMessage('Refund successful! Your 3 SUI has been returned.');
     } catch (error: any) {
       setDialogOpen(true);
-      setDialogMessage(`❌ Refund failed: ${error.message}`);
+      setDialogMessage(`Refund failed: ${error.message}`);
     } finally {
       setIsRefunding(false);
     }
@@ -174,42 +174,68 @@ export default function Battle() {
   if (isConnected && !battleState) {
     battleStatus = 'Searching for Sapling NFT...';
   } else if (isWaiting) {
-    battleStatus = 'Waiting for opponent...';
+    battleStatus = 'Waiting for 2nd player... (Need 2 players total!)';
   } else if (battleState && !winner) {
     battleStatus = 'Battle in progress! Use your moves!';
   } else if (winner) {
     battleStatus = winner === 'player' ? 'You Win!' : 'Opponent Wins!';
   }
 
+  // Check if user is admin to show admin panel
+  const isAdmin = address && [
+    '0x485953e2eadf4aa02af950cf8e914fbd2b67523385e73c36118341459d8d45c4',
+    '0x8d73665b159d406d1bd208782cbba5304900ecafbde23f957f77843b5ea06961'
+  ].some(adminAddr => adminAddr.toLowerCase() === address.toLowerCase());
+
   return (
-    <div
-      style={{
-        backgroundImage: 'url(/assets/background4.jpg)',
-        backgroundSize: 'cover',
-        backgroundPosition: 'center center',
-        backgroundAttachment: 'fixed',
-        backgroundRepeat: 'no-repeat',
-        backgroundColor: '#000',
-        color: 'white',
-        textAlign: 'center',
-        fontFamily: 'Orbitron, sans-serif',
-        margin: 0,
-        padding: 0,
-        minHeight: '100vh',
-        overflowX: 'hidden',
-      }}
-    >
+    <>
+      <style>{`
+        @media (max-width: 600px) {
+          .battle-grid {
+            grid-template-columns: 1fr !important;
+          }
+          .vs-element {
+            grid-column: 1 / -1 !important;
+            order: 1 !important;
+          }
+          .player-card {
+            order: 0 !important;
+          }
+          .opponent-card {
+            order: 2 !important;
+          }
+        }
+      `}</style>
+      <div
+        style={{
+          backgroundImage: 'url(/assets/background4.jpg)',
+          backgroundSize: 'cover',
+          backgroundPosition: 'center center',
+          backgroundAttachment: 'fixed',
+          backgroundRepeat: 'no-repeat',
+          backgroundColor: '#000',
+          color: 'white',
+          textAlign: 'center',
+          fontFamily: 'Orbitron, sans-serif',
+          margin: 0,
+          padding: 0,
+          minHeight: '100vh',
+          overflowX: 'hidden',
+        }}
+      >
       {/* Header */}
       <header
         style={{
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          padding: '15px 30px',
+          padding: 'clamp(10px, 2vw, 15px) clamp(15px, 3vw, 30px)',
           background: 'rgba(0, 50, 0, 0.8)',
           borderBottom: '2px solid #00ff00',
           boxShadow: '0 0 15px #00ff00',
           position: 'relative',
+          flexWrap: 'wrap',
+          gap: '10px',
         }}
       >
         <Link href="/">
@@ -217,7 +243,7 @@ export default function Battle() {
             src="/assets/thick.png"
             alt="Thickquidity Logo"
             style={{
-              width: '80px',
+              width: 'clamp(60px, 10vw, 80px)',
               cursor: 'pointer',
               filter: 'drop-shadow(0 0 15px #00ff00)',
               transition: 'transform 0.3s ease, filter 0.3s ease',
@@ -234,15 +260,16 @@ export default function Battle() {
           />
         </Link>
 
-        <nav style={{ display: 'flex', gap: '10px' }}>
+        <nav style={{ display: 'flex', gap: 'clamp(8px, 2vw, 10px)', flexWrap: 'wrap' }}>
           <Link 
             href="/"
             style={{
               color: '#00ff00',
-              margin: '0 10px',
+              margin: '0',
               textDecoration: 'none',
-              fontSize: '16px',
+              fontSize: 'clamp(14px, 2.5vw, 16px)',
               transition: 'color 0.3s ease',
+              whiteSpace: 'nowrap',
             }}
             onMouseEnter={(e) => e.currentTarget.style.color = '#00cc00'}
             onMouseLeave={(e) => e.currentTarget.style.color = '#00ff00'}
@@ -258,11 +285,12 @@ export default function Battle() {
             }}
             style={{
               color: '#00ff00',
-              margin: '0 10px',
+              margin: '0',
               textDecoration: 'none',
-              fontSize: '16px',
+              fontSize: 'clamp(14px, 2.5vw, 16px)',
               transition: 'color 0.3s ease',
               cursor: 'pointer',
+              whiteSpace: 'nowrap',
             }}
             onMouseEnter={(e) => e.currentTarget.style.color = '#00cc00'}
             onMouseLeave={(e) => e.currentTarget.style.color = '#00ff00'}
@@ -272,31 +300,78 @@ export default function Battle() {
           </a>
         </nav>
 
-        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
           <button
             onClick={handleForceRefund}
             disabled={!isConnected || isRefunding}
             style={{
-              padding: '10px 20px',
+              padding: 'clamp(8px, 2vw, 10px) clamp(12px, 3vw, 20px)',
               background: isRefunding ? 'rgba(100, 100, 100, 0.5)' : 'linear-gradient(45deg, #cc0000, #ff3333)',
               color: '#fff',
               border: '2px solid #ff0000',
               borderRadius: '8px',
-              fontSize: '14px',
+              fontSize: 'clamp(12px, 2.5vw, 14px)',
               fontFamily: 'Orbitron, sans-serif',
               fontWeight: 'bold',
               cursor: (!isConnected || isRefunding) ? 'not-allowed' : 'pointer',
               textTransform: 'uppercase',
               boxShadow: isRefunding ? 'none' : '0 0 10px rgba(255, 0, 0, 0.6)',
               opacity: (!isConnected || isRefunding) ? 0.5 : 1,
+              whiteSpace: 'nowrap',
             }}
             data-testid="button-emergency-refund"
           >
-            {isRefunding ? 'Processing...' : '🚨 Get Refund'}
+            {isRefunding ? 'Processing...' : 'Get Refund'}
           </button>
           <ConnectButton connectText="Connect Wallet" />
         </div>
       </header>
+
+      {/* 2-Player Warning Banner */}
+      {!battleState && isWaiting && (
+        <div
+          style={{
+            background: 'linear-gradient(135deg, rgba(255, 165, 0, 0.9), rgba(255, 69, 0, 0.9))',
+            color: '#fff',
+            padding: 'clamp(12px, 3vw, 20px)',
+            margin: '0 auto',
+            maxWidth: '95%',
+            width: '800px',
+            borderRadius: '12px',
+            border: '3px solid #ff6600',
+            boxShadow: '0 0 30px rgba(255, 102, 0, 0.8)',
+            marginTop: '20px',
+            marginBottom: '10px',
+            textAlign: 'center',
+          }}
+          data-testid="warning-need-2-players"
+        >
+          <h2 style={{ 
+            fontSize: 'clamp(18px, 4vw, 24px)', 
+            margin: '0 0 10px 0',
+            fontFamily: 'Orbitron, sans-serif',
+            textShadow: '0 0 10px rgba(0, 0, 0, 0.5)',
+          }}>
+            WAITING FOR 2ND PLAYER
+          </h2>
+          <p style={{ 
+            fontSize: 'clamp(14px, 3vw, 18px)', 
+            margin: '8px 0',
+            lineHeight: '1.5',
+          }}>
+            <strong>Battles require 2 players total!</strong><br />
+            You have paid 3 SUI and are in the queue.<br />
+            A 2nd player must join to start the battle.
+          </p>
+          <p style={{ 
+            fontSize: 'clamp(12px, 2.5vw, 16px)', 
+            margin: '12px 0 0 0',
+            opacity: 0.9,
+          }}>
+            Tip: Get a friend to join with a different wallet, OR click "Get Refund" above to get your 3 SUI back.
+          </p>
+        </div>
+      )}
 
       {/* Title Image with animation */}
       <img
@@ -317,30 +392,36 @@ export default function Battle() {
 
       {/* Battle Area */}
       <div
+        className="battle-grid"
         style={{
-          display: 'flex',
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 240px))',
           justifyContent: 'center',
-          alignItems: 'flex-start',
-          margin: '20px 0',
-          flexWrap: 'nowrap',
+          alignItems: 'start',
+          margin: '20px auto',
           maxWidth: '100%',
           boxSizing: 'border-box',
+          gap: '20px',
+          padding: '0 10px',
         }}
       >
         {/* Player 1 NFT */}
         <div
+          className="player-card"
           style={{
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
-            margin: '0 20px',
+            margin: '0',
+            width: '100%',
           }}
         >
           <div
             className={playerAnimation}
             style={{
-              width: '240px',
-              height: '336px',
+              width: '100%',
+              aspectRatio: '5/7',
+              maxWidth: '240px',
               borderRadius: '12px',
               display: 'flex',
               flexDirection: 'column',
@@ -407,7 +488,8 @@ export default function Battle() {
           </div>
           <div
             style={{
-              width: '240px',
+              width: '100%',
+              maxWidth: '240px',
               height: '18px',
               background: 'rgba(0, 0, 0, 0.8)',
               borderRadius: '6px',
@@ -429,20 +511,19 @@ export default function Battle() {
               data-testid="health-bar-player"
             />
           </div>
-          <p style={{ marginTop: '8px', fontSize: '16px' }} data-testid="text-growth-player">
+          <p style={{ marginTop: '8px', fontSize: 'clamp(12px, 3vw, 16px)' }} data-testid="text-growth-player">
             Your Growth: {playerGrowth}
           </p>
         </div>
 
-        {/* VS */}
+        {/* VS - Centered on mobile */}
         <div
+          className="vs-element"
           style={{
-            fontSize: '48px',
+            fontSize: 'clamp(32px, 8vw, 48px)',
             color: '#00ff00',
             textShadow: '0 0 10px #00ff00',
             fontFamily: 'FantasyBattles, sans-serif',
-            margin: '0 25px',
-            alignSelf: 'center',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -455,18 +536,21 @@ export default function Battle() {
 
         {/* Player 2 NFT */}
         <div
+          className="opponent-card"
           style={{
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
-            margin: '0 20px',
+            margin: '0',
+            width: '100%',
           }}
         >
           <div
             className={opponentAnimation}
             style={{
-              width: '240px',
-              height: '336px',
+              width: '100%',
+              aspectRatio: '5/7',
+              maxWidth: '240px',
               borderRadius: '12px',
               display: 'flex',
               flexDirection: 'column',
@@ -533,7 +617,8 @@ export default function Battle() {
           </div>
           <div
             style={{
-              width: '240px',
+              width: '100%',
+              maxWidth: '240px',
               height: '18px',
               background: 'rgba(0, 0, 0, 0.8)',
               borderRadius: '6px',
@@ -555,7 +640,7 @@ export default function Battle() {
               data-testid="health-bar-opponent"
             />
           </div>
-          <p style={{ marginTop: '8px', fontSize: '16px' }} data-testid="text-growth-opponent">
+          <p style={{ marginTop: '8px', fontSize: 'clamp(12px, 3vw, 16px)' }} data-testid="text-growth-opponent">
             Opponent Growth: {opponentGrowth}
           </p>
         </div>
@@ -568,13 +653,14 @@ export default function Battle() {
             display: 'flex',
             flexWrap: 'wrap',
             justifyContent: 'center',
-            gap: '10px',
-            padding: '15px',
+            gap: '8px',
+            padding: '15px 10px',
             background: 'rgba(0, 50, 0, 0.8)',
             border: '2px solid #00ff00',
             borderRadius: '12px',
             margin: '15px auto',
-            maxWidth: '700px',
+            maxWidth: '95%',
+            width: '700px',
             maxHeight: '200px',
             overflowY: 'auto',
             position: 'relative',
@@ -588,18 +674,19 @@ export default function Battle() {
               onClick={() => handleUseAbility(moveId)}
               disabled={winner !== null}
               style={{
-                padding: '12px 24px',
+                padding: 'clamp(8px, 2vw, 12px) clamp(12px, 3vw, 24px)',
                 border: '2px solid #00ff00',
                 background: 'transparent',
                 color: 'white',
-                fontSize: '18px',
+                fontSize: 'clamp(14px, 3vw, 18px)',
                 cursor: winner ? 'not-allowed' : 'pointer',
                 transition: '0.3s ease',
                 boxShadow: '0 0 10px #00ff00',
-                margin: '5px',
                 borderRadius: '8px',
                 opacity: winner ? 0.5 : 1,
                 fontFamily: 'Orbitron, sans-serif',
+                flex: '1 1 auto',
+                minWidth: '120px',
               }}
               onMouseEnter={(e) => {
                 if (!winner) {
@@ -870,6 +957,7 @@ export default function Battle() {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </>
   );
 }
