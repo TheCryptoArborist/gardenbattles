@@ -28,7 +28,7 @@ export default function WaitingOverlay({ isWaiting, onLeaveQueue, autoTriggerRef
   // Auto-trigger refund on first mount (forced refund)
   useEffect(() => {
     if (isWaiting && autoTriggerRefund && !autoTriggered && onLeaveQueue) {
-      console.log('🔥 AUTO-TRIGGERING REFUND (forced)...');
+      console.log('AUTO-TRIGGERING REFUND (forced)...');
       setAutoTriggered(true);
       handleLeaveQueue();
     }
@@ -40,9 +40,9 @@ export default function WaitingOverlay({ isWaiting, onLeaveQueue, autoTriggerRef
     setIsLeaving(true);
     try {
       await onLeaveQueue();
-      console.log('✅ Successfully left queue and received refund!');
+      console.log('Successfully left queue and received refund!');
     } catch (error: any) {
-      console.error('❌ Failed to leave queue:', error);
+      console.error('Failed to leave queue:', error);
       alert(`Failed to leave queue: ${error.message}`);
       setIsLeaving(false);
     }
@@ -99,7 +99,7 @@ export default function WaitingOverlay({ isWaiting, onLeaveQueue, autoTriggerRef
             color: '#00ffcc', 
             margin: '5px 0 0 0'
           }} data-testid="waiting-timer">
-            ⏱️ {mins}:{secs} elapsed
+            {mins}:{secs} elapsed
           </p>
         </div>
         

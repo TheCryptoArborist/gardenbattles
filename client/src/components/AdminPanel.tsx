@@ -85,7 +85,7 @@ export default function AdminPanel({ adminAddresses, currentAddress }: AdminPane
           },
           {
             onSuccess: () => {
-              setStatusMessage('✅ Collection whitelisted on-chain!');
+              setStatusMessage('Collection whitelisted on-chain!');
               
               const newCollection: NFTCollection = {
                 id: Date.now().toString(),
@@ -106,7 +106,7 @@ export default function AdminPanel({ adminAddresses, currentAddress }: AdminPane
             },
             onError: (error) => {
               console.error('Whitelist collection failed:', error);
-              setStatusMessage(`❌ Failed: ${error.message || 'Transaction rejected'}`);
+              setStatusMessage(`Failed: ${error.message || 'Transaction rejected'}`);
               setTimeout(() => {
                 setStatusMessage('');
                 setIsProcessing(false);
@@ -118,7 +118,7 @@ export default function AdminPanel({ adminAddresses, currentAddress }: AdminPane
       });
     } catch (error: any) {
       console.error('Error whitelisting collection:', error);
-      setStatusMessage(`❌ Error: ${error.message || 'Unknown error'}`);
+      setStatusMessage(`Error: ${error.message || 'Unknown error'}`);
       setTimeout(() => {
         setStatusMessage('');
         setIsProcessing(false);
@@ -152,7 +152,7 @@ export default function AdminPanel({ adminAddresses, currentAddress }: AdminPane
           },
           {
             onSuccess: () => {
-              setStatusMessage('✅ Collection removed from on-chain whitelist!');
+              setStatusMessage('Collection removed from on-chain whitelist!');
               saveCollections(collections.filter(c => c.id !== id));
               
               setTimeout(() => {
@@ -164,7 +164,7 @@ export default function AdminPanel({ adminAddresses, currentAddress }: AdminPane
             },
             onError: (error) => {
               console.error('Remove collection failed:', error);
-              setStatusMessage(`❌ Failed: ${error.message || 'Transaction rejected'}`);
+              setStatusMessage(`Failed: ${error.message || 'Transaction rejected'}`);
               setTimeout(() => {
                 setStatusMessage('');
                 setIsProcessing(false);
@@ -176,7 +176,7 @@ export default function AdminPanel({ adminAddresses, currentAddress }: AdminPane
       });
     } catch (error: any) {
       console.error('Error removing collection:', error);
-      setStatusMessage(`❌ Error: ${error.message || 'Unknown error'}`);
+      setStatusMessage(`Error: ${error.message || 'Unknown error'}`);
       setTimeout(() => {
         setStatusMessage('');
         setIsProcessing(false);
@@ -210,7 +210,7 @@ export default function AdminPanel({ adminAddresses, currentAddress }: AdminPane
           },
           {
             onSuccess: () => {
-              setStatusMessage('✅ Battle fees updated to 0 SUI on-chain! You can now test battles.');
+              setStatusMessage('Battle fees updated to 0 SUI on-chain! You can now test battles.');
               
               setTimeout(() => {
                 setStatusMessage('');
@@ -221,7 +221,7 @@ export default function AdminPanel({ adminAddresses, currentAddress }: AdminPane
             },
             onError: (error) => {
               console.error('Update fees failed:', error);
-              setStatusMessage(`❌ Failed: ${error.message || 'Transaction rejected'}`);
+              setStatusMessage(`Failed: ${error.message || 'Transaction rejected'}`);
               setTimeout(() => {
                 setStatusMessage('');
                 setIsUpdatingFees(false);
@@ -233,7 +233,7 @@ export default function AdminPanel({ adminAddresses, currentAddress }: AdminPane
       });
     } catch (error: any) {
       console.error('Error updating fees:', error);
-      setStatusMessage(`❌ Error: ${error.message || 'Unknown error'}`);
+      setStatusMessage(`Error: ${error.message || 'Unknown error'}`);
       setTimeout(() => {
         setStatusMessage('');
         setIsUpdatingFees(false);
@@ -349,7 +349,7 @@ export default function AdminPanel({ adminAddresses, currentAddress }: AdminPane
             {/* Testing: Set Fees to 0 */}
             <div style={{ marginBottom: '20px', padding: '15px', background: 'rgba(255, 100, 0, 0.1)', border: '2px solid #ff6600', borderRadius: '8px' }}>
               <h3 style={{ color: '#ff6600', fontSize: '16px', marginBottom: '10px' }}>
-                ⚠️ Testing Mode
+                Testing Mode
               </h3>
               <p style={{ color: '#fff', fontSize: '14px', marginBottom: '10px', opacity: 0.9 }}>
                 Set battle fees to 0 SUI to test battles without spending SUI
@@ -536,12 +536,12 @@ export default function AdminPanel({ adminAddresses, currentAddress }: AdminPane
                 <div style={{
                   marginTop: '15px',
                   padding: '12px',
-                  background: statusMessage.startsWith('✅') 
+                  background: (!statusMessage.includes('Failed') && !statusMessage.includes('Error'))
                     ? 'rgba(0, 255, 0, 0.1)' 
                     : 'rgba(255, 0, 0, 0.1)',
-                  border: `1px solid ${statusMessage.startsWith('✅') ? '#00ff00' : '#ff0000'}`,
+                  border: `1px solid ${(!statusMessage.includes('Failed') && !statusMessage.includes('Error')) ? '#00ff00' : '#ff0000'}`,
                   borderRadius: '5px',
-                  color: statusMessage.startsWith('✅') ? '#00ff00' : '#ff0000',
+                  color: (!statusMessage.includes('Failed') && !statusMessage.includes('Error')) ? '#00ff00' : '#ff0000',
                   fontSize: '12px',
                   textAlign: 'center',
                 }}>
@@ -560,7 +560,7 @@ export default function AdminPanel({ adminAddresses, currentAddress }: AdminPane
               }}
             >
               <p style={{ color: '#00ff00', fontSize: '12px', lineHeight: '1.6', margin: 0 }}>
-                ✅ <strong>Blockchain Whitelist:</strong> Adding or removing collections will submit an on-chain transaction.
+                <strong>Blockchain Whitelist:</strong> Adding or removing collections will submit an on-chain transaction.
                 The smart contract validates NFT types by their full package ID, module, and struct name.
                 Only whitelisted collections can join battles.
               </p>

@@ -270,7 +270,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
         if (isPlayer1 || isPlayer2) {
           const isFinished = e.winner && e.winner !== '0x0';
           
-          console.log('📊 Battle found:', {
+          console.log('Battle found:', {
             battleId,
             player1: e.player1,
             player2: e.player2,
@@ -289,11 +289,11 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
 
               const content = battleObj.data?.content as any;
               if (content?.fields?.finished === true) {
-                console.log('⚠️ Battle already finished on-chain, skipping');
+                console.log('Battle already finished on-chain, skipping');
                 continue;
               }
 
-              console.log('✅ ACTIVE BATTLE CONFIRMED!');
+              console.log('ACTIVE BATTLE CONFIRMED!');
               setBattleState({
                 battleId,
                 player1: e.player1,
@@ -306,7 +306,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
               });
 
               setIsWaiting(false);
-              console.log('🎮 Battle loaded from polling!');
+              console.log('Battle loaded from polling!');
               return true; // Found active battle
             } catch (objErr) {
               console.warn('Could not verify battle object:', objErr);
@@ -328,7 +328,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
   // Start polling when waiting for opponent
   useEffect(() => {
     if (isWaiting && address) {
-      console.log('⏱️ Starting battle polling (backup for events)...');
+      console.log('Starting battle polling (backup for events)...');
       
       // Poll immediately
       pollForBattle();
@@ -341,7 +341,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
       setPollingInterval(interval);
 
       return () => {
-        console.log('⏹️ Stopping battle polling');
+        console.log('Stopping battle polling');
         clearInterval(interval);
       };
     } else if (pollingInterval) {
@@ -597,11 +597,11 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
         const errorMsg = dryRunError?.message || '';
         
         if (errorMsg.includes('108')) {
-          throw new Error('❌ You are NOT in the queue. Nothing to refund.');
+          throw new Error('You are NOT in the queue. Nothing to refund.');
         } else if (errorMsg.includes('102')) {
-          throw new Error('❌ This is not your queue entry. Someone else is waiting.');
+          throw new Error('This is not your queue entry. Someone else is waiting.');
         } else {
-          throw new Error(`❌ Cannot refund: ${errorMsg}`);
+          throw new Error(`Cannot refund: ${errorMsg}`);
         }
       }
 
@@ -610,7 +610,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
           { transaction: tx },
           {
             onSuccess: (result) => {
-              console.log('✅ REFUND SUCCESSFUL! 3 SUI returned to your wallet');
+              console.log('REFUND SUCCESSFUL! 3 SUI returned to your wallet');
               resolve(result);
             },
             onError: (error) => {
