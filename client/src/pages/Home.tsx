@@ -5,6 +5,7 @@ export default function Home() {
   const [speechBubbleVisible, setSpeechBubbleVisible] = useState(false);
   const [currentPhrase, setCurrentPhrase] = useState(0);
   const [arboretumModalOpen, setArboretumModalOpen] = useState(false);
+  const [battleModalOpen, setBattleModalOpen] = useState(false);
 
   const phrases = [
     "Get your $TREE roots started!",
@@ -180,8 +181,12 @@ export default function Home() {
             >
               Arboretum
             </a>
-            <Link
-              href="/battle"
+            <a
+              href="#"
+              onClick={(e) => {
+                e.preventDefault();
+                setBattleModalOpen(true);
+              }}
               style={{
                 color: '#f7fafc',
                 textDecoration: 'none',
@@ -189,13 +194,14 @@ export default function Home() {
                 fontWeight: 'bold',
                 fontSize: 'clamp(0.8rem, 2.2vw, 1rem)',
                 transition: 'color 0.3s',
+                cursor: 'pointer',
               }}
               onMouseEnter={(e) => (e.currentTarget.style.color = '#34d399')}
               onMouseLeave={(e) => (e.currentTarget.style.color = '#f7fafc')}
               data-testid="link-battle"
             >
               Battle
-            </Link>
+            </a>
           </nav>
         </div>
       </header>
@@ -634,8 +640,12 @@ export default function Home() {
             Gain access to explosive gaming opportunities as a holder, and unlock ongoing ecosystem benefits. Crafted with stunning worldly tree designs and arborist-inspired details, 5% of every sale supports treefund.org, donated live on The Crypto Arborist's YouTube. NFT Games will begin development in Q4 2025.
           </p>
           <div>
-            <Link
-              href="/battle"
+            <a
+              href="#"
+              onClick={(e) => {
+                e.preventDefault();
+                setBattleModalOpen(true);
+              }}
               style={{
                 display: 'inline-block',
                 background: 'linear-gradient(45deg, #34d399, #d4a017)',
@@ -647,6 +657,7 @@ export default function Home() {
                 fontSize: 'clamp(0.8rem, 2.2vw, 1.1rem)',
                 transition: 'transform 0.3s, box-shadow 0.3s',
                 boxShadow: '0 0 15px rgba(52, 211, 153, 0.6), 0 0 30px rgba(52, 211, 153, 0.3)',
+                cursor: 'pointer',
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.transform = 'scale(1.15)';
@@ -659,7 +670,7 @@ export default function Home() {
               data-testid="button-nft-battle"
             >
               Play Battle Garden
-            </Link>
+            </a>
           </div>
         </div>
       </section>
@@ -1074,22 +1085,20 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Arboretum Coming Soon Modal */}
-      {arboretumModalOpen && (
+            {/* Arboretum Coming Soon Modal */}
+            {arboretumModalOpen && (
         <div
           onClick={() => setArboretumModalOpen(false)}
           style={{
             position: 'fixed',
-            top: 0,
-            left: 0,
-            width: '100vw',
-            height: '100vh',
-            background: 'rgba(0, 0, 0, 0.8)',
-            zIndex: 200,
+            inset: 0,
+            background: 'rgba(0, 0, 0, 0.85)',
+            zIndex: 9999,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             padding: 'clamp(1rem, 3vw, 2rem)',
+            overflow: 'auto',
           }}
         >
           <div
@@ -1097,6 +1106,8 @@ export default function Home() {
             style={{
               position: 'relative',
               width: 'clamp(300px, 90vw, 600px)',
+              maxHeight: '90vh',
+              overflowY: 'auto',
               background: 'linear-gradient(#1a4731, #276749)',
               border: '3px solid #d4a017',
               borderRadius: '10px',
@@ -1188,7 +1199,127 @@ export default function Home() {
               }}
               data-testid="button-close-arboretum-x"
             >
-              ✕
+              X
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Battle Coming Soon Modal */}
+      {battleModalOpen && (
+        <div
+          onClick={() => setBattleModalOpen(false)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0, 0, 0, 0.85)',
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 'clamp(1rem, 3vw, 2rem)',
+            overflow: 'auto',
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              position: 'relative',
+              width: 'clamp(300px, 90vw, 600px)',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+              background: 'linear-gradient(#1a4731, #276749)',
+              border: '3px solid #d4a017',
+              borderRadius: '10px',
+              boxShadow: '0 0 20px rgba(52, 211, 153, 0.6)',
+              padding: 'clamp(2rem, 5vw, 3rem)',
+              textAlign: 'center',
+            }}
+          >
+            <h2
+              style={{
+                fontSize: 'clamp(1.5rem, 4vw, 2.5rem)',
+                color: '#d4a017',
+                marginBottom: 'clamp(1rem, 3vw, 1.5rem)',
+                textShadow: '0 0 10px rgba(212, 160, 23, 0.5)',
+              }}
+            >
+              Battle Garden
+            </h2>
+            <p
+              style={{
+                fontSize: 'clamp(1rem, 2.5vw, 1.2rem)',
+                color: '#f7fafc',
+                marginBottom: 'clamp(1.5rem, 4vw, 2rem)',
+                lineHeight: '1.6',
+              }}
+            >
+              Coming Soon in Nov 2025
+            </p>
+            <p
+              style={{
+                fontSize: 'clamp(0.9rem, 2.2vw, 1rem)',
+                color: '#34d399',
+                marginBottom: 'clamp(1.5rem, 4vw, 2rem)',
+                lineHeight: '1.6',
+              }}
+            >
+              The Battle Garden will allow holders of NFTrees to battle each other for SUI rewards!
+              Stay tuned for exclusive features, enhanced mechanics, and community-driven gameplay!
+            </p>
+            <button
+              onClick={() => setBattleModalOpen(false)}
+              style={{
+                background: 'linear-gradient(45deg, #34d399, #d4a017)',
+                color: '#1a4731',
+                padding: 'clamp(0.6rem, 1.8vw, 0.8rem) clamp(1.2rem, 2.8vw, 2rem)',
+                borderRadius: '9999px',
+                border: 'none',
+                fontWeight: 'bold',
+                fontSize: 'clamp(0.8rem, 2.2vw, 1rem)',
+                cursor: 'pointer',
+                transition: 'transform 0.3s, box-shadow 0.3s',
+                boxShadow: '0 0 15px rgba(52, 211, 153, 0.6)',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'scale(1.1)';
+                e.currentTarget.style.boxShadow = '0 0 20px #34d399';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'scale(1)';
+                e.currentTarget.style.boxShadow = '0 0 15px rgba(52, 211, 153, 0.6)';
+              }}
+              data-testid="button-close-battle"
+            >
+              Got it!
+            </button>
+            <button
+              onClick={() => setBattleModalOpen(false)}
+              style={{
+                position: 'absolute',
+                top: 'clamp(10px, 2vw, 15px)',
+                right: 'clamp(10px, 2vw, 15px)',
+                width: 'clamp(30px, 8vw, 40px)',
+                height: 'clamp(30px, 8vw, 40px)',
+                background: '#1a4731',
+                color: '#d4a017',
+                borderRadius: '50%',
+                border: 'none',
+                fontSize: 'clamp(1rem, 2.5vw, 1.2rem)',
+                cursor: 'pointer',
+                transition: 'transform 0.3s, box-shadow 0.3s',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'scale(1.2)';
+                e.currentTarget.style.boxShadow = '0 0 15px #34d399';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'scale(1)';
+                e.currentTarget.style.boxShadow = '';
+              }}
+              data-testid="button-close-battle-x"
+            >
+              X
             </button>
           </div>
         </div>
