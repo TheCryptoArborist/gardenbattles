@@ -41,9 +41,9 @@ module battle_garden::config {
             id: object::new(ctx),
             admin: sender,
             treasury: sender,
-            entry_fee: 3000000000,
-            winner_payout: 5000000000,
-            treasury_share: 1000000000,
+            entry_fee: 100000000,
+            winner_payout: 500000000,
+            treasury_share: 100000000,
             paused: false,
             whitelisted_collections: whitelisted,
         };

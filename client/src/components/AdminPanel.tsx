@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
-import { X, Plus, Trash2 } from 'lucide-react';
-import { useSignAndExecuteTransaction } from '@mysten/dapp-kit';
-import { Transaction } from '@mysten/sui/transactions';
-import { SUI_CONFIG } from '@/lib/sui-config';
+import { useState, useEffect } from "react";
+import { X, Plus, Trash2 } from "lucide-react";
+import { useSignAndExecuteTransaction } from "@mysten/dapp-kit";
+import { Transaction } from "@mysten/sui/transactions";
+import { SUI_CONFIG } from "@/lib/sui-config";
 
 interface NFTCollection {
   id: string;
@@ -15,22 +15,27 @@ interface AdminPanelProps {
   currentAddress: string | null;
 }
 
-export default function AdminPanel({ adminAddresses, currentAddress }: AdminPanelProps) {
+export default function AdminPanel({
+  adminAddresses,
+  currentAddress,
+}: AdminPanelProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [collections, setCollections] = useState<NFTCollection[]>([]);
-  const [newCollectionName, setNewCollectionName] = useState('');
-  const [newCollectionType, setNewCollectionType] = useState('');
+  const [newCollectionName, setNewCollectionName] = useState("");
+  const [newCollectionType, setNewCollectionType] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
-  const [statusMessage, setStatusMessage] = useState('');
+  const [statusMessage, setStatusMessage] = useState("");
   const [isUpdatingFees, setIsUpdatingFees] = useState(false);
-  
+
   const { mutate: signAndExecuteTransaction } = useSignAndExecuteTransaction();
 
-  const isAdmin = currentAddress 
-    ? adminAddresses.some(addr => addr.toLowerCase() === currentAddress.toLowerCase())
+  const isAdmin = currentAddress
+    ? adminAddresses.some(
+        (addr) => addr.toLowerCase() === currentAddress.toLowerCase(),
+      )
     : false;
-  
-  console.log('AdminPanel Check:', {
+
+  console.log("AdminPanel Check:", {
     currentAddress,
     adminAddresses,
     isAdmin,
@@ -38,147 +43,155 @@ export default function AdminPanel({ adminAddresses, currentAddress }: AdminPane
   });
 
   useEffect(() => {
-    const stored = localStorage.getItem('allowed_nft_collections');
+    const stored = localStorage.getItem("allowed_nft_collections");
     if (stored) {
       setCollections(JSON.parse(stored));
     } else {
       const defaultCollections = [
         {
-          id: '1',
-          name: 'Tree Roots NFT',
-          type: '0xf1207462f6ee39938cd9f6e93285e4dc0a8034d49cb6bfb55cb5a827ba4f0cb6::tree_roots::Nft'
-        }
+          id: "1",
+          name: "Tree Roots NFT",
+          type: "0xf1207462f6ee39938cd9f6e93285e4dc0a8034d49cb6bfb55cb5a827ba4f0cb6::tree_roots::Nft",
+        },
       ];
       setCollections(defaultCollections);
-      localStorage.setItem('allowed_nft_collections', JSON.stringify(defaultCollections));
+      localStorage.setItem(
+        "allowed_nft_collections",
+        JSON.stringify(defaultCollections),
+      );
     }
   }, []);
 
   const saveCollections = (newCollections: NFTCollection[]) => {
     setCollections(newCollections);
-    localStorage.setItem('allowed_nft_collections', JSON.stringify(newCollections));
+    localStorage.setItem(
+      "allowed_nft_collections",
+      JSON.stringify(newCollections),
+    );
   };
 
   const addCollection = async () => {
     if (!newCollectionName.trim() || !newCollectionType.trim()) return;
-    
+
     const collectionType = newCollectionType.trim();
     setIsProcessing(true);
-    setStatusMessage('Submitting transaction to whitelist collection on-chain...');
+    setStatusMessage(
+      "Submitting transaction to whitelist collection on-chain...",
+    );
 
     try {
       const tx = new Transaction();
-      
+
       tx.moveCall({
-        target: `${SUI_CONFIG.PACKAGE_ID}::${SUI_CONFIG.MODULE}::whitelist_collection`,
+        target: `${SUI_CONFIG.PACKAGE_ID}::config::whitelist_collection`,
         typeArguments: [collectionType],
-        arguments: [
-          tx.object(SUI_CONFIG.CONFIG_ID),
-        ],
+        arguments: [tx.object(SUI_CONFIG.CONFIG_ID)],
       });
 
       await new Promise<void>((resolve, reject) => {
         signAndExecuteTransaction(
           {
             transaction: tx,
-            chain: 'sui:mainnet',
+            chain: "sui:testnet",
           },
           {
             onSuccess: () => {
-              setStatusMessage('Collection whitelisted on-chain!');
-              
+              setStatusMessage("Collection whitelisted on-chain!");
+
               const newCollection: NFTCollection = {
                 id: Date.now().toString(),
                 name: newCollectionName.trim(),
-                type: collectionType
+                type: collectionType,
               };
 
               saveCollections([...collections, newCollection]);
-              setNewCollectionName('');
-              setNewCollectionType('');
-              
+              setNewCollectionName("");
+              setNewCollectionType("");
+
               setTimeout(() => {
-                setStatusMessage('');
+                setStatusMessage("");
                 setIsProcessing(false);
               }, 3000);
-              
+
               resolve();
             },
             onError: (error) => {
-              console.error('Whitelist collection failed:', error);
-              setStatusMessage(`Failed: ${error.message || 'Transaction rejected'}`);
+              console.error("Whitelist collection failed:", error);
+              setStatusMessage(
+                `Failed: ${error.message || "Transaction rejected"}`,
+              );
               setTimeout(() => {
-                setStatusMessage('');
+                setStatusMessage("");
                 setIsProcessing(false);
               }, 5000);
               reject(error);
             },
-          }
+          },
         );
       });
     } catch (error: any) {
-      console.error('Error whitelisting collection:', error);
-      setStatusMessage(`Error: ${error.message || 'Unknown error'}`);
+      console.error("Error whitelisting collection:", error);
+      setStatusMessage(`Error: ${error.message || "Unknown error"}`);
       setTimeout(() => {
-        setStatusMessage('');
+        setStatusMessage("");
         setIsProcessing(false);
       }, 5000);
     }
   };
 
   const removeCollection = async (id: string) => {
-    const collection = collections.find(c => c.id === id);
+    const collection = collections.find((c) => c.id === id);
     if (!collection) return;
 
     setIsProcessing(true);
-    setStatusMessage('Removing collection from on-chain whitelist...');
+    setStatusMessage("Removing collection from on-chain whitelist...");
 
     try {
       const tx = new Transaction();
-      
+
       tx.moveCall({
-        target: `${SUI_CONFIG.PACKAGE_ID}::${SUI_CONFIG.MODULE}::remove_collection`,
+        target: `${SUI_CONFIG.PACKAGE_ID}::config::remove_collection`,
         typeArguments: [collection.type],
-        arguments: [
-          tx.object(SUI_CONFIG.CONFIG_ID),
-        ],
+        arguments: [tx.object(SUI_CONFIG.CONFIG_ID)],
       });
 
       await new Promise<void>((resolve, reject) => {
         signAndExecuteTransaction(
           {
             transaction: tx,
-            chain: 'sui:mainnet',
+            chain: "sui:testnet",
           },
           {
             onSuccess: () => {
-              setStatusMessage('Collection removed from on-chain whitelist!');
-              saveCollections(collections.filter(c => c.id !== id));
-              
+              setStatusMessage("Collection removed from on-chain whitelist!");
+              saveCollections(collections.filter((c) => c.id !== id));
+
               setTimeout(() => {
-                setStatusMessage('');
+                setStatusMessage("");
                 setIsProcessing(false);
               }, 3000);
-              
+
               resolve();
             },
             onError: (error) => {
-              console.error('Remove collection failed:', error);
-              setStatusMessage(`Failed: ${error.message || 'Transaction rejected'}`);
+              console.error("Remove collection failed:", error);
+              setStatusMessage(
+                `Failed: ${error.message || "Transaction rejected"}`,
+              );
               setTimeout(() => {
-                setStatusMessage('');
+                setStatusMessage("");
                 setIsProcessing(false);
               }, 5000);
               reject(error);
             },
-          }
+          },
         );
       });
     } catch (error: any) {
-      console.error('Error removing collection:', error);
-      setStatusMessage(`Error: ${error.message || 'Unknown error'}`);
+      console.error("Error removing collection:", error);
+      setStatusMessage(`Error: ${error.message || "Unknown error"}`);
       setTimeout(() => {
-        setStatusMessage('');
+        setStatusMessage("");
         setIsProcessing(false);
       }, 5000);
     }
@@ -186,14 +199,14 @@ export default function AdminPanel({ adminAddresses, currentAddress }: AdminPane
 
   const updateFeesToZero = async () => {
     setIsUpdatingFees(true);
-    setStatusMessage('Updating battle fees to 0 SUI for testing...');
+    setStatusMessage("Updating battle fees to 0 SUI for testing...");
 
     try {
       const tx = new Transaction();
-      
+
       // Call set_economics(config, entry_fee=0, winner_payout=0, treasury_share=0)
       tx.moveCall({
-        target: `${SUI_CONFIG.PACKAGE_ID}::${SUI_CONFIG.MODULE}::set_economics`,
+        target: `${SUI_CONFIG.PACKAGE_ID}::config::set_economics`,
         arguments: [
           tx.object(SUI_CONFIG.CONFIG_ID),
           tx.pure.u64(0), // entry_fee
@@ -206,36 +219,40 @@ export default function AdminPanel({ adminAddresses, currentAddress }: AdminPane
         signAndExecuteTransaction(
           {
             transaction: tx,
-            chain: 'sui:mainnet',
+            chain: "sui:testnet",
           },
           {
             onSuccess: () => {
-              setStatusMessage('Battle fees updated to 0 SUI on-chain! You can now test battles.');
-              
+              setStatusMessage(
+                "Battle fees updated to 0 SUI on-chain! You can now test battles.",
+              );
+
               setTimeout(() => {
-                setStatusMessage('');
+                setStatusMessage("");
                 setIsUpdatingFees(false);
               }, 5000);
-              
+
               resolve();
             },
             onError: (error) => {
-              console.error('Update fees failed:', error);
-              setStatusMessage(`Failed: ${error.message || 'Transaction rejected'}`);
+              console.error("Update fees failed:", error);
+              setStatusMessage(
+                `Failed: ${error.message || "Transaction rejected"}`,
+              );
               setTimeout(() => {
-                setStatusMessage('');
+                setStatusMessage("");
                 setIsUpdatingFees(false);
               }, 5000);
               reject(error);
             },
-          }
+          },
         );
       });
     } catch (error: any) {
-      console.error('Error updating fees:', error);
-      setStatusMessage(`Error: ${error.message || 'Unknown error'}`);
+      console.error("Error updating fees:", error);
+      setStatusMessage(`Error: ${error.message || "Unknown error"}`);
       setTimeout(() => {
-        setStatusMessage('');
+        setStatusMessage("");
         setIsUpdatingFees(false);
       }, 5000);
     }
@@ -250,29 +267,29 @@ export default function AdminPanel({ adminAddresses, currentAddress }: AdminPane
       <button
         onClick={() => setIsOpen(true)}
         style={{
-          position: 'fixed',
-          bottom: '20px',
-          right: '20px',
-          background: 'linear-gradient(45deg, #00ff00, #00cc00)',
-          color: '#000',
-          padding: '12px 24px',
-          borderRadius: '9999px',
-          border: '2px solid #00ff00',
-          fontWeight: 'bold',
-          fontSize: '14px',
-          cursor: 'pointer',
-          boxShadow: '0 0 20px rgba(0, 255, 0, 0.6)',
+          position: "fixed",
+          bottom: "20px",
+          right: "20px",
+          background: "linear-gradient(45deg, #00ff00, #00cc00)",
+          color: "#000",
+          padding: "12px 24px",
+          borderRadius: "9999px",
+          border: "2px solid #00ff00",
+          fontWeight: "bold",
+          fontSize: "14px",
+          cursor: "pointer",
+          boxShadow: "0 0 20px rgba(0, 255, 0, 0.6)",
           zIndex: 100,
-          fontFamily: 'Orbitron, sans-serif',
-          transition: 'transform 0.3s, box-shadow 0.3s',
+          fontFamily: "Orbitron, sans-serif",
+          transition: "transform 0.3s, box-shadow 0.3s",
         }}
         onMouseEnter={(e) => {
-          e.currentTarget.style.transform = 'scale(1.1)';
-          e.currentTarget.style.boxShadow = '0 0 30px #00ff00';
+          e.currentTarget.style.transform = "scale(1.1)";
+          e.currentTarget.style.boxShadow = "0 0 30px #00ff00";
         }}
         onMouseLeave={(e) => {
-          e.currentTarget.style.transform = 'scale(1)';
-          e.currentTarget.style.boxShadow = '0 0 20px rgba(0, 255, 0, 0.6)';
+          e.currentTarget.style.transform = "scale(1)";
+          e.currentTarget.style.boxShadow = "0 0 20px rgba(0, 255, 0, 0.6)";
         }}
         data-testid="button-admin-panel"
       >
@@ -283,52 +300,53 @@ export default function AdminPanel({ adminAddresses, currentAddress }: AdminPane
         <div
           onClick={() => setIsOpen(false)}
           style={{
-            position: 'fixed',
+            position: "fixed",
             top: 0,
             left: 0,
-            width: '100vw',
-            height: '100vh',
-            background: 'rgba(0, 0, 0, 0.9)',
+            width: "100vw",
+            height: "100vh",
+            background: "rgba(0, 0, 0, 0.9)",
             zIndex: 200,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '20px',
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "20px",
           }}
         >
           <div
             onClick={(e) => e.stopPropagation()}
             style={{
-              position: 'relative',
-              width: '100%',
-              maxWidth: '800px',
-              maxHeight: '90vh',
-              background: 'linear-gradient(rgba(0, 50, 0, 0.95), rgba(0, 80, 0, 0.95))',
-              border: '3px solid #00ff00',
-              borderRadius: '10px',
-              boxShadow: '0 0 30px rgba(0, 255, 0, 0.6)',
-              padding: '30px',
-              overflow: 'auto',
-              fontFamily: 'Orbitron, sans-serif',
+              position: "relative",
+              width: "100%",
+              maxWidth: "800px",
+              maxHeight: "90vh",
+              background:
+                "linear-gradient(rgba(0, 50, 0, 0.95), rgba(0, 80, 0, 0.95))",
+              border: "3px solid #00ff00",
+              borderRadius: "10px",
+              boxShadow: "0 0 30px rgba(0, 255, 0, 0.6)",
+              padding: "30px",
+              overflow: "auto",
+              fontFamily: "Orbitron, sans-serif",
             }}
           >
             <button
               onClick={() => setIsOpen(false)}
               style={{
-                position: 'absolute',
-                top: '15px',
-                right: '15px',
-                width: '40px',
-                height: '40px',
-                background: 'rgba(0, 50, 0, 0.8)',
-                color: '#00ff00',
-                borderRadius: '50%',
-                border: '2px solid #00ff00',
-                fontSize: '20px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
+                position: "absolute",
+                top: "15px",
+                right: "15px",
+                width: "40px",
+                height: "40px",
+                background: "rgba(0, 50, 0, 0.8)",
+                color: "#00ff00",
+                borderRadius: "50%",
+                border: "2px solid #00ff00",
+                fontSize: "20px",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
               }}
               data-testid="button-close-admin"
             >
@@ -337,75 +355,118 @@ export default function AdminPanel({ adminAddresses, currentAddress }: AdminPane
 
             <h2
               style={{
-                fontSize: '28px',
-                color: '#00ff00',
-                marginBottom: '20px',
-                textShadow: '0 0 10px rgba(0, 255, 0, 0.8)',
+                fontSize: "28px",
+                color: "#00ff00",
+                marginBottom: "20px",
+                textShadow: "0 0 10px rgba(0, 255, 0, 0.8)",
               }}
             >
               NFT Collection Manager
             </h2>
 
             {/* Testing: Set Fees to 0 */}
-            <div style={{ marginBottom: '20px', padding: '15px', background: 'rgba(255, 100, 0, 0.1)', border: '2px solid #ff6600', borderRadius: '8px' }}>
-              <h3 style={{ color: '#ff6600', fontSize: '16px', marginBottom: '10px' }}>
+            <div
+              style={{
+                marginBottom: "20px",
+                padding: "15px",
+                background: "rgba(255, 100, 0, 0.1)",
+                border: "2px solid #ff6600",
+                borderRadius: "8px",
+              }}
+            >
+              <h3
+                style={{
+                  color: "#ff6600",
+                  fontSize: "16px",
+                  marginBottom: "10px",
+                }}
+              >
                 Testing Mode
               </h3>
-              <p style={{ color: '#fff', fontSize: '14px', marginBottom: '10px', opacity: 0.9 }}>
+              <p
+                style={{
+                  color: "#fff",
+                  fontSize: "14px",
+                  marginBottom: "10px",
+                  opacity: 0.9,
+                }}
+              >
                 Set battle fees to 0 SUI to test battles without spending SUI
               </p>
               <button
                 onClick={updateFeesToZero}
                 disabled={isUpdatingFees}
                 style={{
-                  background: isUpdatingFees ? 'rgba(100, 100, 100, 0.5)' : 'linear-gradient(45deg, #ff6600, #ff8800)',
-                  color: '#fff',
-                  padding: '10px 20px',
-                  borderRadius: '6px',
-                  border: '2px solid #ff6600',
-                  fontWeight: 'bold',
-                  fontSize: '14px',
-                  cursor: isUpdatingFees ? 'not-allowed' : 'pointer',
-                  fontFamily: 'Orbitron, sans-serif',
+                  background: isUpdatingFees
+                    ? "rgba(100, 100, 100, 0.5)"
+                    : "linear-gradient(45deg, #ff6600, #ff8800)",
+                  color: "#fff",
+                  padding: "10px 20px",
+                  borderRadius: "6px",
+                  border: "2px solid #ff6600",
+                  fontWeight: "bold",
+                  fontSize: "14px",
+                  cursor: isUpdatingFees ? "not-allowed" : "pointer",
+                  fontFamily: "Orbitron, sans-serif",
                   opacity: isUpdatingFees ? 0.5 : 1,
                 }}
                 data-testid="button-update-fees"
               >
-                {isUpdatingFees ? 'Updating...' : 'Set Fees to 0 SUI'}
+                {isUpdatingFees ? "Updating..." : "Set Fees to 0 SUI"}
               </button>
             </div>
 
-            <div style={{ marginBottom: '30px' }}>
-              <h3 style={{ color: '#00ffcc', fontSize: '18px', marginBottom: '15px' }}>
+            <div style={{ marginBottom: "30px" }}>
+              <h3
+                style={{
+                  color: "#00ffcc",
+                  fontSize: "18px",
+                  marginBottom: "15px",
+                }}
+              >
                 Allowed NFT Collections
               </h3>
-              
+
               {collections.length === 0 ? (
-                <p style={{ color: '#fff', opacity: 0.7 }}>No collections added yet</p>
+                <p style={{ color: "#fff", opacity: 0.7 }}>
+                  No collections added yet
+                </p>
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "10px",
+                  }}
+                >
                   {collections.map((collection) => (
                     <div
                       key={collection.id}
                       style={{
-                        background: 'rgba(0, 0, 0, 0.3)',
-                        border: '1px solid #00ff00',
-                        borderRadius: '8px',
-                        padding: '15px',
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'flex-start',
+                        background: "rgba(0, 0, 0, 0.3)",
+                        border: "1px solid #00ff00",
+                        borderRadius: "8px",
+                        padding: "15px",
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "flex-start",
                       }}
                     >
                       <div style={{ flex: 1 }}>
-                        <div style={{ color: '#00ff00', fontWeight: 'bold', marginBottom: '5px' }}>
+                        <div
+                          style={{
+                            color: "#00ff00",
+                            fontWeight: "bold",
+                            marginBottom: "5px",
+                          }}
+                        >
                           {collection.name}
                         </div>
                         <div
                           style={{
-                            color: '#00ffcc',
-                            fontSize: '12px',
-                            wordBreak: 'break-all',
+                            color: "#00ffcc",
+                            fontSize: "12px",
+                            wordBreak: "break-all",
                             opacity: 0.8,
                           }}
                         >
@@ -415,13 +476,13 @@ export default function AdminPanel({ adminAddresses, currentAddress }: AdminPane
                       <button
                         onClick={() => removeCollection(collection.id)}
                         style={{
-                          background: 'rgba(255, 0, 0, 0.2)',
-                          border: '1px solid #ff0000',
-                          borderRadius: '5px',
-                          padding: '8px',
-                          cursor: 'pointer',
-                          color: '#ff0000',
-                          marginLeft: '10px',
+                          background: "rgba(255, 0, 0, 0.2)",
+                          border: "1px solid #ff0000",
+                          borderRadius: "5px",
+                          padding: "8px",
+                          cursor: "pointer",
+                          color: "#ff0000",
+                          marginLeft: "10px",
                         }}
                         data-testid={`button-remove-${collection.id}`}
                       >
@@ -435,23 +496,29 @@ export default function AdminPanel({ adminAddresses, currentAddress }: AdminPane
 
             <div
               style={{
-                background: 'rgba(0, 0, 0, 0.3)',
-                border: '2px solid #00ff00',
-                borderRadius: '8px',
-                padding: '20px',
+                background: "rgba(0, 0, 0, 0.3)",
+                border: "2px solid #00ff00",
+                borderRadius: "8px",
+                padding: "20px",
               }}
             >
-              <h3 style={{ color: '#00ffcc', fontSize: '18px', marginBottom: '15px' }}>
+              <h3
+                style={{
+                  color: "#00ffcc",
+                  fontSize: "18px",
+                  marginBottom: "15px",
+                }}
+              >
                 Add New Collection
               </h3>
-              
-              <div style={{ marginBottom: '15px' }}>
+
+              <div style={{ marginBottom: "15px" }}>
                 <label
                   style={{
-                    display: 'block',
-                    color: '#00ff00',
-                    marginBottom: '5px',
-                    fontSize: '14px',
+                    display: "block",
+                    color: "#00ff00",
+                    marginBottom: "5px",
+                    fontSize: "14px",
                   }}
                 >
                   Collection Name
@@ -462,26 +529,26 @@ export default function AdminPanel({ adminAddresses, currentAddress }: AdminPane
                   onChange={(e) => setNewCollectionName(e.target.value)}
                   placeholder="e.g., Tree Roots NFT"
                   style={{
-                    width: '100%',
-                    padding: '10px',
-                    background: 'rgba(0, 0, 0, 0.5)',
-                    border: '1px solid #00ff00',
-                    borderRadius: '5px',
-                    color: '#fff',
-                    fontSize: '14px',
-                    fontFamily: 'Orbitron, sans-serif',
+                    width: "100%",
+                    padding: "10px",
+                    background: "rgba(0, 0, 0, 0.5)",
+                    border: "1px solid #00ff00",
+                    borderRadius: "5px",
+                    color: "#fff",
+                    fontSize: "14px",
+                    fontFamily: "Orbitron, sans-serif",
                   }}
                   data-testid="input-collection-name"
                 />
               </div>
 
-              <div style={{ marginBottom: '20px' }}>
+              <div style={{ marginBottom: "20px" }}>
                 <label
                   style={{
-                    display: 'block',
-                    color: '#00ff00',
-                    marginBottom: '5px',
-                    fontSize: '14px',
+                    display: "block",
+                    color: "#00ff00",
+                    marginBottom: "5px",
+                    fontSize: "14px",
                   }}
                 >
                   NFT Type (Full Type String)
@@ -492,14 +559,14 @@ export default function AdminPanel({ adminAddresses, currentAddress }: AdminPane
                   onChange={(e) => setNewCollectionType(e.target.value)}
                   placeholder="e.g., 0xf1207462f6ee39938cd9f6e93285e4dc0a8034d49cb6bfb55cb5a827ba4f0cb6::tree_roots::Nft"
                   style={{
-                    width: '100%',
-                    padding: '10px',
-                    background: 'rgba(0, 0, 0, 0.5)',
-                    border: '1px solid #00ff00',
-                    borderRadius: '5px',
-                    color: '#fff',
-                    fontSize: '12px',
-                    fontFamily: 'monospace',
+                    width: "100%",
+                    padding: "10px",
+                    background: "rgba(0, 0, 0, 0.5)",
+                    border: "1px solid #00ff00",
+                    borderRadius: "5px",
+                    color: "#fff",
+                    fontSize: "12px",
+                    fontFamily: "monospace",
                   }}
                   data-testid="input-collection-type"
                 />
@@ -507,44 +574,69 @@ export default function AdminPanel({ adminAddresses, currentAddress }: AdminPane
 
               <button
                 onClick={addCollection}
-                disabled={!newCollectionName.trim() || !newCollectionType.trim() || isProcessing}
+                disabled={
+                  !newCollectionName.trim() ||
+                  !newCollectionType.trim() ||
+                  isProcessing
+                }
                 style={{
-                  background: newCollectionName.trim() && newCollectionType.trim() && !isProcessing
-                    ? 'linear-gradient(45deg, #00ff00, #00cc00)'
-                    : 'rgba(100, 100, 100, 0.3)',
-                  color: newCollectionName.trim() && newCollectionType.trim() && !isProcessing ? '#000' : '#666',
-                  padding: '12px 24px',
-                  borderRadius: '9999px',
-                  border: '2px solid #00ff00',
-                  fontWeight: 'bold',
-                  fontSize: '14px',
-                  cursor: newCollectionName.trim() && newCollectionType.trim() && !isProcessing ? 'pointer' : 'not-allowed',
-                  width: '100%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '8px',
-                  fontFamily: 'Orbitron, sans-serif',
+                  background:
+                    newCollectionName.trim() &&
+                    newCollectionType.trim() &&
+                    !isProcessing
+                      ? "linear-gradient(45deg, #00ff00, #00cc00)"
+                      : "rgba(100, 100, 100, 0.3)",
+                  color:
+                    newCollectionName.trim() &&
+                    newCollectionType.trim() &&
+                    !isProcessing
+                      ? "#000"
+                      : "#666",
+                  padding: "12px 24px",
+                  borderRadius: "9999px",
+                  border: "2px solid #00ff00",
+                  fontWeight: "bold",
+                  fontSize: "14px",
+                  cursor:
+                    newCollectionName.trim() &&
+                    newCollectionType.trim() &&
+                    !isProcessing
+                      ? "pointer"
+                      : "not-allowed",
+                  width: "100%",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "8px",
+                  fontFamily: "Orbitron, sans-serif",
                 }}
                 data-testid="button-add-collection"
               >
                 <Plus size={18} />
-                {isProcessing ? 'Processing...' : 'Add Collection (On-Chain)'}
+                {isProcessing ? "Processing..." : "Add Collection (On-Chain)"}
               </button>
-              
+
               {statusMessage && (
-                <div style={{
-                  marginTop: '15px',
-                  padding: '12px',
-                  background: (!statusMessage.includes('Failed') && !statusMessage.includes('Error'))
-                    ? 'rgba(0, 255, 0, 0.1)' 
-                    : 'rgba(255, 0, 0, 0.1)',
-                  border: `1px solid ${(!statusMessage.includes('Failed') && !statusMessage.includes('Error')) ? '#00ff00' : '#ff0000'}`,
-                  borderRadius: '5px',
-                  color: (!statusMessage.includes('Failed') && !statusMessage.includes('Error')) ? '#00ff00' : '#ff0000',
-                  fontSize: '12px',
-                  textAlign: 'center',
-                }}>
+                <div
+                  style={{
+                    marginTop: "15px",
+                    padding: "12px",
+                    background:
+                      !statusMessage.includes("Failed") &&
+                      !statusMessage.includes("Error")
+                        ? "rgba(0, 255, 0, 0.1)"
+                        : "rgba(255, 0, 0, 0.1)",
+                    border: `1px solid ${!statusMessage.includes("Failed") && !statusMessage.includes("Error") ? "#00ff00" : "#ff0000"}`,
+                    borderRadius: "5px",
+                    color:
+                      !statusMessage.includes("Failed") &&
+                      !statusMessage.includes("Error")
+                        ? "#00ff00"
+                        : "#ff0000",
+                    fontSize: "12px",
+                    textAlign: "center",
+                  }}
+                >
                   {statusMessage}
                 </div>
               )}
@@ -552,17 +644,25 @@ export default function AdminPanel({ adminAddresses, currentAddress }: AdminPane
 
             <div
               style={{
-                marginTop: '20px',
-                padding: '15px',
-                background: 'rgba(0, 255, 0, 0.1)',
-                border: '1px solid #00ff00',
-                borderRadius: '8px',
+                marginTop: "20px",
+                padding: "15px",
+                background: "rgba(0, 255, 0, 0.1)",
+                border: "1px solid #00ff00",
+                borderRadius: "8px",
               }}
             >
-              <p style={{ color: '#00ff00', fontSize: '12px', lineHeight: '1.6', margin: 0 }}>
-                <strong>Blockchain Whitelist:</strong> Adding or removing collections will submit an on-chain transaction.
-                The smart contract validates NFT types by their full package ID, module, and struct name.
-                Only whitelisted collections can join battles.
+              <p
+                style={{
+                  color: "#00ff00",
+                  fontSize: "12px",
+                  lineHeight: "1.6",
+                  margin: 0,
+                }}
+              >
+                <strong>Blockchain Whitelist:</strong> Adding or removing
+                collections will submit an on-chain transaction. The smart
+                contract validates NFT types by their full package ID, module,
+                and struct name. Only whitelisted collections can join battles.
               </p>
             </div>
           </div>

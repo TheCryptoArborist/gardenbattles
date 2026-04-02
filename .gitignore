@@ -12,3 +12,5 @@ server/public
 vite.config.ts.*
 *.tar.gz
 >>>>>>> 9fe2e20 (Add comprehensive deployment guide and update core game logic)
+/sui_contract/build
+scripts/.env

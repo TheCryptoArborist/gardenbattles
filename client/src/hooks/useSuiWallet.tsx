@@ -1,9 +1,36 @@
-import { createContext, useContext, useState, useCallback, ReactNode, useEffect } from 'react';
-import { ConnectButton, useCurrentAccount, useSignAndExecuteTransaction, useSuiClient } from '@mysten/dapp-kit';
-import { Transaction } from '@mysten/sui/transactions';
-import { SUI_CONFIG, getBattleUpdateEvent } from '@/lib/sui-config';
+/**
+ * useSuiWallet – battle state is now driven by the Socket.io relay server.
+ *
+ * Flow:
+ *  1. On wallet connect → identify ourselves to the relay
+ *  2. After join_queue tx succeeds → tell relay to subscribe us to that battle room
+ *  3. Relay server polls Sui every 2 s and pushes "battle_update" events
+ *  4. Both players receive identical state → UI stays in sync
+ *  5. HTTP fallback: /api/battle/state/:address on reconnect / page refresh
+ */
 
-interface BattleState {
+import {
+  createContext,
+  useContext,
+  useState,
+  useCallback,
+  useEffect,
+  useRef,
+  ReactNode,
+} from "react";
+import {
+  ConnectButton,
+  useCurrentAccount,
+  useSignAndExecuteTransaction,
+  useSuiClient,
+} from "@mysten/dapp-kit";
+import { Transaction } from "@mysten/sui/transactions";
+import { io as socketIO, Socket } from "socket.io-client";
+import { SUI_CONFIG, getBattleUpdateEvent } from "@/lib/sui-config";
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+export interface BattleState {
   battleId: string | null;
   player1: string | null;
   player2: string | null;
@@ -14,46 +41,66 @@ interface BattleState {
   winner: string | null;
 }
 
+export interface NftData {
+  nftId: string;
+  nftType: string;
+  location: "wallet" | "kiosk";
+  kioskId?: string;
+  kioskCapId?: string;
+}
+
 interface SuiWalletContextType {
   address: string | null;
   isConnected: boolean;
   battleState: BattleState | null;
   isWaiting: boolean;
-  joinBattle: (nftData: { nftId: string; nftType: string; location: 'wallet' | 'kiosk'; kioskId?: string; kioskCapId?: string }) => Promise<void>;
+  joinBattle: (nftData: NftData) => Promise<void>;
   useAbility: (abilityId: number) => Promise<void>;
   cancelQueue: () => Promise<any>;
-  getFirstValidSaplingNft: (owner: string) => Promise<{ nftId: string; nftType: string; location: 'wallet' | 'kiosk'; kioskId?: string; kioskCapId?: string } | null>;
+  getFirstValidSaplingNft: (owner: string) => Promise<NftData | null>;
   ConnectWalletButton: () => JSX.Element;
 }
 
 const SuiWalletContext = createContext<SuiWalletContextType | null>(null);
 
+// ─── Relay URL ────────────────────────────────────────────────────────────────
+// In development the relay runs on the same host (Vite proxies /socket.io).
+// In production the express server serves everything on one port.
+const RELAY_URL =
+  typeof window !== "undefined"
+    ? window.location.origin
+    : "http://localhost:5000";
+
+// ─── Provider ─────────────────────────────────────────────────────────────────
+
 export function SuiWalletProvider({ children }: { children: ReactNode }) {
   const currentAccount = useCurrentAccount();
   const suiClient = useSuiClient();
   const { mutate: signAndExecuteTransaction } = useSignAndExecuteTransaction();
-  
+
   const [battleState, setBattleState] = useState<BattleState | null>(null);
   const [isWaiting, setIsWaiting] = useState(false);
   const [randomObjectId, setRandomObjectId] = useState<string | null>(null);
-  const [unsubscribeBattle, setUnsubscribeBattle] = useState<(() => void) | null>(null);
-  const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(null);
 
-  const address = currentAccount?.address || null;
+  const socketRef = useRef<Socket | null>(null);
+  const address = currentAccount?.address ?? null;
   const isConnected = !!currentAccount;
 
-  // Ensure random object on mount
+  // ── 1. Resolve a valid Sui random object ──────────────────────────────────
   useEffect(() => {
     async function ensureRandomObject() {
       for (const id of SUI_CONFIG.RANDOM_OBJECT_CANDIDATES) {
         try {
-          const obj = await suiClient.getObject({ id, options: { showType: true } });
-          if (obj?.data?.type?.endsWith('::random::Random')) {
+          const obj = await suiClient.getObject({
+            id,
+            options: { showType: true },
+          });
+          if (obj?.data?.type?.endsWith("::random::Random")) {
             setRandomObjectId(id);
             return;
           }
-        } catch (_) {
-          // Continue to next candidate
+        } catch {
+          // try next
         }
       }
       setRandomObjectId(SUI_CONFIG.RANDOM_OBJECT_CANDIDATES[0]);
@@ -61,336 +108,199 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
     ensureRandomObject();
   }, [suiClient]);
 
-  const getFirstValidSaplingNft = useCallback(async (owner: string): Promise<{ nftId: string; nftType: string; location: 'wallet' | 'kiosk'; kioskId?: string; kioskCapId?: string } | null> => {
-    console.log('Scanning for Sapling NFTs...');
-    
-    // Get allowed collections from localStorage
-    const stored = localStorage.getItem('allowed_nft_collections');
-    const allowedTypes = stored 
-      ? JSON.parse(stored).map((c: any) => c.type)
-      : [SUI_CONFIG.SAPLING_STRUCT];
-    
-    console.log('Allowed NFT types:', allowedTypes);
-    
-    const kiosks = new Map<string, string>(); // kioskId -> ownerCapId
-    let cursor: string | null = null;
-
-    try {
-      do {
-        const res = await suiClient.getOwnedObjects({
-          owner,
-          options: { showType: true, showContent: true },
-          cursor: cursor || undefined,
-          limit: 50,
-        });
-
-        for (const obj of res.data) {
-          const type = obj?.data?.type;
-          if (!type) continue;
-
-          // Check for kiosk ownership caps
-          if (type.includes('::kiosk::KioskOwnerCap')) {
-            const ownerCapId = obj?.data?.objectId;
-            const kioskId = 
-              // @ts-ignore
-              obj?.data?.content?.fields?.for?.fields?.kiosk_id ||
-              // @ts-ignore
-              obj?.data?.content?.fields?.kiosk_id ||
-              // @ts-ignore
-              obj?.data?.content?.fields?.for;
-            if (kioskId && ownerCapId) {
-              kiosks.set(kioskId, ownerCapId);
-            }
-          }
-
-          // Check for directly held NFT from any allowed collection
-          if (allowedTypes.includes(type)) {
-            const id = obj?.data?.objectId;
-            if (id) {
-              console.log('Found allowed NFT in wallet:', type, id);
-              return { nftId: id, nftType: type, location: 'wallet' };
-            }
-          }
-        }
-
-        cursor = res.hasNextPage ? res.nextCursor || null : null;
-      } while (cursor);
-
-      // Check inside kiosks
-      for (const [kioskId, ownerCapId] of Array.from(kiosks.entries())) {
-        try {
-          const fields = await suiClient.getDynamicFields({ parentId: kioskId });
-          for (const field of fields.data) {
-            // Check if this is an Item or Listing field (not a Lock)
-            const fieldType = field?.name?.type || '';
-            console.log('Kiosk field type:', fieldType);
-            
-            // Skip locked items - they cannot be used in battles
-            if (fieldType.includes('::Lock')) {
-              console.log('Skipping locked item');
-              continue;
-            }
-            
-            // Get NFT ID from the dynamic field's value, not the field wrapper
-            // @ts-ignore
-            const nftId = field?.name?.value?.id;
-            if (!nftId) continue;
-
-            const obj = await suiClient.getObject({
-              id: nftId,
-              options: { showType: true, showContent: true },
-            });
-
-            if (obj?.data?.type && allowedTypes.includes(obj.data.type)) {
-              console.log(`Found allowed NFT in kiosk ${kioskId}:`, obj.data.type, nftId);
-              console.log('Field details:', field);
-              
-              // Only return if it's in an Item field (can be borrowed)
-              if (fieldType.includes('::Item')) {
-                return {
-                  nftId,
-                  nftType: obj.data.type,
-                  location: 'kiosk',
-                  kioskId,
-                  kioskCapId: ownerCapId
-                };
-              }
-            }
-          }
-        } catch (err) {
-          console.warn(`Error reading kiosk ${kioskId}:`, err);
-        }
+  // ── 2. Socket.io connection – lifecycle tied to wallet connection ──────────
+  useEffect(() => {
+    if (!isConnected || !address) {
+      // Cleanup on disconnect
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+        socketRef.current = null;
       }
-
-      console.warn('No valid NFT found from allowed collections');
-      return null;
-    } catch (err) {
-      console.error('Error scanning for NFTs:', err);
-      return null;
+      setBattleState(null);
+      setIsWaiting(false);
+      return;
     }
-  }, [suiClient]);
 
-  const listenForBattle = useCallback(() => {
-    if (!address) return;
+    // Already connected
+    if (socketRef.current?.connected) return;
 
-    const subscribe = async () => {
-      try {
-        const unsubscribe = await suiClient.subscribeEvent({
-          filter: { MoveEventType: getBattleUpdateEvent() },
-          onMessage: (event) => {
-            try {
-              const e = event.parsedJson as any;
-              if (!e || !e.battle_id || !e.player1 || !e.player2) {
-                return;
-              }
+    const socket = socketIO(RELAY_URL, {
+      transports: ["websocket", "polling"],
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+    });
 
-              // Only process events for this player
-              if (
-                e.player1?.toLowerCase() !== address.toLowerCase() &&
-                e.player2?.toLowerCase() !== address.toLowerCase()
-              ) {
-                return;
-              }
+    socketRef.current = socket;
 
-              // Update battle state
-              setBattleState({
-                battleId: e.battle_id,
-                player1: e.player1,
-                player2: e.player2,
-                player1Moves: e.player1_moves || [],
-                player2Moves: e.player2_moves || [],
-                player1Growth: Number(e.player1_growth || 0),
-                player2Growth: Number(e.player2_growth || 0),
-                winner: e.winner && e.winner !== '0x0' ? e.winner : null,
-              });
+    socket.on("connect", () => {
+      console.log("[relay] socket connected:", socket.id);
 
-              // Hide waiting overlay when opponent joins
-              if (e.player2 && e.player2 !== '0x0') {
-                setIsWaiting(false);
-              }
-            } catch (err) {
-              console.error('Event parse error:', err);
-            }
-          },
-        });
-
-        setUnsubscribeBattle(() => () => unsubscribe());
-      } catch (error) {
-        console.error('Subscribe failed:', error);
-      }
-    };
-
-    subscribe();
-  }, [address, suiClient]);
-
-  // Polling backup - queries blockchain for active battles
-  const pollForBattle = useCallback(async () => {
-    if (!address) return;
-
-    try {
-      console.log('🔍 Polling for active battles...');
-      
-      // Query for Battle objects where player1 or player2 is current address
-      const objects = await suiClient.queryEvents({
-        query: {
-          MoveEventType: getBattleUpdateEvent(),
-        },
-        limit: 50, // Get recent battles
-        order: 'descending',
+      // Tell relay who we are
+      socket.emit("identify", { address }, (res: any) => {
+        console.log("[relay] identify ack:", res);
       });
 
-      console.log(`Found ${objects.data.length} recent battle events`);
+      // Try to restore battle state from server (handles page refreshes)
+      fetch(`/api/battle/state/${address}`)
+        .then((r) => r.json())
+        .then(({ state }) => {
+          if (state && !state.winner) {
+            console.log("[relay] restored battle state from HTTP");
+            setBattleState(state);
+            setIsWaiting(false);
+            // Re-join the socket room
+            socket.emit("join_battle", { battleId: state.battleId });
+          }
+        })
+        .catch(() => {
+          // No active battle – that's fine
+        });
+    });
 
-      // Track latest event per battle ID to avoid loading stale data
-      const latestBattleEvents = new Map<string, any>();
+    socket.on("battle_update", (state: BattleState) => {
+      console.log("[relay] battle_update received:", state);
+      setBattleState(state);
 
-      for (const event of objects.data) {
-        const e = event.parsedJson as any;
-        
-        if (!e || !e.battle_id || !e.player1 || !e.player2) {
-          continue;
-        }
-
-        const battleId = e.battle_id;
-
-        // Only keep the latest (first encountered in descending order) event per battle
-        if (!latestBattleEvents.has(battleId)) {
-          latestBattleEvents.set(battleId, e);
-        }
+      // If opponent has now joined (player2 set), stop the waiting overlay
+      if (state.player2 && state.player2 !== "0x0") {
+        setIsWaiting(false);
       }
+    });
 
-      console.log(`Found ${latestBattleEvents.size} unique battles`);
+    socket.on("disconnect", (reason) => {
+      console.warn("[relay] socket disconnected:", reason);
+    });
 
-      // Find the most recent active battle involving this player
-      for (const [battleId, e] of Array.from(latestBattleEvents.entries())) {
-        // Check if this battle involves the current player
-        const isPlayer1 = e.player1?.toLowerCase() === address.toLowerCase();
-        const isPlayer2 = e.player2?.toLowerCase() === address.toLowerCase();
+    socket.on("connect_error", (err) => {
+      console.error("[relay] connection error:", err.message);
+    });
 
-        if (isPlayer1 || isPlayer2) {
-          const isFinished = e.winner && e.winner !== '0x0';
-          
-          console.log('Battle found:', {
-            battleId,
-            player1: e.player1,
-            player2: e.player2,
-            isFinished,
-            growth: `${e.player1_growth}/${e.player2_growth}`
+    return () => {
+      socket.disconnect();
+      socketRef.current = null;
+    };
+  }, [isConnected, address]);
+
+  // ── 3. Scan wallet / kiosks for a valid NFT ───────────────────────────────
+  const getFirstValidSaplingNft = useCallback(
+    async (owner: string): Promise<NftData | null> => {
+      const stored = localStorage.getItem("allowed_nft_collections");
+      const allowedTypes: string[] = stored
+        ? JSON.parse(stored).map((c: any) => c.type)
+        : [SUI_CONFIG.SAPLING_STRUCT];
+
+      const kiosks = new Map<string, string>(); // kioskId → ownerCapId
+      let cursor: string | null = null;
+
+      try {
+        do {
+          const res = await suiClient.getOwnedObjects({
+            owner,
+            options: { showType: true, showContent: true },
+            cursor: cursor || undefined,
+            limit: 50,
           });
 
-          // Only load if battle is NOT finished
-          if (!isFinished) {
-            // Double-check by fetching the actual Battle object
-            try {
-              const battleObj = await suiClient.getObject({
-                id: battleId,
-                options: { showContent: true }
-              });
+          for (const obj of res.data) {
+            const type = obj?.data?.type;
+            if (!type) continue;
 
-              const content = battleObj.data?.content as any;
-              if (content?.fields?.finished === true) {
-                console.log('Battle already finished on-chain, skipping');
-                continue;
-              }
+            if (type.includes("::kiosk::KioskOwnerCap")) {
+              const capId = obj?.data?.objectId;
+              // @ts-ignore
+              const kioskId =
+                // @ts-ignore
+                obj?.data?.content?.fields?.for?.fields?.kiosk_id ||
+                // @ts-ignore
+                obj?.data?.content?.fields?.kiosk_id ||
+                // @ts-ignore
+                obj?.data?.content?.fields?.for;
+              if (kioskId && capId) kiosks.set(kioskId, capId);
+            }
 
-              console.log('ACTIVE BATTLE CONFIRMED!');
-              setBattleState({
-                battleId,
-                player1: e.player1,
-                player2: e.player2,
-                player1Moves: e.player1_moves || [],
-                player2Moves: e.player2_moves || [],
-                player1Growth: Number(e.player1_growth || 0),
-                player2Growth: Number(e.player2_growth || 0),
-                winner: null,
-              });
-
-              setIsWaiting(false);
-              console.log('Battle loaded from polling!');
-              return true; // Found active battle
-            } catch (objErr) {
-              console.warn('Could not verify battle object:', objErr);
-              // If we can't verify, don't load it (safe default)
-              continue;
+            if (allowedTypes.includes(type)) {
+              const id = obj?.data?.objectId;
+              if (id) return { nftId: id, nftType: type, location: "wallet" };
             }
           }
+
+          cursor = res.hasNextPage ? (res.nextCursor ?? null) : null;
+        } while (cursor);
+
+        for (const [kioskId, ownerCapId] of Array.from(kiosks.entries())) {
+          try {
+            const fields = await suiClient.getDynamicFields({
+              parentId: kioskId,
+            });
+            for (const field of fields.data) {
+              const fieldType = field?.name?.type ?? "";
+              if (fieldType.includes("::Lock")) continue;
+              // @ts-ignore
+              const nftId = field?.name?.value?.id;
+              if (!nftId) continue;
+
+              const obj = await suiClient.getObject({
+                id: nftId,
+                options: { showType: true, showContent: true },
+              });
+
+              if (obj?.data?.type && allowedTypes.includes(obj.data.type)) {
+                if (fieldType.includes("::Item")) {
+                  return {
+                    nftId,
+                    nftType: obj.data.type,
+                    location: "kiosk",
+                    kioskId,
+                    kioskCapId: ownerCapId,
+                  };
+                }
+              }
+            }
+          } catch {
+            // skip bad kiosk
+          }
         }
+
+        return null;
+      } catch (err) {
+        console.error("NFT scan error:", err);
+        return null;
+      }
+    },
+    [suiClient],
+  );
+
+  // ── 4. Join the battle queue ──────────────────────────────────────────────
+  const joinBattle = useCallback(
+    async (nftData: NftData) => {
+      if (!address || !randomObjectId) {
+        throw new Error(
+          "Wallet not connected or random object not initialised",
+        );
       }
 
-      console.log('No active battles found');
-      return false;
-    } catch (error) {
-      console.error('Poll failed:', error);
-      return false;
-    }
-  }, [address, suiClient]);
-
-  // Start polling when waiting for opponent
-  useEffect(() => {
-    if (isWaiting && address) {
-      console.log('Starting battle polling (backup for events)...');
-      
-      // Poll immediately
-      pollForBattle();
-
-      // Then poll every 3 seconds
-      const interval = setInterval(() => {
-        pollForBattle();
-      }, 3000);
-
-      setPollingInterval(interval);
-
-      return () => {
-        console.log('Stopping battle polling');
-        clearInterval(interval);
-      };
-    } else if (pollingInterval) {
-      clearInterval(pollingInterval);
-      setPollingInterval(null);
-    }
-  }, [isWaiting, address, pollForBattle]);
-
-  const joinBattle = useCallback(async (nftData: { nftId: string; nftType: string; location: 'wallet' | 'kiosk'; kioskId?: string; kioskCapId?: string }) => {
-    if (!address || !randomObjectId) {
-      throw new Error('Wallet not connected or random object not initialized');
-    }
-
-    // Check SUI balance first
-    try {
-      const balance = await suiClient.getBalance({ owner: address });
-      const balanceInSui = Number(balance.totalBalance) / 1_000_000_000;
-      const entryFeeInSui = SUI_CONFIG.ENTRY_FEE / 1_000_000_000;
-      const requiredSui = entryFeeInSui + 0.1; // entry fee + ~0.1 SUI gas
-      
-      console.log(`Wallet balance: ${balanceInSui} SUI (required: ${requiredSui} SUI)`);
-      
-      if (balanceInSui < requiredSui) {
-        throw new Error(`Insufficient balance. You have ${balanceInSui.toFixed(2)} SUI but need at least ${requiredSui} SUI (${entryFeeInSui} SUI entry fee + ~0.1 SUI gas)`);
+      // Balance check
+      try {
+        const balance = await suiClient.getBalance({ owner: address });
+        const balSui = Number(balance.totalBalance) / 1e9;
+        const needed = SUI_CONFIG.ENTRY_FEE / 1e9 + 0.1;
+        if (balSui < needed) {
+          throw new Error(
+            `Insufficient balance: you have ${balSui.toFixed(2)} SUI but need ${needed} SUI`,
+          );
+        }
+      } catch (e: any) {
+        if (e.message?.includes("Insufficient")) throw e;
       }
-    } catch (balanceError: any) {
-      if (balanceError.message?.includes('Insufficient balance')) {
-        throw balanceError;
-      }
-      console.warn('Could not check balance:', balanceError);
-    }
 
-    try {
-      console.log('Building transaction with NFT data:', {
-        nftId: nftData.nftId,
-        nftType: nftData.nftType,
-        location: nftData.location,
-        kioskId: nftData.kioskId,
-        kioskCapId: nftData.kioskCapId
-      });
-      
       const tx = new Transaction();
       const [fee] = tx.splitCoins(tx.gas, [tx.pure.u64(SUI_CONFIG.ENTRY_FEE)]);
-      
-      if (nftData.location === 'wallet') {
-        // NFT is in wallet - use standard join_queue
-        console.log('Using join_queue for wallet NFT');
+
+      if (nftData.location === "wallet") {
         tx.moveCall({
-          target: `${SUI_CONFIG.PACKAGE_ID}::${SUI_CONFIG.MODULE}::join_queue`,
+          target: `${SUI_CONFIG.PACKAGE_ID}::matchmaking::join_queue`,
           typeArguments: [nftData.nftType],
           arguments: [
             tx.object(SUI_CONFIG.CONFIG_ID),
@@ -400,111 +310,58 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
             tx.object(randomObjectId),
           ],
         });
-      } else if (nftData.location === 'kiosk' && nftData.kioskId && nftData.kioskCapId) {
-        // NFT is in kiosk - use join_queue_from_kiosk
-        console.log('Using join_queue_from_kiosk for kiosk NFT');
-        console.log('Transaction details:', {
-          target: `${SUI_CONFIG.PACKAGE_ID}::${SUI_CONFIG.MODULE}::join_queue_from_kiosk`,
-          typeArguments: [nftData.nftType],
-          configId: SUI_CONFIG.CONFIG_ID,
-          queueId: SUI_CONFIG.MATCHMAKING_QUEUE_ID,
-          kioskId: nftData.kioskId,
-          kioskCapId: nftData.kioskCapId,
-          nftId: nftData.nftId,
-          randomObjectId
-        });
+      } else if (nftData.kioskId && nftData.kioskCapId) {
         tx.moveCall({
-          target: `${SUI_CONFIG.PACKAGE_ID}::${SUI_CONFIG.MODULE}::join_queue_from_kiosk`,
+          target: `${SUI_CONFIG.PACKAGE_ID}::matchmaking::join_queue_from_kiosk`,
           typeArguments: [nftData.nftType],
           arguments: [
             tx.object(SUI_CONFIG.CONFIG_ID),
             tx.object(SUI_CONFIG.MATCHMAKING_QUEUE_ID),
             tx.object(nftData.kioskId),
             tx.object(nftData.kioskCapId),
-            tx.pure.address(nftData.nftId), // Try using address instead of id
+            tx.pure.address(nftData.nftId),
             fee,
             tx.object(randomObjectId),
           ],
         });
       } else {
-        throw new Error('Invalid NFT location data');
+        throw new Error("Invalid NFT location data");
       }
 
       tx.setSender(address);
-      console.log('Transaction built successfully, submitting...');
 
-      // Dry run the transaction first to see the actual error
-      console.log('Performing dry run to check for errors...');
-      try {
-        const dryRunResult = await tx.build({ client: suiClient });
-        console.log('Dry run successful, transaction bytes:', dryRunResult);
-      } catch (dryRunError: any) {
-        console.error('DRY RUN FAILED - This is the actual error:', dryRunError);
-        console.error('DRY RUN ERROR MESSAGE:', dryRunError?.message);
-        console.error('DRY RUN ERROR STACK:', dryRunError?.stack);
-        
-        // Provide helpful error messages
-        if (dryRunError?.message?.includes('No valid gas coins')) {
-          throw new Error('Insufficient SUI for gas fees. You need at least 3.1 SUI in your wallet (3 SUI entry fee + ~0.1 SUI for gas). Please add more SUI to your wallet.');
-        }
-        
-        throw new Error(`Transaction validation failed: ${dryRunError?.message || 'Unknown error'}`);
+      return new Promise<void>((resolve, reject) => {
+        signAndExecuteTransaction(
+          { transaction: tx, chain: "sui:testnet" },
+          {
+            onSuccess: (result) => {
+              console.log("join_queue tx success:", result.digest);
+              setIsWaiting(true);
+
+              // Tell relay to watch for this player's battle
+              socketRef.current?.emit("identify", { address });
+
+              resolve();
+            },
+            onError: (err: any) => {
+              console.error("join_queue tx failed:", err);
+              reject(new Error(err?.message ?? "Failed to join battle"));
+            },
+          },
+        );
+      });
+    },
+    [address, randomObjectId, suiClient, signAndExecuteTransaction],
+  );
+
+  // ── 5. Use an ability ─────────────────────────────────────────────────────
+  const useAbility = useCallback(
+    async (abilityId: number) => {
+      if (!address || !randomObjectId || !battleState?.battleId) {
+        throw new Error("Battle not active");
       }
 
-      console.log('About to sign and execute transaction...');
-      
-      return new Promise<void>((resolve, reject) => {
-        try {
-          signAndExecuteTransaction(
-            {
-              transaction: tx,
-              chain: 'sui:mainnet',
-            },
-            {
-              onSuccess: (result) => {
-                console.log('Join battle transaction succeeded:', result);
-                setIsWaiting(true);
-                listenForBattle();
-                resolve();
-              },
-              onError: (error: any) => {
-                console.error('Join battle transaction failed - Full error:', error);
-                console.error('Error stringified:', JSON.stringify(error, null, 2));
-                console.error('Error type:', typeof error);
-                console.error('Error keys:', error ? Object.keys(error) : 'null');
-                console.error('Error.data:', error?.data);
-                console.error('Error.message:', error?.message);
-                console.error('Error.code:', error?.code);
-                
-                // Try to extract any useful error message
-                let errorMessage = 'Failed to join battle';
-                if (error?.data?.message) errorMessage = error.data.message;
-                else if (error?.message) errorMessage = error.message;
-                
-                console.error('Final error message:', errorMessage);
-                reject(new Error(errorMessage));
-              },
-            }
-          );
-        } catch (err) {
-          console.error('Exception in signAndExecuteTransaction:', err);
-          reject(err);
-        }
-      });
-    } catch (error: any) {
-      console.error('Join battle failed:', error);
-      throw new Error(error.message || 'Failed to join battle');
-    }
-  }, [address, randomObjectId, signAndExecuteTransaction, listenForBattle]);
-
-  const useAbility = useCallback(async (abilityId: number) => {
-    if (!address || !randomObjectId || !battleState?.battleId) {
-      throw new Error('Battle not active');
-    }
-
-    try {
       const tx = new Transaction();
-      
       tx.moveCall({
         target: `${SUI_CONFIG.PACKAGE_ID}::${SUI_CONFIG.MODULE}::use_ability_id`,
         arguments: [
@@ -513,147 +370,105 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
           tx.object(randomObjectId),
         ],
       });
-
       tx.setSender(address);
 
       return new Promise<void>((resolve, reject) => {
         signAndExecuteTransaction(
+          { transaction: tx, chain: "sui:testnet" },
           {
-            transaction: tx,
-            chain: 'sui:mainnet',
+            onSuccess: () => resolve(),
+            onError: (err: any) =>
+              reject(new Error(err?.message ?? "Failed to use ability")),
           },
-          {
-            onSuccess: () => {
-              resolve();
-            },
-            onError: (error) => {
-              console.error('Use ability failed:', error);
-              reject(new Error(error.message || 'Failed to use ability'));
-            },
-          }
         );
       });
-    } catch (error: any) {
-      console.error('Use ability failed:', error);
-      throw new Error(error.message || 'Failed to use ability');
-    }
-  }, [address, randomObjectId, battleState, signAndExecuteTransaction]);
+    },
+    [address, randomObjectId, battleState, signAndExecuteTransaction],
+  );
 
-  // Cleanup subscription on disconnect
-  useEffect(() => {
-    if (!isConnected && unsubscribeBattle) {
-      unsubscribeBattle();
-      setUnsubscribeBattle(null);
-      setBattleState(null);
-      setIsWaiting(false);
-    }
-  }, [isConnected, unsubscribeBattle]);
+  // ── 6. Cancel queue / emergency refund ───────────────────────────────────
+  const cancelQueue = useCallback(async () => {
+    if (!address) throw new Error("Wallet not connected");
 
-  const ConnectWalletButton = useCallback(() => {
-    return (
-      <ConnectButton 
+    const tx = new Transaction();
+    tx.moveCall({
+      target: `${SUI_CONFIG.PACKAGE_ID}::matchmaking::cancel_queue`,
+      arguments: [tx.object(SUI_CONFIG.MATCHMAKING_QUEUE_ID)],
+    });
+    tx.setSender(address);
+
+    // Dry-run first
+    try {
+      await tx.build({ client: suiClient });
+    } catch (e: any) {
+      const msg = e?.message ?? "";
+      if (msg.includes("108"))
+        throw new Error("You are NOT in the queue. Nothing to refund.");
+      if (msg.includes("102")) throw new Error("This is not your queue entry.");
+      throw new Error(`Cannot refund: ${msg}`);
+    }
+
+    const result = await new Promise((resolve, reject) => {
+      signAndExecuteTransaction(
+        { transaction: tx },
+        {
+          onSuccess: (r) => {
+            setIsWaiting(false);
+            resolve(r);
+          },
+          onError: (e) => reject(e),
+        },
+      );
+    });
+
+    return result;
+  }, [address, suiClient, signAndExecuteTransaction]);
+
+  // ── ConnectWalletButton component ─────────────────────────────────────────
+  const ConnectWalletButton = useCallback(
+    () => (
+      <ConnectButton
         connectText="Connect Wallet"
         style={{
-          border: '2px solid #00ff00',
-          background: 'linear-gradient(45deg, rgba(0, 100, 0, 0.5), rgba(0, 150, 0, 0.5))',
-          color: 'white',
-          boxShadow: '0 0 10px #00ff00, 0 0 5px #000000',
-          borderRadius: '8px',
-          padding: '0.5rem 1.25rem',
-          fontSize: '0.875rem',
-          fontFamily: 'Orbitron, sans-serif',
-          textTransform: 'uppercase',
-          cursor: 'pointer',
-          transition: 'all 0.3s ease',
+          border: "2px solid #00ff00",
+          background:
+            "linear-gradient(45deg, rgba(0,100,0,0.5), rgba(0,150,0,0.5))",
+          color: "white",
+          boxShadow: "0 0 10px #00ff00",
+          borderRadius: "8px",
+          padding: "0.5rem 1.25rem",
+          fontSize: "0.875rem",
+          fontFamily: "Orbitron, sans-serif",
+          textTransform: "uppercase",
+          cursor: "pointer",
         }}
       />
-    );
-  }, []);
-
-  const cancelQueue = useCallback(async () => {
-    if (!address) {
-      throw new Error('Wallet not connected');
-    }
-
-    try {
-      const tx = new Transaction();
-      
-      tx.moveCall({
-        target: `${SUI_CONFIG.PACKAGE_ID}::${SUI_CONFIG.MODULE}::cancel_queue`,
-        arguments: [
-          tx.object(SUI_CONFIG.MATCHMAKING_QUEUE_ID),
-        ],
-      });
-
-      tx.setSender(address);
-      console.log('Canceling queue and requesting refund...');
-
-      // Dry run to check for errors
-      try {
-        await tx.build({ client: suiClient });
-        console.log('Dry run successful - you are in the queue!');
-      } catch (dryRunError: any) {
-        console.error('DRY RUN FAILED:', dryRunError);
-        const errorMsg = dryRunError?.message || '';
-        
-        if (errorMsg.includes('108')) {
-          throw new Error('You are NOT in the queue. Nothing to refund.');
-        } else if (errorMsg.includes('102')) {
-          throw new Error('This is not your queue entry. Someone else is waiting.');
-        } else {
-          throw new Error(`Cannot refund: ${errorMsg}`);
-        }
-      }
-
-      const result = await new Promise((resolve, reject) => {
-        signAndExecuteTransaction(
-          { transaction: tx },
-          {
-            onSuccess: (result) => {
-              console.log('REFUND SUCCESSFUL! 3 SUI returned to your wallet');
-              resolve(result);
-            },
-            onError: (error) => {
-              console.error('Cancel queue transaction error:', error);
-              reject(error);
-            },
-          }
-        );
-      });
-      
-      // Clear waiting state
-      setIsWaiting(false);
-      
-      return result;
-    } catch (error: any) {
-      console.error('Cancel queue failed:', error);
-      throw error;
-    }
-  }, [address, signAndExecuteTransaction, suiClient]);
-
-  const value: SuiWalletContextType = {
-    address,
-    isConnected,
-    battleState,
-    isWaiting,
-    joinBattle,
-    useAbility,
-    cancelQueue,
-    getFirstValidSaplingNft,
-    ConnectWalletButton,
-  };
+    ),
+    [],
+  );
 
   return (
-    <SuiWalletContext.Provider value={value}>
+    <SuiWalletContext.Provider
+      value={{
+        address,
+        isConnected,
+        battleState,
+        isWaiting,
+        joinBattle,
+        useAbility,
+        cancelQueue,
+        getFirstValidSaplingNft,
+        ConnectWalletButton,
+      }}
+    >
       {children}
     </SuiWalletContext.Provider>
   );
 }
 
 export function useSuiWallet() {
-  const context = useContext(SuiWalletContext);
-  if (!context) {
-    throw new Error('useSuiWallet must be used within SuiWalletProvider');
-  }
-  return context;
+  const ctx = useContext(SuiWalletContext);
+  if (!ctx)
+    throw new Error("useSuiWallet must be used within SuiWalletProvider");
+  return ctx;
 }
