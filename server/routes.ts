@@ -6,7 +6,7 @@ import { storage } from "./storage";
 // ─── Sui polling configuration ────────────────────────────────────────────────
 const SUI_RPC_URL = "https://fullnode.testnet.sui.io:443";
 const PACKAGE_ID =
-  "0x21ba96d4de87389aef02f25f61452cadd3b69395f0f77b1cd14ae98a148a632f";
+  "0x7f9f3a5656d9efd93e1428ef40a3572cf8681178ff77ea6e2211dff848fcefb7";
 const MODULE = "battle";
 const BATTLE_UPDATE_EVENT = `${PACKAGE_ID}::${MODULE}::BattleUpdate`;
 const POLL_INTERVAL_MS = 2_000; // poll every 2 s
@@ -116,12 +116,16 @@ async function pollSuiEvents() {
 
       const existing = battles.get(battleId);
 
-      // Skip if nothing changed
+      // Skip if nothing changed (check growth, winner, and moves)
       if (
         existing &&
         existing.player1Growth === parsed.player1Growth &&
         existing.player2Growth === parsed.player2Growth &&
-        existing.winner === parsed.winner
+        existing.winner === parsed.winner &&
+        JSON.stringify(existing.player1Moves) ===
+          JSON.stringify(parsed.player1Moves) &&
+        JSON.stringify(existing.player2Moves) ===
+          JSON.stringify(parsed.player2Moves)
       ) {
         continue;
       }

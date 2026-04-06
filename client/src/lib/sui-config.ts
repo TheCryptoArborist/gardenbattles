@@ -4,15 +4,15 @@ export const SUI_CONFIG = {
   RPC_URL: "https://fullnode.testnet.sui.io:443",
   WS_URL: "wss://fullnode.testnet.sui.io:443",
   PACKAGE_ID:
-    "0x21ba96d4de87389aef02f25f61452cadd3b69395f0f77b1cd14ae98a148a632f",
+    "0x7f9f3a5656d9efd93e1428ef40a3572cf8681178ff77ea6e2211dff848fcefb7",
   MODULE: "battle",
   CONFIG_ID:
-    "0x4b8b9335a54495730fc70a36d11e854e1f442f3a4debb47dfaaa7b941bd25591",
+    "0xb83ac841de44b1dadb69761821e844e6ed5298dff941a9b4e4814e637d8c836b",
   MATCHMAKING_QUEUE_ID:
-    "0x3a824a683cc2f66c466c36eedee28d29559dcdfacac20799fc4107b322a020c2",
+    "0x849d13e4b156373e89fca05809ae3e8c482924f80e2381888232b781839dceee",
   SAPLING_STRUCT:
     "0xf1207462f6ee39938cd9f6e93285e4dc0a8034d49cb6bfb55cb5a827ba4f0cb6::tree_roots::Nft",
-  ENTRY_FEE: 100000000, // 0.1 SUI in MIST
+  ENTRY_FEE: 0, // 0 SUI (set via Admin Panel for testing)
   RANDOM_OBJECT_CANDIDATES: ["0x8", "0x6"],
   ADMIN_ADDRESSES: [
     "0xd854a95802b834b5ea45d4ac5506751c67f4c61c4b11e00d0faa2d74b805bf19", // Contract deployer

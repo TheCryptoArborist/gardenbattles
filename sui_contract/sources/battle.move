@@ -270,9 +270,6 @@ module battle_garden::battle {
             if (battle.p1_growth >= 100) {
                 let winner = battle.player1;
                 finish_and_payout(battle, winner, ctx);
-            } else if (battle.p2_growth == 0) {
-                let winner = battle.player1;
-                finish_and_payout(battle, winner, ctx);
             } else {
                 battle.turn = 1;
                 emit_update(battle);
@@ -293,9 +290,6 @@ module battle_garden::battle {
             battle.p1_growth = utils::clamp(battle.p1_growth, 0, 100);
             
             if (battle.p2_growth >= 100) {
-                let winner = battle.player2;
-                finish_and_payout(battle, winner, ctx);
-            } else if (battle.p1_growth == 0) {
                 let winner = battle.player2;
                 finish_and_payout(battle, winner, ctx);
             } else {
