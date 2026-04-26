@@ -674,12 +674,8 @@ export default function Home() {
             >
               Mint NFT (25 SUI)
             </Link>
-            <a
-              href="#"
-              onClick={(e) => {
-                e.preventDefault();
-                setBattleModalOpen(true);
-              }}
+            <Link
+              href="/battle"
               style={{
                 display: 'inline-block',
                 background: 'linear-gradient(45deg, #34d399, #d4a017)',
@@ -704,7 +700,7 @@ export default function Home() {
               data-testid="button-nft-battle"
             >
               Play Battle Garden
-            </a>
+            </Link>
             </div>
           </div>
         </div>
@@ -1281,16 +1277,21 @@ export default function Home() {
             >
               Battle Garden
             </h2>
-            <p
+            <Link
+              href="/battle"
               style={{
                 fontSize: 'clamp(1rem, 2.5vw, 1.2rem)',
                 color: '#f7fafc',
                 marginBottom: 'clamp(1.5rem, 4vw, 2rem)',
                 lineHeight: '1.6',
+                display: 'inline-block',
+                textDecoration: 'underline',
+                textUnderlineOffset: '0.2em',
+                textDecorationColor: '#d4a017',
               }}
             >
-              Coming Soon in Nov 2025
-            </p>
+              Battle Garden (Nov 2025) - Click to Enter
+            </Link>
             <p
               style={{
                 fontSize: 'clamp(0.9rem, 2.2vw, 1rem)',
