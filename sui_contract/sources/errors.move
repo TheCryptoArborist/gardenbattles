@@ -10,6 +10,7 @@ module battle_garden::errors {
     const ENoPendingToCancel: u64 = 108;
     const EInvalidMove: u64 = 109;
     const EInvalidEconomics: u64 = 110;
+    const EInvalidAddress: u64 = 111;
 
     public fun e_admin_only(): u64 { EAdminOnly }
     public fun e_nft_not_whitelisted(): u64 { ENftNotWhitelisted }
@@ -22,4 +23,5 @@ module battle_garden::errors {
     public fun e_no_pending_to_cancel(): u64 { ENoPendingToCancel }
     public fun e_invalid_move(): u64 { EInvalidMove }
     public fun e_invalid_economics(): u64 { EInvalidEconomics }
+    public fun e_invalid_address(): u64 { EInvalidAddress }
 }

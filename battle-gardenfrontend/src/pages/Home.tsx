@@ -202,6 +202,20 @@ export default function Home() {
             >
               Battle
             </a>
+            <Link
+              href="/mint"
+              style={{
+                color: '#f7fafc',
+                textDecoration: 'none',
+                margin: 'clamp(0.5rem, 1.5vw, 1rem)',
+                fontWeight: 'bold',
+                fontSize: 'clamp(0.8rem, 2.2vw, 1rem)',
+                transition: 'color 0.3s',
+              }}
+              data-testid="link-mint"
+            >
+              Mint
+            </Link>
           </nav>
         </div>
       </header>
@@ -640,6 +654,26 @@ export default function Home() {
             Gain access to explosive gaming opportunities as a holder, and unlock ongoing ecosystem benefits. Crafted with stunning worldly tree designs and arborist-inspired details, 5% of every sale supports treefund.org, donated live on The Crypto Arborist's YouTube. NFT Games will begin development in Q4 2025.
           </p>
           <div>
+            <div style={{ display: 'flex', justifyContent: 'center', gap: '0.8rem', flexWrap: 'wrap' }}>
+            <Link
+              href="/mint"
+              style={{
+                display: 'inline-block',
+                background: 'linear-gradient(45deg, #34d399, #d4a017)',
+                color: '#1a4731',
+                padding: 'clamp(0.6rem, 1.8vw, 0.9rem) clamp(1.2rem, 2.8vw, 2rem)',
+                borderRadius: '9999px',
+                textDecoration: 'none',
+                fontWeight: 'bold',
+                fontSize: 'clamp(0.8rem, 2.2vw, 1.1rem)',
+                transition: 'transform 0.3s, box-shadow 0.3s',
+                boxShadow: '0 0 15px rgba(52, 211, 153, 0.6), 0 0 30px rgba(52, 211, 153, 0.3)',
+                cursor: 'pointer',
+              }}
+              data-testid="button-nft-mint"
+            >
+              Mint NFT (25 SUI)
+            </Link>
             <a
               href="#"
               onClick={(e) => {
@@ -671,6 +705,7 @@ export default function Home() {
             >
               Play Battle Garden
             </a>
+            </div>
           </div>
         </div>
       </section>

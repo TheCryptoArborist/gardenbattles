@@ -4,10 +4,13 @@ import { Server as SocketIOServer, type Socket } from "socket.io";
 import { storage } from "./storage";
 
 // ─── Sui polling configuration ────────────────────────────────────────────────
-const SUI_RPC_URL = "https://fullnode.testnet.sui.io:443";
+const SUI_RPC_URL =
+  process.env.SUI_RPC_URL || "https://fullnode.testnet.sui.io:443";
 const PACKAGE_ID =
-  "0x7f9f3a5656d9efd93e1428ef40a3572cf8681178ff77ea6e2211dff848fcefb7";
-const MODULE = "battle";
+  process.env.BATTLE_PACKAGE_ID ||
+  process.env.PACKAGE_ID ||
+  "0x961de326a402dead5ca66839bfe610a93f0bba51d3e7037562fe482344906484";
+const MODULE = process.env.BATTLE_MODULE || "battle";
 const BATTLE_UPDATE_EVENT = `${PACKAGE_ID}::${MODULE}::BattleUpdate`;
 const POLL_INTERVAL_MS = 2_000; // poll every 2 s
 

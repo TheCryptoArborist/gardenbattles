@@ -27,7 +27,7 @@ const RECIPIENT = requireEnv("RECIPIENT_ADDRESS");
 const PRIVATE_KEY = requireEnv("PRIVATE_KEY");
 
 const IPFS_BASE =
-  "https://black-persistent-capybara-279.mypinata.cloud/ipfs/bafybeieqdexmp545rptji3w4j6uigoqs3nk5lhtulunpnkjdjopaclobda";
+  "https://black-persistent-capybara-279.mypinata.cloud/ipfs/bafybeibcs6wmqckyw2xmsl3u2m6si2uww5orz4l6ewbmio5scmllvux7le";
 
 const COLLECTION_NAME = "Tree Nft";
 const COLLECTION_DESCRIPTION = "TreeNft Collection";

@@ -20,6 +20,11 @@ module battle_garden::config {
         treasury_share: u64,
     }
 
+    public struct TreasuryUpdated has copy, drop {
+        old_treasury: address,
+        new_treasury: address,
+    }
+
     // Friend functions or public functions? 
     // The Config needs to be initialized. 
     // `init` is module specific. We can have a `create_config` or similar if we want to separate logic 
@@ -80,6 +85,17 @@ module battle_garden::config {
     public fun set_paused(config: &mut Config, paused: bool, ctx: &mut TxContext) {
         assert!(tx_context::sender(ctx) == config.admin, errors::e_admin_only());
         config.paused = paused;
+    }
+
+    public fun set_treasury(config: &mut Config, new_treasury: address, ctx: &mut TxContext) {
+        assert!(tx_context::sender(ctx) == config.admin, errors::e_admin_only());
+        assert!(new_treasury != @0x0, errors::e_invalid_address());
+        let old_treasury = config.treasury;
+        config.treasury = new_treasury;
+        event::emit(TreasuryUpdated {
+            old_treasury,
+            new_treasury,
+        });
     }
 
     public fun whitelist_collection<T: key + store>(config: &mut Config, ctx: &mut TxContext) {

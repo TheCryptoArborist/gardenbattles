@@ -8,6 +8,7 @@ import { SuiWalletProvider } from "@/hooks/useSuiWallet";
 import { SUI_CONFIG } from "@/lib/sui-config";
 import Home from "@/pages/Home";
 import Battle from "@/pages/Battle";
+import Mint from "@/pages/Mint";
 import NotFound from "@/pages/not-found";
 import '@mysten/dapp-kit/dist/index.css';
 
@@ -20,6 +21,7 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={Home} />
+      <Route path="/mint" component={Mint} />
       <Route path="/battle" component={Battle} />
       <Route component={NotFound} />
     </Switch>

@@ -66,10 +66,16 @@ const SuiWalletContext = createContext<SuiWalletContextType | null>(null);
 // ─── Relay URL ────────────────────────────────────────────────────────────────
 // In development the relay runs on the same host (Vite proxies /socket.io).
 // In production the express server serves everything on one port.
-const RELAY_URL =
-  typeof window !== "undefined"
-    ? window.location.origin
-    : "http://localhost:5000";
+const RELAY_URL = (
+  import.meta.env.VITE_RELAY_URL ||
+  (typeof window !== "undefined" ? window.location.origin : "http://localhost:5000")
+).replace(/\/+$/, "");
+
+const API_BASE_URL = RELAY_URL;
+
+function apiUrl(path: string): string {
+  return `${API_BASE_URL}${path.startsWith("/") ? path : `/${path}`}`;
+}
 
 // ─── Provider ─────────────────────────────────────────────────────────────────
 
@@ -143,7 +149,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
       });
 
       // Try to restore battle state from server (handles page refreshes)
-      fetch(`/api/battle/state/${address}`)
+      fetch(apiUrl(`/api/battle/state/${address}`))
         .then((r) => r.json())
         .then(({ state }) => {
           if (state && !state.winner) {

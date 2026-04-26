@@ -1,23 +1,31 @@
 // Sui Blockchain Configuration - SUI MAIN PUBLIC FULL NODE ENDPOINTS
 export const SUI_CONFIG = {
   NETWORK: "testnet",
+  CHAIN: "sui:testnet",
   RPC_URL: "https://fullnode.testnet.sui.io:443",
   WS_URL: "wss://fullnode.testnet.sui.io:443",
   PACKAGE_ID:
-    "0x7f9f3a5656d9efd93e1428ef40a3572cf8681178ff77ea6e2211dff848fcefb7",
+    "0x961de326a402dead5ca66839bfe610a93f0bba51d3e7037562fe482344906484",
   MODULE: "battle",
   CONFIG_ID:
-    "0xb83ac841de44b1dadb69761821e844e6ed5298dff941a9b4e4814e637d8c836b",
+    "0x3af58ed4d73c2ca8c0f6e9a59931ff86f8d46d6b6e8c8722e55ad46bed0d61a6",
   MATCHMAKING_QUEUE_ID:
-    "0x849d13e4b156373e89fca05809ae3e8c482924f80e2381888232b781839dceee",
+    "0x5de6ce9f3dd2f3636b4b4f48d8c75fa16601e7bd3e8e499c73d63dd1ff596316",
   SAPLING_STRUCT:
     "0xf1207462f6ee39938cd9f6e93285e4dc0a8034d49cb6bfb55cb5a827ba4f0cb6::tree_roots::Nft",
+  COLLECTION_PACKAGE_ID:
+    "0x119a5ae3f0278c28a14fac813e10b980382de37eeae3a0b534bf8e04443d5208",
+  COLLECTION_MODULE: "collection",
+  COLLECTION_MINT_CONFIG_ID: "0xREPLACE_WITH_COLLECTION_MINT_CONFIG_ID",
+  COLLECTION_MINT_PRICE_MIST: 25_000_000_000,
+  COLLECTION_IMAGE_BASE_URI:
+    "https://black-persistent-capybara-279.mypinata.cloud/ipfs/bafybeieqdexmp545rptji3w4j6uigoqs3nk5lhtulunpnkjdjopaclobda",
+  COLLECTION_NAME_PREFIX: "Tree Nft #",
+  COLLECTION_DESCRIPTION: "TreeNft Collection",
   ENTRY_FEE: 0, // 0 SUI (set via Admin Panel for testing)
   RANDOM_OBJECT_CANDIDATES: ["0x8", "0x6"],
   ADMIN_ADDRESSES: [
-    "0xd854a95802b834b5ea45d4ac5506751c67f4c61c4b11e00d0faa2d74b805bf19", // Contract deployer
-    "0xd854a95802b834b5ea45d4ac5506751c67f4c61c4b11e00d0faa2d74b805bf19",
-    "0x2d3449bfb428de861aa411d8709bb6b28a6553a91ec3be0b6b6aa983e7b21ec6", // Your wallet
+    "0xaf19c438c96320d14954a63c06d71fab99a2165800c839d667bd1803ecf86f36", // Contract deployer
   ],
 } as const;
 
