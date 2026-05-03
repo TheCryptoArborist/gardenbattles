@@ -193,9 +193,35 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
   const getFirstValidSaplingNft = useCallback(
     async (owner: string): Promise<NftData | null> => {
       const stored = localStorage.getItem("allowed_nft_collections");
-      const allowedTypes: string[] = stored
+      let allowedTypes: string[] = stored
         ? JSON.parse(stored).map((c: any) => c.type)
         : [SUI_CONFIG.SAPLING_STRUCT];
+
+      // Fetch on-chain whitelisted collections to ensure we have the latest global list
+      try {
+        const configObj = await suiClient.getObject({
+          id: SUI_CONFIG.CONFIG_ID,
+          options: { showContent: true },
+        });
+
+        // @ts-ignore
+        const whitelisted = configObj?.data?.content?.fields?.whitelisted_collections;
+        if (whitelisted && Array.isArray(whitelisted)) {
+          const onChainTypes = whitelisted.map((t: any) => {
+            // TypeName fields usually store the type string in a 'name' field
+            let typeNameStr = typeof t === 'string' ? t : (t?.fields?.name || t);
+            // Some TypeName representations might not start with 0x
+            if (typeof typeNameStr === 'string' && !typeNameStr.startsWith('0x')) {
+               typeNameStr = '0x' + typeNameStr;
+            }
+            return typeNameStr;
+          });
+          // Merge allowed types
+          allowedTypes = [...new Set([...allowedTypes, ...onChainTypes])];
+        }
+      } catch (err) {
+        console.error("Failed to fetch on-chain config collections:", err);
+      }
 
       const kiosks = new Map<string, string>(); // kioskId → ownerCapId
       let cursor: string | null = null;

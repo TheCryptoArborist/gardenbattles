@@ -23,7 +23,7 @@ function toBytes(s: string): number[] {
 
 const PACKAGE_ID = requireEnv("PACKAGE_ID");
 const MINT_CAP_ID = requireEnv("MINT_CAP_ID");
-const RECIPIENT = requireEnv("RECIPIENT_ADDRESS");
+const POOL_ID = requireEnv("POOL_ID");
 const PRIVATE_KEY = requireEnv("PRIVATE_KEY");
 
 const IPFS_BASE =
@@ -55,25 +55,24 @@ async function main() {
     imageUrls.push(toBytes(`${IPFS_BASE}/${i}.jpg`));
   }
 
-  // Single PTB — all 100 NFTs in one transaction
+  // Single PTB — deposit all 100 NFTs into the shared pool
   const tx = new Transaction();
 
   tx.moveCall({
-    target: `${PACKAGE_ID}::collection::batch_mint`,
+    target: `${PACKAGE_ID}::collection::batch_deposit`,
     arguments: [
       tx.object(MINT_CAP_ID),
+      tx.object(POOL_ID),
       tx.pure.vector("u64", numbers),
       tx.pure.vector("vector<u8>", names),
       tx.pure.vector("vector<u8>", descriptions),
       tx.pure.vector("vector<u8>", imageUrls),
-      tx.pure.address(RECIPIENT),
     ],
   });
 
   tx.setGasBudget(500_000_000); // 0.5 SUI — adjust if needed
 
-  console.log(`\nSubmitting batch_mint for ${TOTAL_SUPPLY} NFTs...`);
-  console.log("Recipient:", RECIPIENT);
+  console.log(`\nDepositing ${TOTAL_SUPPLY} NFTs into pool ${POOL_ID}...`);
 
   const result = await client.signAndExecuteTransaction({
     signer: keypair,

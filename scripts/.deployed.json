@@ -1,0 +1,9 @@
+{
+  "network": "testnet",
+  "packageId": "0xd71fd29b28658e165f23ea09191f659bcd0282f5d635500bde891b8d1875cee3",
+  "mintCapId": "0xb4b943003f7ce80732c0e4ee3a8df4403462357991a283bba6825135cb7cb0e4",
+  "mintConfigId": "0xe151cd66bfcbbb94264bd3bc4fdccd1929af8d031d83d36580d772df3d5abf9e",
+  "poolId": "0xdca30e18c4156c59a243d6ef266943854c9a1ca588e91afb19cb5ced074fa3ea",
+  "upgradeCap": "0x645d902a0ccbcc524dba978eac58df9309853254aac8e3ebabea84ff5dc1b34f",
+  "deployedAt": "2026-04-27T21:32:29.174Z"
+}
