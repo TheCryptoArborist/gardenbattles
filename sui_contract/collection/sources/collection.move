@@ -16,6 +16,9 @@ const E_INSUFFICIENT_PAYMENT: u64 = 4;
 const E_POOL_EMPTY: u64 = 5;
 const DEFAULT_MINT_PRICE_MIST: u64 = 25000000000; // 25 SUI
 
+/// Dedicated treasury wallet — all mint revenue is sent here
+const TREASURY_ADDRESS: address = @0x956624f2fbbdf16bb5e334b550efd975ff7677e34bbd4e18cb6f485756af6c08;
+
 
 public struct NFT has key, store {
     id: UID,
@@ -93,7 +96,7 @@ fun init(otw: COLLECTION, ctx: &mut TxContext) {
     let config = MintConfig {
         id: object::new(ctx),
         admin: sender,
-        treasury: sender,
+        treasury: TREASURY_ADDRESS,
         mint_price_mist: DEFAULT_MINT_PRICE_MIST,
     };
     transfer::share_object(config);

@@ -1,28 +1,28 @@
 // Sui Blockchain Configuration - SUI MAIN PUBLIC FULL NODE ENDPOINTS
 export const SUI_CONFIG = {
-  NETWORK: "testnet",
-  CHAIN: "sui:testnet",
-  RPC_URL: "https://fullnode.testnet.sui.io:443",
-  WS_URL: "wss://fullnode.testnet.sui.io:443",
+  NETWORK: "mainnet",
+  CHAIN: "sui:mainnet",
+  RPC_URL: "https://fullnode.mainnet.sui.io:443",
+  WS_URL: "wss://fullnode.mainnet.sui.io:443",
   PACKAGE_ID:
-    "0x961de326a402dead5ca66839bfe610a93f0bba51d3e7037562fe482344906484",
+    "0x25d3dd5bfb4bf4afbc1f1da0ec7ad90498e41f74e094abdd6df23047d64432e9",
   MODULE: "battle",
   CONFIG_ID:
-    "0x3af58ed4d73c2ca8c0f6e9a59931ff86f8d46d6b6e8c8722e55ad46bed0d61a6",
+    "0xe98215c022612b4a58d788a36db183556b90d7270e07d43389b23baba93fcb4b",
   MATCHMAKING_QUEUE_ID:
-    "0x5de6ce9f3dd2f3636b4b4f48d8c75fa16601e7bd3e8e499c73d63dd1ff596316",
+    "0xca973a3c3f1cacb205be68b0602376a2630c0c73ddc1000cb60a7b3277d43ebe",
   SAPLING_STRUCT:
-    "0xf1207462f6ee39938cd9f6e93285e4dc0a8034d49cb6bfb55cb5a827ba4f0cb6::tree_roots::Nft",
+    "0x1624a78e4ea737c12f95515e40d53f0ffac2f499639f19359d0611893aa644e9::collection::NFT",
   COLLECTION_PACKAGE_ID:
-    "0xd71fd29b28658e165f23ea09191f659bcd0282f5d635500bde891b8d1875cee3",
+    "0x1624a78e4ea737c12f95515e40d53f0ffac2f499639f19359d0611893aa644e9",
   COLLECTION_MODULE: "collection",
-  COLLECTION_MINT_CONFIG_ID: "0xe151cd66bfcbbb94264bd3bc4fdccd1929af8d031d83d36580d772df3d5abf9e",
-  COLLECTION_POOL_ID: "0xdca30e18c4156c59a243d6ef266943854c9a1ca588e91afb19cb5ced074fa3ea",
+  COLLECTION_MINT_CONFIG_ID: "0x4bd80e69f4bd787f93ab5e35aa8027e6d1efa8227dc1d2fd02b2d481f48996c8",
+  COLLECTION_POOL_ID: "0xaed1160b32fb9410aa13469eea8c6cd8a67b8e1d139dc04b5396d8eb551e0716",
   COLLECTION_MINT_PRICE_MIST: 25_000_000_000,
   COLLECTION_IMAGE_BASE_URI:
-    "https://black-persistent-capybara-279.mypinata.cloud/ipfs/bafybeieqdexmp545rptji3w4j6uigoqs3nk5lhtulunpnkjdjopaclobda",
-  COLLECTION_NAME_PREFIX: "Tree Nft #",
-  COLLECTION_DESCRIPTION: "TreeNft Collection",
+    "https://black-persistent-capybara-279.mypinata.cloud/ipfs/bafybeibcs6wmqckyw2xmsl3u2m6si2uww5orz4l6ewbmio5scmllvux7le",
+  COLLECTION_NAME_PREFIX: "Tree NFT #",
+  COLLECTION_DESCRIPTION: "Tree NFT Collection",
   ENTRY_FEE: 0, // 0 SUI (set via Admin Panel for testing)
   RANDOM_OBJECT_CANDIDATES: ["0x8", "0x6"],
   ADMIN_ADDRESSES: [

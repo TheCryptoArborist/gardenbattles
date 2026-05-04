@@ -3,6 +3,9 @@ module battle_garden::config {
     use sui::event;
     use battle_garden::errors;
 
+    /// Dedicated treasury wallet — all battle revenue is sent here
+    const TREASURY_ADDRESS: address = @0x956624f2fbbdf16bb5e334b550efd975ff7677e34bbd4e18cb6f485756af6c08;
+
     public struct Config has key {
         id: UID,
         admin: address,
@@ -45,7 +48,7 @@ module battle_garden::config {
         let config = Config {
             id: object::new(ctx),
             admin: sender,
-            treasury: sender,
+            treasury: TREASURY_ADDRESS,
             entry_fee: 100000000,
             winner_payout: 150000000,
             treasury_share: 50000000,

@@ -1,9 +1,9 @@
 {
-  "network": "testnet",
-  "packageId": "0xd71fd29b28658e165f23ea09191f659bcd0282f5d635500bde891b8d1875cee3",
-  "mintCapId": "0xb4b943003f7ce80732c0e4ee3a8df4403462357991a283bba6825135cb7cb0e4",
-  "mintConfigId": "0xe151cd66bfcbbb94264bd3bc4fdccd1929af8d031d83d36580d772df3d5abf9e",
-  "poolId": "0xdca30e18c4156c59a243d6ef266943854c9a1ca588e91afb19cb5ced074fa3ea",
-  "upgradeCap": "0x645d902a0ccbcc524dba978eac58df9309853254aac8e3ebabea84ff5dc1b34f",
-  "deployedAt": "2026-04-27T21:32:29.174Z"
+  "network": "mainnet",
+  "packageId": "0x1624a78e4ea737c12f95515e40d53f0ffac2f499639f19359d0611893aa644e9",
+  "mintCapId": "0x87c539ea9eab914197d11098bc92e9fbf22aea0311616f5300893136b9994004",
+  "mintConfigId": "0x4bd80e69f4bd787f93ab5e35aa8027e6d1efa8227dc1d2fd02b2d481f48996c8",
+  "poolId": "0xaed1160b32fb9410aa13469eea8c6cd8a67b8e1d139dc04b5396d8eb551e0716",
+  "upgradeCap": "0x3fd217efe866e24927332b39a1d477e7c44b9d6bcff4c134c6e604b0ca31aeb6",
+  "deployedAt": "2026-05-04T22:21:29.292Z"
 }
