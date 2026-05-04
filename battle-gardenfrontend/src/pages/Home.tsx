@@ -160,12 +160,8 @@ export default function Home() {
             >
               Social
             </a>
-            <a
-              href="#"
-              onClick={(e) => {
-                e.preventDefault();
-                setArboretumModalOpen(true);
-              }}
+            <Link
+              href="/mint"
               style={{
                 color: '#f7fafc',
                 textDecoration: 'none',
@@ -180,7 +176,7 @@ export default function Home() {
               data-testid="link-arboretum"
             >
               Arboretum
-            </a>
+            </Link>
             <a
               href="#"
               onClick={(e) => {
@@ -1157,26 +1153,30 @@ export default function Home() {
             >
               The Arboretum
             </h2>
+            <Link
+              href="/mint"
+              style={{
+                fontSize: 'clamp(1.2rem, 3vw, 1.5rem)',
+                color: '#34d399',
+                marginBottom: 'clamp(1rem, 3vw, 1.5rem)',
+                display: 'inline-block',
+                textDecoration: 'underline',
+                fontWeight: 'bold',
+              }}
+              onClick={() => setArboretumModalOpen(false)}
+            >
+              Mint your Sapling NFT to Enter
+            </Link>
             <p
               style={{
-                fontSize: 'clamp(1rem, 2.5vw, 1.2rem)',
+                fontSize: 'clamp(0.9rem, 2.2vw, 1rem)',
                 color: '#f7fafc',
                 marginBottom: 'clamp(1.5rem, 4vw, 2rem)',
                 lineHeight: '1.6',
               }}
             >
-              Coming Soon in Q4 2025
-            </p>
-            <p
-              style={{
-                fontSize: 'clamp(0.9rem, 2.2vw, 1rem)',
-                color: '#34d399',
-                marginBottom: 'clamp(1.5rem, 4vw, 2rem)',
-                lineHeight: '1.6',
-              }}
-            >
-              The Arboretum will be your gateway to explore, collect, and nurture your NFT forest. 
-              Stay tuned for exclusive features, enhanced battle mechanics, and community-driven growth!
+              The Arboretum is your gateway to explore, collect, and nurture your NFT forest. 
+              Mint your unique Sapling now to unlock exclusive features and community-driven growth!
             </p>
             <button
               onClick={() => setArboretumModalOpen(false)}

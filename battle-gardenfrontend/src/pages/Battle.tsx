@@ -380,12 +380,8 @@ export default function Battle() {
             >
               Home
             </Link>
-            <a
-              href="#"
-              onClick={(e) => {
-                e.preventDefault();
-                setArboretumModalOpen(true);
-              }}
+            <Link
+              href="/mint"
               style={{
                 color: "#00ff00",
                 margin: "0",
@@ -400,7 +396,7 @@ export default function Battle() {
               data-testid="link-arboretum"
             >
               Arboretum
-            </a>
+            </Link>
           </nav>
 
           <div
@@ -990,8 +986,21 @@ export default function Battle() {
               fontSize: "clamp(16px, 4vw, 24px)",
             }}
           >
-            Coming Soon: Phase 2 – The Arboretum (Q4 2025)
+            Explore The Arboretum
           </h2>
+          <Link
+            href="/mint"
+            style={{
+              display: "inline-block",
+              color: "#00ffcc",
+              fontSize: "clamp(14px, 3.5vw, 22px)",
+              marginBottom: "15px",
+              textDecoration: "underline",
+              fontWeight: "bold",
+            }}
+          >
+            Click here to Mint your Sapling NFT and join the Arboretum!
+          </Link>
           <p
             style={{
               color: "#00ffcc",
@@ -1120,7 +1129,7 @@ export default function Battle() {
                 textAlign: "center",
               }}
             >
-              <h2
+            <h2
                 style={{
                   fontSize: "clamp(1.5rem, 4vw, 2.5rem)",
                   color: "#00ff00",
@@ -1131,17 +1140,21 @@ export default function Battle() {
               >
                 The Arboretum
               </h2>
-              <p
+              <Link
+                href="/mint"
                 style={{
-                  fontSize: "clamp(1rem, 2.5vw, 1.2rem)",
+                  fontSize: "clamp(1.2rem, 3vw, 1.5rem)",
                   color: "#00ffcc",
-                  marginBottom: "clamp(1.5rem, 4vw, 2rem)",
-                  lineHeight: "1.6",
+                  marginBottom: "clamp(1rem, 3vw, 1.5rem)",
+                  display: "inline-block",
+                  textDecoration: "underline",
+                  fontWeight: "bold",
                   fontFamily: "Orbitron, sans-serif",
                 }}
+                onClick={() => setArboretumModalOpen(false)}
               >
-                Coming Soon in Q4 2025
-              </p>
+                Mint your Sapling NFT to Enter
+              </Link>
               <p
                 style={{
                   fontSize: "clamp(0.9rem, 2.2vw, 1rem)",
@@ -1151,9 +1164,9 @@ export default function Battle() {
                   fontFamily: "Orbitron, sans-serif",
                 }}
               >
-                The Arboretum will be your gateway to explore, collect, and
-                nurture your NFT forest. Stay tuned for exclusive features,
-                enhanced battle mechanics, and community-driven growth!
+                The Arboretum is your gateway to explore, collect, and
+                nurture your NFT forest. Mint your unique Sapling now to unlock 
+                exclusive features and community-driven growth!
               </p>
               <button
                 onClick={() => setArboretumModalOpen(false)}

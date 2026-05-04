@@ -113,8 +113,8 @@ export default function Mint() {
           </div>
         </div>
 
-        <p style={{ marginTop: 10, marginBottom: 20, opacity: 0.95 }}>
-          Pay {mintPriceSui} SUI and receive a random Tree NFT from the pool instantly in your wallet.
+        <p style={{ marginTop: 10, marginBottom: 20, opacity: 0.95, fontSize: "1.1rem", fontStyle: "italic", color: "#9efcc2" }}>
+          Unleash the power of nature! Claim your unique Tree NFT from our mystical arboretum. Each seed holds a rare essence, ready to grow and dominate in the Garden Battles.
         </p>
 
         <button
@@ -141,11 +141,7 @@ export default function Mint() {
           </p>
         )}
 
-        <div style={{ marginTop: 20, fontSize: 13, opacity: 0.85 }}>
-          <div>Collection package: {SUI_CONFIG.COLLECTION_PACKAGE_ID}</div>
-          <div>Pool: {(SUI_CONFIG as any).COLLECTION_POOL_ID ?? "not set"}</div>
-          <div>Network: {SUI_CONFIG.NETWORK}</div>
-        </div>
+
       </div>
     </div>
   );
