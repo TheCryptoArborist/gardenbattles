@@ -47,7 +47,9 @@ export interface NftData {
   location: "wallet" | "kiosk";
   kioskId?: string;
   kioskCapId?: string;
+  imageUrl?: string;
 }
+
 
 interface SuiWalletContextType {
   address: string | null;
@@ -254,8 +256,21 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
 
             if (allowedTypes.includes(type)) {
               const id = obj?.data?.objectId;
-              if (id) return { nftId: id, nftType: type, location: "wallet" };
+              // Extract image from Display or object field
+              // @ts-ignore
+              const displayUrl = obj?.data?.display?.data?.image_url;
+              // @ts-ignore
+              const contentUrlField = obj?.data?.content?.fields?.image_url;
+              // Handle case where image_url is a Url struct { url: string }
+              const contentUrl = typeof contentUrlField === 'string' 
+                ? contentUrlField 
+                : (contentUrlField?.fields?.url || contentUrlField?.url || "");
+              
+              const imageUrl = displayUrl || contentUrl || "";
+              
+              if (id) return { nftId: id, nftType: type, location: "wallet", imageUrl };
             }
+
           }
 
           cursor = res.hasNextPage ? (res.nextCursor ?? null) : null;
@@ -280,14 +295,26 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
 
               if (obj?.data?.type && allowedTypes.includes(obj.data.type)) {
                 if (fieldType.includes("::Item")) {
+                  // @ts-ignore
+                  const displayUrl = obj?.data?.display?.data?.image_url;
+                  // @ts-ignore
+                  const contentUrlField = obj?.data?.content?.fields?.image_url;
+                  const contentUrl = typeof contentUrlField === 'string' 
+                    ? contentUrlField 
+                    : (contentUrlField?.fields?.url || contentUrlField?.url || "");
+                  
+                  const imageUrl = displayUrl || contentUrl || "";
+                  
                   return {
                     nftId,
                     nftType: obj.data.type,
                     location: "kiosk",
                     kioskId,
                     kioskCapId: ownerCapId,
+                    imageUrl
                   };
                 }
+
               }
             }
           } catch {
@@ -364,7 +391,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
 
       return new Promise<void>((resolve, reject) => {
         signAndExecuteTransaction(
-          { transaction: tx, chain: "sui:testnet" },
+          { transaction: tx, chain: SUI_CONFIG.CHAIN },
           {
             onSuccess: (result) => {
               console.log("join_queue tx success:", result.digest);
@@ -406,7 +433,8 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
 
       return new Promise<void>((resolve, reject) => {
         signAndExecuteTransaction(
-          { transaction: tx, chain: "sui:testnet" },
+          { transaction: tx, chain: SUI_CONFIG.CHAIN },
+
           {
             onSuccess: () => resolve(),
             onError: (err: any) =>

@@ -4,21 +4,25 @@ import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
 import { Transaction } from "@mysten/sui/transactions";
 
 // ─── Deployed IDs ─────────────────────────────────────────────────────────────
-const PACKAGE_ID  = "0x1624a78e4ea737c12f95515e40d53f0ffac2f499639f19359d0611893aa644e9";
-const MINT_CAP_ID = "0x87c539ea9eab914197d11098bc92e9fbf22aea0311616f5300893136b9994004";
-const POOL_ID     = "0xaed1160b32fb9410aa13469eea8c6cd8a67b8e1d139dc04b5396d8eb551e0716";
+const PACKAGE_ID  = "0xf6c6d439ea0da2f3e9ba79e4992a7a4c113215fbf54c442ac9020c315f953705";
+const MINT_CAP_ID = "0x19c4bdb7bddacdc44df27432ae6dd7b5a75da81764c7f62d83394412e8aa5c1a";
+const POOL_ID     = "0x8cb91464eec7ada1af801a439207647d78de66bc0d4f124d6437091745a0163a";
 
 // ─── IPFS base ────────────────────────────────────────────────────────────────
 // Update this to the new IPFS folder CID when uploading a new batch of images
 const IPFS_BASE =
-  "https://black-persistent-capybara-279.mypinata.cloud/ipfs/bafybeif6hexxcafd3k7xsqaqisax3lp35shh62p753qtqcdx4c2ir4l6je";
+  "https://gateway.pinata.cloud/ipfs/bafybeifjez2v5nf4i3trjf3xelx2rhgy3ggybqrsd6bsswpv2mesifasyi";
+
+// If your IPFS files are named 201.jpg, 202.jpg but your NFTs start at #201, set this to 0
+const FILENAME_OFFSET = 0; 
+
 
 const COLLECTION_NAME        = "Tree Nft";
 const COLLECTION_DESCRIPTION = "TreeNft Collection";
 
 // ─── Network ──────────────────────────────────────────────────────────────────
 // Override via env: NETWORK=mainnet npx ts-node add-to-pool.ts
-const NETWORK = (process.env.NETWORK ?? "testnet") as "mainnet" | "testnet";
+const NETWORK = (process.env.NETWORK ?? "mainnet") as "mainnet" | "testnet";
 
 // ─── Range config ─────────────────────────────────────────────────────────────
 // Override via env: START_NUM=101 COUNT=50 npx ts-node add-to-pool.ts
@@ -109,8 +113,9 @@ async function main() {
     numbers.push(num);
     names.push(toBytes(`${COLLECTION_NAME} #${num}`));
     descs.push(toBytes(COLLECTION_DESCRIPTION));
-    images.push(toBytes(`${IPFS_BASE}/${num}.jpg`));
+    images.push(toBytes(`${IPFS_BASE}/${num + FILENAME_OFFSET}.jpg`));
     rarities.push(toBytes(rarityLabels[i]));
+
   }
 
   const tx = new Transaction();

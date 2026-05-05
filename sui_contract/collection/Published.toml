@@ -3,7 +3,7 @@
 
 [published.mainnet]
 chain-id = "35834a8a"
-published-at = "0x1624a78e4ea737c12f95515e40d53f0ffac2f499639f19359d0611893aa644e9"
-original-id = "0x1624a78e4ea737c12f95515e40d53f0ffac2f499639f19359d0611893aa644e9"
+published-at = "0xf6c6d439ea0da2f3e9ba79e4992a7a4c113215fbf54c442ac9020c315f953705"
+original-id = "0xf6c6d439ea0da2f3e9ba79e4992a7a4c113215fbf54c442ac9020c315f953705"
 version = 1
-upgrade-capability = "0x3fd217efe866e24927332b39a1d477e7c44b9d6bcff4c134c6e604b0ca31aeb6"
+upgrade-capability = "0xcc8684079b65605c1c31e95b4801c53f6f69ec63426feecfacfabd2f06d36568"

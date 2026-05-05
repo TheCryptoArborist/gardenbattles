@@ -15,6 +15,7 @@ export default function Mint() {
 
   const [isMinting, setIsMinting] = useState(false);
   const [status, setStatus] = useState<string>("");
+  const [mintedNft, setMintedNft] = useState<{ name: string; imageUrl: string } | null>(null);
 
   const mintPriceSui = useMemo(
     () => (SUI_CONFIG.COLLECTION_MINT_PRICE_MIST / 1_000_000_000).toFixed(2),
@@ -72,8 +73,36 @@ export default function Mint() {
             chain: SUI_CONFIG.CHAIN,
           },
           {
-            onSuccess: ({ digest }) => {
+            onSuccess: async (result) => {
+              const { digest } = result;
               setStatus(`Success! NFT sent to your wallet. Tx: ${digest}`);
+              
+              // Try to find the minted NFT in object changes
+              try {
+                const nftChange = result.objectChanges?.find(
+                  (c: any) => c.type === "created" && c.objectType?.includes("::collection::NFT")
+                );
+                
+                if (nftChange && "objectId" in nftChange) {
+                  const obj = await suiClient.getObject({
+                    id: nftChange.objectId,
+                    options: { showContent: true, showDisplay: true }
+                  });
+                  
+                  // @ts-ignore
+                  const name = obj.data?.display?.data?.name || obj.data?.content?.fields?.name || "Tree NFT";
+                  // @ts-ignore
+                  const displayUrl = obj.data?.display?.data?.image_url;
+                  // @ts-ignore
+                  const contentUrlField = obj.data?.content?.fields?.image_url;
+                  const imageUrl = displayUrl || (typeof contentUrlField === 'string' ? contentUrlField : contentUrlField?.fields?.url || contentUrlField?.url) || "";
+                  
+                  setMintedNft({ name, imageUrl });
+                }
+              } catch (e) {
+                console.error("Failed to fetch minted NFT details", e);
+              }
+              
               resolve();
             },
             onError: (error) => {
@@ -139,6 +168,22 @@ export default function Mint() {
           <p style={{ marginTop: 14, whiteSpace: "pre-wrap", color: status.startsWith("Success") ? "#9efcc2" : "#f7fafc" }}>
             {status}
           </p>
+        )}
+
+        {mintedNft && (
+          <div style={{ marginTop: 24, textAlign: "center", animation: "fadeIn 1s ease" }}>
+            <h3 style={{ color: "#9efcc2", marginBottom: 12 }}>You received: {mintedNft.name}</h3>
+            <img 
+              src={mintedNft.imageUrl} 
+              alt={mintedNft.name} 
+              style={{ 
+                maxWidth: "300px", 
+                borderRadius: 12, 
+                border: "3px solid #d4a017",
+                boxShadow: "0 0 20px rgba(212, 160, 23, 0.4)" 
+              }} 
+            />
+          </div>
         )}
 
 

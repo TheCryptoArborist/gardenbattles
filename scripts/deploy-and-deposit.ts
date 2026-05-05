@@ -32,7 +32,11 @@ import { Transaction } from "@mysten/sui/transactions";
 // ─── Config ───────────────────────────────────────────────────────────────────
 
 const IPFS_BASE =
-  "https://black-persistent-capybara-279.mypinata.cloud/ipfs/bafybeibcs6wmqckyw2xmsl3u2m6si2uww5orz4l6ewbmio5scmllvux7le";
+  "https://gateway.pinata.cloud/ipfs/bafybeieqdexmp545rptji3w4j6uigoqs3nk5lhtulunpnkjdjopaclobda";
+
+// If your IPFS files are named 1.jpg, 2.jpg but your NFTs start at #1, set this to 0
+const FILENAME_OFFSET = 0; 
+
 
 const COLLECTION_NAME   = "Tree NFT";
 const COLLECTION_DESC   = "A unique tree from the Tree NFT collection.";
@@ -217,8 +221,9 @@ async function batchDeposit(
     numberVec.push(n);
     nameVec.push(toBytes(`${COLLECTION_NAME} #${n}`));
     descVec.push(toBytes(`${COLLECTION_DESC} Rarity: ${rarity}`));
-    imageVec.push(toBytes(`${IPFS_BASE}/${n}.jpg`));
+    imageVec.push(toBytes(`${IPFS_BASE}/${n + FILENAME_OFFSET}.jpg`));
     rarityVec.push(toBytes(rarity));
+
   }
 
   console.log("\n🌱 Depositing", TOTAL_SUPPLY, "NFTs into Pool", poolId, "...");

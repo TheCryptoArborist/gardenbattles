@@ -8,8 +8,12 @@ import BattleDialog from "@/components/BattleDialog";
 import WaitingOverlay from "@/components/WaitingOverlay";
 import AdminPanel from "@/components/AdminPanel";
 
-function getNFTImage(growth: number): string {
+function getNFTImage(growth: number, nftImageUrl?: string): string {
+  // If we have a custom NFT image, use it once the "seed" phase is over (or always)
+  // For now, let's use the custom image if growth > 25, otherwise show the seed
   if (growth <= 25) return "/assets/seed.jpg";
+  if (nftImageUrl) return nftImageUrl;
+  
   if (growth <= 50) return "/assets/sapling.jpg";
   if (growth <= 75) return "/assets/sapling2.jpg";
   return "/assets/full_tree.jpg";
@@ -39,6 +43,8 @@ export default function Battle() {
   const [arboretumModalOpen, setArboretumModalOpen] = useState(false);
   const [isRefunding, setIsRefunding] = useState(false);
   const [isJoining, setIsJoining] = useState(false);
+  const [playerNftImageUrl, setPlayerNftImageUrl] = useState<string | null>(null);
+  const [opponentNftImageUrl, setOpponentNftImageUrl] = useState<string | null>(null);
 
   const playerAnimationTimer = useRef<NodeJS.Timeout | null>(null);
   const opponentAnimationTimer = useRef<NodeJS.Timeout | null>(null);
@@ -55,9 +61,10 @@ export default function Battle() {
       setDialogMessage("Scanning for NFTs...");
 
       const nftData = await getFirstValidSaplingNft(address!);
-
+      
       if (nftData) {
         setDialogMessage("NFT found! Joining queue...");
+        setPlayerNftImageUrl(nftData.imageUrl || null);
         await joinBattle(nftData);
         setDialogMessage("Joined queue! Waiting for opponent...");
         setTimeout(() => setDialogOpen(false), 2000);
@@ -204,6 +211,20 @@ export default function Battle() {
     }
     setPrevOpponentGrowth(opponentGrowth);
   }, [opponentGrowth, prevOpponentGrowth]);
+
+  // Fetch opponent's NFT image when battle starts
+  useEffect(() => {
+    if (battleState && isConnected && address) {
+      const opponentAddress = isPlayer1 ? battleState.player2 : battleState.player1;
+      if (opponentAddress && opponentAddress !== "0x0" && !opponentNftImageUrl) {
+        getFirstValidSaplingNft(opponentAddress).then(nft => {
+          if (nft?.imageUrl) {
+            setOpponentNftImageUrl(nft.imageUrl);
+          }
+        });
+      }
+    }
+  }, [battleState, isConnected, address, isPlayer1, opponentNftImageUrl, getFirstValidSaplingNft]);
 
   // Cleanup timers on unmount
   useEffect(() => {
@@ -559,7 +580,7 @@ export default function Battle() {
               data-testid="nft-card-player"
             >
               <img
-                src={getNFTImage(playerGrowth)}
+                src={getNFTImage(playerGrowth, playerNftImageUrl || undefined)}
                 alt="Player 1 Sapling"
                 style={{
                   maxWidth: "90%",
@@ -693,7 +714,7 @@ export default function Battle() {
               data-testid="nft-card-opponent"
             >
               <img
-                src={getNFTImage(opponentGrowth)}
+                src={getNFTImage(opponentGrowth, opponentNftImageUrl || undefined)}
                 alt="Player 2 Sapling"
                 style={{
                   maxWidth: "90%",

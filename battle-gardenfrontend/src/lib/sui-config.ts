@@ -5,22 +5,22 @@ export const SUI_CONFIG = {
   RPC_URL: "https://fullnode.mainnet.sui.io:443",
   WS_URL: "wss://fullnode.mainnet.sui.io:443",
   PACKAGE_ID:
-    "0x25d3dd5bfb4bf4afbc1f1da0ec7ad90498e41f74e094abdd6df23047d64432e9",
+    "0x5d20351dc2275d127b4cbd3f5fb05286dc8a7bf347f3a9bdfee073e66ea08fa0",
   MODULE: "battle",
   CONFIG_ID:
-    "0xe98215c022612b4a58d788a36db183556b90d7270e07d43389b23baba93fcb4b",
+    "0xbe3fe19aea25beb8d71c1837bd9750af44cc36115d7683abe5229a75604e4ade",
   MATCHMAKING_QUEUE_ID:
-    "0xca973a3c3f1cacb205be68b0602376a2630c0c73ddc1000cb60a7b3277d43ebe",
+    "0xcdd3efb7736cd24aaa640f10d6e3cd11c7a9b2f1db011f4519a2dcb0ebe6a646",
   SAPLING_STRUCT:
-    "0x1624a78e4ea737c12f95515e40d53f0ffac2f499639f19359d0611893aa644e9::collection::NFT",
+    "0xf6c6d439ea0da2f3e9ba79e4992a7a4c113215fbf54c442ac9020c315f953705::collection::NFT",
   COLLECTION_PACKAGE_ID:
-    "0x1624a78e4ea737c12f95515e40d53f0ffac2f499639f19359d0611893aa644e9",
+    "0xf6c6d439ea0da2f3e9ba79e4992a7a4c113215fbf54c442ac9020c315f953705",
   COLLECTION_MODULE: "collection",
-  COLLECTION_MINT_CONFIG_ID: "0x4bd80e69f4bd787f93ab5e35aa8027e6d1efa8227dc1d2fd02b2d481f48996c8",
-  COLLECTION_POOL_ID: "0xaed1160b32fb9410aa13469eea8c6cd8a67b8e1d139dc04b5396d8eb551e0716",
+  COLLECTION_MINT_CONFIG_ID: "0xe83616020f61f73b30c40fd3f888ed397626afd071bd4666374c306d8e98b06b",
+  COLLECTION_POOL_ID: "0x8cb91464eec7ada1af801a439207647d78de66bc0d4f124d6437091745a0163a",
   COLLECTION_MINT_PRICE_MIST: 25_000_000_000,
   COLLECTION_IMAGE_BASE_URI:
-    "https://black-persistent-capybara-279.mypinata.cloud/ipfs/bafybeibcs6wmqckyw2xmsl3u2m6si2uww5orz4l6ewbmio5scmllvux7le",
+    "https://gateway.pinata.cloud/ipfs/bafybeieqdexmp545rptji3w4j6uigoqs3nk5lhtulunpnkjdjopaclobda",
   COLLECTION_NAME_PREFIX: "Tree NFT #",
   COLLECTION_DESCRIPTION: "Tree NFT Collection",
   ENTRY_FEE: 0, // 0 SUI (set via Admin Panel for testing)

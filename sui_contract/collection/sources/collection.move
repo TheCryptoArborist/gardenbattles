@@ -7,7 +7,7 @@ use sui::display;
 use sui::event;
 use sui::package;
 use sui::sui::SUI;
-use sui::url::{Self, Url};
+
 
 const E_ADMIN_ONLY: u64 = 1;
 const E_INVALID_ADDRESS: u64 = 2;
@@ -25,7 +25,7 @@ public struct NFT has key, store {
     number: u64,
     name: String,
     description: String,
-    image_url: Url,
+    image_url: String,
     rarity: String,
 }
 
@@ -67,6 +67,7 @@ fun init(otw: COLLECTION, ctx: &mut TxContext) {
     let sender = ctx.sender();
     let keys = vector[
         b"name".to_string(),
+        b"link".to_string(),
         b"description".to_string(),
         b"image_url".to_string(),
         b"project_url".to_string(),
@@ -76,9 +77,10 @@ fun init(otw: COLLECTION, ctx: &mut TxContext) {
 
     let values = vector[
         b"{name}".to_string(),
+        b"{image_url}".to_string(),
         b"{description}".to_string(),
         b"{image_url}".to_string(),
-        b"https://black-persistent-capybara-279.mypinata.cloud/ipfs/bafybeibcs6wmqckyw2xmsl3u2m6si2uww5orz4l6ewbmio5scmllvux7le/".to_string(),
+        b"https://gateway.pinata.cloud/ipfs/bafybeicbhuvbtuo5whbpkxjtodjy32a3irxwwrorune7i6bs3haoazhhgy/".to_string(),
         b"Tree NFT Collection".to_string(),
         b"{rarity}".to_string(),
     ];
@@ -124,7 +126,7 @@ public entry fun mint(
         number,
         name: string::utf8(name),
         description: string::utf8(description),
-        image_url: url::new_unsafe_from_bytes(image_url),
+        image_url: string::utf8(image_url),
         rarity: string::utf8(rarity),
     };
 
@@ -162,7 +164,7 @@ public entry fun batch_deposit(
             number: *numbers.borrow(i),
             name: string::utf8(*names.borrow(i)),
             description: string::utf8(*descriptions.borrow(i)),
-            image_url: url::new_unsafe_from_bytes(*image_urls.borrow(i)),
+            image_url: string::utf8(*image_urls.borrow(i)),
             rarity: string::utf8(*rarities.borrow(i)),
         };
         event::emit(NFTMinted {
@@ -224,7 +226,7 @@ public fun pool_size(pool: &Pool): u64 { pool.nfts.length() }
 public fun number(nft: &NFT): u64 { nft.number }
 public fun name(nft: &NFT): &String { &nft.name }
 public fun description(nft: &NFT): &String { &nft.description }
-public fun image_url(nft: &NFT): &Url { &nft.image_url }
+public fun image_url(nft: &NFT): &String { &nft.image_url }
 public fun rarity(nft: &NFT): &String { &nft.rarity }
 
 public entry fun burn(nft: NFT) {
