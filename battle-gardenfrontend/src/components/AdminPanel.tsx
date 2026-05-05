@@ -50,8 +50,8 @@ export default function AdminPanel({
       const defaultCollections = [
         {
           id: "1",
-          name: "Tree Roots NFT",
-          type: "0xf1207462f6ee39938cd9f6e93285e4dc0a8034d49cb6bfb55cb5a827ba4f0cb6::tree_roots::Nft",
+          name: "Tree NFT",
+          type: SUI_CONFIG.SAPLING_STRUCT,
         },
       ];
       setCollections(defaultCollections);
@@ -92,7 +92,7 @@ export default function AdminPanel({
         signAndExecuteTransaction(
           {
             transaction: tx,
-            chain: "sui:testnet",
+            chain: SUI_CONFIG.CHAIN,
           },
           {
             onSuccess: () => {
@@ -159,7 +159,7 @@ export default function AdminPanel({
         signAndExecuteTransaction(
           {
             transaction: tx,
-            chain: "sui:testnet",
+            chain: SUI_CONFIG.CHAIN,
           },
           {
             onSuccess: () => {
@@ -219,7 +219,7 @@ export default function AdminPanel({
         signAndExecuteTransaction(
           {
             transaction: tx,
-            chain: "sui:testnet",
+            chain: SUI_CONFIG.CHAIN,
           },
           {
             onSuccess: () => {

@@ -23,7 +23,7 @@ export const SUI_CONFIG = {
     "https://gateway.pinata.cloud/ipfs/bafybeieqdexmp545rptji3w4j6uigoqs3nk5lhtulunpnkjdjopaclobda",
   COLLECTION_NAME_PREFIX: "Tree NFT #",
   COLLECTION_DESCRIPTION: "Tree NFT Collection",
-  ENTRY_FEE: 0, // 0 SUI (set via Admin Panel for testing)
+  ENTRY_FEE: 3_000_000_000, // 3 SUI
   RANDOM_OBJECT_CANDIDATES: ["0x8", "0x6"],
   ADMIN_ADDRESSES: [
     "0xaf19c438c96320d14954a63c06d71fab99a2165800c839d667bd1803ecf86f36", // Contract deployer

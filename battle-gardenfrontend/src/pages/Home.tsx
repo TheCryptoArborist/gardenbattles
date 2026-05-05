@@ -389,7 +389,7 @@ export default function Home() {
                 }}
               >
                 <h3 style={{ fontSize: 'clamp(1rem, 2.8vw, 1.3rem)', color: '#d4a017' }}>NFTrees</h3>
-                <p style={{ fontSize: 'clamp(0.8rem, 2.2vw, 0.9rem)' }}>Utility NFTrees in development</p>
+                <Link href="/mint" style={{ fontSize: 'clamp(0.8rem, 2.2vw, 0.9rem)', color: '#34d399', textDecoration: 'none', fontWeight: 'bold', cursor: 'pointer' }}>Utility NFTrees: Live Now!</Link>
               </div>
               <div
                 style={{
@@ -560,7 +560,7 @@ export default function Home() {
                 NFTrees
               </h3>
               <p style={{ fontSize: 'clamp(0.8rem, 2.2vw, 0.9rem)' }}>
-                Utility NFTrees in development.
+                <Link href="/mint" style={{ color: '#34d399', textDecoration: 'underline', fontWeight: 'bold', cursor: 'pointer' }}>Utility NFTrees: Live Now!</Link>
               </p>
             </div>
             <div
@@ -647,7 +647,7 @@ export default function Home() {
             $TREE NFTs unlock monthly SUI airdrops from staking pools, funded by developers, with 80% of sales fueling $TREE buybacks for locked liquidity. 5% will be donated to treefund.org and be livestreamed on Youtube, with reciept for verification.
           </p>
           <p style={{ fontSize: 'clamp(0.8rem, 2.2vw, 0.9rem)', marginBottom: 'clamp(0.8rem, 2vw, 1rem)', maxWidth: '600px', marginLeft: 'auto', marginRight: 'auto' }}>
-            Gain access to explosive gaming opportunities as a holder, and unlock ongoing ecosystem benefits. Crafted with stunning worldly tree designs and arborist-inspired details, 5% of every sale supports treefund.org, donated live on The Crypto Arborist's YouTube. NFT Games will begin development in Q4 2025.
+            Gain access to explosive gaming opportunities as a holder, and unlock ongoing ecosystem benefits. Crafted with stunning worldly tree designs and arborist-inspired details, 5% of every sale supports treefund.org, donated live on The Crypto Arborist's YouTube. <Link href="/battle" style={{ color: '#34d399', fontWeight: 'bold', textDecoration: 'underline', cursor: 'pointer' }}>The Battle Garden is now LIVE!</Link>
           </p>
           <div>
             <div style={{ display: 'flex', justifyContent: 'center', gap: '0.8rem', flexWrap: 'wrap' }}>
