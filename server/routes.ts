@@ -5,11 +5,11 @@ import { storage } from "./storage";
 
 // ─── Sui polling configuration ────────────────────────────────────────────────
 const SUI_RPC_URL =
-  process.env.SUI_RPC_URL || "https://fullnode.testnet.sui.io:443";
+  process.env.SUI_RPC_URL || "https://fullnode.mainnet.sui.io:443";
 const PACKAGE_ID =
   process.env.BATTLE_PACKAGE_ID ||
   process.env.PACKAGE_ID ||
-  "0x961de326a402dead5ca66839bfe610a93f0bba51d3e7037562fe482344906484";
+  "0x25d3dd5bfb4bf4afbc1f1da0ec7ad90498e41f74e094abdd6df23047d64432e9";
 const MODULE = process.env.BATTLE_MODULE || "battle";
 const BATTLE_UPDATE_EVENT = `${PACKAGE_ID}::${MODULE}::BattleUpdate`;
 const POLL_INTERVAL_MS = 2_000; // poll every 2 s
