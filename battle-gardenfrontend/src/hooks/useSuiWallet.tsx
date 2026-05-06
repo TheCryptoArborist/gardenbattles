@@ -190,8 +190,64 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
       socketRef.current = null;
     };
   }, [isConnected, address]);
+  
+  // ── 3. Direct Sui Polling Fallback ──────────────────────────────────────────
+  // This allows the app to work on Netlify/Vercel without a relay server.
+  useEffect(() => {
+    if (!isConnected || !address) return;
 
-  // ── 3. Scan wallet / kiosks for a valid NFT ───────────────────────────────
+    const pollInterval = setInterval(async () => {
+      // If we are waiting for a match OR in an active battle, poll for updates
+      // (Even if socket is connected, direct polling is a safe fallback)
+      if (isWaiting || (battleState && !battleState.winner)) {
+        try {
+          const events = await suiClient.queryEvents({
+            query: { MoveEventType: getBattleUpdateEvent() },
+            limit: 20,
+            descending: true,
+          });
+
+          for (const event of events.data) {
+            const json: any = event.parsedJson;
+            if (!json) continue;
+
+            const p1 = json.player1?.toLowerCase();
+            const p2 = json.player2?.toLowerCase();
+
+            // Is this battle relevant to us?
+            if (p1 === address.toLowerCase() || p2 === address.toLowerCase()) {
+              const newState: BattleState = {
+                battleId: json.battle_id,
+                player1: p1,
+                player2: p2,
+                player1Moves: json.player1_moves ?? [],
+                player2Moves: json.player2_moves ?? [],
+                player1Growth: Number(json.player1_growth ?? 0),
+                player2Growth: Number(json.player2_growth ?? 0),
+                winner: json.winner && json.winner !== "0x0" ? json.winner.toLowerCase() : null,
+              };
+
+              // Update state if it's newer or we were waiting
+              if (isWaiting || JSON.stringify(newState) !== JSON.stringify(battleState)) {
+                console.log("[polling] detected battle update from blockchain");
+                setBattleState(newState);
+                if (newState.player2 && newState.player2 !== "0x0") {
+                  setIsWaiting(false);
+                }
+              }
+              break; // Found our most recent battle, stop searching
+            }
+          }
+        } catch (err) {
+          console.error("[polling] Sui RPC error:", err);
+        }
+      }
+    }, 3000); // Poll every 3 seconds
+
+    return () => clearInterval(pollInterval);
+  }, [isConnected, address, isWaiting, battleState, suiClient]);
+
+  // ── 4. Scan wallet / kiosks for a valid NFT ───────────────────────────────
   const getFirstValidSaplingNft = useCallback(
     async (owner: string): Promise<NftData | null> => {
       const stored = localStorage.getItem("allowed_nft_collections");
