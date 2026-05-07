@@ -3,10 +3,12 @@ import { Link } from "wouter";
 import { Trophy } from "lucide-react";
 import { ConnectButton } from "@mysten/dapp-kit";
 import { useSuiWallet } from "@/hooks/useSuiWallet";
-import { MOVE_LABELS, SUI_CONFIG } from "@/lib/sui-config";
+import { MOVE_LABELS, MOVE_META, SUI_CONFIG } from "@/lib/sui-config";
 import BattleDialog from "@/components/BattleDialog";
 import WaitingOverlay from "@/components/WaitingOverlay";
 import AdminPanel from "@/components/AdminPanel";
+import HowToPlay from "@/components/HowToPlay";
+import BattleLog from "@/components/BattleLog";
 
 function getNFTImage(growth: number, nftImageUrl?: string): string {
   // If we have a custom NFT image, use it once the "seed" phase is over (or always)
@@ -25,6 +27,8 @@ export default function Battle() {
     address,
     battleState,
     isWaiting,
+    actionLog,
+    clearActionLog,
     joinBattle,
     useAbility,
     cancelQueue,
@@ -37,14 +41,15 @@ export default function Battle() {
   const [playerAnimation, setPlayerAnimation] = useState("");
   const [opponentAnimation, setOpponentAnimation] = useState("");
   const [prevPlayerGrowth, setPrevPlayerGrowth] = useState<number | null>(null);
-  const [prevOpponentGrowth, setPrevOpponentGrowth] = useState<number | null>(
-    null,
-  );
+  const [prevOpponentGrowth, setPrevOpponentGrowth] = useState<number | null>(null);
   const [arboretumModalOpen, setArboretumModalOpen] = useState(false);
   const [isRefunding, setIsRefunding] = useState(false);
   const [isJoining, setIsJoining] = useState(false);
   const [playerNftImageUrl, setPlayerNftImageUrl] = useState<string | null>(null);
   const [opponentNftImageUrl, setOpponentNftImageUrl] = useState<string | null>(null);
+  const [pendingMoveId, setPendingMoveId] = useState<number | null>(null);
+  const [inlineError, setInlineError] = useState<string | null>(null);
+  const inlineErrorTimer = useRef<NodeJS.Timeout | null>(null);
 
   const playerAnimationTimer = useRef<NodeJS.Timeout | null>(null);
   const opponentAnimationTimer = useRef<NodeJS.Timeout | null>(null);
@@ -133,13 +138,34 @@ export default function Battle() {
   // }, [isConnected, address, battleState, hasScanned, joinBattle, getFirstValidSaplingNft]);
 
   const handleUseAbility = async (abilityId: number) => {
+    if (pendingMoveId !== null) return; // prevent double-click
+    setPendingMoveId(abilityId);
+    setInlineError(null);
+    if (inlineErrorTimer.current) clearTimeout(inlineErrorTimer.current);
     try {
       await useAbility(abilityId);
     } catch (error: any) {
-      setDialogOpen(true);
-      setDialogMessage(error.message || "Failed to use ability");
+      const msg: string = error.message || "Failed to use ability";
+      // Friendly messages for common contract errors
+      const friendly = msg.includes("e_unauthorized_player") || msg.includes("unauthorized")
+        ? "Not your turn yet — wait for your opponent to move."
+        : msg.includes("e_battle_finished") || msg.includes("finished")
+        ? "This battle has already ended."
+        : msg.includes("e_invalid_move") || msg.includes("invalid_move")
+        ? "That move isn't in your assigned move set."
+        : msg;
+      setInlineError(friendly);
+      inlineErrorTimer.current = setTimeout(() => setInlineError(null), 8000);
+    } finally {
+      setPendingMoveId(null);
     }
   };
+
+  // Clear action log when a new battle starts
+  useEffect(() => {
+    if (battleState?.battleId) clearActionLog();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [battleState?.battleId]);
 
   const isPlayer1 =
     battleState &&
@@ -272,6 +298,10 @@ export default function Battle() {
   @keyframes spin {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
+  }
+  @keyframes slideInLog {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
   }
 
   .battle-grid {
@@ -529,6 +559,8 @@ export default function Battle() {
           }}
           data-testid="img-battle-title"
         />
+        {/* How to Play */}
+        <HowToPlay />
 
         {/* Battle Area */}
         <div className="battle-grid">
@@ -615,6 +647,11 @@ export default function Battle() {
                 </div>
               )}
             </div>
+            <p
+              style={{ marginTop: "4px", fontSize: "clamp(11px, 2.5vw, 13px)", color: "#00ffcc", fontWeight: "bold", textTransform: "uppercase", letterSpacing: "0.5px" }}
+            >
+              🌱 Your Growth
+            </p>
             <div
               style={{
                 width: "100%",
@@ -625,7 +662,7 @@ export default function Battle() {
                 padding: "2px",
                 display: "block",
                 zIndex: 0,
-                margin: "8px 0",
+                margin: "4px 0",
                 boxShadow: "0 0 10px #00ff00",
               }}
             >
@@ -641,10 +678,10 @@ export default function Battle() {
               />
             </div>
             <p
-              style={{ marginTop: "8px", fontSize: "clamp(12px, 3vw, 16px)" }}
+              style={{ marginTop: "4px", fontSize: "clamp(13px, 3vw, 17px)", fontWeight: "bold", color: "#00ff00" }}
               data-testid="text-growth-player"
             >
-              Your Growth: {playerGrowth}
+              {playerGrowth} / 100
             </p>
           </div>
 
@@ -749,6 +786,11 @@ export default function Battle() {
                 </div>
               )}
             </div>
+            <p
+              style={{ marginTop: "4px", fontSize: "clamp(11px, 2.5vw, 13px)", color: "#ff9944", fontWeight: "bold", textTransform: "uppercase", letterSpacing: "0.5px" }}
+            >
+              🌿 Opponent Growth
+            </p>
             <div
               style={{
                 width: "100%",
@@ -759,7 +801,7 @@ export default function Battle() {
                 padding: "2px",
                 display: "block",
                 zIndex: 0,
-                margin: "8px 0",
+                margin: "4px 0",
                 boxShadow: "0 0 10px #00ff00",
               }}
             >
@@ -775,73 +817,214 @@ export default function Battle() {
               />
             </div>
             <p
-              style={{ marginTop: "8px", fontSize: "clamp(12px, 3vw, 16px)" }}
+              style={{ marginTop: "4px", fontSize: "clamp(13px, 3vw, 17px)", fontWeight: "bold", color: "#ff9944" }}
               data-testid="text-growth-opponent"
             >
-              Opponent Growth: {opponentGrowth}
+              {opponentGrowth} / 100
             </p>
           </div>
         </div>
 
-        {/* Battle Options */}
+        {/* Battle Options — Color-coded move cards */}
         {playerMoves.length > 0 && (
           <div
             style={{
-              display: "flex",
-              flexWrap: "wrap",
-              justifyContent: "center",
-              gap: "8px",
-              padding: "15px 10px",
-              background: "rgba(0, 50, 0, 0.8)",
-              border: "2px solid #00ff00",
-              borderRadius: "12px",
               margin: "15px auto",
               maxWidth: "95%",
-              width: "700px",
-              maxHeight: "200px",
-              overflowY: "auto",
-              position: "relative",
-              boxShadow: "0 0 15px #00ff00",
+              width: "760px",
+              fontFamily: "Orbitron, sans-serif",
             }}
             data-testid="battle-options"
           >
-            {playerMoves.map((moveId) => (
-              <button
-                key={moveId}
-                onClick={() => handleUseAbility(moveId)}
-                disabled={winner !== null}
+            {/* Turn indicator */}
+            <div
+              style={{
+                textAlign: "center",
+                marginBottom: "10px",
+                padding: "8px 16px",
+                borderRadius: "8px",
+                background: pendingMoveId !== null
+                  ? "rgba(80,60,0,0.7)"
+                  : "rgba(0,40,80,0.7)",
+                border: `1px solid ${pendingMoveId !== null ? "#ffcc00" : "#44aaff"}`,
+                color: pendingMoveId !== null ? "#ffcc00" : "#88ccff",
+                fontSize: "clamp(11px, 2.5vw, 14px)",
+                fontWeight: "bold",
+                letterSpacing: "0.5px",
+                transition: "all 0.3s ease",
+              }}
+            >
+              {winner
+                ? `🏆 Battle Over!`
+                : pendingMoveId !== null
+                ? `⏳ Waiting for transaction... (${MOVE_LABELS[pendingMoveId] || "Move"})`
+                : `⏳ Choose your move — each turn = 1 wallet confirmation`}
+            </div>
+
+            {/* Inline error banner */}
+            {inlineError && (
+              <div
                 style={{
-                  padding: "clamp(8px, 2vw, 12px) clamp(12px, 3vw, 24px)",
-                  border: "2px solid #00ff00",
-                  background: "transparent",
-                  color: "white",
-                  fontSize: "clamp(14px, 3vw, 18px)",
-                  cursor: winner ? "not-allowed" : "pointer",
-                  transition: "0.3s ease",
-                  boxShadow: "0 0 10px #00ff00",
+                  background: "rgba(150,0,0,0.7)",
+                  border: "1px solid #ff4444",
                   borderRadius: "8px",
-                  opacity: winner ? 0.5 : 1,
-                  fontFamily: "Orbitron, sans-serif",
-                  flex: "1 1 auto",
-                  minWidth: "120px",
+                  padding: "10px 16px",
+                  marginBottom: "10px",
+                  color: "#ffaaaa",
+                  fontSize: "clamp(11px, 2.5vw, 13px)",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
                 }}
-                onMouseEnter={(e) => {
-                  if (!winner) {
-                    e.currentTarget.style.background = "#00ff00";
-                    e.currentTarget.style.color = "#000";
-                    e.currentTarget.style.boxShadow = "0 0 25px #00ff00";
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = "transparent";
-                  e.currentTarget.style.color = "white";
-                  e.currentTarget.style.boxShadow = "0 0 10px #00ff00";
-                }}
-                data-testid={`button-ability-${moveId}`}
               >
-                {MOVE_LABELS[moveId] || `Move ${moveId}`}
-              </button>
-            ))}
+                <span>⚠️</span>
+                <span>{inlineError}</span>
+                <button
+                  onClick={() => setInlineError(null)}
+                  style={{
+                    marginLeft: "auto",
+                    background: "none",
+                    border: "none",
+                    color: "#ff8888",
+                    cursor: "pointer",
+                    fontSize: "16px",
+                    fontWeight: "bold",
+                    padding: "0 4px",
+                  }}
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+
+            {/* Move card grid */}
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+                gap: "10px",
+              }}
+            >
+              {playerMoves.map((moveId) => {
+                const meta = MOVE_META[moveId];
+                const isAttack = meta?.type === "attack";
+                const isGrowth = meta?.type === "growth";
+                const isHybrid = meta?.type === "hybrid";
+                const isPending = pendingMoveId === moveId;
+                const isDisabled = !!winner || pendingMoveId !== null;
+
+                const borderColor = isGrowth ? "#00ff88" : isHybrid ? "#ffaa33" : "#ff5544";
+                const bgBase = isGrowth
+                  ? "rgba(0,80,30,0.75)"
+                  : isHybrid
+                  ? "rgba(80,40,0,0.75)"
+                  : "rgba(80,0,0,0.75)";
+                const badgeColor = isGrowth ? "#00ff88" : isHybrid ? "#ffaa33" : "#ff5544";
+                const badgeLabel = isGrowth ? "GROWTH" : isHybrid ? "HYBRID" : "ATTACK";
+
+                return (
+                  <button
+                    key={moveId}
+                    onClick={() => handleUseAbility(moveId)}
+                    disabled={isDisabled}
+                    style={{
+                      background: isPending
+                        ? "rgba(200,160,0,0.3)"
+                        : bgBase,
+                      border: `2px solid ${borderColor}`,
+                      borderRadius: "10px",
+                      padding: "12px 10px",
+                      cursor: isDisabled ? "not-allowed" : "pointer",
+                      opacity: isDisabled && !isPending ? 0.5 : 1,
+                      textAlign: "left",
+                      transition: "all 0.2s ease",
+                      boxShadow: isPending
+                        ? `0 0 16px ${borderColor}`
+                        : `0 0 6px ${borderColor}40`,
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "4px",
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!isDisabled) {
+                        e.currentTarget.style.transform = "translateY(-2px)";
+                        e.currentTarget.style.boxShadow = `0 0 20px ${borderColor}`;
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = "translateY(0)";
+                      e.currentTarget.style.boxShadow = `0 0 6px ${borderColor}40`;
+                    }}
+                    data-testid={`button-ability-${moveId}`}
+                  >
+                    {/* Badge */}
+                    <span
+                      style={{
+                        fontSize: "10px",
+                        fontWeight: "bold",
+                        color: badgeColor,
+                        fontFamily: "Orbitron, sans-serif",
+                        letterSpacing: "0.8px",
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      {meta?.emoji} {badgeLabel}
+                    </span>
+                    {/* Name */}
+                    <span
+                      style={{
+                        fontFamily: "Orbitron, sans-serif",
+                        fontSize: "clamp(11px, 2.5vw, 13px)",
+                        fontWeight: "bold",
+                        color: "#fff",
+                        lineHeight: "1.3",
+                      }}
+                    >
+                      {isPending ? "⏳ " : ""}{MOVE_LABELS[moveId] || `Move ${moveId}`}
+                    </span>
+                    {/* Effect description */}
+                    {meta?.effect && (
+                      <span
+                        style={{
+                          fontSize: "clamp(10px, 2vw, 11px)",
+                          color: "rgba(255,255,255,0.65)",
+                          fontFamily: "Orbitron, sans-serif",
+                          lineHeight: "1.4",
+                        }}
+                      >
+                        {meta.effect}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Battle Log */}
+            <div
+              style={{
+                marginTop: "16px",
+                background: "rgba(0,10,30,0.8)",
+                border: "1px solid rgba(0,200,255,0.25)",
+                borderRadius: "10px",
+                padding: "10px",
+              }}
+            >
+              <div
+                style={{
+                  fontSize: "11px",
+                  color: "rgba(0,200,255,0.6)",
+                  fontFamily: "Orbitron, sans-serif",
+                  fontWeight: "bold",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.8px",
+                  marginBottom: "6px",
+                }}
+              >
+                📜 Battle Log
+              </div>
+              <BattleLog entries={actionLog} isPlayer1={!!isPlayer1} />
+            </div>
           </div>
         )}
 

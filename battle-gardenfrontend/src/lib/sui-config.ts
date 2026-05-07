@@ -30,31 +30,71 @@ export const SUI_CONFIG = {
   ],
 } as const;
 
+// Short display label for buttons
 export const MOVE_LABELS: Record<number, string> = {
-  1: "Thorn Spike Bomb (-10)",
-  2: "Razor Leaf Sword (-8)",
-  3: "Tumbleweed Mace (-12)",
-  4: "Shovel Spear (-7)",
-  5: "Thorned Whip (-9)",
-  6: "Acorn Slingshot (-6)",
-  7: "Stone Nunchuck (-11)",
-  8: "Cactus Shield (-5/Block)",
-  9: "Life Absorb (-8/+4)",
-  10: "Poison (-5x2)",
-  11: "Wither Touch (-15/20% Miss)",
-  12: "Pollen Cloud (-10/50% Block)",
-  13: "Fungal Rot (-7/next -3)",
-  20: "Roots Up (+10)",
-  21: "Sun Beam (+8-12)",
-  22: "Rain Storm (+15)",
-  23: "White Mold (+10/20% +5)",
-  24: "Greenhouse Gas (+12-18)",
-  25: "Potassium Power Up (+20/10% Fail)",
-  26: "Photosynthetic Surge (+15-20)",
-  27: "Barkskin Armor (+10/Block)",
-  28: "Sap Overflow (+12)",
-  29: "Cloud Cover (+8/50% Block)",
-  30: "Shadow Canopy (+10-15)",
+  1: "Thorn Spike Bomb",
+  2: "Razor Leaf Sword",
+  3: "Tumbleweed Mace",
+  4: "Shovel Spear",
+  5: "Thorned Whip",
+  6: "Acorn Slingshot",
+  7: "Stone Nunchuck",
+  8: "Cactus Shield",
+  9: "Life Absorb",
+  10: "Poison",
+  11: "Wither Touch",
+  12: "Pollen Cloud",
+  13: "Fungal Rot",
+  20: "Roots Up",
+  21: "Sun Beam",
+  22: "Rain Storm",
+  23: "White Mold",
+  24: "Greenhouse Gas",
+  25: "Potassium Power Up",
+  26: "Photosynthetic Surge",
+  27: "Barkskin Armor",
+  28: "Sap Overflow",
+  29: "Cloud Cover",
+  30: "Shadow Canopy",
+};
+
+export type MoveType = "attack" | "growth" | "hybrid";
+
+export interface MoveMeta {
+  type: MoveType;
+  effect: string; // human-readable effect description
+  emoji: string;
+}
+
+// Full metadata for tooltips and color-coding
+export const MOVE_META: Record<number, MoveMeta> = {
+  // ── Attack moves (drain opponent's growth) ──────────────────────────────────
+  1: { type: "attack", emoji: "💣", effect: "Drains -10 from opponent's Growth" },
+  2: { type: "attack", emoji: "🗡️", effect: "Drains -8 from opponent's Growth" },
+  3: { type: "attack", emoji: "🌵", effect: "Drains -12 from opponent's Growth" },
+  4: { type: "attack", emoji: "🔱", effect: "Drains -7 from opponent's Growth" },
+  5: { type: "attack", emoji: "⚡", effect: "Drains -9 from opponent's Growth" },
+  6: { type: "attack", emoji: "🪨", effect: "Drains -6 from opponent's Growth" },
+  7: { type: "attack", emoji: "🥊", effect: "Drains -11 from opponent's Growth" },
+  // ── Hybrid moves (both attack and self-effect) ───────────────────────────────
+  8: { type: "hybrid", emoji: "🛡️", effect: "Drains -5 from opponent + blocks next hit" },
+  9: { type: "hybrid", emoji: "🩸", effect: "Drains -8 from opponent + grows your tree +4" },
+  10: { type: "attack", emoji: "☠️", effect: "Poisons opponent: -5 Growth for 2 turns" },
+  11: { type: "attack", emoji: "💀", effect: "Drains -15 from opponent (80% hit chance)" },
+  12: { type: "attack", emoji: "🌫️", effect: "Drains -10 OR gives opponent a block (50/50)" },
+  13: { type: "attack", emoji: "🍄", effect: "Drains -7 from opponent + extra -3 next turn" },
+  // ── Growth moves (boost your own Growth) ────────────────────────────────────
+  20: { type: "growth", emoji: "🌱", effect: "Grows YOUR tree +10" },
+  21: { type: "growth", emoji: "☀️", effect: "Grows YOUR tree +8 to +12" },
+  22: { type: "growth", emoji: "🌧️", effect: "Grows YOUR tree +15" },
+  23: { type: "growth", emoji: "🍄", effect: "Grows YOUR tree +10, 20% chance for +5 bonus" },
+  24: { type: "growth", emoji: "💨", effect: "Grows YOUR tree +12 to +18" },
+  25: { type: "growth", emoji: "⚗️", effect: "Grows YOUR tree +20 (90% success rate)" },
+  26: { type: "growth", emoji: "🌿", effect: "Grows YOUR tree +15 to +20" },
+  27: { type: "hybrid", emoji: "🪵", effect: "Grows YOUR tree +10 + blocks next hit" },
+  28: { type: "growth", emoji: "🌊", effect: "Grows YOUR tree +12" },
+  29: { type: "hybrid", emoji: "☁️", effect: "Grows YOUR tree +8, 50% chance to block" },
+  30: { type: "growth", emoji: "🌳", effect: "Grows YOUR tree +10 to +15" },
 };
 
 export function getBattleUpdateEvent() {

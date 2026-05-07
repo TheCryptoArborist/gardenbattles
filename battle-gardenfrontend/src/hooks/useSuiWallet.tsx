@@ -27,6 +27,7 @@ import {
 import { Transaction } from "@mysten/sui/transactions";
 import { io as socketIO, Socket } from "socket.io-client";
 import { SUI_CONFIG, getBattleUpdateEvent } from "@/lib/sui-config";
+import type { ActionEntry } from "@/components/BattleLog";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -56,6 +57,9 @@ interface SuiWalletContextType {
   isConnected: boolean;
   battleState: BattleState | null;
   isWaiting: boolean;
+  isMyTurn: boolean;
+  actionLog: ActionEntry[];
+  clearActionLog: () => void;
   joinBattle: (nftData: NftData) => Promise<void>;
   useAbility: (abilityId: number) => Promise<void>;
   cancelQueue: () => Promise<any>;
@@ -89,10 +93,26 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
   const [battleState, setBattleState] = useState<BattleState | null>(null);
   const [isWaiting, setIsWaiting] = useState(false);
   const [randomObjectId, setRandomObjectId] = useState<string | null>(null);
+  const [actionLog, setActionLog] = useState<ActionEntry[]>([]);
+  const prevBattleStateRef = useRef<BattleState | null>(null);
+  const lastMoveIdRef = useRef<number>(0);
 
   const socketRef = useRef<Socket | null>(null);
   const address = currentAccount?.address ?? null;
   const isConnected = !!currentAccount;
+
+  // Derived: is it currently this player's turn?
+  const isMyTurn = !!battleState && !!address && !battleState.winner && (
+    (battleState.player1?.toLowerCase() === address.toLowerCase()
+      ? /* player1 acts on turn=0. We infer from growth parity: if both have same move count it's equal turns */
+        // The contract sets turn=0 for player1, turn=1 for player2.
+        // We track this by checking whose growth last changed OR just let contract reject on wrong turn.
+        // Simplified: always enable buttons and let the contract enforce turn order.
+        true
+      : true)
+  );
+
+  const clearActionLog = useCallback(() => setActionLog([]), []);
 
   // ── 1. Resolve a valid Sui random object ──────────────────────────────────
   useEffect(() => {
@@ -169,7 +189,11 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
 
     socket.on("battle_update", (state: BattleState) => {
       console.log("[relay] battle_update received:", state);
-      setBattleState(state);
+      setBattleState((prev) => {
+        buildActionLogEntry(prev, state, address);
+        prevBattleStateRef.current = state;
+        return state;
+      });
 
       // If opponent has now joined (player2 set), stop the waiting overlay
       if (state.player2 && state.player2 !== "0x0") {
@@ -230,7 +254,11 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
               // Update state if it's newer or we were waiting
               if (isWaiting || JSON.stringify(newState) !== JSON.stringify(battleState)) {
                 console.log("[polling] detected battle update from blockchain");
-                setBattleState(newState);
+                setBattleState((prev) => {
+                  buildActionLogEntry(prev, newState, address);
+                  prevBattleStateRef.current = newState;
+                  return newState;
+                });
                 if (newState.player2 && newState.player2 !== "0x0") {
                   setIsWaiting(false);
                 }
@@ -477,6 +505,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
       }
 
       const tx = new Transaction();
+      lastMoveIdRef.current = abilityId; // track for action log
       tx.moveCall({
         target: `${SUI_CONFIG.PACKAGE_ID}::${SUI_CONFIG.MODULE}::use_ability_id`,
         arguments: [
@@ -563,6 +592,42 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
     [],
   );
 
+  // ── Action log builder (called inside setBattleState updater) ──────────────
+  function buildActionLogEntry(
+    prev: BattleState | null,
+    next: BattleState,
+    myAddress: string | null
+  ) {
+    if (!prev || !myAddress) return;
+    if (!next.battleId || next.battleId !== prev.battleId) return;
+
+    const p1Changed = next.player1Growth !== prev.player1Growth;
+    const p2Changed = next.player2Growth !== prev.player2Growth;
+    if (!p1Changed && !p2Changed) return;
+
+    const isP1 = prev.player1?.toLowerCase() === myAddress.toLowerCase();
+    // Determine who just acted: if it was player1's turn (prev turn=0 implied by p1Growth change)
+    // We detect the actor by whose growth changed (or opponent's decreased)
+    // Heuristic: if p1 growth went up or p2 went down → player1 acted; otherwise player2
+    const p1Acted =
+      (next.player1Growth > prev.player1Growth) ||
+      (next.player2Growth < prev.player2Growth && next.player1Growth === prev.player1Growth);
+    const actor: "you" | "opponent" = (isP1 && p1Acted) || (!isP1 && !p1Acted) ? "you" : "opponent";
+
+    const entry: ActionEntry = {
+      id: `${Date.now()}-${Math.random()}`,
+      timestamp: Date.now(),
+      actor,
+      moveId: actor === "you" ? lastMoveIdRef.current : 0,
+      prevPlayerGrowth: isP1 ? prev.player1Growth : prev.player2Growth,
+      nextPlayerGrowth: isP1 ? next.player1Growth : next.player2Growth,
+      prevOpponentGrowth: isP1 ? prev.player2Growth : prev.player1Growth,
+      nextOpponentGrowth: isP1 ? next.player2Growth : next.player1Growth,
+    };
+
+    setActionLog((log) => [...log, entry]);
+  }
+
   return (
     <SuiWalletContext.Provider
       value={{
@@ -570,6 +635,9 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
         isConnected,
         battleState,
         isWaiting,
+        isMyTurn,
+        actionLog,
+        clearActionLog,
         joinBattle,
         useAbility,
         cancelQueue,
