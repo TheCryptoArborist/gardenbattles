@@ -39,7 +39,9 @@ export interface BattleState {
   player2Moves: number[];
   player1Growth: number;
   player2Growth: number;
+  turn: number;
   winner: string | null;
+  isBotBattle?: boolean;
 }
 
 export interface NftData {
@@ -61,6 +63,7 @@ interface SuiWalletContextType {
   actionLog: ActionEntry[];
   clearActionLog: () => void;
   joinBattle: (nftData: NftData) => Promise<void>;
+  startBotBattle: (nftData: NftData) => Promise<void>;
   useAbility: (abilityId: number) => Promise<void>;
   cancelQueue: () => Promise<any>;
   getFirstValidSaplingNft: (owner: string) => Promise<NftData | null>;
@@ -83,6 +86,81 @@ function apiUrl(path: string): string {
   return `${API_BASE_URL}${path.startsWith("/") ? path : `/${path}`}`;
 }
 
+const ACTIVE_BATTLE_STORAGE_PREFIX = "battle_garden_active_battle:";
+
+function battleStorageKey(address: string): string {
+  return `${ACTIVE_BATTLE_STORAGE_PREFIX}${address.toLowerCase()}`;
+}
+
+function isZeroAddress(address: string | null | undefined): boolean {
+  return !address || address === "0x0";
+}
+
+function battleBelongsToAddress(
+  state: BattleState | null,
+  address: string | null,
+): state is BattleState {
+  if (!state || !state.battleId || !address) return false;
+
+  const normalizedAddress = address.toLowerCase();
+  return (
+    state.player1?.toLowerCase() === normalizedAddress ||
+    state.player2?.toLowerCase() === normalizedAddress
+  );
+}
+
+function isActiveBattleForAddress(
+  state: BattleState | null,
+  address: string | null,
+): state is BattleState {
+  return battleBelongsToAddress(state, address) && !state.winner;
+}
+
+function parseBattleStateFromEvent(json: any): BattleState | null {
+  if (!json?.battle_id || !json?.player1 || !json?.player2) return null;
+
+  return {
+    battleId: json.battle_id,
+    player1: json.player1.toLowerCase(),
+    player2: json.player2.toLowerCase(),
+    player1Moves: json.player1_moves ?? [],
+    player2Moves: json.player2_moves ?? [],
+    player1Growth: Number(json.player1_growth ?? 0),
+    player2Growth: Number(json.player2_growth ?? 0),
+    turn: Number(json.turn ?? 0),
+    winner:
+      json.winner && json.winner !== "0x0"
+        ? json.winner.toLowerCase()
+        : null,
+    isBotBattle: false,
+  };
+}
+
+function readCachedBattleState(address: string): BattleState | null {
+  try {
+    const cached = localStorage.getItem(battleStorageKey(address));
+    if (!cached) return null;
+
+    const state = JSON.parse(cached) as BattleState;
+    return isActiveBattleForAddress(state, address) ? state : null;
+  } catch {
+    return null;
+  }
+}
+
+function cacheBattleState(address: string, state: BattleState | null) {
+  try {
+    const key = battleStorageKey(address);
+    if (isActiveBattleForAddress(state, address)) {
+      localStorage.setItem(key, JSON.stringify(state));
+    } else {
+      localStorage.removeItem(key);
+    }
+  } catch {
+    // localStorage can be unavailable in private or embedded browser contexts.
+  }
+}
+
 // ─── Provider ─────────────────────────────────────────────────────────────────
 
 export function SuiWalletProvider({ children }: { children: ReactNode }) {
@@ -102,17 +180,33 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
   const isConnected = !!currentAccount;
 
   // Derived: is it currently this player's turn?
-  const isMyTurn = !!battleState && !!address && !battleState.winner && (
-    (battleState.player1?.toLowerCase() === address.toLowerCase()
-      ? /* player1 acts on turn=0. We infer from growth parity: if both have same move count it's equal turns */
-        // The contract sets turn=0 for player1, turn=1 for player2.
-        // We track this by checking whose growth last changed OR just let contract reject on wrong turn.
-        // Simplified: always enable buttons and let the contract enforce turn order.
-        true
-      : true)
-  );
+  const isMyTurn =
+    !!battleState &&
+    !!address &&
+    !battleState.winner &&
+    ((battleState.player1?.toLowerCase() === address.toLowerCase() &&
+      battleState.turn === 0) ||
+      (battleState.player2?.toLowerCase() === address.toLowerCase() &&
+        battleState.turn === 1));
 
   const clearActionLog = useCallback(() => setActionLog([]), []);
+
+  useEffect(() => {
+    if (!isConnected || !address) return;
+
+    const cached = readCachedBattleState(address);
+    if (!cached) return;
+
+    console.log("[battle] restored cached battle state");
+    setBattleState(cached);
+    setIsWaiting(isZeroAddress(cached.player2));
+    prevBattleStateRef.current = cached;
+  }, [isConnected, address]);
+
+  useEffect(() => {
+    if (!address) return;
+    cacheBattleState(address, battleState);
+  }, [address, battleState]);
 
   // ── 1. Resolve a valid Sui random object ──────────────────────────────────
   useEffect(() => {
@@ -174,10 +268,10 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
       fetch(apiUrl(`/api/battle/state/${address}`))
         .then((r) => r.json())
         .then(({ state }) => {
-          if (state && !state.winner) {
+          if (isActiveBattleForAddress(state, address)) {
             console.log("[relay] restored battle state from HTTP");
             setBattleState(state);
-            setIsWaiting(false);
+            setIsWaiting(isZeroAddress(state.player2));
             // Re-join the socket room
             socket.emit("join_battle", { battleId: state.battleId });
           }
@@ -220,37 +314,26 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!isConnected || !address) return;
 
-    const pollInterval = setInterval(async () => {
+    let cancelled = false;
+
+    const pollForLatestBattle = async (force = false) => {
       // If we are waiting for a match OR in an active battle, poll for updates
       // (Even if socket is connected, direct polling is a safe fallback)
-      if (isWaiting || (battleState && !battleState.winner)) {
+      if (force || isWaiting || (battleState && !battleState.winner)) {
         try {
           const events = await suiClient.queryEvents({
             query: { MoveEventType: getBattleUpdateEvent() },
-            limit: 20,
-            descending: true,
+            limit: force ? 50 : 20,
+            order: "descending",
           });
 
           for (const event of events.data) {
-            const json: any = event.parsedJson;
-            if (!json) continue;
+            if (cancelled) return;
 
-            const p1 = json.player1?.toLowerCase();
-            const p2 = json.player2?.toLowerCase();
+            const newState = parseBattleStateFromEvent(event.parsedJson);
 
             // Is this battle relevant to us?
-            if (p1 === address.toLowerCase() || p2 === address.toLowerCase()) {
-              const newState: BattleState = {
-                battleId: json.battle_id,
-                player1: p1,
-                player2: p2,
-                player1Moves: json.player1_moves ?? [],
-                player2Moves: json.player2_moves ?? [],
-                player1Growth: Number(json.player1_growth ?? 0),
-                player2Growth: Number(json.player2_growth ?? 0),
-                winner: json.winner && json.winner !== "0x0" ? json.winner.toLowerCase() : null,
-              };
-
+            if (battleBelongsToAddress(newState, address)) {
               // Update state if it's newer or we were waiting
               if (isWaiting || JSON.stringify(newState) !== JSON.stringify(battleState)) {
                 console.log("[polling] detected battle update from blockchain");
@@ -259,9 +342,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
                   prevBattleStateRef.current = newState;
                   return newState;
                 });
-                if (newState.player2 && newState.player2 !== "0x0") {
-                  setIsWaiting(false);
-                }
+                setIsWaiting(!newState.winner && isZeroAddress(newState.player2));
               }
               break; // Found our most recent battle, stop searching
             }
@@ -270,9 +351,17 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
           console.error("[polling] Sui RPC error:", err);
         }
       }
+    };
+
+    void pollForLatestBattle(true);
+    const pollInterval = setInterval(() => {
+      void pollForLatestBattle(false);
     }, 3000); // Poll every 3 seconds
 
-    return () => clearInterval(pollInterval);
+    return () => {
+      cancelled = true;
+      clearInterval(pollInterval);
+    };
   }, [isConnected, address, isWaiting, battleState, suiClient]);
 
   // ── 4. Scan wallet / kiosks for a valid NFT ───────────────────────────────
@@ -303,7 +392,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
             return typeNameStr;
           });
           // Merge allowed types
-          allowedTypes = [...new Set([...allowedTypes, ...onChainTypes])];
+          allowedTypes = Array.from(new Set([...allowedTypes, ...onChainTypes]));
         }
       } catch (err) {
         console.error("Failed to fetch on-chain config collections:", err);
@@ -497,7 +586,73 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
     [address, randomObjectId, suiClient, signAndExecuteTransaction],
   );
 
-  // ── 5. Use an ability ─────────────────────────────────────────────────────
+  // ── 5. Start a no-payout bot practice battle ─────────────────────────────
+  const startBotBattle = useCallback(
+    async (nftData: NftData) => {
+      if (!address || !randomObjectId) {
+        throw new Error(
+          "Wallet not connected or random object not initialised",
+        );
+      }
+
+      const botRes = await fetch(apiUrl("/api/battle/bot"));
+      const botJson = await botRes.json();
+      if (!botRes.ok || !botJson.address) {
+        throw new Error(botJson.error || "Battle bot is not configured");
+      }
+
+      const tx = new Transaction();
+
+      if (nftData.location === "wallet") {
+        tx.moveCall({
+          target: `${SUI_CONFIG.PACKAGE_ID}::${SUI_CONFIG.MODULE}::create_bot_battle`,
+          typeArguments: [nftData.nftType],
+          arguments: [
+            tx.object(SUI_CONFIG.CONFIG_ID),
+            tx.object(nftData.nftId),
+            tx.pure.address(botJson.address),
+            tx.object(randomObjectId),
+          ],
+        });
+      } else if (nftData.kioskId && nftData.kioskCapId) {
+        tx.moveCall({
+          target: `${SUI_CONFIG.PACKAGE_ID}::${SUI_CONFIG.MODULE}::create_bot_battle_from_kiosk`,
+          typeArguments: [nftData.nftType],
+          arguments: [
+            tx.object(SUI_CONFIG.CONFIG_ID),
+            tx.object(nftData.kioskId),
+            tx.object(nftData.kioskCapId),
+            tx.pure.address(nftData.nftId),
+            tx.pure.address(botJson.address),
+            tx.object(randomObjectId),
+          ],
+        });
+      } else {
+        throw new Error("Invalid NFT location data");
+      }
+
+      tx.setSender(address);
+
+      return new Promise<void>((resolve, reject) => {
+        signAndExecuteTransaction(
+          { transaction: tx, chain: SUI_CONFIG.CHAIN },
+          {
+            onSuccess: () => {
+              setIsWaiting(true);
+              socketRef.current?.emit("identify", { address });
+              resolve();
+            },
+            onError: (err: any) => {
+              reject(new Error(err?.message ?? "Failed to start bot battle"));
+            },
+          },
+        );
+      });
+    },
+    [address, randomObjectId, signAndExecuteTransaction],
+  );
+
+  // ── 6. Use an ability ─────────────────────────────────────────────────────
   const useAbility = useCallback(
     async (abilityId: number) => {
       if (!address || !randomObjectId || !battleState?.battleId) {
@@ -639,6 +794,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
         actionLog,
         clearActionLog,
         joinBattle,
+        startBotBattle,
         useAbility,
         cancelQueue,
         getFirstValidSaplingNft,
