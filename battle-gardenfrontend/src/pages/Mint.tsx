@@ -79,7 +79,7 @@ export default function Mint() {
               
               // Try to find the minted NFT in object changes
               try {
-                const nftChange = result.objectChanges?.find(
+                const nftChange = (result as any).objectChanges?.find(
                   (c: any) => c.type === "created" && c.objectType?.includes("::collection::NFT")
                 );
                 

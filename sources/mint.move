@@ -1,8 +1,6 @@
 module treenft::mint {
 
-    use sui::object::UID;
-    use sui::tx_context::TxContext;
-    use sui::coin::Coin;
+    use sui::coin::{Self, Coin};
     use sui::sui::SUI;
 
     use treenft::nft;
@@ -20,7 +18,6 @@ module treenft::mint {
 
     /// Initialize mint cap (run once)
     public fun init_mint_cap(ctx: &mut TxContext): MintCap {
-        use sui::object;
         MintCap {
             id: object::new(ctx),
             minted: 0,
@@ -28,17 +25,13 @@ module treenft::mint {
     }
 
     /// Mint Tree NFT
-    public entry fun mint_nft(
+    public fun mint_nft(
         cap: &mut MintCap,
         config_ref: &config::Config,
         treasury: &mut config::Treasury,
         payment: Coin<SUI>,
         ctx: &mut TxContext
     ) {
-        use sui::tx_context;
-        use sui::coin;
-        use sui::balance;
-
         assert!(cap.minted < config::get_max_supply(config_ref), E_SUPPLY_EXCEEDED);
         assert!(
             coin::value(&payment) >= config::get_mint_price(config_ref),

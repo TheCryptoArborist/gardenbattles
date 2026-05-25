@@ -30,6 +30,7 @@ export default function Battle() {
     actionLog,
     clearActionLog,
     joinBattle,
+    startBotBattle,
     useAbility,
     cancelQueue,
     getFirstValidSaplingNft,
@@ -45,6 +46,7 @@ export default function Battle() {
   const [arboretumModalOpen, setArboretumModalOpen] = useState(false);
   const [isRefunding, setIsRefunding] = useState(false);
   const [isJoining, setIsJoining] = useState(false);
+  const [isStartingBot, setIsStartingBot] = useState(false);
   const [playerNftImageUrl, setPlayerNftImageUrl] = useState<string | null>(null);
   const [opponentNftImageUrl, setOpponentNftImageUrl] = useState<string | null>(null);
   const [pendingMoveId, setPendingMoveId] = useState<number | null>(null);
@@ -83,6 +85,38 @@ export default function Battle() {
       setDialogMessage(error.message || "Failed to join battle");
     } finally {
       setIsJoining(false);
+    }
+  };
+
+  const handleStartBotBattle = async () => {
+    if (!isConnected) {
+      alert("Please connect your wallet first");
+      return;
+    }
+
+    setIsStartingBot(true);
+    try {
+      setDialogOpen(true);
+      setDialogMessage("Scanning for NFTs...");
+
+      const nftData = await getFirstValidSaplingNft(address!);
+
+      if (nftData) {
+        setDialogMessage("NFT found! Starting Garden Bot practice battle...");
+        setPlayerNftImageUrl(nftData.imageUrl || null);
+        await startBotBattle(nftData);
+        setDialogMessage("Garden Bot battle started! Waiting for chain update...");
+        setTimeout(() => setDialogOpen(false), 2000);
+      } else {
+        setDialogMessage(
+          "No whitelisted NFT found. Contact admin to whitelist your collection.",
+        );
+      }
+    } catch (error: any) {
+      setDialogOpen(true);
+      setDialogMessage(error.message || "Failed to start bot battle");
+    } finally {
+      setIsStartingBot(false);
     }
   };
 
@@ -270,9 +304,11 @@ export default function Battle() {
   } else if (isConnected && !battleState) {
     battleStatus = "Ready to join! Click the button below.";
   } else if (battleState && !winner) {
-    battleStatus = "Battle in progress! Use your moves!";
+    battleStatus = battleState.isBotBattle
+      ? "Garden Bot practice battle in progress!"
+      : "Battle in progress! Use your moves!";
   } else if (winner) {
-    battleStatus = winner === "player" ? "You Win!" : "Opponent Wins!";
+    battleStatus = winner === "player" ? "You Win!" : battleState?.isBotBattle ? "Garden Bot Wins!" : "Opponent Wins!";
   }
 
   // Check if user is admin to show admin panel
@@ -789,7 +825,7 @@ export default function Battle() {
             <p
               style={{ marginTop: "4px", fontSize: "clamp(11px, 2.5vw, 13px)", color: "#ff9944", fontWeight: "bold", textTransform: "uppercase", letterSpacing: "0.5px" }}
             >
-              🌿 Opponent Growth
+              🌿 {battleState?.isBotBattle ? "Garden Bot Growth" : "Opponent Growth"}
             </p>
             <div
               style={{
@@ -1028,48 +1064,94 @@ export default function Battle() {
           </div>
         )}
 
-        {/* Join Battle Button - Only show when connected and not in battle/queue */}
-        {isConnected && !battleState && !isWaiting && (
+        {/* Join Battle Button - Show when connected and not in an active battle/queue */}
+        {isConnected && (!battleState || !!winner) && !isWaiting && (
           <div style={{ margin: "20px auto", textAlign: "center" }}>
-            <button
-              onClick={handleJoinBattle}
-              disabled={isJoining}
+            <div
               style={{
-                padding: "20px 40px",
-                background: isJoining
-                  ? "rgba(100, 100, 100, 0.5)"
-                  : "linear-gradient(45deg, #00ff00, #00cc00)",
-                color: isJoining ? "#666" : "#000",
-                border: "3px solid #00ff00",
-                borderRadius: "12px",
-                fontSize: "clamp(16px, 4vw, 24px)",
-                fontFamily: "Orbitron, sans-serif",
-                fontWeight: "bold",
-                cursor: isJoining ? "not-allowed" : "pointer",
-                textTransform: "uppercase",
-                boxShadow: isJoining ? "none" : "0 0 30px rgba(0, 255, 0, 0.8)",
-                opacity: isJoining ? 0.5 : 1,
-                transition: "all 0.3s ease",
-                animation: isJoining
-                  ? "none"
-                  : "pulseGlow 2s infinite alternate",
+                display: "flex",
+                justifyContent: "center",
+                alignItems: "center",
+                gap: "14px",
+                flexWrap: "wrap",
               }}
-              onMouseEnter={(e) => {
-                if (!isJoining) {
-                  e.currentTarget.style.transform = "scale(1.05)";
-                  e.currentTarget.style.boxShadow =
-                    "0 0 40px rgba(0, 255, 0, 1)";
-                }
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = "scale(1)";
-                e.currentTarget.style.boxShadow =
-                  "0 0 30px rgba(0, 255, 0, 0.8)";
-              }}
-              data-testid="button-join-battle"
             >
-              {isJoining ? "Joining..." : `Join Battle Queue (${SUI_CONFIG.ENTRY_FEE / 1e9} SUI)`}
-            </button>
+              <button
+                onClick={handleJoinBattle}
+                disabled={isJoining || isStartingBot}
+                style={{
+                  padding: "20px 34px",
+                  background: isJoining
+                    ? "rgba(100, 100, 100, 0.5)"
+                    : "linear-gradient(45deg, #00ff00, #00cc00)",
+                  color: isJoining ? "#666" : "#000",
+                  border: "3px solid #00ff00",
+                  borderRadius: "12px",
+                  fontSize: "clamp(15px, 3.6vw, 22px)",
+                  fontFamily: "Orbitron, sans-serif",
+                  fontWeight: "bold",
+                  cursor: isJoining || isStartingBot ? "not-allowed" : "pointer",
+                  textTransform: "uppercase",
+                  boxShadow: isJoining ? "none" : "0 0 30px rgba(0, 255, 0, 0.8)",
+                  opacity: isJoining || isStartingBot ? 0.5 : 1,
+                  transition: "all 0.3s ease",
+                  animation: isJoining
+                    ? "none"
+                    : "pulseGlow 2s infinite alternate",
+                }}
+                onMouseEnter={(e) => {
+                  if (!isJoining && !isStartingBot) {
+                    e.currentTarget.style.transform = "scale(1.05)";
+                    e.currentTarget.style.boxShadow =
+                      "0 0 40px rgba(0, 255, 0, 1)";
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = "scale(1)";
+                  e.currentTarget.style.boxShadow =
+                    "0 0 30px rgba(0, 255, 0, 0.8)";
+                }}
+                data-testid="button-join-battle"
+              >
+                {isJoining ? "Joining..." : `Join Battle Queue (${SUI_CONFIG.ENTRY_FEE / 1e9} SUI)`}
+              </button>
+              <button
+                onClick={handleStartBotBattle}
+                disabled={isJoining || isStartingBot}
+                style={{
+                  padding: "20px 34px",
+                  background: isStartingBot
+                    ? "rgba(100, 100, 100, 0.5)"
+                    : "linear-gradient(45deg, #00ccff, #00ffcc)",
+                  color: isStartingBot ? "#666" : "#001b1b",
+                  border: "3px solid #00ffcc",
+                  borderRadius: "12px",
+                  fontSize: "clamp(15px, 3.6vw, 22px)",
+                  fontFamily: "Orbitron, sans-serif",
+                  fontWeight: "bold",
+                  cursor: isJoining || isStartingBot ? "not-allowed" : "pointer",
+                  textTransform: "uppercase",
+                  boxShadow: isStartingBot ? "none" : "0 0 30px rgba(0, 255, 204, 0.75)",
+                  opacity: isJoining || isStartingBot ? 0.5 : 1,
+                  transition: "all 0.3s ease",
+                }}
+                onMouseEnter={(e) => {
+                  if (!isJoining && !isStartingBot) {
+                    e.currentTarget.style.transform = "scale(1.05)";
+                    e.currentTarget.style.boxShadow =
+                      "0 0 40px rgba(0, 255, 204, 1)";
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = "scale(1)";
+                  e.currentTarget.style.boxShadow =
+                    "0 0 30px rgba(0, 255, 204, 0.75)";
+                }}
+                data-testid="button-start-bot-battle"
+              >
+                {isStartingBot ? "Starting..." : "Play Garden Bot"}
+              </button>
+            </div>
             <p
               style={{
                 marginTop: "15px",
@@ -1080,7 +1162,7 @@ export default function Battle() {
                 padding: "0 15px",
               }}
             >
-              Click to scan for your NFT and join the matchmaking queue
+              Join the paid player queue, or start a no-payout practice battle with Garden Bot.
             </p>
           </div>
         )}

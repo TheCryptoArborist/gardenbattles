@@ -1,9 +1,7 @@
 module treenft::config {
 
-    use sui::object::{Self, UID};
-    use sui::balance::Balance;
+    use sui::balance::{Self, Balance};
     use sui::sui::SUI;
-    use sui::tx_context::TxContext;
 
     /// Errors
     const E_NOT_AUTHORIZED: u64 = 0;
@@ -24,9 +22,6 @@ module treenft::config {
 
     /// Initialize config + treasury (call once)
     fun init(ctx: &mut TxContext) {
-        use sui::object;
-        use sui::transfer;
-
         let admin = tx_context::sender(ctx);
 
         let config = Config {

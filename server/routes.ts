@@ -1,6 +1,10 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { Server as SocketIOServer, type Socket } from "socket.io";
+import { SuiClient } from "@mysten/sui/client";
+import { decodeSuiPrivateKey } from "@mysten/sui/cryptography";
+import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
+import { Transaction } from "@mysten/sui/transactions";
 import { storage } from "./storage";
 
 // ─── Sui polling configuration ────────────────────────────────────────────────
@@ -13,6 +17,26 @@ const PACKAGE_ID =
 const MODULE = process.env.BATTLE_MODULE || "battle";
 const BATTLE_UPDATE_EVENT = `${PACKAGE_ID}::${MODULE}::BattleUpdate`;
 const POLL_INTERVAL_MS = 2_000; // poll every 2 s
+const RANDOM_OBJECT_ID = process.env.SUI_RANDOM_OBJECT_ID || "0x8";
+
+// ─── Bot configuration ───────────────────────────────────────────────────────
+const BOT_PRIVATE_KEY = process.env.BATTLE_BOT_PRIVATE_KEY;
+const BOT_MOVE_DELAY_MS = Number(process.env.BATTLE_BOT_MOVE_DELAY_MS ?? 1_500);
+const botClient = new SuiClient({ url: SUI_RPC_URL });
+const botKeypair = BOT_PRIVATE_KEY
+  ? (() => {
+      const parsed = decodeSuiPrivateKey(BOT_PRIVATE_KEY);
+      if (parsed.schema !== "ED25519") {
+        throw new Error("BATTLE_BOT_PRIVATE_KEY must be an ED25519 Sui key");
+      }
+      return Ed25519Keypair.fromSecretKey(parsed.secretKey);
+    })()
+  : null;
+const BOT_ADDRESS =
+  process.env.BATTLE_BOT_ADDRESS?.toLowerCase() ||
+  botKeypair?.getPublicKey().toSuiAddress().toLowerCase() ||
+  null;
+const processedBotTurns = new Set<string>();
 
 // ─── In-memory battle state ────────────────────────────────────────────────────
 interface BattleState {
@@ -23,7 +47,9 @@ interface BattleState {
   player2Moves: number[];
   player1Growth: number;
   player2Growth: number;
+  turn: number;
   winner: string | null;
+  isBotBattle?: boolean;
   lastEventCursor?: string | null;
 }
 
@@ -80,22 +106,125 @@ function parseBattleEvent(parsedJson: any): BattleState | null {
       return null;
     }
 
+    const player1 = parsedJson.player1.toLowerCase();
+    const player2 = parsedJson.player2.toLowerCase();
+    const winner = normalizeWinner(parsedJson.winner);
+
     return {
       battleId: parsedJson.battle_id,
-      player1: parsedJson.player1.toLowerCase(),
-      player2: parsedJson.player2.toLowerCase(),
+      player1,
+      player2,
       player1Moves: parsedJson.player1_moves ?? [],
       player2Moves: parsedJson.player2_moves ?? [],
       player1Growth: Number(parsedJson.player1_growth ?? 0),
       player2Growth: Number(parsedJson.player2_growth ?? 0),
-      winner:
-        parsedJson.winner && parsedJson.winner !== "0x0"
-          ? parsedJson.winner.toLowerCase()
-          : null,
+      turn: Number(parsedJson.turn ?? 0),
+      winner,
+      isBotBattle: !!BOT_ADDRESS && (player1 === BOT_ADDRESS || player2 === BOT_ADDRESS),
     };
   } catch {
     return null;
   }
+}
+
+function normalizeWinner(value: any): string | null {
+  if (!value || value === "0x0") return null;
+
+  if (typeof value === "string") {
+    return value.toLowerCase();
+  }
+
+  if (Array.isArray(value)) {
+    return normalizeWinner(value[0]);
+  }
+
+  if (typeof value === "object") {
+    return normalizeWinner(
+      value.vec ?? value.fields?.vec ?? value.fields?.value ?? value.value,
+    );
+  }
+
+  return null;
+}
+
+function chooseBotMove(state: BattleState, botIsPlayer1: boolean): number | null {
+  const moves = botIsPlayer1 ? state.player1Moves : state.player2Moves;
+  if (!moves.length) return null;
+
+  const botGrowth = botIsPlayer1 ? state.player1Growth : state.player2Growth;
+  const opponentGrowth = botIsPlayer1 ? state.player2Growth : state.player1Growth;
+
+  const available = new Set(moves);
+  const firstAvailable = (ids: number[]) => ids.find((id) => available.has(id));
+
+  if (botGrowth >= 82) {
+    const finisher = firstAvailable([25, 26, 24, 22, 30, 28, 21, 20]);
+    if (finisher) return finisher;
+  }
+
+  if (opponentGrowth >= 80) {
+    const defense = firstAvailable([27, 8, 29, 11, 3, 7, 1, 5]);
+    if (defense) return defense;
+  }
+
+  return (
+    firstAvailable([26, 25, 24, 22, 11, 3, 30, 28, 21, 20, 9, 7, 1, 5, 13, 8]) ??
+    moves[Math.floor(Math.random() * moves.length)] ??
+    null
+  );
+}
+
+async function maybeRunBotTurn(state: BattleState) {
+  if (!botKeypair || !BOT_ADDRESS || state.winner) return;
+
+  const botIsPlayer1 = state.player1 === BOT_ADDRESS;
+  const botIsPlayer2 = state.player2 === BOT_ADDRESS;
+  if (!botIsPlayer1 && !botIsPlayer2) return;
+
+  const isBotTurn =
+    (botIsPlayer1 && state.turn === 0) || (botIsPlayer2 && state.turn === 1);
+  if (!isBotTurn) return;
+
+  const turnKey = [
+    state.battleId,
+    state.turn,
+    state.player1Growth,
+    state.player2Growth,
+    state.player1Moves.join(","),
+    state.player2Moves.join(","),
+  ].join(":");
+  if (processedBotTurns.has(turnKey)) return;
+  processedBotTurns.add(turnKey);
+
+  const moveId = chooseBotMove(state, botIsPlayer1);
+  if (!moveId) return;
+
+  setTimeout(async () => {
+    try {
+      const tx = new Transaction();
+      tx.moveCall({
+        target: `${PACKAGE_ID}::${MODULE}::use_ability_id`,
+        arguments: [
+          tx.object(state.battleId),
+          tx.pure.u8(moveId),
+          tx.object(RANDOM_OBJECT_ID),
+        ],
+      });
+
+      const result = await botClient.signAndExecuteTransaction({
+        signer: botKeypair,
+        transaction: tx,
+        options: { showEffects: true },
+      });
+
+      console.log(
+        `[bot] battle ${state.battleId.slice(0, 8)}… used move ${moveId}; tx=${result.digest}`,
+      );
+    } catch (err) {
+      processedBotTurns.delete(turnKey);
+      console.error("[bot] failed to submit move:", err);
+    }
+  }, BOT_MOVE_DELAY_MS);
 }
 
 // ─── Core poll – fetch recent events, update state, notify clients ─────────────
@@ -124,6 +253,7 @@ async function pollSuiEvents() {
         existing &&
         existing.player1Growth === parsed.player1Growth &&
         existing.player2Growth === parsed.player2Growth &&
+        existing.turn === parsed.turn &&
         existing.winner === parsed.winner &&
         JSON.stringify(existing.player1Moves) ===
           JSON.stringify(parsed.player1Moves) &&
@@ -135,14 +265,24 @@ async function pollSuiEvents() {
 
       // Persist latest state
       battles.set(battleId, parsed);
-      playerToBattle.set(parsed.player1, battleId);
-      playerToBattle.set(parsed.player2, battleId);
+      if (parsed.winner) {
+        if (playerToBattle.get(parsed.player1) === battleId) {
+          playerToBattle.delete(parsed.player1);
+        }
+        if (playerToBattle.get(parsed.player2) === battleId) {
+          playerToBattle.delete(parsed.player2);
+        }
+      } else {
+        playerToBattle.set(parsed.player1, battleId);
+        playerToBattle.set(parsed.player2, battleId);
+      }
+      void maybeRunBotTurn(parsed);
 
       // Broadcast to the Socket.io room for this battle
       if (io) {
         io.to(`battle:${battleId}`).emit("battle_update", parsed);
         console.log(
-          `[relay] battle ${battleId.slice(0, 8)}… p1=${parsed.player1Growth} p2=${parsed.player2Growth} winner=${parsed.winner ?? "none"}`,
+          `[relay] battle ${battleId.slice(0, 8)}… p1=${parsed.player1Growth} p2=${parsed.player2Growth} turn=${parsed.turn} winner=${parsed.winner ?? "none"}`,
         );
       }
     }
@@ -227,7 +367,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         const battleId = playerToBattle.get(address);
         const state = battleId ? (battles.get(battleId) ?? null) : null;
-        ack({ state });
+        ack({ state: state && !state.winner ? state : null });
       },
     );
 
@@ -238,7 +378,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ── REST: health check ──────────────────────────────────────────────────────
   app.get("/api/health", (_req, res) => {
-    res.json({ ok: true, battles: battles.size, players: playerToBattle.size });
+    res.json({
+      ok: true,
+      battles: battles.size,
+      players: playerToBattle.size,
+      bot: { enabled: !!botKeypair, address: BOT_ADDRESS },
+    });
+  });
+
+  // ── REST: expose bot address so the client can create practice battles ─────
+  app.get("/api/battle/bot", (_req, res) => {
+    if (!BOT_ADDRESS) {
+      return res
+        .status(503)
+        .json({ error: "Battle bot is not configured on this server" });
+    }
+    res.json({ address: BOT_ADDRESS });
   });
 
   // ── REST: get battle state by player address ────────────────────────────────
@@ -249,6 +404,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(404).json({ error: "No active battle found" });
     }
     const state = battles.get(battleId);
+    if (!state || state.winner) {
+      return res.status(404).json({ error: "No active battle found" });
+    }
     res.json({ state: state ?? null });
   });
 

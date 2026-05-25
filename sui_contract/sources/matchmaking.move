@@ -27,9 +27,7 @@ module battle_garden::matchmaking {
         };
         sui::transfer::share_object(queue);
     }
-
-    #[allow(lint(self_transfer, public_random))]
-    public fun join_queue<T: key + store>(config: &Config, queue: &mut MatchmakingQueue, _nft: &T, payment: Coin<SUI>, rand: &Random, ctx: &mut TxContext) {
+    entry fun join_queue<T: key + store>(config: &Config, queue: &mut MatchmakingQueue, _nft: &T, payment: Coin<SUI>, rand: &Random, ctx: &mut TxContext) {
         assert!(!config::paused(config), errors::e_paused());
         assert!(config::is_collection_whitelisted<T>(config), errors::e_nft_not_whitelisted());
         
@@ -41,7 +39,9 @@ module battle_garden::matchmaking {
 
         if (option::is_some(&queue.waiting)) {
             let pending = option::extract(&mut queue.waiting);
-            let battle_fund = balance::split(&mut queue.bank, 2 * entry_fee);
+            assert!(pending.player != sender, errors::e_unauthorized_player());
+            assert!(pending.entry_fee_snapshot == entry_fee, errors::e_entry_fee_changed());
+            let battle_fund = balance::split(&mut queue.bank, pending.entry_fee_snapshot + entry_fee);
             battle::create_battle(pending.player, sender, entry_fee, config, battle_fund, rand, ctx);
         } else {
             let pending = Pending {
@@ -53,8 +53,7 @@ module battle_garden::matchmaking {
     }
 
     // Join queue from kiosk (for collections that require it)
-    #[allow(lint(self_transfer, public_random))]
-    public fun join_queue_from_kiosk<T: key + store>(
+    entry fun join_queue_from_kiosk<T: key + store>(
         config: &Config, 
         queue: &mut MatchmakingQueue, 
         kiosk: &mut Kiosk,
@@ -70,10 +69,7 @@ module battle_garden::matchmaking {
         let entry_fee = config::entry_fee(config);
         let sender = tx_context::sender(ctx);
 
-        if (coin::value(&payment) != entry_fee) {
-            transfer::public_transfer(payment, sender);
-            abort errors::e_insufficient_payment()
-        };
+        assert!(coin::value(&payment) == entry_fee, errors::e_insufficient_payment());
 
         balance::join(&mut queue.bank, coin::into_balance(payment));
 
@@ -82,7 +78,9 @@ module battle_garden::matchmaking {
 
         if (option::is_some(&queue.waiting)) {
             let pending = option::extract(&mut queue.waiting);
-            let battle_fund = balance::split(&mut queue.bank, 2 * entry_fee);
+            assert!(pending.player != sender, errors::e_unauthorized_player());
+            assert!(pending.entry_fee_snapshot == entry_fee, errors::e_entry_fee_changed());
+            let battle_fund = balance::split(&mut queue.bank, pending.entry_fee_snapshot + entry_fee);
             battle::create_battle(pending.player, sender, entry_fee, config, battle_fund, rand, ctx);
         } else {
             let pending = Pending {
@@ -92,9 +90,7 @@ module battle_garden::matchmaking {
             option::fill(&mut queue.waiting, pending);
         }
     }
-
-    #[allow(lint(self_transfer))]
-    public fun cancel_queue(queue: &mut MatchmakingQueue, ctx: &mut TxContext) {
+    entry fun cancel_queue(queue: &mut MatchmakingQueue, ctx: &mut TxContext) {
         assert!(option::is_some(&queue.waiting), errors::e_no_pending_to_cancel());
         
         let sender = tx_context::sender(ctx);

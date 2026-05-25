@@ -11,6 +11,7 @@ module battle_garden::errors {
     const EInvalidMove: u64 = 109;
     const EInvalidEconomics: u64 = 110;
     const EInvalidAddress: u64 = 111;
+    const EEntryFeeChanged: u64 = 112;
 
     public fun e_admin_only(): u64 { EAdminOnly }
     public fun e_nft_not_whitelisted(): u64 { ENftNotWhitelisted }
@@ -24,4 +25,5 @@ module battle_garden::errors {
     public fun e_invalid_move(): u64 { EInvalidMove }
     public fun e_invalid_economics(): u64 { EInvalidEconomics }
     public fun e_invalid_address(): u64 { EInvalidAddress }
+    public fun e_entry_fee_changed(): u64 { EEntryFeeChanged }
 }

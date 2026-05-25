@@ -1,7 +1,5 @@
 module treenft::nft {
 
-    use sui::object::{Self, UID};
-    use sui::tx_context::TxContext;
     use std::string::String;
 
     /// Tree NFT used in Battle Garden
@@ -69,7 +67,6 @@ module treenft::nft {
 
     /// Transfer NFT to recipient
     public fun transfer_nft(nft: TreeNFT, recipient: address) {
-        use sui::transfer;
         transfer::public_transfer(nft, recipient);
     }
 

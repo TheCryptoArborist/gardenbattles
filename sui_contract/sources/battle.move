@@ -4,6 +4,7 @@ module battle_garden::battle {
     use sui::coin;
     use sui::sui::SUI;
     use sui::random::{Self, Random};
+    use sui::kiosk::{Self, Kiosk, KioskOwnerCap};
     use battle_garden::utils;
     use battle_garden::errors;
     use battle_garden::config::{Self, Config};
@@ -43,6 +44,7 @@ module battle_garden::battle {
         player2_moves: vector<u8>,
         player1_growth: u64,
         player2_growth: u64,
+        turn: u8,
         winner: Option<address>,
     }
 
@@ -106,6 +108,7 @@ module battle_garden::battle {
             player2_moves: utils::clone_vec_u8(&arg0.p2_moves),
             player1_growth: arg0.p1_growth,
             player2_growth: arg0.p2_growth,
+            turn: arg0.turn,
             winner: arg0.winner,
         };
         event::emit(update);
@@ -116,10 +119,14 @@ module battle_garden::battle {
         arg0.finished = true;
         arg0.winner = option::some(arg1);
         assert!(balance::value(&arg0.vault) >= arg0.winner_payout + arg0.treasury_share, errors::e_insufficient_vault());
-        let payout = balance::split(&mut arg0.vault, arg0.winner_payout);
-        transfer::public_transfer(coin::from_balance(payout, arg2), arg1);
-        let treasury_cut = balance::split(&mut arg0.vault, arg0.treasury_share);
-        transfer::public_transfer(coin::from_balance(treasury_cut, arg2), arg0.treasury_addr);
+        if (arg0.winner_payout > 0) {
+            let payout = balance::split(&mut arg0.vault, arg0.winner_payout);
+            transfer::public_transfer(coin::from_balance(payout, arg2), arg1);
+        };
+        if (arg0.treasury_share > 0) {
+            let treasury_cut = balance::split(&mut arg0.vault, arg0.treasury_share);
+            transfer::public_transfer(coin::from_balance(treasury_cut, arg2), arg0.treasury_addr);
+        };
         let remaining = balance::value(&arg0.vault);
         if (remaining > 0) {
             let rem = balance::split(&mut arg0.vault, remaining);
@@ -127,9 +134,7 @@ module battle_garden::battle {
         };
         emit_update(arg0);
     }
-
-    #[allow(lint(public_random))]
-    public fun create_battle(
+    public(package) fun create_battle(
         player1: address, 
         player2: address, 
         entry_fee: u64, 
@@ -161,6 +166,111 @@ module battle_garden::battle {
         };
         emit_update(&battle);
         transfer::share_object(battle);
+    }
+    entry fun create_bot_battle<T: key + store>(
+        config: &Config,
+        _nft: &T,
+        bot_player: address,
+        rand: &Random,
+        ctx: &mut TxContext
+    ) {
+        assert!(!config::paused(config), errors::e_paused());
+        assert!(config::is_collection_whitelisted<T>(config), errors::e_nft_not_whitelisted());
+
+        let player = tx_context::sender(ctx);
+        assert!(bot_player != @0x0 && bot_player != player, errors::e_invalid_address());
+
+        let p1_status = Status { block_turns: 0, next_turn_penalty: 0, poison_ticks: 0, poison_dpt: 0 };
+        let p2_status = Status { block_turns: 0, next_turn_penalty: 0, poison_ticks: 0, poison_dpt: 0 };
+        let battle = Battle {
+            id: object::new(ctx),
+            player1: player,
+            player2: bot_player,
+            p1_growth: 0,
+            p2_growth: 0,
+            turn: 0,
+            finished: false,
+            winner: option::none(),
+            p1_moves: gen_moves(rand, ctx),
+            p2_moves: gen_moves(rand, ctx),
+            p1_status,
+            p2_status,
+            vault: balance::zero(),
+            battle_entry_fee: 0,
+            winner_payout: 0,
+            treasury_share: 0,
+            treasury_addr: config::treasury(config),
+        };
+        emit_update(&battle);
+        transfer::share_object(battle);
+    }
+    entry fun create_bot_battle_from_kiosk<T: key + store>(
+        config: &Config,
+        kiosk: &mut Kiosk,
+        cap: &KioskOwnerCap,
+        nft_id: ID,
+        bot_player: address,
+        rand: &Random,
+        ctx: &mut TxContext
+    ) {
+        let (nft, borrow) = kiosk::borrow_val<T>(kiosk, cap, nft_id);
+        create_bot_battle<T>(config, &nft, bot_player, rand, ctx);
+        kiosk::return_val(kiosk, nft, borrow);
+    }
+    entry fun create_paid_bot_battle<T: key + store>(
+        config: &Config,
+        _nft: &T,
+        bot_player: address,
+        payment: coin::Coin<SUI>,
+        rand: &Random,
+        ctx: &mut TxContext
+    ) {
+        assert!(!config::paused(config), errors::e_paused());
+        assert!(config::is_collection_whitelisted<T>(config), errors::e_nft_not_whitelisted());
+
+        let entry_fee = config::entry_fee(config);
+        assert!(coin::value(&payment) == entry_fee, errors::e_insufficient_payment());
+
+        let player = tx_context::sender(ctx);
+        assert!(bot_player != @0x0 && bot_player != player, errors::e_invalid_address());
+
+        let p1_status = Status { block_turns: 0, next_turn_penalty: 0, poison_ticks: 0, poison_dpt: 0 };
+        let p2_status = Status { block_turns: 0, next_turn_penalty: 0, poison_ticks: 0, poison_dpt: 0 };
+        let battle = Battle {
+            id: object::new(ctx),
+            player1: player,
+            player2: bot_player,
+            p1_growth: 0,
+            p2_growth: 0,
+            turn: 0,
+            finished: false,
+            winner: option::none(),
+            p1_moves: gen_moves(rand, ctx),
+            p2_moves: gen_moves(rand, ctx),
+            p1_status,
+            p2_status,
+            vault: coin::into_balance(payment),
+            battle_entry_fee: entry_fee,
+            winner_payout: entry_fee,
+            treasury_share: 0,
+            treasury_addr: config::treasury(config),
+        };
+        emit_update(&battle);
+        transfer::share_object(battle);
+    }
+    entry fun create_paid_bot_battle_from_kiosk<T: key + store>(
+        config: &Config,
+        kiosk: &mut Kiosk,
+        cap: &KioskOwnerCap,
+        nft_id: ID,
+        bot_player: address,
+        payment: coin::Coin<SUI>,
+        rand: &Random,
+        ctx: &mut TxContext
+    ) {
+        let (nft, borrow) = kiosk::borrow_val<T>(kiosk, cap, nft_id);
+        create_paid_bot_battle<T>(config, &nft, bot_player, payment, rand, ctx);
+        kiosk::return_val(kiosk, nft, borrow);
     }
 
     public fun surrender(battle: &mut Battle, ctx: &mut TxContext) {
@@ -231,16 +341,12 @@ module battle_garden::battle {
         else if (utils::eq_str(name, b"ShadowCanopy")) { 30 }
         else { 0 }
     }
-
-    #[allow(lint(public_random))]
-    public fun use_ability(battle: &mut Battle, ability_name: vector<u8>, rand: &Random, ctx: &mut TxContext) {
+    entry fun use_ability(battle: &mut Battle, ability_name: vector<u8>, rand: &Random, ctx: &mut TxContext) {
         let move_id = map_ability_name(ability_name);
         assert!(move_id != 0, errors::e_invalid_ability_name());
         use_ability_id(battle, move_id, rand, ctx);
     }
-
-    #[allow(lint(public_random))]
-    public fun use_ability_id(battle: &mut Battle, move_id: u8, rand: &Random, ctx: &mut TxContext) {
+    entry fun use_ability_id(battle: &mut Battle, move_id: u8, rand: &Random, ctx: &mut TxContext) {
         assert!(!battle.finished, errors::e_battle_finished());
         let sender = tx_context::sender(ctx);
         let is_player_turn = if (battle.turn == 0) {

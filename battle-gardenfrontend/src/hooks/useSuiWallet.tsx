@@ -116,6 +116,26 @@ function isActiveBattleForAddress(
   return battleBelongsToAddress(state, address) && !state.winner;
 }
 
+function normalizeWinner(value: any): string | null {
+  if (!value || value === "0x0") return null;
+
+  if (typeof value === "string") {
+    return value.toLowerCase();
+  }
+
+  if (Array.isArray(value)) {
+    return normalizeWinner(value[0]);
+  }
+
+  if (typeof value === "object") {
+    return normalizeWinner(
+      value.vec ?? value.fields?.vec ?? value.fields?.value ?? value.value,
+    );
+  }
+
+  return null;
+}
+
 function parseBattleStateFromEvent(json: any): BattleState | null {
   if (!json?.battle_id || !json?.player1 || !json?.player2) return null;
 
@@ -128,10 +148,7 @@ function parseBattleStateFromEvent(json: any): BattleState | null {
     player1Growth: Number(json.player1_growth ?? 0),
     player2Growth: Number(json.player2_growth ?? 0),
     turn: Number(json.turn ?? 0),
-    winner:
-      json.winner && json.winner !== "0x0"
-        ? json.winner.toLowerCase()
-        : null,
+    winner: normalizeWinner(json.winner),
     isBotBattle: false,
   };
 }

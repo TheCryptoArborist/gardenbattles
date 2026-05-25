@@ -57,15 +57,11 @@ module battle_garden::utils {
         };
         true
     }
-
-    #[allow(lint(public_random))]
-    public fun miss(_arg0: &Random, _arg1: &mut TxContext, arg2: u64): bool {
+    public(package) fun miss(_arg0: &Random, _arg1: &mut TxContext, arg2: u64): bool {
         let mut rng = random::new_generator(_arg0, _arg1);
         random::generate_u64(&mut rng) % 100 < arg2
     }
-
-    #[allow(lint(public_random))]
-    public fun rand_inclusive(_arg0: &Random, _arg1: &mut TxContext, arg2: u64, arg3: u64): u64 {
+    public(package) fun rand_inclusive(_arg0: &Random, _arg1: &mut TxContext, arg2: u64, arg3: u64): u64 {
         if (arg3 <= arg2) {
             return arg2
         };
