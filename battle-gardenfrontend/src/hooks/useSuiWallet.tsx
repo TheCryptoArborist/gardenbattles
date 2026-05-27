@@ -41,6 +41,7 @@ export interface BattleState {
   player2Growth: number;
   turn: number;
   winner: string | null;
+  finished?: boolean;
   isBotBattle?: boolean;
 }
 
@@ -52,7 +53,6 @@ export interface NftData {
   kioskCapId?: string;
   imageUrl?: string;
 }
-
 
 interface SuiWalletContextType {
   address: string | null;
@@ -77,7 +77,9 @@ const SuiWalletContext = createContext<SuiWalletContextType | null>(null);
 // In production the express server serves everything on one port.
 const RELAY_URL = (
   import.meta.env.VITE_RELAY_URL ||
-  (typeof window !== "undefined" ? window.location.origin : "http://localhost:5000")
+  (typeof window !== "undefined"
+    ? window.location.origin
+    : "http://localhost:5000")
 ).replace(/\/+$/, "");
 
 const API_BASE_URL = RELAY_URL;
@@ -87,6 +89,13 @@ function apiUrl(path: string): string {
 }
 
 const ACTIVE_BATTLE_STORAGE_PREFIX = "battle_garden_active_battle:";
+const ACTIVE_BATTLE_CACHE_MAX_AGE_MS = 6 * 60 * 60 * 1000;
+
+interface CachedBattleState {
+  version: 1;
+  cachedAt: number;
+  state: BattleState;
+}
 
 function battleStorageKey(address: string): string {
   return `${ACTIVE_BATTLE_STORAGE_PREFIX}${address.toLowerCase()}`;
@@ -113,7 +122,9 @@ function isActiveBattleForAddress(
   state: BattleState | null,
   address: string | null,
 ): state is BattleState {
-  return battleBelongsToAddress(state, address) && !state.winner;
+  return (
+    battleBelongsToAddress(state, address) && !state.winner && !state.finished
+  );
 }
 
 function normalizeWinner(value: any): string | null {
@@ -149,6 +160,7 @@ function parseBattleStateFromEvent(json: any): BattleState | null {
     player2Growth: Number(json.player2_growth ?? 0),
     turn: Number(json.turn ?? 0),
     winner: normalizeWinner(json.winner),
+    finished: !!normalizeWinner(json.winner),
     isBotBattle: false,
   };
 }
@@ -158,7 +170,14 @@ function readCachedBattleState(address: string): BattleState | null {
     const cached = localStorage.getItem(battleStorageKey(address));
     if (!cached) return null;
 
-    const state = JSON.parse(cached) as BattleState;
+    const parsed = JSON.parse(cached) as BattleState | CachedBattleState;
+    const state = "state" in parsed ? parsed.state : parsed;
+    const cachedAt = "cachedAt" in parsed ? parsed.cachedAt : 0;
+    if (cachedAt && Date.now() - cachedAt > ACTIVE_BATTLE_CACHE_MAX_AGE_MS) {
+      localStorage.removeItem(battleStorageKey(address));
+      return null;
+    }
+
     return isActiveBattleForAddress(state, address) ? state : null;
   } catch {
     return null;
@@ -169,12 +188,60 @@ function cacheBattleState(address: string, state: BattleState | null) {
   try {
     const key = battleStorageKey(address);
     if (isActiveBattleForAddress(state, address)) {
-      localStorage.setItem(key, JSON.stringify(state));
+      localStorage.setItem(
+        key,
+        JSON.stringify({
+          version: 1,
+          cachedAt: Date.now(),
+          state,
+        } satisfies CachedBattleState),
+      );
     } else {
       localStorage.removeItem(key);
     }
   } catch {
     // localStorage can be unavailable in private or embedded browser contexts.
+  }
+}
+
+function normalizeMoveList(value: any): number[] {
+  return Array.isArray(value) ? value.map((move) => Number(move)) : [];
+}
+
+function parseBattleStateFromObjectFields(
+  battleId: string,
+  fields: any,
+): BattleState | null {
+  if (!fields?.player1 || !fields?.player2) return null;
+
+  return {
+    battleId,
+    player1: String(fields.player1).toLowerCase(),
+    player2: String(fields.player2).toLowerCase(),
+    player1Moves: normalizeMoveList(fields.p1_moves),
+    player2Moves: normalizeMoveList(fields.p2_moves),
+    player1Growth: Number(fields.p1_growth ?? 0),
+    player2Growth: Number(fields.p2_growth ?? 0),
+    turn: Number(fields.turn ?? 0),
+    winner: normalizeWinner(fields.winner),
+    finished: Boolean(fields.finished) || !!normalizeWinner(fields.winner),
+  };
+}
+
+async function getLiveBattleState(
+  suiClient: any,
+  battleId: string,
+): Promise<BattleState | null | undefined> {
+  try {
+    const obj = await suiClient.getObject({
+      id: battleId,
+      options: { showContent: true },
+    });
+    const fields = (obj?.data?.content as any)?.fields;
+    return parseBattleStateFromObjectFields(battleId, fields);
+  } catch (err) {
+    console.warn("[battle] could not verify live battle object:", err);
+    return undefined;
   }
 }
 
@@ -201,12 +268,64 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
     !!battleState &&
     !!address &&
     !battleState.winner &&
+    !battleState.finished &&
     ((battleState.player1?.toLowerCase() === address.toLowerCase() &&
       battleState.turn === 0) ||
       (battleState.player2?.toLowerCase() === address.toLowerCase() &&
         battleState.turn === 1));
 
   const clearActionLog = useCallback(() => setActionLog([]), []);
+  const clearBattleState = useCallback(() => {
+    setBattleState(null);
+    setIsWaiting(false);
+    prevBattleStateRef.current = null;
+    if (address) cacheBattleState(address, null);
+  }, [address]);
+
+  const applyBattleState = useCallback(
+    async (
+      nextState: BattleState | null,
+      options: { verifyLive?: boolean } = {},
+    ) => {
+      if (!address || !battleBelongsToAddress(nextState, address)) return;
+
+      let state: BattleState = nextState;
+      if (
+        options.verifyLive &&
+        state.battleId &&
+        !state.winner &&
+        !state.finished
+      ) {
+        const liveState = await getLiveBattleState(suiClient, state.battleId);
+        if (liveState === null) {
+          clearBattleState();
+          return;
+        }
+
+        if (liveState && battleBelongsToAddress(liveState, address)) {
+          state = {
+            ...liveState,
+            isBotBattle: state.isBotBattle,
+          };
+        }
+      }
+
+      const stateHasWinner = !!state.winner;
+      const stateIsActive = isActiveBattleForAddress(state, address);
+      if (!stateIsActive && !stateHasWinner) {
+        clearBattleState();
+        return;
+      }
+
+      setBattleState((prev) => {
+        buildActionLogEntry(prev, state, address);
+        prevBattleStateRef.current = state;
+        return state;
+      });
+      setIsWaiting(stateIsActive && isZeroAddress(state.player2));
+    },
+    [address, clearBattleState, suiClient],
+  );
 
   useEffect(() => {
     if (!isConnected || !address) return;
@@ -214,11 +333,9 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
     const cached = readCachedBattleState(address);
     if (!cached) return;
 
-    console.log("[battle] restored cached battle state");
-    setBattleState(cached);
-    setIsWaiting(isZeroAddress(cached.player2));
-    prevBattleStateRef.current = cached;
-  }, [isConnected, address]);
+    console.log("[battle] verifying cached battle state");
+    void applyBattleState(cached, { verifyLive: true });
+  }, [isConnected, address, applyBattleState]);
 
   useEffect(() => {
     if (!address) return;
@@ -255,8 +372,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
         socketRef.current.disconnect();
         socketRef.current = null;
       }
-      setBattleState(null);
-      setIsWaiting(false);
+      clearBattleState();
       return;
     }
 
@@ -283,33 +399,33 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
 
       // Try to restore battle state from server (handles page refreshes)
       fetch(apiUrl(`/api/battle/state/${address}`))
-        .then((r) => r.json())
-        .then(({ state }) => {
+        .then(async (r) => {
+          if (!r.ok) {
+            clearBattleState();
+            return null;
+          }
+          return r.json();
+        })
+        .then((body) => {
+          const state = body?.state;
+          if (!state) return;
           if (isActiveBattleForAddress(state, address)) {
             console.log("[relay] restored battle state from HTTP");
-            setBattleState(state);
-            setIsWaiting(isZeroAddress(state.player2));
             // Re-join the socket room
             socket.emit("join_battle", { battleId: state.battleId });
+            void applyBattleState(state, { verifyLive: true });
+          } else {
+            clearBattleState();
           }
         })
         .catch(() => {
-          // No active battle – that's fine
+          // No active battle - that's fine
         });
     });
 
     socket.on("battle_update", (state: BattleState) => {
       console.log("[relay] battle_update received:", state);
-      setBattleState((prev) => {
-        buildActionLogEntry(prev, state, address);
-        prevBattleStateRef.current = state;
-        return state;
-      });
-
-      // If opponent has now joined (player2 set), stop the waiting overlay
-      if (state.player2 && state.player2 !== "0x0") {
-        setIsWaiting(false);
-      }
+      void applyBattleState(state);
     });
 
     socket.on("disconnect", (reason) => {
@@ -324,8 +440,8 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
       socket.disconnect();
       socketRef.current = null;
     };
-  }, [isConnected, address]);
-  
+  }, [isConnected, address, applyBattleState, clearBattleState]);
+
   // ── 3. Direct Sui Polling Fallback ──────────────────────────────────────────
   // This allows the app to work on Netlify/Vercel without a relay server.
   useEffect(() => {
@@ -336,7 +452,11 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
     const pollForLatestBattle = async (force = false) => {
       // If we are waiting for a match OR in an active battle, poll for updates
       // (Even if socket is connected, direct polling is a safe fallback)
-      if (force || isWaiting || (battleState && !battleState.winner)) {
+      if (
+        force ||
+        isWaiting ||
+        isActiveBattleForAddress(battleState, address)
+      ) {
         try {
           const events = await suiClient.queryEvents({
             query: { MoveEventType: getBattleUpdateEvent() },
@@ -352,14 +472,12 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
             // Is this battle relevant to us?
             if (battleBelongsToAddress(newState, address)) {
               // Update state if it's newer or we were waiting
-              if (isWaiting || JSON.stringify(newState) !== JSON.stringify(battleState)) {
+              if (
+                isWaiting ||
+                JSON.stringify(newState) !== JSON.stringify(battleState)
+              ) {
                 console.log("[polling] detected battle update from blockchain");
-                setBattleState((prev) => {
-                  buildActionLogEntry(prev, newState, address);
-                  prevBattleStateRef.current = newState;
-                  return newState;
-                });
-                setIsWaiting(!newState.winner && isZeroAddress(newState.player2));
+                await applyBattleState(newState, { verifyLive: force });
               }
               break; // Found our most recent battle, stop searching
             }
@@ -379,7 +497,14 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
       cancelled = true;
       clearInterval(pollInterval);
     };
-  }, [isConnected, address, isWaiting, battleState, suiClient]);
+  }, [
+    isConnected,
+    address,
+    isWaiting,
+    battleState,
+    suiClient,
+    applyBattleState,
+  ]);
 
   // ── 4. Scan wallet / kiosks for a valid NFT ───────────────────────────────
   const getFirstValidSaplingNft = useCallback(
@@ -396,20 +521,25 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
           options: { showContent: true },
         });
 
-        // @ts-ignore
-        const whitelisted = configObj?.data?.content?.fields?.whitelisted_collections;
+        const whitelisted = (configObj?.data?.content as any)?.fields
+          ?.whitelisted_collections;
         if (whitelisted && Array.isArray(whitelisted)) {
           const onChainTypes = whitelisted.map((t: any) => {
             // TypeName fields usually store the type string in a 'name' field
-            let typeNameStr = typeof t === 'string' ? t : (t?.fields?.name || t);
+            let typeNameStr = typeof t === "string" ? t : t?.fields?.name || t;
             // Some TypeName representations might not start with 0x
-            if (typeof typeNameStr === 'string' && !typeNameStr.startsWith('0x')) {
-               typeNameStr = '0x' + typeNameStr;
+            if (
+              typeof typeNameStr === "string" &&
+              !typeNameStr.startsWith("0x")
+            ) {
+              typeNameStr = "0x" + typeNameStr;
             }
             return typeNameStr;
           });
           // Merge allowed types
-          allowedTypes = Array.from(new Set([...allowedTypes, ...onChainTypes]));
+          allowedTypes = Array.from(
+            new Set([...allowedTypes, ...onChainTypes]),
+          );
         }
       } catch (err) {
         console.error("Failed to fetch on-chain config collections:", err);
@@ -452,15 +582,21 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
               // @ts-ignore
               const contentUrlField = obj?.data?.content?.fields?.image_url;
               // Handle case where image_url is a Url struct { url: string }
-              const contentUrl = typeof contentUrlField === 'string' 
-                ? contentUrlField 
-                : (contentUrlField?.fields?.url || contentUrlField?.url || "");
-              
-              const imageUrl = displayUrl || contentUrl || "";
-              
-              if (id) return { nftId: id, nftType: type, location: "wallet", imageUrl };
-            }
+              const contentUrl =
+                typeof contentUrlField === "string"
+                  ? contentUrlField
+                  : contentUrlField?.fields?.url || contentUrlField?.url || "";
 
+              const imageUrl = displayUrl || contentUrl || "";
+
+              if (id)
+                return {
+                  nftId: id,
+                  nftType: type,
+                  location: "wallet",
+                  imageUrl,
+                };
+            }
           }
 
           cursor = res.hasNextPage ? (res.nextCursor ?? null) : null;
@@ -489,22 +625,24 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
                   const displayUrl = obj?.data?.display?.data?.image_url;
                   // @ts-ignore
                   const contentUrlField = obj?.data?.content?.fields?.image_url;
-                  const contentUrl = typeof contentUrlField === 'string' 
-                    ? contentUrlField 
-                    : (contentUrlField?.fields?.url || contentUrlField?.url || "");
-                  
+                  const contentUrl =
+                    typeof contentUrlField === "string"
+                      ? contentUrlField
+                      : contentUrlField?.fields?.url ||
+                        contentUrlField?.url ||
+                        "";
+
                   const imageUrl = displayUrl || contentUrl || "";
-                  
+
                   return {
                     nftId,
                     nftType: obj.data.type,
                     location: "kiosk",
                     kioskId,
                     kioskCapId: ownerCapId,
-                    imageUrl
+                    imageUrl,
                   };
                 }
-
               }
             }
           } catch {
@@ -676,12 +814,58 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
         throw new Error("Battle not active");
       }
 
+      let activeState = battleState;
+      if (!isActiveBattleForAddress(activeState, address)) {
+        clearBattleState();
+        throw new Error("Battle not active");
+      }
+      const battleId = activeState.battleId;
+      if (!battleId) {
+        clearBattleState();
+        throw new Error("Battle not active");
+      }
+
+      const liveState = await getLiveBattleState(suiClient, battleId);
+      if (
+        liveState === null ||
+        (liveState && !isActiveBattleForAddress(liveState, address))
+      ) {
+        clearBattleState();
+        throw new Error("Battle not active");
+      }
+
+      if (liveState) {
+        activeState = {
+          ...liveState,
+          isBotBattle: activeState.isBotBattle,
+        };
+        await applyBattleState(activeState);
+      }
+
+      const isPlayer1 =
+        activeState.player1?.toLowerCase() === address.toLowerCase();
+      const isPlayer2 =
+        activeState.player2?.toLowerCase() === address.toLowerCase();
+      const isCurrentTurn =
+        (isPlayer1 && activeState.turn === 0) ||
+        (isPlayer2 && activeState.turn === 1);
+      if (!isCurrentTurn) {
+        throw new Error("Not your turn yet");
+      }
+
+      const availableMoves = isPlayer1
+        ? activeState.player1Moves
+        : activeState.player2Moves;
+      if (!availableMoves.includes(abilityId)) {
+        throw new Error("That move is not available in this battle");
+      }
+
       const tx = new Transaction();
       lastMoveIdRef.current = abilityId; // track for action log
       tx.moveCall({
         target: `${SUI_CONFIG.PACKAGE_ID}::${SUI_CONFIG.MODULE}::use_ability_id`,
         arguments: [
-          tx.object(battleState.battleId),
+          tx.object(battleId),
           tx.pure.u8(abilityId),
           tx.object(randomObjectId),
         ],
@@ -700,7 +884,15 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
         );
       });
     },
-    [address, randomObjectId, battleState, signAndExecuteTransaction],
+    [
+      address,
+      randomObjectId,
+      battleState,
+      suiClient,
+      applyBattleState,
+      clearBattleState,
+      signAndExecuteTransaction,
+    ],
   );
 
   // ── 6. Cancel queue / emergency refund ───────────────────────────────────
@@ -768,7 +960,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
   function buildActionLogEntry(
     prev: BattleState | null,
     next: BattleState,
-    myAddress: string | null
+    myAddress: string | null,
   ) {
     if (!prev || !myAddress) return;
     if (!next.battleId || next.battleId !== prev.battleId) return;
@@ -782,9 +974,11 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
     // We detect the actor by whose growth changed (or opponent's decreased)
     // Heuristic: if p1 growth went up or p2 went down → player1 acted; otherwise player2
     const p1Acted =
-      (next.player1Growth > prev.player1Growth) ||
-      (next.player2Growth < prev.player2Growth && next.player1Growth === prev.player1Growth);
-    const actor: "you" | "opponent" = (isP1 && p1Acted) || (!isP1 && !p1Acted) ? "you" : "opponent";
+      next.player1Growth > prev.player1Growth ||
+      (next.player2Growth < prev.player2Growth &&
+        next.player1Growth === prev.player1Growth);
+    const actor: "you" | "opponent" =
+      (isP1 && p1Acted) || (!isP1 && !p1Acted) ? "you" : "opponent";
 
     const entry: ActionEntry = {
       id: `${Date.now()}-${Math.random()}`,

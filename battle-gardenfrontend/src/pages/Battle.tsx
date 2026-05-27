@@ -15,7 +15,7 @@ function getNFTImage(growth: number, nftImageUrl?: string): string {
   // For now, let's use the custom image if growth > 25, otherwise show the seed
   if (growth <= 25) return "/assets/seed.jpg";
   if (nftImageUrl) return nftImageUrl;
-  
+
   if (growth <= 50) return "/assets/sapling.jpg";
   if (growth <= 75) return "/assets/sapling2.jpg";
   return "/assets/full_tree.jpg";
@@ -27,6 +27,7 @@ export default function Battle() {
     address,
     battleState,
     isWaiting,
+    isMyTurn,
     actionLog,
     clearActionLog,
     joinBattle,
@@ -42,19 +43,31 @@ export default function Battle() {
   const [playerAnimation, setPlayerAnimation] = useState("");
   const [opponentAnimation, setOpponentAnimation] = useState("");
   const [prevPlayerGrowth, setPrevPlayerGrowth] = useState<number | null>(null);
-  const [prevOpponentGrowth, setPrevOpponentGrowth] = useState<number | null>(null);
+  const [prevOpponentGrowth, setPrevOpponentGrowth] = useState<number | null>(
+    null,
+  );
   const [arboretumModalOpen, setArboretumModalOpen] = useState(false);
   const [isRefunding, setIsRefunding] = useState(false);
   const [isJoining, setIsJoining] = useState(false);
   const [isStartingBot, setIsStartingBot] = useState(false);
-  const [playerNftImageUrl, setPlayerNftImageUrl] = useState<string | null>(null);
-  const [opponentNftImageUrl, setOpponentNftImageUrl] = useState<string | null>(null);
+  const [playerNftImageUrl, setPlayerNftImageUrl] = useState<string | null>(
+    null,
+  );
+  const [opponentNftImageUrl, setOpponentNftImageUrl] = useState<string | null>(
+    null,
+  );
   const [pendingMoveId, setPendingMoveId] = useState<number | null>(null);
   const [inlineError, setInlineError] = useState<string | null>(null);
   const inlineErrorTimer = useRef<NodeJS.Timeout | null>(null);
 
   const playerAnimationTimer = useRef<NodeJS.Timeout | null>(null);
   const opponentAnimationTimer = useRef<NodeJS.Timeout | null>(null);
+
+  const showInlineError = (message: string) => {
+    if (inlineErrorTimer.current) clearTimeout(inlineErrorTimer.current);
+    setInlineError(message);
+    inlineErrorTimer.current = setTimeout(() => setInlineError(null), 8000);
+  };
 
   const handleJoinBattle = async () => {
     if (!isConnected) {
@@ -68,7 +81,7 @@ export default function Battle() {
       setDialogMessage("Scanning for NFTs...");
 
       const nftData = await getFirstValidSaplingNft(address!);
-      
+
       if (nftData) {
         setDialogMessage("NFT found! Joining queue...");
         setPlayerNftImageUrl(nftData.imageUrl || null);
@@ -105,7 +118,9 @@ export default function Battle() {
         setDialogMessage("NFT found! Starting Garden Bot practice battle...");
         setPlayerNftImageUrl(nftData.imageUrl || null);
         await startBotBattle(nftData);
-        setDialogMessage("Garden Bot battle started! Waiting for chain update...");
+        setDialogMessage(
+          "Garden Bot battle started! Waiting for chain update...",
+        );
         setTimeout(() => setDialogOpen(false), 2000);
       } else {
         setDialogMessage(
@@ -130,7 +145,9 @@ export default function Battle() {
     try {
       await cancelQueue();
       setDialogOpen(true);
-      setDialogMessage(`Refund successful! Your ${SUI_CONFIG.ENTRY_FEE / 1e9} SUI has been returned.`);
+      setDialogMessage(
+        `Refund successful! Your ${SUI_CONFIG.ENTRY_FEE / 1e9} SUI has been returned.`,
+      );
     } catch (error: any) {
       setDialogOpen(true);
       setDialogMessage(`Refund failed: ${error.message}`);
@@ -173,6 +190,15 @@ export default function Battle() {
 
   const handleUseAbility = async (abilityId: number) => {
     if (pendingMoveId !== null) return; // prevent double-click
+    if (!battleState || battleState.finished || battleState.winner) {
+      showInlineError("Battle not active.");
+      return;
+    }
+    if (!isMyTurn) {
+      showInlineError("Not your turn yet — wait for your opponent to move.");
+      return;
+    }
+
     setPendingMoveId(abilityId);
     setInlineError(null);
     if (inlineErrorTimer.current) clearTimeout(inlineErrorTimer.current);
@@ -181,15 +207,24 @@ export default function Battle() {
     } catch (error: any) {
       const msg: string = error.message || "Failed to use ability";
       // Friendly messages for common contract errors
-      const friendly = msg.includes("e_unauthorized_player") || msg.includes("unauthorized")
-        ? "Not your turn yet — wait for your opponent to move."
-        : msg.includes("e_battle_finished") || msg.includes("finished")
-        ? "This battle has already ended."
-        : msg.includes("e_invalid_move") || msg.includes("invalid_move")
-        ? "That move isn't in your assigned move set."
-        : msg;
-      setInlineError(friendly);
-      inlineErrorTimer.current = setTimeout(() => setInlineError(null), 8000);
+      const lowerMsg = msg.toLowerCase();
+      const friendly =
+        lowerMsg.includes("e_unauthorized_player") ||
+        lowerMsg.includes("unauthorized") ||
+        /\b102\b/.test(msg)
+          ? "Not your turn yet — wait for your opponent to move."
+          : lowerMsg.includes("battle not active") ||
+              lowerMsg.includes("e_battle_finished") ||
+              lowerMsg.includes("finished") ||
+              /\b103\b/.test(msg)
+            ? "This battle has already ended."
+            : lowerMsg.includes("e_invalid_move") ||
+                lowerMsg.includes("invalid_move") ||
+                lowerMsg.includes("not available") ||
+                /\b109\b/.test(msg)
+              ? "That move isn't in your assigned move set."
+              : msg;
+      showInlineError(friendly);
     } finally {
       setPendingMoveId(null);
     }
@@ -198,7 +233,7 @@ export default function Battle() {
   // Clear action log when a new battle starts
   useEffect(() => {
     if (battleState?.battleId) clearActionLog();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [battleState?.battleId]);
 
   const isPlayer1 =
@@ -226,6 +261,7 @@ export default function Battle() {
       ? "player"
       : "opponent"
     : null;
+  const battleFinished = !!winner || !!battleState?.finished;
 
   // Trigger animations when growth changes with proper cleanup
   useEffect(() => {
@@ -275,16 +311,29 @@ export default function Battle() {
   // Fetch opponent's NFT image when battle starts
   useEffect(() => {
     if (battleState && isConnected && address) {
-      const opponentAddress = isPlayer1 ? battleState.player2 : battleState.player1;
-      if (opponentAddress && opponentAddress !== "0x0" && !opponentNftImageUrl) {
-        getFirstValidSaplingNft(opponentAddress).then(nft => {
+      const opponentAddress = isPlayer1
+        ? battleState.player2
+        : battleState.player1;
+      if (
+        opponentAddress &&
+        opponentAddress !== "0x0" &&
+        !opponentNftImageUrl
+      ) {
+        getFirstValidSaplingNft(opponentAddress).then((nft) => {
           if (nft?.imageUrl) {
             setOpponentNftImageUrl(nft.imageUrl);
           }
         });
       }
     }
-  }, [battleState, isConnected, address, isPlayer1, opponentNftImageUrl, getFirstValidSaplingNft]);
+  }, [
+    battleState,
+    isConnected,
+    address,
+    isPlayer1,
+    opponentNftImageUrl,
+    getFirstValidSaplingNft,
+  ]);
 
   // Cleanup timers on unmount
   useEffect(() => {
@@ -295,6 +344,9 @@ export default function Battle() {
       if (opponentAnimationTimer.current) {
         clearTimeout(opponentAnimationTimer.current);
       }
+      if (inlineErrorTimer.current) {
+        clearTimeout(inlineErrorTimer.current);
+      }
     };
   }, []);
 
@@ -303,12 +355,21 @@ export default function Battle() {
     battleStatus = "Waiting for 2nd player... (Need 2 players total!)";
   } else if (isConnected && !battleState) {
     battleStatus = "Ready to join! Click the button below.";
-  } else if (battleState && !winner) {
-    battleStatus = battleState.isBotBattle
-      ? "Garden Bot practice battle in progress!"
-      : "Battle in progress! Use your moves!";
+  } else if (battleState && !battleFinished) {
+    battleStatus = isMyTurn
+      ? "Your turn! Choose a move."
+      : battleState.isBotBattle
+        ? "Garden Bot is thinking..."
+        : "Waiting for your opponent to move.";
   } else if (winner) {
-    battleStatus = winner === "player" ? "You Win!" : battleState?.isBotBattle ? "Garden Bot Wins!" : "Opponent Wins!";
+    battleStatus =
+      winner === "player"
+        ? "You Win!"
+        : battleState?.isBotBattle
+          ? "Garden Bot Wins!"
+          : "Opponent Wins!";
+  } else if (battleState?.finished) {
+    battleStatus = "Battle ended.";
   }
 
   // Check if user is admin to show admin panel
@@ -563,7 +624,8 @@ export default function Battle() {
             >
               <strong>Battles require 2 players total!</strong>
               <br />
-              You have paid {SUI_CONFIG.ENTRY_FEE / 1e9} SUI and are in the queue.
+              You have paid {SUI_CONFIG.ENTRY_FEE / 1e9} SUI and are in the
+              queue.
               <br />A 2nd player must join to start the battle.
             </p>
             <p
@@ -684,7 +746,14 @@ export default function Battle() {
               )}
             </div>
             <p
-              style={{ marginTop: "4px", fontSize: "clamp(11px, 2.5vw, 13px)", color: "#00ffcc", fontWeight: "bold", textTransform: "uppercase", letterSpacing: "0.5px" }}
+              style={{
+                marginTop: "4px",
+                fontSize: "clamp(11px, 2.5vw, 13px)",
+                color: "#00ffcc",
+                fontWeight: "bold",
+                textTransform: "uppercase",
+                letterSpacing: "0.5px",
+              }}
             >
               🌱 Your Growth
             </p>
@@ -714,7 +783,12 @@ export default function Battle() {
               />
             </div>
             <p
-              style={{ marginTop: "4px", fontSize: "clamp(13px, 3vw, 17px)", fontWeight: "bold", color: "#00ff00" }}
+              style={{
+                marginTop: "4px",
+                fontSize: "clamp(13px, 3vw, 17px)",
+                fontWeight: "bold",
+                color: "#00ff00",
+              }}
               data-testid="text-growth-player"
             >
               {playerGrowth} / 100
@@ -787,7 +861,10 @@ export default function Battle() {
               data-testid="nft-card-opponent"
             >
               <img
-                src={getNFTImage(opponentGrowth, opponentNftImageUrl || undefined)}
+                src={getNFTImage(
+                  opponentGrowth,
+                  opponentNftImageUrl || undefined,
+                )}
                 alt="Player 2 Sapling"
                 style={{
                   maxWidth: "90%",
@@ -823,9 +900,19 @@ export default function Battle() {
               )}
             </div>
             <p
-              style={{ marginTop: "4px", fontSize: "clamp(11px, 2.5vw, 13px)", color: "#ff9944", fontWeight: "bold", textTransform: "uppercase", letterSpacing: "0.5px" }}
+              style={{
+                marginTop: "4px",
+                fontSize: "clamp(11px, 2.5vw, 13px)",
+                color: "#ff9944",
+                fontWeight: "bold",
+                textTransform: "uppercase",
+                letterSpacing: "0.5px",
+              }}
             >
-              🌿 {battleState?.isBotBattle ? "Garden Bot Growth" : "Opponent Growth"}
+              🌿{" "}
+              {battleState?.isBotBattle
+                ? "Garden Bot Growth"
+                : "Opponent Growth"}
             </p>
             <div
               style={{
@@ -853,7 +940,12 @@ export default function Battle() {
               />
             </div>
             <p
-              style={{ marginTop: "4px", fontSize: "clamp(13px, 3vw, 17px)", fontWeight: "bold", color: "#ff9944" }}
+              style={{
+                marginTop: "4px",
+                fontSize: "clamp(13px, 3vw, 17px)",
+                fontWeight: "bold",
+                color: "#ff9944",
+              }}
               data-testid="text-growth-opponent"
             >
               {opponentGrowth} / 100
@@ -862,7 +954,7 @@ export default function Battle() {
         </div>
 
         {/* Battle Options — Color-coded move cards */}
-        {playerMoves.length > 0 && (
+        {playerMoves.length > 0 && battleState && !battleState.finished && (
           <div
             style={{
               margin: "15px auto",
@@ -879,9 +971,10 @@ export default function Battle() {
                 marginBottom: "10px",
                 padding: "8px 16px",
                 borderRadius: "8px",
-                background: pendingMoveId !== null
-                  ? "rgba(80,60,0,0.7)"
-                  : "rgba(0,40,80,0.7)",
+                background:
+                  pendingMoveId !== null
+                    ? "rgba(80,60,0,0.7)"
+                    : "rgba(0,40,80,0.7)",
                 border: `1px solid ${pendingMoveId !== null ? "#ffcc00" : "#44aaff"}`,
                 color: pendingMoveId !== null ? "#ffcc00" : "#88ccff",
                 fontSize: "clamp(11px, 2.5vw, 14px)",
@@ -893,8 +986,10 @@ export default function Battle() {
               {winner
                 ? `🏆 Battle Over!`
                 : pendingMoveId !== null
-                ? `⏳ Waiting for transaction... (${MOVE_LABELS[pendingMoveId] || "Move"})`
-                : `⏳ Choose your move — each turn = 1 wallet confirmation`}
+                  ? `⏳ Waiting for transaction... (${MOVE_LABELS[pendingMoveId] || "Move"})`
+                  : !isMyTurn
+                    ? `⏳ Waiting for your opponent...`
+                    : `⏳ Choose your move — each turn = 1 wallet confirmation`}
             </div>
 
             {/* Inline error banner */}
@@ -947,16 +1042,29 @@ export default function Battle() {
                 const isGrowth = meta?.type === "growth";
                 const isHybrid = meta?.type === "hybrid";
                 const isPending = pendingMoveId === moveId;
-                const isDisabled = !!winner || pendingMoveId !== null;
+                const isDisabled =
+                  battleFinished || pendingMoveId !== null || !isMyTurn;
 
-                const borderColor = isGrowth ? "#00ff88" : isHybrid ? "#ffaa33" : "#ff5544";
+                const borderColor = isGrowth
+                  ? "#00ff88"
+                  : isHybrid
+                    ? "#ffaa33"
+                    : "#ff5544";
                 const bgBase = isGrowth
                   ? "rgba(0,80,30,0.75)"
                   : isHybrid
-                  ? "rgba(80,40,0,0.75)"
-                  : "rgba(80,0,0,0.75)";
-                const badgeColor = isGrowth ? "#00ff88" : isHybrid ? "#ffaa33" : "#ff5544";
-                const badgeLabel = isGrowth ? "GROWTH" : isHybrid ? "HYBRID" : "ATTACK";
+                    ? "rgba(80,40,0,0.75)"
+                    : "rgba(80,0,0,0.75)";
+                const badgeColor = isGrowth
+                  ? "#00ff88"
+                  : isHybrid
+                    ? "#ffaa33"
+                    : "#ff5544";
+                const badgeLabel = isGrowth
+                  ? "GROWTH"
+                  : isHybrid
+                    ? "HYBRID"
+                    : "ATTACK";
 
                 return (
                   <button
@@ -964,9 +1072,7 @@ export default function Battle() {
                     onClick={() => handleUseAbility(moveId)}
                     disabled={isDisabled}
                     style={{
-                      background: isPending
-                        ? "rgba(200,160,0,0.3)"
-                        : bgBase,
+                      background: isPending ? "rgba(200,160,0,0.3)" : bgBase,
                       border: `2px solid ${borderColor}`,
                       borderRadius: "10px",
                       padding: "12px 10px",
@@ -1016,7 +1122,8 @@ export default function Battle() {
                         lineHeight: "1.3",
                       }}
                     >
-                      {isPending ? "⏳ " : ""}{MOVE_LABELS[moveId] || `Move ${moveId}`}
+                      {isPending ? "⏳ " : ""}
+                      {MOVE_LABELS[moveId] || `Move ${moveId}`}
                     </span>
                     {/* Effect description */}
                     {meta?.effect && (
@@ -1065,7 +1172,7 @@ export default function Battle() {
         )}
 
         {/* Join Battle Button - Show when connected and not in an active battle/queue */}
-        {isConnected && (!battleState || !!winner) && !isWaiting && (
+        {isConnected && (!battleState || battleFinished) && !isWaiting && (
           <div style={{ margin: "20px auto", textAlign: "center" }}>
             <div
               style={{
@@ -1090,9 +1197,12 @@ export default function Battle() {
                   fontSize: "clamp(15px, 3.6vw, 22px)",
                   fontFamily: "Orbitron, sans-serif",
                   fontWeight: "bold",
-                  cursor: isJoining || isStartingBot ? "not-allowed" : "pointer",
+                  cursor:
+                    isJoining || isStartingBot ? "not-allowed" : "pointer",
                   textTransform: "uppercase",
-                  boxShadow: isJoining ? "none" : "0 0 30px rgba(0, 255, 0, 0.8)",
+                  boxShadow: isJoining
+                    ? "none"
+                    : "0 0 30px rgba(0, 255, 0, 0.8)",
                   opacity: isJoining || isStartingBot ? 0.5 : 1,
                   transition: "all 0.3s ease",
                   animation: isJoining
@@ -1113,7 +1223,9 @@ export default function Battle() {
                 }}
                 data-testid="button-join-battle"
               >
-                {isJoining ? "Joining..." : `Join Battle Queue (${SUI_CONFIG.ENTRY_FEE / 1e9} SUI)`}
+                {isJoining
+                  ? "Joining..."
+                  : `Join Battle Queue (${SUI_CONFIG.ENTRY_FEE / 1e9} SUI)`}
               </button>
               <button
                 onClick={handleStartBotBattle}
@@ -1129,9 +1241,12 @@ export default function Battle() {
                   fontSize: "clamp(15px, 3.6vw, 22px)",
                   fontFamily: "Orbitron, sans-serif",
                   fontWeight: "bold",
-                  cursor: isJoining || isStartingBot ? "not-allowed" : "pointer",
+                  cursor:
+                    isJoining || isStartingBot ? "not-allowed" : "pointer",
                   textTransform: "uppercase",
-                  boxShadow: isStartingBot ? "none" : "0 0 30px rgba(0, 255, 204, 0.75)",
+                  boxShadow: isStartingBot
+                    ? "none"
+                    : "0 0 30px rgba(0, 255, 204, 0.75)",
                   opacity: isJoining || isStartingBot ? 0.5 : 1,
                   transition: "all 0.3s ease",
                 }}
@@ -1162,7 +1277,8 @@ export default function Battle() {
                 padding: "0 15px",
               }}
             >
-              Join the paid player queue, or start a no-payout practice battle with Garden Bot.
+              Join the paid player queue, or start a no-payout practice battle
+              with Garden Bot.
             </p>
           </div>
         )}
@@ -1243,7 +1359,8 @@ export default function Battle() {
               battles.
             </li>
             <li style={{ marginBottom: "10px" }}>
-              <strong>Entry Fee</strong>: Each battle costs {SUI_CONFIG.ENTRY_FEE / 1e9} SUI.
+              <strong>Entry Fee</strong>: Each battle costs{" "}
+              {SUI_CONFIG.ENTRY_FEE / 1e9} SUI.
             </li>
             <li style={{ marginBottom: "10px" }}>
               <strong>Rewards</strong>: The winner receives 5 SUI, with 1 SUI
@@ -1415,7 +1532,7 @@ export default function Battle() {
                 textAlign: "center",
               }}
             >
-            <h2
+              <h2
                 style={{
                   fontSize: "clamp(1.5rem, 4vw, 2.5rem)",
                   color: "#00ff00",
@@ -1450,8 +1567,8 @@ export default function Battle() {
                   fontFamily: "Orbitron, sans-serif",
                 }}
               >
-                The Arboretum is your gateway to explore, collect, and
-                nurture your NFT forest. Mint your unique Sapling now to unlock 
+                The Arboretum is your gateway to explore, collect, and nurture
+                your NFT forest. Mint your unique Sapling now to unlock
                 exclusive features and community-driven growth!
               </p>
               <button
