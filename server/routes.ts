@@ -13,9 +13,13 @@ const SUI_RPC_URL =
 const PACKAGE_ID =
   process.env.BATTLE_PACKAGE_ID ||
   process.env.PACKAGE_ID ||
+  "0x50864e060caca53c7c50a355f7550276b52f91a0bd1e7b1e54ac9dbb754ef299";
+const EVENT_PACKAGE_ID =
+  process.env.BATTLE_EVENT_PACKAGE_ID ||
+  process.env.BATTLE_ORIGINAL_PACKAGE_ID ||
   "0x656ac984c39b952b40ccaaad4c26a3e074c4c99f56e2bac0862b811557de448b";
 const MODULE = process.env.BATTLE_MODULE || "battle";
-const BATTLE_UPDATE_EVENT = `${PACKAGE_ID}::${MODULE}::BattleUpdate`;
+const BATTLE_UPDATE_EVENT = `${EVENT_PACKAGE_ID}::${MODULE}::BattleUpdate`;
 const POLL_INTERVAL_MS = 2_000; // poll every 2 s
 const RANDOM_OBJECT_ID = process.env.SUI_RANDOM_OBJECT_ID || "0x8";
 

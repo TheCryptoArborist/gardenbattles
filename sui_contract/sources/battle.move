@@ -391,6 +391,50 @@ module battle_garden::battle {
         else if (utils::eq_str(name, b"ShadowCanopy")) { 30 }
         else { 0 }
     }
+
+    fun choose_bot_move(battle: &Battle, rand: &Random, ctx: &mut TxContext): u8 {
+        let moves_len = vector::length(&battle.p2_moves);
+        assert!(moves_len > 0, errors::e_invalid_move());
+
+        let mut rng = random::new_generator(rand, ctx);
+        let idx = random::generate_u64(&mut rng) % moves_len;
+        *vector::borrow(&battle.p2_moves, idx)
+    }
+
+    fun apply_player1_move(battle: &mut Battle, move_id: u8, rand: &Random, ctx: &mut TxContext) {
+        if (battle.p1_status.next_turn_penalty > 0) {
+            battle.p1_growth = utils::sub_growth(battle.p1_growth, battle.p1_status.next_turn_penalty);
+            battle.p1_status.next_turn_penalty = 0;
+        };
+        if (battle.p1_status.poison_ticks > 0) {
+            battle.p1_growth = utils::sub_growth(battle.p1_growth, battle.p1_status.poison_dpt);
+            battle.p1_status.poison_ticks = battle.p1_status.poison_ticks - 1;
+        };
+
+        resolve_move(move_id, &mut battle.p1_growth, &mut battle.p2_growth, &mut battle.p1_status, &mut battle.p2_status, rand, ctx);
+
+        battle.p1_growth = utils::clamp(battle.p1_growth, 0, 100);
+        battle.p2_growth = utils::clamp(battle.p2_growth, 0, 100);
+        battle.last_move_ms = tx_context::epoch_timestamp_ms(ctx);
+    }
+
+    fun apply_player2_move(battle: &mut Battle, move_id: u8, rand: &Random, ctx: &mut TxContext) {
+        if (battle.p2_status.next_turn_penalty > 0) {
+            battle.p2_growth = utils::sub_growth(battle.p2_growth, battle.p2_status.next_turn_penalty);
+            battle.p2_status.next_turn_penalty = 0;
+        };
+        if (battle.p2_status.poison_ticks > 0) {
+            battle.p2_growth = utils::sub_growth(battle.p2_growth, battle.p2_status.poison_dpt);
+            battle.p2_status.poison_ticks = battle.p2_status.poison_ticks - 1;
+        };
+
+        resolve_move(move_id, &mut battle.p2_growth, &mut battle.p1_growth, &mut battle.p2_status, &mut battle.p1_status, rand, ctx);
+
+        battle.p2_growth = utils::clamp(battle.p2_growth, 0, 100);
+        battle.p1_growth = utils::clamp(battle.p1_growth, 0, 100);
+        battle.last_move_ms = tx_context::epoch_timestamp_ms(ctx);
+    }
+
     public fun use_ability(battle: &mut Battle, ability_name: vector<u8>, rand: &Random, ctx: &mut TxContext) {
         let move_id = map_ability_name(ability_name);
         assert!(move_id != 0, errors::e_invalid_ability_name());
@@ -408,45 +452,29 @@ module battle_garden::battle {
         };
         assert!(is_player_turn, errors::e_invalid_move());
         
-        let now = tx_context::epoch_timestamp_ms(ctx);
         if (battle.turn == 0) {
-            if (battle.p1_status.next_turn_penalty > 0) {
-                battle.p1_growth = utils::sub_growth(battle.p1_growth, battle.p1_status.next_turn_penalty);
-                battle.p1_status.next_turn_penalty = 0;
-            };
-            if (battle.p1_status.poison_ticks > 0) {
-                battle.p1_growth = utils::sub_growth(battle.p1_growth, battle.p1_status.poison_dpt);
-                battle.p1_status.poison_ticks = battle.p1_status.poison_ticks - 1;
-            };
-            
-            resolve_move(move_id, &mut battle.p1_growth, &mut battle.p2_growth, &mut battle.p1_status, &mut battle.p2_status, rand, ctx);
-            
-            battle.p1_growth = utils::clamp(battle.p1_growth, 0, 100);
-            battle.p2_growth = utils::clamp(battle.p2_growth, 0, 100);
-            battle.last_move_ms = now;
+            apply_player1_move(battle, move_id, rand, ctx);
             
             if (battle.p1_growth >= 100) {
                 let winner = battle.player1;
                 finish_and_payout(battle, winner, ctx);
+            } else if (battle.is_bot_battle) {
+                let bot_move = choose_bot_move(battle, rand, ctx);
+                apply_player2_move(battle, bot_move, rand, ctx);
+
+                if (battle.p2_growth >= 100) {
+                    let winner = battle.player2;
+                    finish_and_payout(battle, winner, ctx);
+                } else {
+                    battle.turn = 0;
+                    emit_update(battle);
+                };
             } else {
                 battle.turn = 1;
                 emit_update(battle);
             };
         } else {
-            if (battle.p2_status.next_turn_penalty > 0) {
-                battle.p2_growth = utils::sub_growth(battle.p2_growth, battle.p2_status.next_turn_penalty);
-                battle.p2_status.next_turn_penalty = 0;
-            };
-            if (battle.p2_status.poison_ticks > 0) {
-                battle.p2_growth = utils::sub_growth(battle.p2_growth, battle.p2_status.poison_dpt);
-                battle.p2_status.poison_ticks = battle.p2_status.poison_ticks - 1;
-            };
-            
-            resolve_move(move_id, &mut battle.p2_growth, &mut battle.p1_growth, &mut battle.p2_status, &mut battle.p1_status, rand, ctx);
-            
-            battle.p2_growth = utils::clamp(battle.p2_growth, 0, 100);
-            battle.p1_growth = utils::clamp(battle.p1_growth, 0, 100);
-            battle.last_move_ms = now;
+            apply_player2_move(battle, move_id, rand, ctx);
             
             if (battle.p2_growth >= 100) {
                 let winner = battle.player2;

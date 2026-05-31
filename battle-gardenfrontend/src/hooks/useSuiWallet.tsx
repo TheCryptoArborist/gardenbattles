@@ -757,13 +757,8 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
         );
       }
 
-      const botRes = await fetch(apiUrl("/api/battle/bot"));
-      const botJson = await botRes.json();
-      if (!botRes.ok || !botJson.address) {
-        throw new Error(botJson.error || "Battle bot is not configured");
-      }
-
       const tx = new Transaction();
+      const botAddress = SUI_CONFIG.BOT_ADDRESS;
 
       if (nftData.location === "wallet") {
         tx.moveCall({
@@ -772,7 +767,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
           arguments: [
             tx.object(SUI_CONFIG.CONFIG_ID),
             tx.object(nftData.nftId),
-            tx.pure.address(botJson.address),
+            tx.pure.address(botAddress),
             tx.object(randomObjectId),
           ],
         });
@@ -785,7 +780,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
             tx.object(nftData.kioskId),
             tx.object(nftData.kioskCapId),
             tx.pure.address(nftData.nftId),
-            tx.pure.address(botJson.address),
+            tx.pure.address(botAddress),
             tx.object(randomObjectId),
           ],
         });

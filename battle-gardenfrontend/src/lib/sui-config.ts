@@ -5,12 +5,16 @@ export const SUI_CONFIG = {
   RPC_URL: "https://fullnode.mainnet.sui.io:443",
   WS_URL: "wss://fullnode.mainnet.sui.io:443",
   PACKAGE_ID:
+    "0x50864e060caca53c7c50a355f7550276b52f91a0bd1e7b1e54ac9dbb754ef299",
+  ORIGINAL_PACKAGE_ID:
     "0x656ac984c39b952b40ccaaad4c26a3e074c4c99f56e2bac0862b811557de448b",
   MODULE: "battle",
   CONFIG_ID:
     "0x30addc978abe37f31d55cc60a395f30fd6cfdcbfb3cd4e319d2920b0e780a9bf",
   MATCHMAKING_QUEUE_ID:
     "0xb5c054185c98d9cb80e35c50f78e306ca2d7bed52955e397df9f1acad9938e4d",
+  BOT_ADDRESS:
+    "0xbbe518c2a2025d2d95b9e5b6435911771f64d7d9fe037fbf2ec661981890d5b4",
   SAPLING_STRUCT:
     "0xf6c6d439ea0da2f3e9ba79e4992a7a4c113215fbf54c442ac9020c315f953705::collection::NFT",
   COLLECTION_PACKAGE_ID:
@@ -98,5 +102,5 @@ export const MOVE_META: Record<number, MoveMeta> = {
 };
 
 export function getBattleUpdateEvent() {
-  return `${SUI_CONFIG.PACKAGE_ID}::${SUI_CONFIG.MODULE}::BattleUpdate`;
+  return `${SUI_CONFIG.ORIGINAL_PACKAGE_ID}::${SUI_CONFIG.MODULE}::BattleUpdate`;
 }
