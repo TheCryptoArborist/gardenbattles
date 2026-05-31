@@ -332,7 +332,11 @@ export default function Battle() {
       : "opponent"
     : null;
   const battleFinished = !!winner || !!battleState?.finished;
-  const BATTLE_TIMEOUT_MS = 5 * 60 * 1000;
+  const PLAYER_BATTLE_TIMEOUT_MS = 24 * 60 * 60 * 1000;
+  const BOT_BATTLE_TIMEOUT_MS = 10 * 60 * 1000;
+  const battleTimeoutMs = battleState?.isBotBattle
+    ? BOT_BATTLE_TIMEOUT_MS
+    : PLAYER_BATTLE_TIMEOUT_MS;
   const timeoutElapsedMs = battleState?.lastMoveMs
     ? Date.now() - battleState.lastMoveMs
     : 0;
@@ -340,7 +344,7 @@ export default function Battle() {
     !!battleState &&
     !battleFinished &&
     !isMyTurn &&
-    timeoutElapsedMs >= BATTLE_TIMEOUT_MS;
+    timeoutElapsedMs >= battleTimeoutMs;
 
   // Trigger animations when growth changes with proper cleanup
   useEffect(() => {
