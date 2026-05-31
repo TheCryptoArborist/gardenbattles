@@ -33,6 +33,9 @@ export default function Battle() {
     joinBattle,
     startBotBattle,
     useAbility,
+    claimTimeoutWin,
+    forfeitBattle,
+    adminForceClose,
     cancelQueue,
     getFirstValidSaplingNft,
   } = useSuiWallet();
@@ -50,6 +53,9 @@ export default function Battle() {
   const [isRefunding, setIsRefunding] = useState(false);
   const [isJoining, setIsJoining] = useState(false);
   const [isStartingBot, setIsStartingBot] = useState(false);
+  const [isClaimingTimeout, setIsClaimingTimeout] = useState(false);
+  const [isForfeiting, setIsForfeiting] = useState(false);
+  const [isAdminClosing, setIsAdminClosing] = useState(false);
   const [playerNftImageUrl, setPlayerNftImageUrl] = useState<string | null>(
     null,
   );
@@ -153,6 +159,70 @@ export default function Battle() {
       setDialogMessage(`Refund failed: ${error.message}`);
     } finally {
       setIsRefunding(false);
+    }
+  };
+
+  const handleForfeitBattle = async () => {
+    if (!isConnected) {
+      alert("Please connect your wallet first");
+      return;
+    }
+
+    setIsForfeiting(true);
+    try {
+      await forfeitBattle();
+      setDialogOpen(true);
+      setDialogMessage("You have forfeited the battle.");
+    } catch (error: any) {
+      setDialogOpen(true);
+      setDialogMessage(`Forfeit failed: ${error.message}`);
+    } finally {
+      setIsForfeiting(false);
+    }
+  };
+
+  const handleClaimTimeout = async () => {
+    if (!isConnected) {
+      alert("Please connect your wallet first");
+      return;
+    }
+
+    setIsClaimingTimeout(true);
+    try {
+      await claimTimeoutWin();
+      setDialogOpen(true);
+      setDialogMessage("Timeout claim submitted. Waiting for chain confirmation.");
+    } catch (error: any) {
+      setDialogOpen(true);
+      setDialogMessage(`Timeout claim failed: ${error.message}`);
+    } finally {
+      setIsClaimingTimeout(false);
+    }
+  };
+
+  const handleAdminForceClose = async () => {
+    if (!isConnected) {
+      alert("Please connect your wallet first");
+      return;
+    }
+
+    const winnerAddress = window.prompt(
+      "Enter the winner address to assign a winner, or leave blank to simply force-close the battle:",
+      "",
+    );
+
+    setIsAdminClosing(true);
+    try {
+      await adminForceClose(
+        winnerAddress?.trim() ? winnerAddress.trim().toLowerCase() : undefined,
+      );
+      setDialogOpen(true);
+      setDialogMessage("Admin force-close submitted. Waiting for chain confirmation.");
+    } catch (error: any) {
+      setDialogOpen(true);
+      setDialogMessage(`Admin force-close failed: ${error.message}`);
+    } finally {
+      setIsAdminClosing(false);
     }
   };
 
@@ -262,6 +332,15 @@ export default function Battle() {
       : "opponent"
     : null;
   const battleFinished = !!winner || !!battleState?.finished;
+  const BATTLE_TIMEOUT_MS = 5 * 60 * 1000;
+  const timeoutElapsedMs = battleState?.lastMoveMs
+    ? Date.now() - battleState.lastMoveMs
+    : 0;
+  const canClaimTimeout =
+    !!battleState &&
+    !battleFinished &&
+    !isMyTurn &&
+    timeoutElapsedMs >= BATTLE_TIMEOUT_MS;
 
   // Trigger animations when growth changes with proper cleanup
   useEffect(() => {
@@ -356,11 +435,13 @@ export default function Battle() {
   } else if (isConnected && !battleState) {
     battleStatus = "Ready to join! Click the button below.";
   } else if (battleState && !battleFinished) {
-    battleStatus = isMyTurn
-      ? "Your turn! Choose a move."
-      : battleState.isBotBattle
-        ? "Garden Bot is thinking..."
-        : "Waiting for your opponent to move.";
+    battleStatus = canClaimTimeout
+      ? "Opponent has been idle for too long — you may claim timeout victory."
+      : isMyTurn
+        ? "Your turn! Choose a move."
+        : battleState.isBotBattle
+          ? "Garden Bot is thinking..."
+          : "Waiting for your opponent to move.";
   } else if (winner) {
     battleStatus =
       winner === "player"
@@ -375,10 +456,9 @@ export default function Battle() {
   // Check if user is admin to show admin panel
   const isAdmin =
     address &&
-    [
-      "0x485953e2eadf4aa02af950cf8e914fbd2b67523385e73c36118341459d8d45c4",
-      "0x8d73665b159d406d1bd208782cbba5304900ecafbde23f957f77843b5ea06961",
-    ].some((adminAddr) => adminAddr.toLowerCase() === address.toLowerCase());
+    SUI_CONFIG.ADMIN_ADDRESSES.some(
+      (adminAddr) => adminAddr.toLowerCase() === address.toLowerCase(),
+    );
 
   return (
     <>
@@ -1142,6 +1222,86 @@ export default function Battle() {
                 );
               })}
             </div>
+
+            {(battleState && !battleFinished) && (
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  justifyContent: "center",
+                  gap: "12px",
+                  marginTop: "18px",
+                }}
+              >
+                <button
+                  onClick={handleForfeitBattle}
+                  disabled={isForfeiting}
+                  style={{
+                    padding: "14px 18px",
+                    borderRadius: "10px",
+                    border: "2px solid #ff4444",
+                    background: isForfeiting
+                      ? "rgba(100, 0, 0, 0.5)"
+                      : "linear-gradient(45deg, #ff4444, #aa0000)",
+                    color: isForfeiting ? "#ccc" : "#fff",
+                    cursor: isForfeiting ? "not-allowed" : "pointer",
+                    fontWeight: "bold",
+                    textTransform: "uppercase",
+                    boxShadow: isForfeiting
+                      ? "none"
+                      : "0 0 18px rgba(255, 68, 68, 0.45)",
+                  }}
+                >
+                  {isForfeiting ? "Forfeiting..." : "Forfeit Battle"}
+                </button>
+                {canClaimTimeout && (
+                  <button
+                    onClick={handleClaimTimeout}
+                    disabled={isClaimingTimeout}
+                    style={{
+                      padding: "14px 18px",
+                      borderRadius: "10px",
+                      border: "2px solid #ffcc00",
+                      background: isClaimingTimeout
+                        ? "rgba(100, 100, 0, 0.5)"
+                        : "linear-gradient(45deg, #ffcc00, #ffdd55)",
+                      color: isClaimingTimeout ? "#333" : "#000",
+                      cursor: isClaimingTimeout ? "not-allowed" : "pointer",
+                      fontWeight: "bold",
+                      textTransform: "uppercase",
+                      boxShadow: isClaimingTimeout
+                        ? "none"
+                        : "0 0 18px rgba(255, 204, 0, 0.55)",
+                    }}
+                  >
+                    {isClaimingTimeout ? "Claiming..." : "Claim Timeout Win"}
+                  </button>
+                )}
+                {isAdmin && (
+                  <button
+                    onClick={handleAdminForceClose}
+                    disabled={isAdminClosing}
+                    style={{
+                      padding: "14px 18px",
+                      borderRadius: "10px",
+                      border: "2px solid #00ccff",
+                      background: isAdminClosing
+                        ? "rgba(0, 100, 150, 0.5)"
+                        : "linear-gradient(45deg, #00ccff, #00aaff)",
+                      color: isAdminClosing ? "#ccc" : "#000",
+                      cursor: isAdminClosing ? "not-allowed" : "pointer",
+                      fontWeight: "bold",
+                      textTransform: "uppercase",
+                      boxShadow: isAdminClosing
+                        ? "none"
+                        : "0 0 18px rgba(0, 204, 255, 0.45)",
+                    }}
+                  >
+                    {isAdminClosing ? "Closing..." : "Admin Force Close"}
+                  </button>
+                )}
+              </div>
+            )}
 
             {/* Battle Log */}
             <div

@@ -27,7 +27,7 @@ module battle_garden::matchmaking {
         };
         sui::transfer::share_object(queue);
     }
-    entry fun join_queue<T: key + store>(config: &Config, queue: &mut MatchmakingQueue, _nft: &T, payment: Coin<SUI>, rand: &Random, ctx: &mut TxContext) {
+    public fun join_queue<T: key + store>(config: &Config, queue: &mut MatchmakingQueue, _nft: &T, payment: Coin<SUI>, rand: &Random, ctx: &mut TxContext) {
         assert!(!config::paused(config), errors::e_paused());
         assert!(config::is_collection_whitelisted<T>(config), errors::e_nft_not_whitelisted());
         
@@ -53,7 +53,7 @@ module battle_garden::matchmaking {
     }
 
     // Join queue from kiosk (for collections that require it)
-    entry fun join_queue_from_kiosk<T: key + store>(
+    public fun join_queue_from_kiosk<T: key + store>(
         config: &Config, 
         queue: &mut MatchmakingQueue, 
         kiosk: &mut Kiosk,
@@ -90,7 +90,7 @@ module battle_garden::matchmaking {
             option::fill(&mut queue.waiting, pending);
         }
     }
-    entry fun cancel_queue(queue: &mut MatchmakingQueue, ctx: &mut TxContext) {
+    public fun cancel_queue(queue: &mut MatchmakingQueue, ctx: &mut TxContext) {
         assert!(option::is_some(&queue.waiting), errors::e_no_pending_to_cancel());
         
         let sender = tx_context::sender(ctx);

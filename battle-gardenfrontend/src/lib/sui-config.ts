@@ -5,12 +5,12 @@ export const SUI_CONFIG = {
   RPC_URL: "https://fullnode.mainnet.sui.io:443",
   WS_URL: "wss://fullnode.mainnet.sui.io:443",
   PACKAGE_ID:
-    "0x25d3dd5bfb4bf4afbc1f1da0ec7ad90498e41f74e094abdd6df23047d64432e9",
+    "0x656ac984c39b952b40ccaaad4c26a3e074c4c99f56e2bac0862b811557de448b",
   MODULE: "battle",
   CONFIG_ID:
-    "0xe98215c022612b4a58d788a36db183556b90d7270e07d43389b23baba93fcb4b",
+    "0x30addc978abe37f31d55cc60a395f30fd6cfdcbfb3cd4e319d2920b0e780a9bf",
   MATCHMAKING_QUEUE_ID:
-    "0xca973a3c3f1cacb205be68b0602376a2630c0c73ddc1000cb60a7b3277d43ebe",
+    "0xb5c054185c98d9cb80e35c50f78e306ca2d7bed52955e397df9f1acad9938e4d",
   SAPLING_STRUCT:
     "0xf6c6d439ea0da2f3e9ba79e4992a7a4c113215fbf54c442ac9020c315f953705::collection::NFT",
   COLLECTION_PACKAGE_ID:

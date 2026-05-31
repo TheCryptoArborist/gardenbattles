@@ -13,7 +13,7 @@ const SUI_RPC_URL =
 const PACKAGE_ID =
   process.env.BATTLE_PACKAGE_ID ||
   process.env.PACKAGE_ID ||
-  "0x25d3dd5bfb4bf4afbc1f1da0ec7ad90498e41f74e094abdd6df23047d64432e9";
+  "0x656ac984c39b952b40ccaaad4c26a3e074c4c99f56e2bac0862b811557de448b";
 const MODULE = process.env.BATTLE_MODULE || "battle";
 const BATTLE_UPDATE_EVENT = `${PACKAGE_ID}::${MODULE}::BattleUpdate`;
 const POLL_INTERVAL_MS = 2_000; // poll every 2 s
@@ -50,6 +50,7 @@ interface BattleState {
   turn: number;
   winner: string | null;
   isBotBattle?: boolean;
+  lastMoveMs?: number;
   lastEventCursor?: string | null;
 }
 
@@ -120,7 +121,10 @@ function parseBattleEvent(parsedJson: any): BattleState | null {
       player2Growth: Number(parsedJson.player2_growth ?? 0),
       turn: Number(parsedJson.turn ?? 0),
       winner,
-      isBotBattle: !!BOT_ADDRESS && (player1 === BOT_ADDRESS || player2 === BOT_ADDRESS),
+      isBotBattle:
+        Boolean(parsedJson.is_bot_battle) ||
+        (!!BOT_ADDRESS && (player1 === BOT_ADDRESS || player2 === BOT_ADDRESS)),
+      lastMoveMs: Number(parsedJson.last_move_ms ?? 0),
     };
   } catch {
     return null;

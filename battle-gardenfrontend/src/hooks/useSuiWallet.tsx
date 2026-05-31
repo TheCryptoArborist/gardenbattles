@@ -43,6 +43,7 @@ export interface BattleState {
   winner: string | null;
   finished?: boolean;
   isBotBattle?: boolean;
+  lastMoveMs?: number;
 }
 
 export interface NftData {
@@ -65,6 +66,9 @@ interface SuiWalletContextType {
   joinBattle: (nftData: NftData) => Promise<void>;
   startBotBattle: (nftData: NftData) => Promise<void>;
   useAbility: (abilityId: number) => Promise<void>;
+  claimTimeoutWin: () => Promise<void>;
+  forfeitBattle: () => Promise<void>;
+  adminForceClose: (winner?: string) => Promise<void>;
   cancelQueue: () => Promise<any>;
   getFirstValidSaplingNft: (owner: string) => Promise<NftData | null>;
   ConnectWalletButton: () => JSX.Element;
@@ -161,7 +165,8 @@ function parseBattleStateFromEvent(json: any): BattleState | null {
     turn: Number(json.turn ?? 0),
     winner: normalizeWinner(json.winner),
     finished: !!normalizeWinner(json.winner),
-    isBotBattle: false,
+    isBotBattle: Boolean(json.is_bot_battle),
+    lastMoveMs: Number(json.last_move_ms ?? 0),
   };
 }
 
@@ -225,6 +230,8 @@ function parseBattleStateFromObjectFields(
     turn: Number(fields.turn ?? 0),
     winner: normalizeWinner(fields.winner),
     finished: Boolean(fields.finished) || !!normalizeWinner(fields.winner),
+    isBotBattle: Boolean(fields.is_bot_battle),
+    lastMoveMs: Number(fields.last_move_ms ?? 0),
   };
 }
 
@@ -875,7 +882,6 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
       return new Promise<void>((resolve, reject) => {
         signAndExecuteTransaction(
           { transaction: tx, chain: SUI_CONFIG.CHAIN },
-
           {
             onSuccess: () => resolve(),
             onError: (err: any) =>
@@ -893,6 +899,122 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
       clearBattleState,
       signAndExecuteTransaction,
     ],
+  );
+
+  const claimTimeoutWin = useCallback(async () => {
+    if (!address || !battleState?.battleId) {
+      throw new Error("Battle not active");
+    }
+
+    const battleId = battleState.battleId;
+    const tx = new Transaction();
+    tx.moveCall({
+      target: `${SUI_CONFIG.PACKAGE_ID}::${SUI_CONFIG.MODULE}::claim_timeout_win`,
+      arguments: [tx.object(battleId)],
+    });
+    tx.setSender(address);
+
+    return new Promise<void>((resolve, reject) => {
+      signAndExecuteTransaction(
+        { transaction: tx, chain: SUI_CONFIG.CHAIN },
+        {
+          onSuccess: async () => {
+            const liveState = await getLiveBattleState(suiClient, battleId);
+            if (liveState) {
+              await applyBattleState({
+                ...liveState,
+                isBotBattle: battleState.isBotBattle,
+              });
+            }
+            resolve();
+          },
+          onError: (err: any) =>
+            reject(new Error(err?.message ?? "Failed to claim timeout win")),
+        },
+      );
+    });
+  }, [address, battleState, signAndExecuteTransaction, suiClient, applyBattleState]);
+
+  const forfeitBattle = useCallback(async () => {
+    if (!address || !battleState?.battleId) {
+      throw new Error("Battle not active");
+    }
+
+    const battleId = battleState.battleId;
+    const tx = new Transaction();
+    tx.moveCall({
+      target: `${SUI_CONFIG.PACKAGE_ID}::${SUI_CONFIG.MODULE}::surrender`,
+      arguments: [tx.object(battleId)],
+    });
+    tx.setSender(address);
+
+    return new Promise<void>((resolve, reject) => {
+      signAndExecuteTransaction(
+        { transaction: tx, chain: SUI_CONFIG.CHAIN },
+        {
+          onSuccess: async () => {
+            const liveState = await getLiveBattleState(suiClient, battleId);
+            if (liveState) {
+              await applyBattleState({
+                ...liveState,
+                isBotBattle: battleState.isBotBattle,
+              });
+            }
+            resolve();
+          },
+          onError: (err: any) =>
+            reject(new Error(err?.message ?? "Failed to forfeit battle")),
+        },
+      );
+    });
+  }, [address, battleState, signAndExecuteTransaction, suiClient, applyBattleState]);
+
+  const adminForceClose = useCallback(
+    async (winner?: string) => {
+      if (!address || !battleState?.battleId) {
+        throw new Error("Battle not active");
+      }
+
+      const battleId = battleState.battleId;
+      const tx = new Transaction();
+      if (winner) {
+        tx.moveCall({
+          target: `${SUI_CONFIG.PACKAGE_ID}::${SUI_CONFIG.MODULE}::admin_force_close_with_winner`,
+          arguments: [
+            tx.object(battleId),
+            tx.object(SUI_CONFIG.CONFIG_ID),
+            tx.pure.address(winner),
+          ],
+        });
+      } else {
+        tx.moveCall({
+          target: `${SUI_CONFIG.PACKAGE_ID}::${SUI_CONFIG.MODULE}::admin_force_close`,
+          arguments: [tx.object(battleId), tx.object(SUI_CONFIG.CONFIG_ID)],
+        });
+      }
+      tx.setSender(address);
+
+      return new Promise<void>((resolve, reject) => {
+        signAndExecuteTransaction(
+          { transaction: tx, chain: SUI_CONFIG.CHAIN },
+          {
+            onSuccess: async () => {
+              const liveState = await getLiveBattleState(suiClient, battleId);
+              if (liveState) {
+                await applyBattleState({
+                  ...liveState,
+                  isBotBattle: battleState.isBotBattle,
+                });
+              }
+              resolve();
+            },
+            onError: (err: any) =>
+              reject(new Error(err?.message ?? "Failed to force close battle")),
+          },
+        );
+      });
+    },
+    [address, battleState, signAndExecuteTransaction, suiClient, applyBattleState],
   );
 
   // ── 6. Cancel queue / emergency refund ───────────────────────────────────
@@ -1007,6 +1129,9 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
         joinBattle,
         startBotBattle,
         useAbility,
+        claimTimeoutWin,
+        forfeitBattle,
+        adminForceClose,
         cancelQueue,
         getFirstValidSaplingNft,
         ConnectWalletButton,

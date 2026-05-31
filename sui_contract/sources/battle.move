@@ -16,6 +16,9 @@ module battle_garden::battle {
         poison_dpt: u64,
     }
 
+    const TIMEOUT_MS: u64 = 24 * 60 * 60 * 1000;
+    const BOT_TIMEOUT_MS: u64 = 10 * 60 * 1000;
+
     public struct Battle has key {
         id: UID,
         player1: address,
@@ -34,6 +37,8 @@ module battle_garden::battle {
         winner_payout: u64,
         treasury_share: u64,
         treasury_addr: address,
+        last_move_ms: u64,
+        is_bot_battle: bool,
     }
 
     public struct BattleUpdate has copy, drop {
@@ -44,8 +49,9 @@ module battle_garden::battle {
         player2_moves: vector<u8>,
         player1_growth: u64,
         player2_growth: u64,
-        turn: u8,
         winner: Option<address>,
+        last_move_ms: u64,
+        is_bot_battle: bool,
     }
 
     // Helper to generate moves - Internal
@@ -108,8 +114,9 @@ module battle_garden::battle {
             player2_moves: utils::clone_vec_u8(&arg0.p2_moves),
             player1_growth: arg0.p1_growth,
             player2_growth: arg0.p2_growth,
-            turn: arg0.turn,
             winner: arg0.winner,
+            last_move_ms: arg0.last_move_ms,
+            is_bot_battle: arg0.is_bot_battle,
         };
         event::emit(update);
     }
@@ -134,7 +141,7 @@ module battle_garden::battle {
         };
         emit_update(arg0);
     }
-    public(package) fun create_battle(
+    public fun create_battle(
         player1: address, 
         player2: address, 
         entry_fee: u64, 
@@ -145,6 +152,7 @@ module battle_garden::battle {
     ) {
         let p1_status = Status { block_turns: 0, next_turn_penalty: 0, poison_ticks: 0, poison_dpt: 0 };
         let p2_status = Status { block_turns: 0, next_turn_penalty: 0, poison_ticks: 0, poison_dpt: 0 };
+        assert!(player1 != player2, errors::e_invalid_address());
         let battle = Battle {
             id: object::new(ctx),
             player1,
@@ -163,6 +171,8 @@ module battle_garden::battle {
             winner_payout: config::winner_payout(config),
             treasury_share: config::treasury_share(config),
             treasury_addr: config::treasury(config),
+            last_move_ms: tx_context::epoch_timestamp_ms(ctx),
+            is_bot_battle: false,
         };
         emit_update(&battle);
         transfer::share_object(battle);
@@ -200,6 +210,8 @@ module battle_garden::battle {
             winner_payout: 0,
             treasury_share: 0,
             treasury_addr: config::treasury(config),
+            last_move_ms: tx_context::epoch_timestamp_ms(ctx),
+            is_bot_battle: true,
         };
         emit_update(&battle);
         transfer::share_object(battle);
@@ -254,6 +266,8 @@ module battle_garden::battle {
             winner_payout: entry_fee,
             treasury_share: 0,
             treasury_addr: config::treasury(config),
+            last_move_ms: tx_context::epoch_timestamp_ms(ctx),
+            is_bot_battle: true,
         };
         emit_update(&battle);
         transfer::share_object(battle);
@@ -286,7 +300,28 @@ module battle_garden::battle {
         finish_and_payout(battle, winner, ctx);
     }
 
-    public fun admin_close(battle: &mut Battle, config: &Config, ctx: &mut TxContext) {
+    public fun claim_timeout_win(battle: &mut Battle, ctx: &mut TxContext) {
+        assert!(!battle.finished, errors::e_battle_finished());
+        let sender = tx_context::sender(ctx);
+        let is_player1 = sender == battle.player1;
+        let is_player2 = sender == battle.player2;
+        assert!(is_player1 || is_player2, errors::e_unauthorized_player());
+
+        let is_opponent_turn = if (battle.turn == 0) {
+            sender == battle.player2
+        } else {
+            sender == battle.player1
+        };
+        assert!(is_opponent_turn, errors::e_unauthorized_player());
+
+        let timeout = if (battle.is_bot_battle) { BOT_TIMEOUT_MS } else { TIMEOUT_MS };
+        let now = tx_context::epoch_timestamp_ms(ctx);
+        assert!(now >= battle.last_move_ms + timeout, errors::e_unauthorized_player());
+
+        finish_and_payout(battle, sender, ctx);
+    }
+
+    public fun admin_force_close(battle: &mut Battle, config: &Config, ctx: &mut TxContext) {
         assert!(tx_context::sender(ctx) == config::admin(config), errors::e_admin_only());
         assert!(!battle.finished, errors::e_battle_finished());
         battle.finished = true;
@@ -303,6 +338,21 @@ module battle_garden::battle {
             transfer::public_transfer(coin::from_balance(rem, ctx), battle.player1);
         };
         emit_update(battle);
+    }
+
+    public fun admin_force_close_with_winner(
+        battle: &mut Battle,
+        config: &Config,
+        winner: address,
+        ctx: &mut TxContext,
+    ) {
+        assert!(tx_context::sender(ctx) == config::admin(config), errors::e_admin_only());
+        assert!(!battle.finished, errors::e_battle_finished());
+        finish_and_payout(battle, winner, ctx);
+    }
+
+    public fun admin_close(battle: &mut Battle, config: &Config, ctx: &mut TxContext) {
+        admin_force_close(battle, config, ctx);
     }
 
     fun apply_damage(arg0: u64, arg1: &mut Status): u64 {
@@ -341,12 +391,12 @@ module battle_garden::battle {
         else if (utils::eq_str(name, b"ShadowCanopy")) { 30 }
         else { 0 }
     }
-    entry fun use_ability(battle: &mut Battle, ability_name: vector<u8>, rand: &Random, ctx: &mut TxContext) {
+    public fun use_ability(battle: &mut Battle, ability_name: vector<u8>, rand: &Random, ctx: &mut TxContext) {
         let move_id = map_ability_name(ability_name);
         assert!(move_id != 0, errors::e_invalid_ability_name());
         use_ability_id(battle, move_id, rand, ctx);
     }
-    entry fun use_ability_id(battle: &mut Battle, move_id: u8, rand: &Random, ctx: &mut TxContext) {
+    public fun use_ability_id(battle: &mut Battle, move_id: u8, rand: &Random, ctx: &mut TxContext) {
         assert!(!battle.finished, errors::e_battle_finished());
         let sender = tx_context::sender(ctx);
         let is_player_turn = if (battle.turn == 0) {
@@ -358,6 +408,7 @@ module battle_garden::battle {
         };
         assert!(is_player_turn, errors::e_invalid_move());
         
+        let now = tx_context::epoch_timestamp_ms(ctx);
         if (battle.turn == 0) {
             if (battle.p1_status.next_turn_penalty > 0) {
                 battle.p1_growth = utils::sub_growth(battle.p1_growth, battle.p1_status.next_turn_penalty);
@@ -372,6 +423,7 @@ module battle_garden::battle {
             
             battle.p1_growth = utils::clamp(battle.p1_growth, 0, 100);
             battle.p2_growth = utils::clamp(battle.p2_growth, 0, 100);
+            battle.last_move_ms = now;
             
             if (battle.p1_growth >= 100) {
                 let winner = battle.player1;
@@ -394,6 +446,7 @@ module battle_garden::battle {
             
             battle.p2_growth = utils::clamp(battle.p2_growth, 0, 100);
             battle.p1_growth = utils::clamp(battle.p1_growth, 0, 100);
+            battle.last_move_ms = now;
             
             if (battle.p2_growth >= 100) {
                 let winner = battle.player2;

@@ -1,16 +1,15 @@
-<<<<<<< HEAD
-build/*
-traces/*
-.trace
-.coverage*
-Pub.*.toml
-=======
 node_modules
 dist
 .DS_Store
 server/public
 vite.config.ts.*
 *.tar.gz
->>>>>>> 9fe2e20 (Add comprehensive deployment guide and update core game logic)
-/sui_contract/build
+.env
 scripts/.env
+
+build/*
+traces/*
+.trace
+.coverage*
+Pub.*.toml
+/sui_contract/build
