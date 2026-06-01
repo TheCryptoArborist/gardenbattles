@@ -275,6 +275,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
   const [actionLog, setActionLog] = useState<ActionEntry[]>([]);
   const prevBattleStateRef = useRef<BattleState | null>(null);
   const lastMoveIdRef = useRef<number>(0);
+  const isWaitingRef = useRef(false);
 
   const socketRef = useRef<Socket | null>(null);
   const address = currentAccount?.address ?? null;
@@ -292,6 +293,10 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
         battleState.turn === 1));
 
   const clearActionLog = useCallback(() => setActionLog([]), []);
+
+  useEffect(() => {
+    isWaitingRef.current = isWaiting;
+  }, [isWaiting]);
 
   const refreshEntryFee = useCallback(async () => {
     const obj = await suiClient.getObject({
@@ -329,7 +334,9 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
       ) {
         const liveState = await getLiveBattleState(suiClient, state.battleId);
         if (liveState === null) {
-          clearBattleState();
+          if (!isZeroAddress(state.player2) && !isWaitingRef.current) {
+            clearBattleState();
+          }
           return;
         }
 
@@ -445,14 +452,16 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
         })
         .then((body) => {
           const state = body?.state;
-          if (!state) return;
+          if (!state) {
+            return;
+          }
           if (isActiveBattleForAddress(state, address)) {
             console.log("[relay] restored battle state from HTTP");
             // Re-join the socket room
             socket.emit("join_battle", { battleId: state.battleId });
             void applyBattleState(state, { verifyLive: true });
           } else {
-            clearBattleState();
+            if (!isWaitingRef.current) clearBattleState();
           }
         })
         .catch(() => {
