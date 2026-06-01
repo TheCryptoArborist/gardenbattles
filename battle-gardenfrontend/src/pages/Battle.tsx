@@ -27,6 +27,7 @@ export default function Battle() {
     address,
     battleState,
     isWaiting,
+    entryFeeMist,
     isMyTurn,
     actionLog,
     clearActionLog,
@@ -56,6 +57,9 @@ export default function Battle() {
   const [isClaimingTimeout, setIsClaimingTimeout] = useState(false);
   const [isForfeiting, setIsForfeiting] = useState(false);
   const [isAdminClosing, setIsAdminClosing] = useState(false);
+  const entryFeeLabel = `${(entryFeeMist / 1e9).toLocaleString(undefined, {
+    maximumFractionDigits: 9,
+  })} SUI`;
   const [playerNftImageUrl, setPlayerNftImageUrl] = useState<string | null>(
     null,
   );
@@ -152,7 +156,7 @@ export default function Battle() {
       await cancelQueue();
       setDialogOpen(true);
       setDialogMessage(
-        `Refund successful! Your ${SUI_CONFIG.ENTRY_FEE / 1e9} SUI has been returned.`,
+        `Refund successful! Your ${entryFeeLabel} has been returned.`,
       );
     } catch (error: any) {
       setDialogOpen(true);
@@ -708,8 +712,7 @@ export default function Battle() {
             >
               <strong>Battles require 2 players total!</strong>
               <br />
-              You have paid {SUI_CONFIG.ENTRY_FEE / 1e9} SUI and are in the
-              queue.
+              You have paid {entryFeeLabel} and are in the queue.
               <br />A 2nd player must join to start the battle.
             </p>
             <p
@@ -1389,7 +1392,7 @@ export default function Battle() {
               >
                 {isJoining
                   ? "Joining..."
-                  : `Join Battle Queue (${SUI_CONFIG.ENTRY_FEE / 1e9} SUI)`}
+                  : `Join Battle Queue (${entryFeeLabel})`}
               </button>
               <button
                 onClick={handleStartBotBattle}
@@ -1457,7 +1460,7 @@ export default function Battle() {
           }}
           data-testid="text-entry-fee"
         >
-          {SUI_CONFIG.ENTRY_FEE / 1e9} SUI per Battle
+          {entryFeeLabel} per Battle
         </p>
         <p
           style={{
@@ -1523,8 +1526,7 @@ export default function Battle() {
               battles.
             </li>
             <li style={{ marginBottom: "10px" }}>
-              <strong>Entry Fee</strong>: Each battle costs{" "}
-              {SUI_CONFIG.ENTRY_FEE / 1e9} SUI.
+              <strong>Entry Fee</strong>: Each battle costs {entryFeeLabel}.
             </li>
             <li style={{ marginBottom: "10px" }}>
               <strong>Rewards</strong>: The winner receives 5 SUI, with 1 SUI

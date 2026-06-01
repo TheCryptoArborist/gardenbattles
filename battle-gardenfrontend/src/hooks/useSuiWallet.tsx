@@ -60,6 +60,7 @@ interface SuiWalletContextType {
   isConnected: boolean;
   battleState: BattleState | null;
   isWaiting: boolean;
+  entryFeeMist: number;
   isMyTurn: boolean;
   actionLog: ActionEntry[];
   clearActionLog: () => void;
@@ -149,6 +150,12 @@ function normalizeWinner(value: any): string | null {
   }
 
   return null;
+}
+
+function readConfigEntryFeeMist(content: any): number | null {
+  const rawFee = content?.fields?.entry_fee;
+  const fee = Number(rawFee);
+  return Number.isFinite(fee) && fee >= 0 ? fee : null;
 }
 
 function parseBattleStateFromEvent(json: any): BattleState | null {
@@ -261,6 +268,9 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
 
   const [battleState, setBattleState] = useState<BattleState | null>(null);
   const [isWaiting, setIsWaiting] = useState(false);
+  const [entryFeeMist, setEntryFeeMist] = useState<number>(
+    SUI_CONFIG.ENTRY_FEE,
+  );
   const [randomObjectId, setRandomObjectId] = useState<string | null>(null);
   const [actionLog, setActionLog] = useState<ActionEntry[]>([]);
   const prevBattleStateRef = useRef<BattleState | null>(null);
@@ -282,6 +292,20 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
         battleState.turn === 1));
 
   const clearActionLog = useCallback(() => setActionLog([]), []);
+
+  const refreshEntryFee = useCallback(async () => {
+    const obj = await suiClient.getObject({
+      id: SUI_CONFIG.CONFIG_ID,
+      options: { showContent: true },
+    });
+    const fee = readConfigEntryFeeMist(obj.data?.content);
+    if (fee === null) {
+      throw new Error("Could not read battle entry fee from on-chain config");
+    }
+    setEntryFeeMist(fee);
+    return fee;
+  }, [suiClient]);
+
   const clearBattleState = useCallback(() => {
     setBattleState(null);
     setIsWaiting(false);
@@ -348,6 +372,12 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
     if (!address) return;
     cacheBattleState(address, battleState);
   }, [address, battleState]);
+
+  useEffect(() => {
+    refreshEntryFee().catch((err) => {
+      console.warn("[battle] could not load on-chain entry fee:", err);
+    });
+  }, [refreshEntryFee]);
 
   // ── 1. Resolve a valid Sui random object ──────────────────────────────────
   useEffect(() => {
@@ -675,11 +705,13 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
         );
       }
 
+      const liveEntryFeeMist = await refreshEntryFee();
+
       // Balance check
       try {
         const balance = await suiClient.getBalance({ owner: address });
         const balSui = Number(balance.totalBalance) / 1e9;
-        const needed = SUI_CONFIG.ENTRY_FEE / 1e9 + 0.1;
+        const needed = liveEntryFeeMist / 1e9 + 0.1;
         if (balSui < needed) {
           throw new Error(
             `Insufficient balance: you have ${balSui.toFixed(2)} SUI but need ${needed} SUI`,
@@ -690,7 +722,16 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
       }
 
       const tx = new Transaction();
-      const [fee] = tx.splitCoins(tx.gas, [tx.pure.u64(SUI_CONFIG.ENTRY_FEE)]);
+      const [fee] =
+        liveEntryFeeMist === 0
+          ? [
+              tx.moveCall({
+                target: "0x2::coin::zero",
+                typeArguments: ["0x2::sui::SUI"],
+                arguments: [],
+              }),
+            ]
+          : tx.splitCoins(tx.gas, [tx.pure.u64(liveEntryFeeMist)]);
 
       if (nftData.location === "wallet") {
         tx.moveCall({
@@ -745,7 +786,13 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
         );
       });
     },
-    [address, randomObjectId, suiClient, signAndExecuteTransaction],
+    [
+      address,
+      randomObjectId,
+      refreshEntryFee,
+      suiClient,
+      signAndExecuteTransaction,
+    ],
   );
 
   // ── 5. Start a no-payout bot practice battle ─────────────────────────────
@@ -1118,6 +1165,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
         isConnected,
         battleState,
         isWaiting,
+        entryFeeMist,
         isMyTurn,
         actionLog,
         clearActionLog,

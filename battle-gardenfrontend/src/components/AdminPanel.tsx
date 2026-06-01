@@ -197,21 +197,21 @@ export default function AdminPanel({
     }
   };
 
-  const updateFeesToZero = async () => {
+  const updateFeesToThreeSui = async () => {
     setIsUpdatingFees(true);
-    setStatusMessage("Updating battle fees to 0 SUI for testing...");
+    setStatusMessage("Updating battle fees to 3 SUI...");
 
     try {
       const tx = new Transaction();
 
-      // Call set_economics(config, entry_fee=0, winner_payout=0, treasury_share=0)
+      // Call set_economics(config, entry_fee=3 SUI, winner_payout=5 SUI, treasury_share=1 SUI)
       tx.moveCall({
         target: `${SUI_CONFIG.PACKAGE_ID}::config::set_economics`,
         arguments: [
           tx.object(SUI_CONFIG.CONFIG_ID),
-          tx.pure.u64(0), // entry_fee
-          tx.pure.u64(0), // winner_payout
-          tx.pure.u64(0), // treasury_share
+          tx.pure.u64(SUI_CONFIG.ENTRY_FEE), // entry_fee
+          tx.pure.u64(5_000_000_000), // winner_payout
+          tx.pure.u64(1_000_000_000), // treasury_share
         ],
       });
 
@@ -224,7 +224,7 @@ export default function AdminPanel({
           {
             onSuccess: () => {
               setStatusMessage(
-                "Battle fees updated to 0 SUI on-chain! You can now test battles.",
+                "Battle fees updated to 3 SUI on-chain!",
               );
 
               setTimeout(() => {
@@ -364,7 +364,7 @@ export default function AdminPanel({
               NFT Collection Manager
             </h2>
 
-            {/* Testing: Set Fees to 0 */}
+            {/* Battle Economics */}
             <div
               style={{
                 marginBottom: "20px",
@@ -381,7 +381,7 @@ export default function AdminPanel({
                   marginBottom: "10px",
                 }}
               >
-                Testing Mode
+                Battle Fee Settings
               </h3>
               <p
                 style={{
@@ -391,10 +391,10 @@ export default function AdminPanel({
                   opacity: 0.9,
                 }}
               >
-                Set battle fees to 0 SUI to test battles without spending SUI
+                Set battle fees to 3 SUI so paid battles match the contract economics.
               </p>
               <button
-                onClick={updateFeesToZero}
+                onClick={updateFeesToThreeSui}
                 disabled={isUpdatingFees}
                 style={{
                   background: isUpdatingFees
@@ -412,7 +412,7 @@ export default function AdminPanel({
                 }}
                 data-testid="button-update-fees"
               >
-                {isUpdatingFees ? "Updating..." : "Set Fees to 0 SUI"}
+                {isUpdatingFees ? "Updating..." : "Set Fees to 3 SUI"}
               </button>
             </div>
 
