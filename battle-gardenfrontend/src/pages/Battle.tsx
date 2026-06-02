@@ -97,7 +97,6 @@ export default function Battle() {
         setPlayerNftImageUrl(nftData.imageUrl || null);
         await joinBattle(nftData);
         setDialogMessage("Joined queue! Waiting for opponent...");
-        setTimeout(() => setDialogOpen(false), 2000);
       } else {
         setDialogMessage(
           "No whitelisted NFT found. Contact admin to whitelist your collection.",
@@ -131,7 +130,6 @@ export default function Battle() {
         setDialogMessage(
           "Garden Bot battle started! Waiting for chain update...",
         );
-        setTimeout(() => setDialogOpen(false), 2000);
       } else {
         setDialogMessage(
           "No whitelisted NFT found. Contact admin to whitelist your collection.",
@@ -349,6 +347,20 @@ export default function Battle() {
     !battleFinished &&
     !isMyTurn &&
     timeoutElapsedMs >= battleTimeoutMs;
+  const hasOpponent =
+    !!battleState?.player1 &&
+    !!battleState.player2 &&
+    battleState.player1 !== "0x0" &&
+    battleState.player2 !== "0x0";
+  const isQueueWaitingMessage =
+    /waiting for (opponent|chain update)|joined queue/i.test(dialogMessage);
+  const isQueueWaitingDialog = isWaiting && isQueueWaitingMessage;
+
+  useEffect(() => {
+    if (hasOpponent && dialogOpen && isQueueWaitingMessage) {
+      setDialogOpen(false);
+    }
+  }, [hasOpponent, dialogOpen, isQueueWaitingMessage]);
 
   // Trigger animations when growth changes with proper cleanup
   useEffect(() => {
@@ -1658,6 +1670,7 @@ export default function Battle() {
           isOpen={dialogOpen}
           message={dialogMessage}
           onClose={() => setDialogOpen(false)}
+          canClose={!isQueueWaitingDialog}
         />
         <WaitingOverlay isWaiting={isWaiting} onLeaveQueue={cancelQueue} />
 

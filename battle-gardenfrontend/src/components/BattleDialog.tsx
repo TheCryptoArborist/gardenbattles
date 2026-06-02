@@ -2,15 +2,25 @@ interface BattleDialogProps {
   isOpen: boolean;
   message: string;
   onClose: () => void;
+  canClose?: boolean;
 }
 
-export default function BattleDialog({ isOpen, message, onClose }: BattleDialogProps) {
+export default function BattleDialog({
+  isOpen,
+  message,
+  onClose,
+  canClose = true,
+}: BattleDialogProps) {
   if (!isOpen) return null;
+
+  const handleClose = () => {
+    if (canClose) onClose();
+  };
 
   return (
     <div 
       className="fixed inset-0 flex items-center justify-center z-[1000] bg-black/50"
-      onClick={onClose}
+      onClick={handleClose}
       data-testid="dialog-overlay"
     >
       <div 
@@ -26,31 +36,33 @@ export default function BattleDialog({ isOpen, message, onClose }: BattleDialogP
         <p className="text-white text-lg md:text-xl mb-6 font-sans" data-testid="dialog-message">
           {message}
         </p>
-        <div className="flex justify-center">
-          <button
-            onClick={onClose}
-            className="px-6 py-3 text-base md:text-lg font-sans transition-all duration-300"
-            style={{
-              border: '2px solid #00ff00',
-              background: 'transparent',
-              color: 'white',
-              borderRadius: '8px'
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = '#00ff00';
-              e.currentTarget.style.color = '#000';
-              e.currentTarget.style.boxShadow = '0 0 25px #00ff00';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = 'transparent';
-              e.currentTarget.style.color = 'white';
-              e.currentTarget.style.boxShadow = 'none';
-            }}
-            data-testid="button-close-dialog"
-          >
-            Close
-          </button>
-        </div>
+        {canClose && (
+          <div className="flex justify-center">
+            <button
+              onClick={onClose}
+              className="px-6 py-3 text-base md:text-lg font-sans transition-all duration-300"
+              style={{
+                border: '2px solid #00ff00',
+                background: 'transparent',
+                color: 'white',
+                borderRadius: '8px'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = '#00ff00';
+                e.currentTarget.style.color = '#000';
+                e.currentTarget.style.boxShadow = '0 0 25px #00ff00';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'transparent';
+                e.currentTarget.style.color = 'white';
+                e.currentTarget.style.boxShadow = 'none';
+              }}
+              data-testid="button-close-dialog"
+            >
+              Close
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
