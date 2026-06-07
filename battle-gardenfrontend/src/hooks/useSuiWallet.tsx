@@ -161,6 +161,7 @@ function readConfigEntryFeeMist(content: any): number | null {
 function parseBattleStateFromEvent(json: any): BattleState | null {
   if (!json?.battle_id || !json?.player1 || !json?.player2) return null;
 
+  const parsedTurn = Number(json.turn);
   return {
     battleId: json.battle_id,
     player1: json.player1.toLowerCase(),
@@ -169,7 +170,7 @@ function parseBattleStateFromEvent(json: any): BattleState | null {
     player2Moves: json.player2_moves ?? [],
     player1Growth: Number(json.player1_growth ?? 0),
     player2Growth: Number(json.player2_growth ?? 0),
-    turn: Number(json.turn ?? 0),
+    turn: Number.isFinite(parsedTurn) ? parsedTurn : 0,
     winner: normalizeWinner(json.winner),
     finished: !!normalizeWinner(json.winner),
     isBotBattle: Boolean(json.is_bot_battle),
@@ -356,6 +357,12 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
       }
 
       setBattleState((prev) => {
+        if (
+          prev?.battleId === state.battleId &&
+          (prev.lastMoveMs ?? 0) > (state.lastMoveMs ?? 0)
+        ) {
+          return prev;
+        }
         buildActionLogEntry(prev, state, address);
         prevBattleStateRef.current = state;
         return state;
@@ -471,7 +478,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
 
     socket.on("battle_update", (state: BattleState) => {
       console.log("[relay] battle_update received:", state);
-      void applyBattleState(state);
+      void applyBattleState(state, { verifyLive: true });
     });
 
     socket.on("disconnect", (reason) => {
@@ -504,6 +511,22 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
         isActiveBattleForAddress(battleState, address)
       ) {
         try {
+          if (battleState?.battleId) {
+            const liveState = await getLiveBattleState(
+              suiClient,
+              battleState.battleId,
+            );
+            if (
+              liveState &&
+              battleBelongsToAddress(liveState, address) &&
+              JSON.stringify(liveState) !== JSON.stringify(battleState)
+            ) {
+              console.log("[polling] refreshed battle from shared object");
+              await applyBattleState(liveState);
+              return;
+            }
+          }
+
           const events = await suiClient.queryEvents({
             query: { MoveEventType: getBattleUpdateEvent() },
             limit: force ? 50 : 20,
@@ -523,7 +546,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
                 JSON.stringify(newState) !== JSON.stringify(battleState)
               ) {
                 console.log("[polling] detected battle update from blockchain");
-                await applyBattleState(newState, { verifyLive: force });
+                await applyBattleState(newState, { verifyLive: true });
               }
               break; // Found our most recent battle, stop searching
             }
@@ -934,7 +957,23 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
         signAndExecuteTransaction(
           { transaction: tx, chain: SUI_CONFIG.CHAIN },
           {
-            onSuccess: () => resolve(),
+            onSuccess: async (result) => {
+              try {
+                await suiClient.waitForTransaction({
+                  digest: result.digest,
+                });
+                const refreshed = await getLiveBattleState(suiClient, battleId);
+                if (refreshed) {
+                  await applyBattleState({
+                    ...refreshed,
+                    isBotBattle: activeState.isBotBattle,
+                  });
+                }
+              } catch (err) {
+                console.warn("[battle] post-move refresh will retry via polling:", err);
+              }
+              resolve();
+            },
             onError: (err: any) =>
               reject(new Error(err?.message ?? "Failed to use ability")),
           },
@@ -1140,16 +1179,12 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
 
     const p1Changed = next.player1Growth !== prev.player1Growth;
     const p2Changed = next.player2Growth !== prev.player2Growth;
-    if (!p1Changed && !p2Changed) return;
+    const turnAdvanced =
+      next.turn !== prev.turn || next.lastMoveMs !== prev.lastMoveMs;
+    if (!p1Changed && !p2Changed && !turnAdvanced) return;
 
     const isP1 = prev.player1?.toLowerCase() === myAddress.toLowerCase();
-    // Determine who just acted: if it was player1's turn (prev turn=0 implied by p1Growth change)
-    // We detect the actor by whose growth changed (or opponent's decreased)
-    // Heuristic: if p1 growth went up or p2 went down → player1 acted; otherwise player2
-    const p1Acted =
-      next.player1Growth > prev.player1Growth ||
-      (next.player2Growth < prev.player2Growth &&
-        next.player1Growth === prev.player1Growth);
+    const p1Acted = prev.turn === 0;
     const actor: "you" | "opponent" =
       (isP1 && p1Acted) || (!isP1 && !p1Acted) ? "you" : "opponent";
 

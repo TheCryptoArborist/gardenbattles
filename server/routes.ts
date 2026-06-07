@@ -53,6 +53,7 @@ interface BattleState {
   player2Growth: number;
   turn: number;
   winner: string | null;
+  finished?: boolean;
   isBotBattle?: boolean;
   lastMoveMs?: number;
   lastEventCursor?: string | null;
@@ -114,6 +115,7 @@ function parseBattleEvent(parsedJson: any): BattleState | null {
     const player1 = parsedJson.player1.toLowerCase();
     const player2 = parsedJson.player2.toLowerCase();
     const winner = normalizeWinner(parsedJson.winner);
+    const parsedTurn = Number(parsedJson.turn);
 
     return {
       battleId: parsedJson.battle_id,
@@ -123,8 +125,9 @@ function parseBattleEvent(parsedJson: any): BattleState | null {
       player2Moves: parsedJson.player2_moves ?? [],
       player1Growth: Number(parsedJson.player1_growth ?? 0),
       player2Growth: Number(parsedJson.player2_growth ?? 0),
-      turn: Number(parsedJson.turn ?? 0),
+      turn: Number.isFinite(parsedTurn) ? parsedTurn : 0,
       winner,
+      finished: !!winner,
       isBotBattle:
         Boolean(parsedJson.is_bot_battle) ||
         (!!BOT_ADDRESS && (player1 === BOT_ADDRESS || player2 === BOT_ADDRESS)),
@@ -132,6 +135,41 @@ function parseBattleEvent(parsedJson: any): BattleState | null {
     };
   } catch {
     return null;
+  }
+}
+
+async function hydrateBattleState(
+  eventState: BattleState,
+): Promise<BattleState> {
+  try {
+    const object = await botClient.getObject({
+      id: eventState.battleId,
+      options: { showContent: true },
+    });
+    const fields = (object.data?.content as any)?.fields;
+    if (!fields?.player1 || !fields?.player2) return eventState;
+
+    const winner = normalizeWinner(fields.winner);
+    return {
+      battleId: eventState.battleId,
+      player1: String(fields.player1).toLowerCase(),
+      player2: String(fields.player2).toLowerCase(),
+      player1Moves: (fields.p1_moves ?? []).map(Number),
+      player2Moves: (fields.p2_moves ?? []).map(Number),
+      player1Growth: Number(fields.p1_growth ?? 0),
+      player2Growth: Number(fields.p2_growth ?? 0),
+      turn: Number(fields.turn ?? 0),
+      winner,
+      finished: Boolean(fields.finished) || !!winner,
+      isBotBattle: Boolean(fields.is_bot_battle),
+      lastMoveMs: Number(fields.last_move_ms ?? 0),
+    };
+  } catch (err) {
+    console.warn(
+      `[relay] could not hydrate battle ${eventState.battleId.slice(0, 8)}...`,
+      err,
+    );
+    return eventState;
   }
 }
 
@@ -247,8 +285,9 @@ async function pollSuiEvents() {
     const seen = new Set<string>();
 
     for (const event of data) {
-      const parsed = parseBattleEvent(event.parsedJson);
-      if (!parsed) continue;
+      const eventState = parseBattleEvent(event.parsedJson);
+      if (!eventState) continue;
+      const parsed = await hydrateBattleState(eventState);
 
       const { battleId } = parsed;
       if (seen.has(battleId)) continue; // already processed newest for this battle

@@ -62,7 +62,9 @@ export default function BattleLog({ entries, isPlayer1 }: BattleLogProps) {
         const meta = MOVE_META[entry.moveId];
         const isAttack = meta?.type === "attack" || meta?.type === "hybrid";
         const isGrowth = meta?.type === "growth" || meta?.type === "hybrid";
-        const label = MOVE_LABELS[entry.moveId] || `Move ${entry.moveId}`;
+        const label =
+          MOVE_LABELS[entry.moveId] ||
+          (entry.actor === "you" ? "Your move" : "Opponent move");
 
         const myPrev = entry.actor === "you" ? entry.prevPlayerGrowth : entry.prevOpponentGrowth;
         const myNext = entry.actor === "you" ? entry.nextPlayerGrowth : entry.nextOpponentGrowth;

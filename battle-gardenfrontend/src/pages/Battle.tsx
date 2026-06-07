@@ -322,6 +322,7 @@ export default function Battle() {
       ? battleState.player2Growth
       : battleState.player1Growth
     : 0;
+  const growthTarget = battleState?.isBotBattle ? 50 : 100;
   const playerMoves = battleState
     ? isPlayer1
       ? battleState.player1Moves
@@ -410,6 +411,14 @@ export default function Battle() {
   // Fetch opponent's NFT image when battle starts
   useEffect(() => {
     if (battleState && isConnected && address) {
+      if (!playerNftImageUrl) {
+        getFirstValidSaplingNft(address).then((nft) => {
+          if (nft?.imageUrl) {
+            setPlayerNftImageUrl(nft.imageUrl);
+          }
+        });
+      }
+
       const opponentAddress = isPlayer1
         ? battleState.player2
         : battleState.player1;
@@ -430,6 +439,7 @@ export default function Battle() {
     isConnected,
     address,
     isPlayer1,
+    playerNftImageUrl,
     opponentNftImageUrl,
     getFirstValidSaplingNft,
   ]);
@@ -773,6 +783,21 @@ export default function Battle() {
             }}
           >
             <div
+              style={{
+                marginBottom: "8px",
+                padding: "5px 12px",
+                border: "1px solid #00ffcc",
+                borderRadius: "6px",
+                background: "rgba(0, 45, 40, 0.9)",
+                color: "#baffee",
+                fontWeight: "bold",
+                fontSize: "13px",
+                textTransform: "uppercase",
+              }}
+            >
+              You
+            </div>
+            <div
               className={playerAnimation}
               style={{
                 width: "100%",
@@ -872,7 +897,7 @@ export default function Battle() {
             >
               <div
                 style={{
-                  width: `${playerGrowth}%`,
+                  width: `${Math.min(100, (playerGrowth / growthTarget) * 100)}%`,
                   height: "18px",
                   background: "linear-gradient(to right, #00ff00, #00cc00)",
                   borderRadius: "6px",
@@ -890,7 +915,7 @@ export default function Battle() {
               }}
               data-testid="text-growth-player"
             >
-              {playerGrowth} / 100
+              {playerGrowth} / {growthTarget}
             </p>
           </div>
 
@@ -923,6 +948,21 @@ export default function Battle() {
               maxWidth: "280px",
             }}
           >
+            <div
+              style={{
+                marginBottom: "8px",
+                padding: "5px 12px",
+                border: "1px solid #ff9944",
+                borderRadius: "6px",
+                background: "rgba(70, 30, 0, 0.9)",
+                color: "#ffd2ad",
+                fontWeight: "bold",
+                fontSize: "13px",
+                textTransform: "uppercase",
+              }}
+            >
+              {battleState?.isBotBattle ? "Garden Bot" : "Opponent"}
+            </div>
             <div
               className={opponentAnimation}
               style={{
@@ -1029,7 +1069,7 @@ export default function Battle() {
             >
               <div
                 style={{
-                  width: `${opponentGrowth}%`,
+                  width: `${Math.min(100, (opponentGrowth / growthTarget) * 100)}%`,
                   height: "18px",
                   background: "linear-gradient(to right, #00ff00, #00cc00)",
                   borderRadius: "6px",
@@ -1047,7 +1087,7 @@ export default function Battle() {
               }}
               data-testid="text-growth-opponent"
             >
-              {opponentGrowth} / 100
+              {opponentGrowth} / {growthTarget}
             </p>
           </div>
         </div>
@@ -1090,6 +1130,46 @@ export default function Battle() {
                     ? `⏳ Waiting for your opponent...`
                     : `⏳ Choose your move — each turn = 1 wallet confirmation`}
             </div>
+
+            {actionLog.length > 0 && (() => {
+              const latest = actionLog[actionLog.length - 1];
+              const playerDelta =
+                latest.nextPlayerGrowth - latest.prevPlayerGrowth;
+              const opponentDelta =
+                latest.nextOpponentGrowth - latest.prevOpponentGrowth;
+              const messages = [
+                playerDelta > 0 ? `You gained +${playerDelta} growth` : null,
+                playerDelta < 0
+                  ? `Your tree lost ${Math.abs(playerDelta)} growth`
+                  : null,
+                opponentDelta < 0
+                  ? `Opponent lost ${Math.abs(opponentDelta)} growth`
+                  : null,
+                opponentDelta > 0
+                  ? `Opponent gained +${opponentDelta} growth`
+                  : null,
+              ].filter(Boolean);
+              return (
+                <div
+                  role="status"
+                  style={{
+                    marginBottom: "10px",
+                    padding: "10px 14px",
+                    border: "1px solid #00cc88",
+                    borderRadius: "8px",
+                    background: "rgba(0, 70, 55, 0.82)",
+                    color: "#d8fff2",
+                    textAlign: "center",
+                    fontSize: "clamp(11px, 2.5vw, 14px)",
+                    fontWeight: "bold",
+                  }}
+                >
+                  {messages.length > 0
+                    ? messages.join(" · ")
+                    : "The move was blocked or had no growth effect"}
+                </div>
+              );
+            })()}
 
             {/* Inline error banner */}
             {inlineError && (
@@ -1522,8 +1602,8 @@ export default function Battle() {
             strategy game powered by the Sui blockchain! To participate, you
             must hold a Sapling NFT from our official issuer. Engage in
             turn-based battles where your NFT grows from a seed to a full tree
-            as you increase your Growth points. The first player to reach 100
-            Growth wins!
+            as you increase your Growth points. PvP battles finish at 100
+            Growth; practice battles against Garden Bot finish at 50.
           </p>
           <ul
             style={{

@@ -49,6 +49,7 @@ module battle_garden::battle {
         player2_moves: vector<u8>,
         player1_growth: u64,
         player2_growth: u64,
+        turn: u8,
         winner: Option<address>,
         last_move_ms: u64,
         is_bot_battle: bool,
@@ -114,6 +115,7 @@ module battle_garden::battle {
             player2_moves: utils::clone_vec_u8(&arg0.p2_moves),
             player1_growth: arg0.p1_growth,
             player2_growth: arg0.p2_growth,
+            turn: arg0.turn,
             winner: arg0.winner,
             last_move_ms: arg0.last_move_ms,
             is_bot_battle: arg0.is_bot_battle,
@@ -455,14 +457,15 @@ module battle_garden::battle {
         if (battle.turn == 0) {
             apply_player1_move(battle, move_id, rand, ctx);
             
-            if (battle.p1_growth >= 100) {
+            let target_growth = if (battle.is_bot_battle) { 50 } else { 100 };
+            if (battle.p1_growth >= target_growth) {
                 let winner = battle.player1;
                 finish_and_payout(battle, winner, ctx);
             } else if (battle.is_bot_battle) {
                 let bot_move = choose_bot_move(battle, rand, ctx);
                 apply_player2_move(battle, bot_move, rand, ctx);
 
-                if (battle.p2_growth >= 100) {
+                if (battle.p2_growth >= target_growth) {
                     let winner = battle.player2;
                     finish_and_payout(battle, winner, ctx);
                 } else {
@@ -476,7 +479,8 @@ module battle_garden::battle {
         } else {
             apply_player2_move(battle, move_id, rand, ctx);
             
-            if (battle.p2_growth >= 100) {
+            let target_growth = if (battle.is_bot_battle) { 50 } else { 100 };
+            if (battle.p2_growth >= target_growth) {
                 let winner = battle.player2;
                 finish_and_payout(battle, winner, ctx);
             } else {
