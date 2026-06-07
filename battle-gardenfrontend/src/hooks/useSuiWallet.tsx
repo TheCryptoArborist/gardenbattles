@@ -1,12 +1,11 @@
 /**
- * useSuiWallet – battle state is now driven by the Socket.io relay server.
+ * useSuiWallet – battle state is driven directly from Sui RPC.
  *
  * Flow:
- *  1. On wallet connect → identify ourselves to the relay
- *  2. After join_queue tx succeeds → tell relay to subscribe us to that battle room
- *  3. Relay server polls Sui every 2 s and pushes "battle_update" events
- *  4. Both players receive identical state → UI stays in sync
- *  5. HTTP fallback: /api/battle/state/:address on reconnect / page refresh
+ *  1. Sui events are used to discover the current battle id
+ *  2. The shared Battle object is read for canonical turn/growth/winner state
+ *  3. Post-transaction refresh plus interval polling keep both players in sync
+ *  4. localStorage cache restores the active battle after page refresh
  */
 
 import {
@@ -25,7 +24,6 @@ import {
   useSuiClient,
 } from "@mysten/dapp-kit";
 import { Transaction } from "@mysten/sui/transactions";
-import { io as socketIO, Socket } from "socket.io-client";
 import { SUI_CONFIG, getBattleUpdateEvent } from "@/lib/sui-config";
 import type { ActionEntry } from "@/components/BattleLog";
 
@@ -76,22 +74,6 @@ interface SuiWalletContextType {
 }
 
 const SuiWalletContext = createContext<SuiWalletContextType | null>(null);
-
-// ─── Relay URL ────────────────────────────────────────────────────────────────
-// In development the relay runs on the same host (Vite proxies /socket.io).
-// In production the express server serves everything on one port.
-const RELAY_URL = (
-  import.meta.env.VITE_RELAY_URL ||
-  (typeof window !== "undefined"
-    ? window.location.origin
-    : "http://localhost:5000")
-).replace(/\/+$/, "");
-
-const API_BASE_URL = RELAY_URL;
-
-function apiUrl(path: string): string {
-  return `${API_BASE_URL}${path.startsWith("/") ? path : `/${path}`}`;
-}
 
 const ACTIVE_BATTLE_STORAGE_PREFIX = "battle_garden_active_battle:";
 const ACTIVE_BATTLE_CACHE_MAX_AGE_MS = 6 * 60 * 60 * 1000;
@@ -278,7 +260,6 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
   const lastMoveIdRef = useRef<number>(0);
   const isWaitingRef = useRef(false);
 
-  const socketRef = useRef<Socket | null>(null);
   const address = currentAccount?.address ?? null;
   const isConnected = !!currentAccount;
 
@@ -415,85 +396,12 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
     ensureRandomObject();
   }, [suiClient]);
 
-  // ── 2. Socket.io connection – lifecycle tied to wallet connection ──────────
+  // ── 2. Clear local battle state when wallet disconnects ───────────────────
   useEffect(() => {
     if (!isConnected || !address) {
-      // Cleanup on disconnect
-      if (socketRef.current) {
-        socketRef.current.disconnect();
-        socketRef.current = null;
-      }
       clearBattleState();
-      return;
     }
-
-    // Already connected
-    if (socketRef.current?.connected) return;
-
-    const socket = socketIO(RELAY_URL, {
-      transports: ["websocket", "polling"],
-      reconnection: true,
-      reconnectionAttempts: Infinity,
-      reconnectionDelay: 1000,
-      reconnectionDelayMax: 5000,
-    });
-
-    socketRef.current = socket;
-
-    socket.on("connect", () => {
-      console.log("[relay] socket connected:", socket.id);
-
-      // Tell relay who we are
-      socket.emit("identify", { address }, (res: any) => {
-        console.log("[relay] identify ack:", res);
-      });
-
-      // Try to restore battle state from server (handles page refreshes)
-      fetch(apiUrl(`/api/battle/state/${address}`))
-        .then(async (r) => {
-          if (!r.ok) {
-            clearBattleState();
-            return null;
-          }
-          return r.json();
-        })
-        .then((body) => {
-          const state = body?.state;
-          if (!state) {
-            return;
-          }
-          if (isActiveBattleForAddress(state, address)) {
-            console.log("[relay] restored battle state from HTTP");
-            // Re-join the socket room
-            socket.emit("join_battle", { battleId: state.battleId });
-            void applyBattleState(state, { verifyLive: true });
-          } else {
-            if (!isWaitingRef.current) clearBattleState();
-          }
-        })
-        .catch(() => {
-          // No active battle - that's fine
-        });
-    });
-
-    socket.on("battle_update", (state: BattleState) => {
-      console.log("[relay] battle_update received:", state);
-      void applyBattleState(state, { verifyLive: true });
-    });
-
-    socket.on("disconnect", (reason) => {
-      console.warn("[relay] socket disconnected:", reason);
-    });
-
-    socket.on("connect_error", (err) => {
-      console.error("[relay] connection error:", err.message);
-    });
-
-    return () => {
-      socket.disconnect();
-      socketRef.current = null;
-    };
-  }, [isConnected, address, applyBattleState, clearBattleState]);
+  }, [isConnected, address, clearBattleState]);
 
   // ── 3. Direct Sui Polling Fallback ──────────────────────────────────────────
   // This allows the app to work on Netlify/Vercel without a relay server.
@@ -805,9 +713,6 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
               console.log("join_queue tx success:", result.digest);
               setIsWaiting(true);
 
-              // Tell relay to watch for this player's battle
-              socketRef.current?.emit("identify", { address });
-
               resolve();
             },
             onError: (err: any) => {
@@ -875,7 +780,6 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
           {
             onSuccess: () => {
               setIsWaiting(true);
-              socketRef.current?.emit("identify", { address });
               resolve();
             },
             onError: (err: any) => {
