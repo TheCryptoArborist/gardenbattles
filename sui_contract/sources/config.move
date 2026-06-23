@@ -1,6 +1,7 @@
 module battle_garden::config {
     use std::type_name::{Self, TypeName};
     use sui::event;
+    use sui::sui::SUI;
     use battle_garden::errors;
 
     /// Dedicated treasury wallet — all battle revenue is sent here
@@ -28,23 +29,44 @@ module battle_garden::config {
         new_treasury: address,
     }
 
-    // Friend functions or public functions? 
-    // The Config needs to be initialized. 
-    // `init` is module specific. We can have a `create_config` or similar if we want to separate logic 
-    // but `init` usually runs once. 
-    // Since we are splitting modules, we might need a way to initialize everything.
-    // However, for now, let's assume `battle_garden` package init calls internal setup or we just expose creation.
-    // Ideally `init` in `battle_garden` (the main module) creates this.
-    // So we need a friend function to create `Config`.
-    
-    // Actually, `init` in `config` module itself can create it if it's a separate package, but it's one package.
-    // If we have multiple modules with `init`, they all run!
-    // So `config` module can have its own `init`.
+    // ═══════════════════════════════════════════════════════════════════════════
+    //  NEW: TreeConfig — separate shared object for TREE utility params
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /// TREE / Forest utility parameters. Stored as a separate shared object so
+    /// the upgrade is compatible with the existing Config struct.
+    public struct TreeConfig has key {
+        id: UID,
+        admin: address,
+        /// The designated coin type for all TREE features
+        utility_coin: TypeName,
+        /// Amount of utility_coin to burn for a move reroll
+        reroll_cost: u64,
+        /// Amount of utility_coin to burn for a single tree_boost
+        boost_cost: u64,
+        /// Growth points gained per tree_boost
+        boost_growth: u64,
+        /// Maximum tree advantage (win threshold reduction)
+        max_tree_advantage: u64,
+        /// Min utility_coin staked per tier point of advantage
+        advantage_per_tier: u64,
+        /// Minimum utility_coin staked to qualify for any advantage
+        min_tree_for_advantage: u64,
+    }
+
+    public struct TreeConfigUpdated has copy, drop {
+        reroll_cost: u64,
+        boost_cost: u64,
+        boost_growth: u64,
+        max_tree_advantage: u64,
+        advantage_per_tier: u64,
+        min_tree_for_advantage: u64,
+    }
 
     fun init(ctx: &mut TxContext) {
         let sender = tx_context::sender(ctx);
         let whitelisted = vector::empty<TypeName>();
-        
+
         let config = Config {
             id: object::new(ctx),
             admin: sender,
@@ -58,7 +80,7 @@ module battle_garden::config {
         sui::transfer::share_object(config);
     }
 
-    // Getters
+    // Getters — Config
     public fun admin(config: &Config): address { config.admin }
     public fun treasury(config: &Config): address { config.treasury }
     public fun entry_fee(config: &Config): u64 { config.entry_fee }
@@ -71,7 +93,7 @@ module battle_garden::config {
         vector::contains(&config.whitelisted_collections, &nft_type)
     }
 
-    // Admin functions
+    // Admin functions — Config
     public fun set_economics(config: &mut Config, entry_fee: u64, winner_payout: u64, treasury_share: u64, ctx: &mut TxContext) {
         assert!(tx_context::sender(ctx) == config.admin, errors::e_admin_only());
         assert!(winner_payout + treasury_share <= 2 * entry_fee, errors::e_invalid_economics());
@@ -116,5 +138,89 @@ module battle_garden::config {
         if (exists) {
             vector::remove(&mut config.whitelisted_collections, idx);
         };
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    //  TreeConfig — init, getters, admin setters
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /// init() for TreeConfig — creates a shared TreeConfig with placeholder values.
+    /// Admin must call set_utility_coin<TREE>() and set_tree_params() after upgrade.
+    public entry fun init_tree_config(ctx: &mut TxContext) {
+        let admin = tx_context::sender(ctx);
+        let tc = TreeConfig {
+            id: object::new(ctx),
+            admin,
+            utility_coin: type_name::with_original_ids<SUI>(), // placeholder
+            reroll_cost: 0,
+            boost_cost: 0,
+            boost_growth: 0,
+            max_tree_advantage: 0,
+            advantage_per_tier: 0,
+            min_tree_for_advantage: 0,
+        };
+        sui::transfer::share_object(tc);
+    }
+
+    // Getters — TreeConfig
+    public fun tree_admin(tc: &TreeConfig): address { tc.admin }
+    public fun utility_coin(tc: &TreeConfig): TypeName { tc.utility_coin }
+    public fun reroll_cost(tc: &TreeConfig): u64 { tc.reroll_cost }
+    public fun boost_cost(tc: &TreeConfig): u64 { tc.boost_cost }
+    public fun boost_growth(tc: &TreeConfig): u64 { tc.boost_growth }
+    public fun max_tree_advantage(tc: &TreeConfig): u64 { tc.max_tree_advantage }
+    public fun advantage_per_tier(tc: &TreeConfig): u64 { tc.advantage_per_tier }
+    public fun min_tree_for_advantage(tc: &TreeConfig): u64 { tc.min_tree_for_advantage }
+
+    /// Check that a provided coin type matches the configured utility coin
+    public fun is_utility_coin<T>(tc: &TreeConfig): bool {
+        type_name::with_original_ids<T>() == tc.utility_coin
+    }
+
+    // Admin setters — TreeConfig
+    public fun set_utility_coin<T>(tc: &mut TreeConfig, ctx: &mut TxContext) {
+        assert!(tx_context::sender(ctx) == tc.admin, errors::e_admin_only());
+        tc.utility_coin = type_name::with_original_ids<T>();
+    }
+
+    public fun set_tree_params(
+        tc: &mut TreeConfig,
+        reroll_cost: u64,
+        boost_cost: u64,
+        boost_growth: u64,
+        max_tree_advantage: u64,
+        advantage_per_tier: u64,
+        min_tree_for_advantage: u64,
+        ctx: &mut TxContext,
+    ) {
+        assert!(tx_context::sender(ctx) == tc.admin, errors::e_admin_only());
+        tc.reroll_cost = reroll_cost;
+        tc.boost_cost = boost_cost;
+        tc.boost_growth = boost_growth;
+        tc.max_tree_advantage = max_tree_advantage;
+        tc.advantage_per_tier = advantage_per_tier;
+        tc.min_tree_for_advantage = min_tree_for_advantage;
+        event::emit(TreeConfigUpdated {
+            reroll_cost,
+            boost_cost,
+            boost_growth,
+            max_tree_advantage,
+            advantage_per_tier,
+            min_tree_for_advantage,
+        });
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    //  TEST-ONLY: Create shared objects explicitly
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[test_only]
+    public fun create_config_for_testing(ctx: &mut TxContext) {
+        init(ctx);
+    }
+
+    #[test_only]
+    public fun create_tree_config_for_testing(ctx: &mut TxContext) {
+        init_tree_config(ctx);
     }
 }

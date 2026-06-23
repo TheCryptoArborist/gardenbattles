@@ -9,6 +9,8 @@ import WaitingOverlay from "@/components/WaitingOverlay";
 import AdminPanel from "@/components/AdminPanel";
 import HowToPlay from "@/components/HowToPlay";
 import BattleLog from "@/components/BattleLog";
+import PlayerRecord from "@/components/PlayerRecord";
+import ForestPower from "@/components/ForestPower";
 
 function getNFTImage(growth: number, nftImageUrl?: string): string {
   // If we have a custom NFT image, use it once the "seed" phase is over (or always)
@@ -655,6 +657,23 @@ export default function Battle() {
             >
               Arboretum
             </Link>
+            <Link
+              href="/leaderboard"
+              style={{
+                color: "#00ff00",
+                margin: "0",
+                textDecoration: "none",
+                fontSize: "clamp(14px, 2.5vw, 16px)",
+                transition: "color 0.3s ease",
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.color = "#00cc00")}
+              onMouseLeave={(e) => (e.currentTarget.style.color = "#00ff00")}
+              data-testid="link-leaderboard"
+            >
+              Leaderboard
+            </Link>
           </nav>
 
           <div
@@ -665,6 +684,8 @@ export default function Battle() {
               flexWrap: "wrap",
             }}
           >
+            {address && <ForestPower address={address} />}
+            {address && <PlayerRecord address={address} />}
             <button
               onClick={handleForceRefund}
               disabled={!isConnected || isRefunding}

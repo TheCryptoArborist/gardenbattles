@@ -68,4 +68,9 @@ module battle_garden::utils {
         let mut rng = random::new_generator(_arg0, _arg1);
         arg2 + (random::generate_u64(&mut rng) % (arg3 - arg2 + 1))
     }
+
+    // ── NEW: TREE utility helpers ─────────────────────────────────────────────
+    public fun min(a: u64, b: u64): u64 {
+        if (a < b) { a } else { b }
+    }
 }

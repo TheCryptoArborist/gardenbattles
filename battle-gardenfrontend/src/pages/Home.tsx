@@ -194,6 +194,23 @@ export default function Home() {
               Battle
             </Link>
             <Link
+              href="/leaderboard"
+              style={{
+                color: '#f7fafc',
+                textDecoration: 'none',
+                margin: 'clamp(0.5rem, 1.5vw, 1rem)',
+                fontWeight: 'bold',
+                fontSize: 'clamp(0.8rem, 2.2vw, 1rem)',
+                transition: 'color 0.3s',
+                cursor: 'pointer',
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.color = '#34d399')}
+              onMouseLeave={(e) => (e.currentTarget.style.color = '#f7fafc')}
+              data-testid="link-leaderboard"
+            >
+              Leaderboard
+            </Link>
+            <Link
               href="/mint"
               style={{
                 color: '#f7fafc',

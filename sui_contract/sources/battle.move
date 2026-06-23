@@ -1,3 +1,4 @@
+#[allow(lint(public_random))]
 module battle_garden::battle {
     use sui::event;
     use sui::balance::{Self, Balance};
@@ -7,7 +8,7 @@ module battle_garden::battle {
     use sui::kiosk::{Self, Kiosk, KioskOwnerCap};
     use battle_garden::utils;
     use battle_garden::errors;
-    use battle_garden::config::{Self, Config};
+    use battle_garden::config::{Self, Config, TreeConfig};
 
     public struct Status has copy, drop, store {
         block_turns: u8,
@@ -49,11 +50,14 @@ module battle_garden::battle {
         player2_moves: vector<u8>,
         player1_growth: u64,
         player2_growth: u64,
-        turn: u8,
         winner: Option<address>,
         last_move_ms: u64,
         is_bot_battle: bool,
     }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    //  Core battle functions (unchanged)
+    // ═══════════════════════════════════════════════════════════════════════════
 
     // Helper to generate moves - Internal
     fun gen_moves(_arg0: &Random, _arg1: &mut TxContext): vector<u8> {
@@ -115,7 +119,6 @@ module battle_garden::battle {
             player2_moves: utils::clone_vec_u8(&arg0.p2_moves),
             player1_growth: arg0.p1_growth,
             player2_growth: arg0.p2_growth,
-            turn: arg0.turn,
             winner: arg0.winner,
             last_move_ms: arg0.last_move_ms,
             is_bot_battle: arg0.is_bot_battle,
@@ -144,12 +147,12 @@ module battle_garden::battle {
         emit_update(arg0);
     }
     public fun create_battle(
-        player1: address, 
-        player2: address, 
-        entry_fee: u64, 
-        config: &Config, 
+        player1: address,
+        player2: address,
+        entry_fee: u64,
+        config: &Config,
         vault_balance: Balance<SUI>,
-        rand: &Random, 
+        rand: &Random,
         ctx: &mut TxContext
     ) {
         let p1_status = Status { block_turns: 0, next_turn_penalty: 0, poison_ticks: 0, poison_dpt: 0 };
@@ -453,10 +456,10 @@ module battle_garden::battle {
             utils::contains_u8(&battle.p2_moves, move_id)
         };
         assert!(is_player_turn, errors::e_invalid_move());
-        
+
         if (battle.turn == 0) {
             apply_player1_move(battle, move_id, rand, ctx);
-            
+
             let target_growth = if (battle.is_bot_battle) { 50 } else { 100 };
             if (battle.p1_growth >= target_growth) {
                 let winner = battle.player1;
@@ -478,7 +481,7 @@ module battle_garden::battle {
             };
         } else {
             apply_player2_move(battle, move_id, rand, ctx);
-            
+
             let target_growth = if (battle.is_bot_battle) { 50 } else { 100 };
             if (battle.p2_growth >= target_growth) {
                 let winner = battle.player2;
@@ -558,4 +561,172 @@ module battle_garden::battle {
             *self_growth = utils::add_growth(*self_growth, utils::rand_inclusive(rand, ctx, 10, 15));
         };
     }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    //  NEW: TREE / Forest Utility Functions
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /// Same as use_ability_id but accepts TreeConfig for future tree advantage integration.
+    /// Currently uses the same base thresholds as v1 (50 for bot, 100 for PvP).
+    public fun use_ability_id_v2(
+        battle: &mut Battle,
+        move_id: u8,
+        _config: &Config,
+        _tree_config: &TreeConfig,
+        rand: &Random,
+        ctx: &mut TxContext,
+    ) {
+        assert!(!battle.finished, errors::e_battle_finished());
+        let sender = tx_context::sender(ctx);
+        let is_player_turn = if (battle.turn == 0) {
+            assert!(sender == battle.player1, errors::e_unauthorized_player());
+            utils::contains_u8(&battle.p1_moves, move_id)
+        } else {
+            assert!(sender == battle.player2, errors::e_unauthorized_player());
+            utils::contains_u8(&battle.p2_moves, move_id)
+        };
+        assert!(is_player_turn, errors::e_invalid_move());
+
+        let base_target = if (battle.is_bot_battle) { 50 } else { 100 };
+
+        if (battle.turn == 0) {
+            apply_player1_move(battle, move_id, rand, ctx);
+
+            if (battle.p1_growth >= base_target) {
+                let winner = battle.player1;
+                finish_and_payout(battle, winner, ctx);
+            } else if (battle.is_bot_battle) {
+                let bot_move = choose_bot_move(battle, rand, ctx);
+                apply_player2_move(battle, bot_move, rand, ctx);
+
+                if (battle.p2_growth >= base_target) {
+                    let winner = battle.player2;
+                    finish_and_payout(battle, winner, ctx);
+                } else {
+                    battle.turn = 0;
+                    emit_update(battle);
+                };
+            } else {
+                battle.turn = 1;
+                emit_update(battle);
+            };
+        } else {
+            apply_player2_move(battle, move_id, rand, ctx);
+
+            if (battle.p2_growth >= base_target) {
+                let winner = battle.player2;
+                finish_and_payout(battle, winner, ctx);
+            } else {
+                battle.turn = 0;
+                emit_update(battle);
+            };
+        };
+    }
+
+    /// Reroll your move set by burning the configured utility coin (e.g. $TREE).
+    /// Cost is set in TreeConfig via set_tree_params(). Does NOT advance the turn.
+    public entry fun reroll_moves<T>(
+        battle: &mut Battle,
+        tree_config: &TreeConfig,
+        mut payment: coin::Coin<T>,
+        rand: &Random,
+        ctx: &mut TxContext,
+    ) {
+        assert!(!battle.finished, errors::e_battle_finished());
+        assert!(config::is_utility_coin<T>(tree_config), errors::e_incorrect_coin_type());
+        assert!(config::reroll_cost(tree_config) > 0, errors::e_tree_insufficient());
+
+        let sender = tx_context::sender(ctx);
+        assert!(sender == battle.player1 || sender == battle.player2, errors::e_unauthorized_player());
+
+        let cost = config::reroll_cost(tree_config);
+        assert!(coin::value(&payment) >= cost, errors::e_insufficient_payment());
+
+        // Burn the cost amount (send to 0x0)
+        let burn_coin = coin::split(&mut payment, cost, ctx);
+        transfer::public_transfer(burn_coin, @0x0);
+
+        // Return any surplus to the sender
+        if (coin::value(&payment) > 0) {
+            transfer::public_transfer(payment, tx_context::sender(ctx));
+        } else {
+            coin::destroy_zero(payment);
+        };
+
+        // Regenerate 4 new random moves for this player
+        let new_moves = gen_moves(rand, ctx);
+        if (sender == battle.player1) {
+            battle.p1_moves = new_moves;
+        } else {
+            battle.p2_moves = new_moves;
+        };
+
+        emit_update(battle);
+    }
+
+    /// Spend the configured utility coin (e.g. $TREE) for an instant growth boost.
+    /// Does NOT advance or replace your turn — you still play a move after.
+    public entry fun tree_boost<T>(
+        battle: &mut Battle,
+        tree_config: &TreeConfig,
+        mut payment: coin::Coin<T>,
+        _rand: &Random,
+        ctx: &mut TxContext,
+    ) {
+        assert!(!battle.finished, errors::e_battle_finished());
+        assert!(config::is_utility_coin<T>(tree_config), errors::e_incorrect_coin_type());
+
+        let sender = tx_context::sender(ctx);
+        assert!(sender == battle.player1 || sender == battle.player2, errors::e_unauthorized_player());
+
+        let cost = config::boost_cost(tree_config);
+        assert!(cost > 0, errors::e_tree_insufficient());
+        assert!(coin::value(&payment) >= cost, errors::e_insufficient_payment());
+
+        // Burn the cost amount
+        let burn_coin = coin::split(&mut payment, cost, ctx);
+        transfer::public_transfer(burn_coin, @0x0);
+
+        if (coin::value(&payment) > 0) {
+            transfer::public_transfer(payment, tx_context::sender(ctx));
+        } else {
+            coin::destroy_zero(payment);
+        };
+
+        // Apply growth boost
+        let boost = config::boost_growth(tree_config);
+        if (sender == battle.player1) {
+            battle.p1_growth = utils::add_growth(battle.p1_growth, boost);
+        } else {
+            battle.p2_growth = utils::add_growth(battle.p2_growth, boost);
+        };
+
+        battle.p1_growth = utils::clamp(battle.p1_growth, 0, 100);
+        battle.p2_growth = utils::clamp(battle.p2_growth, 0, 100);
+
+        emit_update(battle);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    //  TEST-ONLY: Getters and helpers
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[test_only]
+    public fun p1_moves(battle: &Battle): &vector<u8> { &battle.p1_moves }
+    #[test_only]
+    public fun p2_moves(battle: &Battle): &vector<u8> { &battle.p2_moves }
+    #[test_only]
+    public fun p1_growth(battle: &Battle): u64 { battle.p1_growth }
+    #[test_only]
+    public fun p2_growth(battle: &Battle): u64 { battle.p2_growth }
+    #[test_only]
+    public fun is_finished(battle: &Battle): bool { battle.finished }
+    #[test_only]
+    public fun winner(battle: &Battle): Option<address> { battle.winner }
+    #[test_only]
+    public fun player1(battle: &Battle): address { battle.player1 }
+    #[test_only]
+    public fun player2(battle: &Battle): address { battle.player2 }
+    #[test_only]
+    public fun turn(battle: &Battle): u8 { battle.turn }
 }

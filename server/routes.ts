@@ -6,6 +6,15 @@ import { decodeSuiPrivateKey } from "@mysten/sui/cryptography";
 import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
 import { Transaction } from "@mysten/sui/transactions";
 import { storage } from "./storage";
+import {
+  trackBattle,
+  getBattleByOnChainId,
+  getPlayerStatsByAddress,
+  getLeaderboard,
+  getTotalPlayers,
+  getRecentBattlesByAddress,
+  getGlobalRecentBattles,
+} from "./battle-storage";
 
 // ─── Sui polling configuration ────────────────────────────────────────────────
 const SUI_RPC_URL =
@@ -313,6 +322,19 @@ async function pollSuiEvents() {
       // Persist latest state
       battles.set(battleId, parsed);
       if (parsed.winner) {
+        // Track finished battle for leaderboard/stats (only once per battle)
+        const alreadyTracked = getBattleByOnChainId(battleId);
+        if (!alreadyTracked) {
+          trackBattle({
+            battleId,
+            player1: parsed.player1,
+            player2: parsed.player2,
+            winner: parsed.winner,
+            isBotBattle: parsed.isBotBattle ?? false,
+            finishedAt: parsed.lastMoveMs ?? Date.now(),
+          });
+        }
+
         if (playerToBattle.get(parsed.player1) === battleId) {
           playerToBattle.delete(parsed.player1);
         }
@@ -455,6 +477,80 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(404).json({ error: "No active battle found" });
     }
     res.json({ state: state ?? null });
+  });
+
+  // ── REST: Leaderboard ────────────────────────────────────────────────────────
+  app.get("/api/leaderboard", (req, res) => {
+    const limit = Math.min(Number(req.query.limit) || 50, 100);
+    const offset = Number(req.query.offset) || 0;
+    const entries = getLeaderboard(limit, offset);
+    res.json({
+      leaderboard: entries,
+      total: getTotalPlayers(),
+      limit,
+      offset,
+    });
+  });
+
+  // ── REST: Player stats ────────────────────────────────────────────────────────
+  app.get("/api/player/:address/stats", (req, res) => {
+    const address = req.params.address?.toLowerCase();
+    if (!address) return res.status(400).json({ error: "Address required" });
+
+    const stats = getPlayerStatsByAddress(address);
+    if (!stats) {
+      return res.json({
+        address,
+        wins: 0,
+        losses: 0,
+        total_battles: 0,
+        current_streak: 0,
+        max_win_streak: 0,
+        rank_title: "Seedling",
+        badges: [],
+        win_rate: 0,
+        total_bot_wins: 0,
+        total_bot_losses: 0,
+      });
+    }
+
+    res.json({
+      address: stats.address,
+      wins: stats.wins,
+      losses: stats.losses,
+      total_battles: stats.total_battles,
+      current_streak: stats.current_streak,
+      max_win_streak: stats.max_win_streak,
+      rank_title: stats.rank_title,
+      badges: JSON.parse(stats.badges || "[]"),
+      win_rate: +stats.win_rate.toFixed(4),
+      total_bot_wins: stats.total_bot_wins,
+      total_bot_losses: stats.total_bot_losses,
+    });
+  });
+
+  // ── REST: Player recent battles ────────────────────────────────────────────────
+  app.get("/api/player/:address/battles", (req, res) => {
+    const address = req.params.address?.toLowerCase();
+    const limit = Math.min(Number(req.query.limit) || 20, 50);
+    if (!address) return res.status(400).json({ error: "Address required" });
+
+    const battles = getRecentBattlesByAddress(address, limit);
+    res.json({ battles });
+  });
+
+  // ── REST: Global recent battles ────────────────────────────────────────────────
+  app.get("/api/battles/recent", (_req, res) => {
+    const limit = Math.min(Number(_req.query.limit) || 20, 50);
+    const battles = getGlobalRecentBattles(limit);
+    res.json({ battles });
+  });
+
+  // ── REST: Top players endpoint (aliased for leaderboard page) ─────────────────
+  app.get("/api/top-players", (req, res) => {
+    const limit = Math.min(Number(req.query.limit) || 100, 100);
+    const entries = getLeaderboard(limit, 0);
+    res.json(entries);
   });
 
   // ── Start Sui polling loop ──────────────────────────────────────────────────

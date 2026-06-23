@@ -13,6 +13,10 @@ module battle_garden::errors {
     const EInvalidAddress: u64 = 111;
     const EEntryFeeChanged: u64 = 112;
 
+    // ── TREE utility errors ──────────────────────────────────────────────────
+    const EIncorrectCoinType: u64 = 200;
+    const ETreeInsufficient: u64 = 201;
+
     public fun e_admin_only(): u64 { EAdminOnly }
     public fun e_nft_not_whitelisted(): u64 { ENftNotWhitelisted }
     public fun e_unauthorized_player(): u64 { EUnauthorizedPlayer }
@@ -26,4 +30,6 @@ module battle_garden::errors {
     public fun e_invalid_economics(): u64 { EInvalidEconomics }
     public fun e_invalid_address(): u64 { EInvalidAddress }
     public fun e_entry_fee_changed(): u64 { EEntryFeeChanged }
+    public fun e_incorrect_coin_type(): u64 { EIncorrectCoinType }
+    public fun e_tree_insufficient(): u64 { ETreeInsufficient }
 }

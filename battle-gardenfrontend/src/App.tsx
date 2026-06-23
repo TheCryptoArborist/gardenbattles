@@ -9,6 +9,7 @@ import { SUI_CONFIG } from "@/lib/sui-config";
 import Home from "@/pages/Home";
 import Battle from "@/pages/Battle";
 import Mint from "@/pages/Mint";
+import Leaderboard from "@/pages/Leaderboard";
 import NotFound from "@/pages/not-found";
 import '@mysten/dapp-kit/dist/index.css';
 
@@ -23,6 +24,7 @@ function Router() {
       <Route path="/" component={Home} />
       <Route path="/mint" component={Mint} />
       <Route path="/battle" component={Battle} />
+      <Route path="/leaderboard" component={Leaderboard} />
       <Route component={NotFound} />
     </Switch>
   );
