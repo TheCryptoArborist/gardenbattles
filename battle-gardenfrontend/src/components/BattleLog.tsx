@@ -15,6 +15,7 @@ export interface ActionEntry {
 interface BattleLogProps {
   entries: ActionEntry[];
   isPlayer1: boolean;
+  opponentLabel?: string;
 }
 
 function formatDelta(prev: number, next: number): string {
@@ -23,11 +24,16 @@ function formatDelta(prev: number, next: number): string {
   return diff > 0 ? `+${diff}` : `${diff}`;
 }
 
-export default function BattleLog({ entries, isPlayer1 }: BattleLogProps) {
-  const bottomRef = useRef<HTMLDivElement>(null);
+export default function BattleLog({
+  entries,
+  opponentLabel = "Opponent",
+}: BattleLogProps) {
+  const logRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (logRef.current) {
+      logRef.current.scrollTop = logRef.current.scrollHeight;
+    }
   }, [entries.length]);
 
   if (entries.length === 0) {
@@ -49,6 +55,7 @@ export default function BattleLog({ entries, isPlayer1 }: BattleLogProps) {
 
   return (
     <div
+      ref={logRef}
       style={{
         display: "flex",
         flexDirection: "column",
@@ -60,25 +67,44 @@ export default function BattleLog({ entries, isPlayer1 }: BattleLogProps) {
     >
       {entries.map((entry) => {
         const meta = MOVE_META[entry.moveId];
-        const isAttack = meta?.type === "attack" || meta?.type === "hybrid";
-        const isGrowth = meta?.type === "growth" || meta?.type === "hybrid";
         const label =
           MOVE_LABELS[entry.moveId] ||
-          (entry.actor === "you" ? "Your move" : "Opponent move");
+          (entry.actor === "you"
+            ? "Your move"
+            : `${opponentLabel} response`);
 
-        const myPrev = entry.actor === "you" ? entry.prevPlayerGrowth : entry.prevOpponentGrowth;
-        const myNext = entry.actor === "you" ? entry.nextPlayerGrowth : entry.nextOpponentGrowth;
-        const oppPrev = entry.actor === "you" ? entry.prevOpponentGrowth : entry.prevPlayerGrowth;
-        const oppNext = entry.actor === "you" ? entry.nextOpponentGrowth : entry.nextPlayerGrowth;
+        const myPrev =
+          entry.actor === "you"
+            ? entry.prevPlayerGrowth
+            : entry.prevOpponentGrowth;
+        const myNext =
+          entry.actor === "you"
+            ? entry.nextPlayerGrowth
+            : entry.nextOpponentGrowth;
+        const oppPrev =
+          entry.actor === "you"
+            ? entry.prevOpponentGrowth
+            : entry.prevPlayerGrowth;
+        const oppNext =
+          entry.actor === "you"
+            ? entry.nextOpponentGrowth
+            : entry.nextPlayerGrowth;
 
         const selfDelta = myNext - myPrev;
         const oppDelta = oppNext - oppPrev;
-
         const accentColor = entry.actor === "you" ? "#00ff00" : "#ff6600";
         const bgColor =
           entry.actor === "you"
             ? "rgba(0,100,0,0.3)"
             : "rgba(120,30,0,0.3)";
+        const badgeLabel =
+          meta?.type === "growth"
+            ? "GROWTH"
+            : meta?.type === "hybrid"
+              ? "HYBRID"
+              : meta?.type === "attack"
+                ? "ATTACK"
+                : "MOVE";
 
         return (
           <div
@@ -112,7 +138,7 @@ export default function BattleLog({ entries, isPlayer1 }: BattleLogProps) {
                   letterSpacing: "0.5px",
                 }}
               >
-                {entry.actor === "you" ? "⚔ YOU" : "🌿 OPPONENT"}
+                {entry.actor === "you" ? "YOU" : opponentLabel}
               </span>
               <span
                 style={{
@@ -136,6 +162,11 @@ export default function BattleLog({ entries, isPlayer1 }: BattleLogProps) {
               }}
             >
               {label}
+              {meta && (
+                <span style={{ color: accentColor, marginLeft: "8px" }}>
+                  {badgeLabel}
+                </span>
+              )}
             </span>
             <div
               style={{
@@ -153,7 +184,8 @@ export default function BattleLog({ entries, isPlayer1 }: BattleLogProps) {
                     fontFamily: "Orbitron, sans-serif",
                   }}
                 >
-                  {entry.actor === "you" ? "🌱 Your tree" : "🌱 Their tree"}: {myPrev} → {myNext} ({formatDelta(myPrev, myNext)})
+                  {entry.actor === "you" ? "Your tree" : "Their tree"}:{" "}
+                  {myPrev} -&gt; {myNext} ({formatDelta(myPrev, myNext)})
                 </span>
               )}
               {oppDelta !== 0 && (
@@ -164,19 +196,25 @@ export default function BattleLog({ entries, isPlayer1 }: BattleLogProps) {
                     fontFamily: "Orbitron, sans-serif",
                   }}
                 >
-                  {entry.actor === "you" ? "🌿 Their tree" : "🌱 Your tree"}: {oppPrev} → {oppNext} ({formatDelta(oppPrev, oppNext)})
+                  {entry.actor === "you" ? "Their tree" : "Your tree"}:{" "}
+                  {oppPrev} -&gt; {oppNext} ({formatDelta(oppPrev, oppNext)})
                 </span>
               )}
               {selfDelta === 0 && oppDelta === 0 && (
-                <span style={{ fontSize: "11px", color: "rgba(255,255,255,0.5)", fontFamily: "Orbitron, sans-serif" }}>
-                  (Blocked or no effect)
+                <span
+                  style={{
+                    fontSize: "11px",
+                    color: "rgba(255,255,255,0.5)",
+                    fontFamily: "Orbitron, sans-serif",
+                  }}
+                >
+                  Blocked or no visible growth change
                 </span>
               )}
             </div>
           </div>
         );
       })}
-      <div ref={bottomRef} />
     </div>
   );
 }

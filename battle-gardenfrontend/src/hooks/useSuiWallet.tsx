@@ -92,6 +92,30 @@ function isZeroAddress(address: string | null | undefined): boolean {
   return !address || address === "0x0";
 }
 
+function normalizeAddress(value: unknown): string | null {
+  return typeof value === "string" && value ? value.toLowerCase() : null;
+}
+
+function isGardenBotAddress(value: unknown): boolean {
+  return normalizeAddress(value) === SUI_CONFIG.BOT_ADDRESS.toLowerCase();
+}
+
+function readOnChainBool(value: any): boolean {
+  return value === true || value === "true" || value?.fields?.value === true;
+}
+
+function inferIsBotBattle(
+  explicitValue: any,
+  player1: unknown,
+  player2: unknown,
+): boolean {
+  return (
+    readOnChainBool(explicitValue) ||
+    isGardenBotAddress(player1) ||
+    isGardenBotAddress(player2)
+  );
+}
+
 function battleBelongsToAddress(
   state: BattleState | null,
   address: string | null,
@@ -144,10 +168,12 @@ function parseBattleStateFromEvent(json: any): BattleState | null {
   if (!json?.battle_id || !json?.player1 || !json?.player2) return null;
 
   const parsedTurn = Number(json.turn);
+  const player1 = json.player1.toLowerCase();
+  const player2 = json.player2.toLowerCase();
   return {
     battleId: json.battle_id,
-    player1: json.player1.toLowerCase(),
-    player2: json.player2.toLowerCase(),
+    player1,
+    player2,
     player1Moves: json.player1_moves ?? [],
     player2Moves: json.player2_moves ?? [],
     player1Growth: Number(json.player1_growth ?? 0),
@@ -155,7 +181,7 @@ function parseBattleStateFromEvent(json: any): BattleState | null {
     turn: Number.isFinite(parsedTurn) ? parsedTurn : 0,
     winner: normalizeWinner(json.winner),
     finished: !!normalizeWinner(json.winner),
-    isBotBattle: Boolean(json.is_bot_battle),
+    isBotBattle: inferIsBotBattle(json.is_bot_battle, player1, player2),
     lastMoveMs: Number(json.last_move_ms ?? 0),
   };
 }
@@ -209,10 +235,12 @@ function parseBattleStateFromObjectFields(
 ): BattleState | null {
   if (!fields?.player1 || !fields?.player2) return null;
 
+  const player1 = String(fields.player1).toLowerCase();
+  const player2 = String(fields.player2).toLowerCase();
   return {
     battleId,
-    player1: String(fields.player1).toLowerCase(),
-    player2: String(fields.player2).toLowerCase(),
+    player1,
+    player2,
     player1Moves: normalizeMoveList(fields.p1_moves),
     player2Moves: normalizeMoveList(fields.p2_moves),
     player1Growth: Number(fields.p1_growth ?? 0),
@@ -220,7 +248,7 @@ function parseBattleStateFromObjectFields(
     turn: Number(fields.turn ?? 0),
     winner: normalizeWinner(fields.winner),
     finished: Boolean(fields.finished) || !!normalizeWinner(fields.winner),
-    isBotBattle: Boolean(fields.is_bot_battle),
+    isBotBattle: inferIsBotBattle(fields.is_bot_battle, player1, player2),
     lastMoveMs: Number(fields.last_move_ms ?? 0),
   };
 }
@@ -1092,18 +1120,36 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
     const actor: "you" | "opponent" =
       (isP1 && p1Acted) || (!isP1 && !p1Acted) ? "you" : "opponent";
 
-    const entry: ActionEntry = {
+    const createEntry = (
+      entryActor: "you" | "opponent",
+      moveId: number,
+    ): ActionEntry => ({
       id: `${Date.now()}-${Math.random()}`,
       timestamp: Date.now(),
-      actor,
-      moveId: actor === "you" ? lastMoveIdRef.current : 0,
+      actor: entryActor,
+      moveId,
       prevPlayerGrowth: isP1 ? prev.player1Growth : prev.player2Growth,
       nextPlayerGrowth: isP1 ? next.player1Growth : next.player2Growth,
       prevOpponentGrowth: isP1 ? prev.player2Growth : prev.player1Growth,
       nextOpponentGrowth: isP1 ? next.player2Growth : next.player1Growth,
-    };
+    });
 
-    setActionLog((log) => [...log, entry]);
+    const entries = [createEntry(actor, actor === "you" ? lastMoveIdRef.current : 0)];
+
+    if (next.isBotBattle && actor === "you") {
+      const playerLostGrowth =
+        (isP1 ? next.player1Growth : next.player2Growth) <
+        (isP1 ? prev.player1Growth : prev.player2Growth);
+      const botGainedGrowth =
+        (isP1 ? next.player2Growth : next.player1Growth) >
+        (isP1 ? prev.player2Growth : prev.player1Growth);
+
+      if (playerLostGrowth || botGainedGrowth) {
+        entries.push(createEntry("opponent", 0));
+      }
+    }
+
+    setActionLog((log) => [...log, ...entries]);
   }
 
   return (
