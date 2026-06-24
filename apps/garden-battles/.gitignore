@@ -1,0 +1,15 @@
+node_modules
+dist
+.DS_Store
+server/public
+vite.config.ts.*
+*.tar.gz
+.env
+scripts/.env
+
+build/*
+traces/*
+.trace
+.coverage*
+Pub.*.toml
+/sui_contract/build

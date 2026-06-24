@@ -1,19 +1,35 @@
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
-  force = false
+# Initial Git-connected Netlify config.
+# This preserves the current NFTree landing/mint deployment first.
+# Garden Battles is included in the repo, but /battle still needs integration.
 
 [build]
-  command = "npx vite build"
-  publish = "dist/public"
-  
-[build.environment]
-  NODE_VERSION = "20"
+  base = "apps/nftree-mint"
+  publish = "public"
+
+[functions]
+  node_bundler = "esbuild"
+
+[[redirects]]
+  from = "/mint"
+  to = "/#mint"
+  status = 302
+
+[[redirects]]
+  from = "/mint/"
+  to = "/#mint"
+  status = 302
+
+[[redirects]]
+  from = "/api/nftree-listings"
+  to = "/.netlify/functions/nftree-listings"
+  status = 200
+
+[[redirects]]
+  from = "/api/nftree-sale-pools"
+  to = "/.netlify/functions/nftree-sale-pools"
+  status = 200
 
 [[headers]]
-  for = "/*"
+  for = "/api/*"
   [headers.values]
-    X-Frame-Options = "DENY"
-    X-Content-Type-Options = "nosniff"
-    Referrer-Policy = "no-referrer-when-downgrade"
+    Cache-Control = "public, max-age=45, stale-while-revalidate=120"

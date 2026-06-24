@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Garden Battles</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="icon" href="./assets/battle.png" type="image/png">
+    <meta name="description" content="Welcome to The Garden Battles, the SUI page to battle your NFTs">
+    <meta http-equiv="Content-Security-Policy" content="
+      default-src 'self';
+      script-src 'self' https://cdn.jsdelivr.net https://unpkg.com https://cdn.jsdelivr.net/npm/@mysten/;
+      style-src 'self' https://fonts.googleapis.com 'unsafe-inline';
+      font-src https://fonts.gstatic.com;
+      img-src 'self' data:;
+      connect-src 'self' https://fullnode.mainnet.sui.io:443 wss://fullnode.mainnet.sui.io:443;
+      base-uri 'self';
+      form-action 'self';
+    ">
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.7/dist/purify.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mysten/sui@1.43.0/+esm"></script>
+    <!-- Removed @mysten/wallet-standard CDN, relying on local module via Vite -->
+    <!-- <script type="module" src="https://cdn.jsdelivr.net/npm/@mysten/wallet-standard@0.13.0/+esm"></script> -->
+    <style>
+        body {
+            background: url('./assets/background4.jpg') no-repeat center center fixed, #000;
+            background-size: cover;
+            color: white;
+            text-align: center;
+            font-family: 'Orbitron', sans-serif;
+            margin: 0;
+            padding: 0;
+            overflow-x: hidden;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 30px;
+            background: rgba(0, 50, 0, 0.8);
+            border-bottom: 2px solid #00ff00;
+            box-shadow: 0 0 15px #00ff00;
+            position: relative;
+        }
+
+        header nav {
+            display: flex;
+            gap: 10px;
+        }
+
+        header nav a {
+            color: #00ff00;
+            margin: 0 10px;
+            text-decoration: none;
+            font-size: 16px;
+            transition: color 0.3s ease;
+        }
+
+        header nav a:hover {
+            color: #00cc00;
+        }
+
+        .logo img {
+            width: 80px;
+            cursor: pointer;
+            filter: drop-shadow(0 0 15px #00ff00);
+            transition: transform 0.3s ease, filter 0.3s ease;
+        }
+
+        .logo img:hover {
+            transform: scale(1.1);
+            filter: drop-shadow(0 0 25px #00cc00);
+        }
+
+        .connect-wallet {
+            padding: 10px 20px;
+            border: 2px solid #00ff00;
+            background: linear-gradient(45deg, rgba(0, 100, 0, 0.5), rgba(0, 150, 0, 0.5));
+            color: white;
+            font-size: 16px;
+            font-family: 'Orbitron', sans-serif;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 0 10px #00ff00, 0 0 5px #000000;
+            border-radius: 8px;
+            text-transform: uppercase;
+        }
+
+        .connect-wallet:hover {
+            background: #00ff00;
+            color: #000;
+            box-shadow: 0 0 20px #00ff00, 0 0 10px #000000;
+            transform: translateY(-2px);
+        }
+
+        .battle-area {
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            margin: 20px 0;
+            flex-wrap: nowrap;
+            max-width: 100%;
+            box-sizing: border-box;
+        }
+
+        .trainer-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 0 20px;
+        }
+
+        .nft-card {
+            width: 240px;
+            height: 336px;
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            box-shadow: 0 0 15px #ff0000;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            margin-bottom: 10px;
+            z-index: 1;
+            background: rgba(255, 255, 255, 0.1);
+            overflow: hidden;
+        }
+
+        .nft-card img {
+            max-width: 90%;
+            max-height: 90%;
+            object-fit: contain;
+            border-radius: 10px;
+        }
+
+        .nft-card:nth-child(2) {
+            box-shadow: 0 0 15px #00ff00;
+        }
+
+        .nft-card:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 30px #00ff00;
+        }
+
+        .grow-green {
+            animation: greenGlow 2s ease-in-out;
+        }
+
+        @keyframes greenGlow {
+            0%, 100% { box-shadow: 0 0 15px #00ff00; }
+            50% { box-shadow: 0 0 30px #00ff00, 0 0 50px #00ff00; }
+        }
+
+        .shake {
+            animation: shake 2s ease-in-out;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+            20%, 40%, 60%, 80% { transform: translateX(5px); }
+        }
+
+        @media (prefers-reduced-motion) {
+            .grow-green, .shake {
+                animation-duration: 0s;
+            }
+        }
+
+        .winner {
+            box-shadow: 0 0 20px #00ff00, 0 0 40px #00ff00 !important;
+            position: relative;
+        }
+
+        .winner::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: url('./assets/winner-overlay.png') no-repeat center center;
+            background-size: 80%;
+            z-index: 2;
+            opacity: 0.9;
+        }
+
+        .battle-vs {
+            font-size: 48px;
+            color: #00ff00;
+            text-shadow: 0 0 10px #00ff00;
+            font-family: 'FantasyBattles', sans-serif;
+            margin: 0 25px;
+            align-self: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1;
+        }
+
+        .battle-info {
+            margin: 15px 0;
+            font-size: 20px;
+            color: #00ffcc;
+        }
+
+        .glow-button {
+            padding: 12px 24px;
+            border: 2px solid #00ff00;
+            background: transparent;
+            color: white;
+            font-size: 18px;
+            cursor: pointer;
+            transition: 0.3s ease;
+            box-shadow: 0 0 10px #00ff00;
+            margin: 5px;
+            border-radius: 8px;
+        }
+
+        .glow-button:hover {
+            background: #00ff00;
+            color: #000;
+            box-shadow: 0 0 25px #00ff00;
+        }
+
+        .glow-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .health-bar-container {
+            width: 240px;
+            height: 18px;
+            background: rgba(0, 0, 0, 0.8);
+            border-radius: 6px;
+            padding: 2px;
+            display: block;
+            z-index: 0;
+            margin: 8px 0;
+            box-shadow: 0 0 10px #00ff00;
+        }
+
+        .health-bar {
+            width: 0%;
+            height: 18px;
+            background: linear-gradient(to right, #00ff00, #00cc00);
+            border-radius: 6px;
+            transition: width 0.3s ease;
+        }
+
+        #battleOptions {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 10px;
+            padding: 15px;
+            background: rgba(0, 50, 0, 0.8);
+            border: 2px solid #00ff00;
+            border-radius: 12px;
+            margin: 15px auto;
+            max-width: 700px;
+            max-height: 200px;
+            overflow-y: auto;
+            position: relative;
+            box-shadow: 0 0 15px #00ff00;
+        }
+
+        .battle-info-section {
+            margin: 25px auto;
+            max-width: 900px;
+            padding: 25px;
+            background: rgba(0, 50, 0, 0.8);
+            border: 2px solid #00ff00;
+            border-radius: 15px;
+            box-shadow: 0 0 15px #00ff00;
+            text-align: left;
+        }
+
+        .battle-info-section h2 {
+            color: #00ff00;
+            text-shadow: 0 0 5px #00ff00;
+            margin-bottom: 15px;
+            font-family: 'FantasyBattles', sans-serif;
+            font-size: 24px;
+        }
+
+        .battle-info-section p {
+            color: #00ffcc;
+            font-size: 18px;
+            line-height: 1.5;
+            margin-bottom: 15px;
+        }
+
+        .battle-info-section ul {
+            list-style-type: disc;
+            margin-left: 20px;
+            color: #00ffcc;
+            font-size: 16px;
+        }
+
+        .battle-info-section ul li {
+            margin-bottom: 10px;
+        }
+
+        footer {
+            text-align: center;
+            padding: 25px;
+            background: rgba(0, 50, 0, 0.8);
+            border-top: 2px solid #00ff00;
+            box-shadow: 0 0 15px #00ff00;
+        }
+
+        .sponsor-link {
+            color: #00ffcc;
+            text-decoration: none;
+            transition: color 0.3s ease, text-shadow 0.3s ease;
+        }
+
+        .sponsor-link:hover {
+            color: #00ffff;
+            text-shadow: 0 0 10px #00ffff, 0 0 20px #00ffff, 0 0 30px #00ffff;
+        }
+
+        @keyframes explode {
+            0% { opacity: 0; transform: scale(0.5); }
+            50% { opacity: 1; transform: scale(1.2); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+
+        @keyframes explodeAndShrink {
+            0% { transform: scale(0.5); opacity: 0; }
+            50% { transform: scale(1.1); opacity: 1; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        .explosion {
+            animation: explode 1s ease-out;
+            text-shadow: 0 0 10px #000000;
+            font-family: 'FantasyBattles', sans-serif;
+        }
+
+        .title-image {
+            width: 100%;
+            max-width: 680px;
+            height: auto;
+            max-height: 300px;
+            margin: 25px auto 10px;
+            animation: explodeAndShrink 2s ease-out forwards;
+        }
+
+        .battle-info-dialog {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 50, 0, 0.8);
+            border: 2px solid #00ff00;
+            padding: 25px;
+            box-shadow: 0 0 15px #00ff00;
+            z-index: 1000;
+            display: none;
+            border-radius: 12px;
+        }
+
+        .battle-info-dialog p {
+            margin-bottom: 25px;
+            font-size: 20px;
+            color: white;
+        }
+
+        .battle-info-dialog button {
+            padding: 12px 24px;
+            border: 2px solid #00ff00;
+            background: transparent;
+            color: white;
+            font-size: 18px;
+            cursor: pointer;
+            transition: 0.3s ease;
+            margin: 0 12px;
+            border-radius: 8px;
+        }
+
+        .battle-info-dialog button:hover {
+            background: #00ff00;
+            color: #000;
+            box-shadow: 0 0 25px #00ff00;
+        }
+
+        .status-text {
+            margin-top: 15px;
+            font-size: 20px;
+            color: #ffff00;
+        }
+
+        @media (max-width: 768px) {
+            .battle-area {
+                flex-direction: row;
+                flex-wrap: nowrap;
+                width: 100%;
+                box-sizing: border-box;
+                overflow-x: auto;
+            }
+
+            .trainer-wrapper {
+                flex: 1;
+                margin: 0 5px;
+                min-width: 0;
+            }
+
+            .nft-card {
+                width: 100%;
+                height: auto;
+                max-width: 150px;
+                min-width: 100px;
+                aspect-ratio: 5 / 7;
+                margin-bottom: 5px;
+            }
+
+            .nft-card img {
+                max-width: 90%;
+                max-height: 90%;
+                object-fit: contain;
+            }
+
+            .battle-vs {
+                font-size: 36px;
+                margin: 0 5px;
+                flex: 0 0 auto;
+                line-height: 1;
+            }
+
+            .health-bar-container {
+                width: 100%;
+                height: 10px;
+                max-width: 150px;
+                min-width: 100px;
+                margin: 5px 0;
+            }
+
+            .health-bar {
+                height: 10px;
+            }
+
+            .trainer-wrapper p {
+                font-size: 10px;
+                margin: 5px 0;
+            }
+
+            .title-image {
+                max-width: 510px;
+                max-height: 250px;
+            }
+
+            #battleOptions {
+                flex-direction: row;
+                padding: 8px;
+                max-width: 100%;
+                max-height: 120px;
+                gap: 8px;
+                margin: 8px auto;
+            }
+
+            .glow-button {
+                padding: 8px 16px;
+                font-size: 14px;
+                margin: 3px;
+            }
+
+            .battle-info-section {
+                padding: 15px;
+                max-width: 100%;
+            }
+
+            .battle-info-section h2 {
+                font-size: 20px;
+            }
+
+            .battle-info-section p {
+                font-size: 16px;
+            }
+
+            .battle-info-section ul {
+                font-size: 14px;
+            }
+
+            .connect-wallet {
+                padding: 8px 16px;
+                font-size: 14px;
+            }
+        }
+
+        @media (max-width: 360px) {
+            .battle-area {
+                flex-direction: column;
+                align-items: center;
+                gap: 10px;
+            }
+
+            .nft-card {
+                min-width: 90px;
+            }
+
+            .health-bar-container {
+                min-width: 90px;
+            }
+
+            .battle-vs {
+                font-size: 28px;
+            }
+
+            .title-image {
+                max-width: 425px;
+                max-height: 200px;
+            }
+
+            #battleOptions {
+                max-height: 100px;
+            }
+
+            .glow-button {
+                padding: 6px 12px;
+                font-size: 12px;
+            }
+
+            .battle-info-section h2 {
+                font-size: 18px;
+            }
+
+            .battle-info-section p {
+                font-size: 14px;
+            }
+
+            .battle-info-section ul {
+                font-size: 12px;
+            }
+
+            .connect-wallet {
+                padding: 6px 12px;
+                font-size: 12px;
+            }
+        }
+        .waiting-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(10, 10, 10, 0.85);
+            backdrop-filter: blur(8px);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            transition: opacity 0.4s ease-in-out;
+        }
+
+        .waiting-overlay.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .waiting-box {
+            text-align: center;
+            color: #b5ffb5;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.5rem;
+            background: rgba(25, 40, 25, 0.8);
+            border: 2px solid #00ff99;
+            border-radius: 20px;
+            padding: 40px 80px;
+            box-shadow: 0 0 20px #00ff99;
+            animation: pulseGlow 2s infinite alternate;
+        }
+
+        @keyframes pulseGlow {
+            from { box-shadow: 0 0 15px #00ff99; }
+            to { box-shadow: 0 0 40px #00ffcc; }
+        }
+
+        .spinner {
+            border: 6px solid rgba(255, 255, 255, 0.1);
+            border-top: 6px solid #00ff99;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            margin: 0 auto 20px auto;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+    <!-- Removed explicit hash, Vite will inject the correct path -->
+    <script type="module" crossorigin></script>
+</head>
+<body>
+    <header>
+        <div class="logo">
+            <img src="./assets/thick.png" alt="Thickquidity Logo">
+        </div>
+        <nav>
+            <a href="/" style="color: #00ff00; margin: 0 10px;">Home</a>
+            <a href="/arboretum.html" style="color: #00ff00; margin: 0 10px;">Arboretum</a>
+        </nav>
+        <button class="connect-wallet" id="connect-wallet-btn">Connect Wallet</button>
+    </header>
+    <img src="./assets/garden.png" alt="The Garden Battles" class="title-image" loading="lazy">
+
+    <div class="battle-area">
+        <div class="trainer-wrapper">
+            <div class="nft-card" id="nft1">
+                <img src="./assets/seed.jpg" alt="Player 1 Sapling" loading="lazy">
+            </div>
+            <div class="health-bar-container" id="healthBarContainer1">
+                <div class="health-bar" id="healthBar1" style="width: 0%;"></div>
+            </div>
+            <p id="playerHP">Your Growth: 0</p>
+        </div>
+        <div class="battle-vs" role="region" aria-label="Versus">VS</div>
+        <div class="trainer-wrapper">
+            <div class="nft-card" id="nft2">
+                <img src="./assets/seed.jpg" alt="Player 2 Sapling" loading="lazy">
+            </div>
+            <div class="health-bar-container" id="healthBarContainer2">
+                <div class="health-bar" id="healthBar2" style="width: 0%;"></div>
+            </div>
+            <p id="opponentHP">Opponent Growth: 0</p>
+        </div>
+    </div>
+
+    <div id="battleOptions" class="battle-info">
+        <!-- Dynamic buttons added via JavaScript -->
+    </div>
+    <p class="battle-info">3 SUI per Battle</p>
+    <p id="matchmakingStatus" class="status-text">Connect wallet to start!</p>
+
+    <div class="battle-info-section">
+        <h2>Gameplay: The Garden Battles</h2>
+        <p>Welcome to The Garden Battles by Thickquidity, a thrilling 1v1 strategy game powered by the Sui blockchain! To participate, you must hold a Sapling NFT from our official issuer. Engage in turn-based battles where your NFT grows from a seed to a full tree as you increase your Growth points. The first player to reach 100 Growth wins!</p>
+        <ul>
+            <li><strong>NFT Requirement</strong>: Hold a Sapling NFT to access battles.</li>
+            <li><strong>Entry Fee</strong>: Each battle costs 3 SUI.</li>
+            <li><strong>Rewards</strong>: The winner receives 5 SUI, with 1 SUI supporting Thickquidity's token buyback program.</li>
+            <li><strong>Gameplay</strong>: Each player is randomly assigned four moves per battle—two to reduce the opponent's Growth (e.g., Thorn Spike Bomb, Razor Leaf Sword) and two to boost their own (e.g., Sun Beam, Photosynthetic Surge).</li>
+            <li><strong>Visuals</strong>: Watch your NFT evolve from seed (0-25 Growth) to sapling (26-50), mature sapling (51-75), and full tree (76-100).</li>
+        </ul>
+
+        <h2>Coming Soon: Phase 2 – The Arboretum (Q4 2025)</h2>
+        <p>Get ready for Phase 2 of The Garden Battles, launching in Q4 2025 with the introduction of The Arboretum! This exciting expansion brings dynamic NFT utility, unlocking massive rewards for Sapling NFT holders. Stay tuned for new gameplay mechanics, enhanced strategies, and opportunities to grow your rewards in the lush, competitive world of The Arboretum.</p>
+        <ul>
+            <li><strong>Dynamic NFT Utility</strong>: Your Sapling NFTs will unlock new abilities and perks.</li>
+            <li><strong>Massive Rewards</strong>: Compete for exclusive prizes and boosted payouts.</li>
+            <li><strong>Launch</strong>: Expected in Q4 2025—join our community for updates!</li>
+        </ul>
+    </div>
+
+    <footer>
+        <a href="https://x.ai/grok" target="_blank" rel="noopener noreferrer" class="sponsor-link">Powered by SUI</a>
+    </footer>
+
+    <div id="battleInfoDialog" class="battle-info-dialog">
+        <p id="battleInfoText"></p>
+        <button aria-label="Close battle info dialog">Close</button>
+    </div>
+
+    <audio id="battleMusic" src="./assets/music.mp3" preload="none" hidden></audio>
+
+    <!-- Waiting Overlay -->
+    <div id="waitingOverlay" class="waiting-overlay hidden">
+        <div class="waiting-box">
+            <div class="spinner"></div>
+            <p id="waitingText">🌿 Waiting for Opponent...</p>
+            <p id="waitingTimer">00:00 elapsed</p>
+        </div>
+    </div>
+</body>
+</html>

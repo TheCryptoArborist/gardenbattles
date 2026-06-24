@@ -1,0 +1,39 @@
+╔══════════════════════════════════════════════════════════════╗
+║           SUI BATTLE GARDEN - DEPLOYMENT CHECKLIST           ║
+╚══════════════════════════════════════════════════════════════╝
+
+□ Step 1: Open terminal/PowerShell
+□ Step 2: Navigate to sui_contract folder
+□ Step 3: Run: sui move build
+□ Step 4: Run: sui client publish --gas-budget 100000000
+□ Step 5: Wait for deployment to complete (~30 seconds)
+□ Step 6: Copy PACKAGE_ID from output
+□ Step 7: Copy CONFIG_ID from output
+□ Step 8: Copy QUEUE_ID from output
+□ Step 9: Share the 3 IDs with agent
+
+═══════════════════════════════════════════════════════════════
+
+WHAT TO COPY FROM OUTPUT:
+
+1. PACKAGE_ID (first Created Object, type: package::UpgradeCap)
+2. CONFIG_ID (type: battle_garden::Config)
+3. QUEUE_ID (type: battle_garden::MatchmakingQueue)
+
+═══════════════════════════════════════════════════════════════
+
+EXAMPLE FORMAT TO SHARE:
+
+PACKAGE_ID: 0x1234567890abcdef...
+CONFIG_ID: 0xabcdef1234567890...
+QUEUE_ID: 0x0987654321fedcba...
+
+═══════════════════════════════════════════════════════════════
+
+After sharing IDs, agent will:
+✓ Update frontend configuration
+✓ Test the application
+✓ Verify contract integration
+✓ Guide you through whitelisting NFT collections
+
+═══════════════════════════════════════════════════════════════

@@ -1,0 +1,25 @@
+{
+  "name": "tree-nft-scripts",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "nft:deploy": "ts-node deploy-and-deposit.ts",
+    "nft:deposit": "ts-node mint.ts",
+    "nft:cli": "ts-node nft-cli.ts",
+    "nft:prepare": "ts-node nft-cli.ts prepare-manifest",
+    "nft:mint": "ts-node mint.ts",
+    "nft:verify": "ts-node nft-cli.ts verify-mint",
+    "nft:set-treasury": "ts-node nft-cli.ts set-treasury",
+    "nft:sync-whitelist": "ts-node nft-cli.ts sync-whitelist",
+    "nft:preflight": "ts-node nft-cli.ts mainnet-preflight"
+  },
+  "dependencies": {
+    "@mysten/sui": "^1.0.0",
+    "dotenv": "^16.0.0"
+  },
+  "devDependencies": {
+    "ts-node": "^10.9.0",
+    "typescript": "^5.0.0",
+    "@types/node": "^20.0.0"
+  }
+}

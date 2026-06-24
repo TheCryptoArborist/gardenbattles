@@ -1,0 +1,9 @@
+{
+  "network": "mainnet",
+  "packageId": "0xf6c6d439ea0da2f3e9ba79e4992a7a4c113215fbf54c442ac9020c315f953705",
+  "mintCapId": "0x19c4bdb7bddacdc44df27432ae6dd7b5a75da81764c7f62d83394412e8aa5c1a",
+  "mintConfigId": "0xe83616020f61f73b30c40fd3f888ed397626afd071bd4666374c306d8e98b06b",
+  "poolId": "0x8cb91464eec7ada1af801a439207647d78de66bc0d4f124d6437091745a0163a",
+  "upgradeCap": "0xcc8684079b65605c1c31e95b4801c53f6f69ec63426feecfacfabd2f06d36568",
+  "deployedAt": "2026-05-05T00:28:40.138Z"
+}

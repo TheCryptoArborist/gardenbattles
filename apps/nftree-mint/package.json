@@ -1,0 +1,10 @@
+{
+  "name": "nftree-landing",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "build:wallet": "..\\nftree_rewards\\node_modules\\.bin\\vite.cmd build --config vite.wallet.config.mjs",
+    "lint": "node --check public/app.js && node --check netlify/functions/nftree-listings.mjs && node --check netlify/functions/nftree-sale-pools.mjs"
+  }
+}

@@ -1,0 +1,454 @@
+// ---------- CONFIG ----------
+const NETWORK = 'mainnet';
+const PACKAGE_ID = window.CONTRACT_PACKAGE_ID || '0x7144301fe39dae2363f57e13d5e8650934a1adf5817a46b64ac5e86a9cffea80';
+const MODULE = 'battle_garden';
+const CONFIG_ID = '0x06c2b903bf9f805d8882e686d504a09593740deb2bc1a39eb67378e44089c749';
+const MATCHMAKING_QUEUE_ID = '0x33bdce1ff2ba8a655e3601975f59808a1bcf4b3259bc9e7bbea79e91a50c37b4';
+const SAPLING_STRUCT = '0x7144301fe39dae2363f57e13d5e8650934a1adf5817a46b64ac5e86a9cffea80::battle_garden::SaplingNFT'; // Corrected to match deployed contract
+const BATTLE_UPDATE_EVENT = `${PACKAGE_ID}::${MODULE}::BattleUpdate`;
+const ENTRY_FEE = 3_000_000_000;
+const RANDOM_OBJECT_CANDIDATES = ['0x8', '0x6'];
+
+// Move ID to label mapping for UI display
+const MOVE_LABELS = {
+    1: 'Thorn Spike Bomb (-10)',
+    2: 'Razor Leaf Sword (-8)',
+    3: 'Tumbleweed Mace (-12)',
+    4: 'Shovel Spear (-7)',
+    5: 'Thorned Whip (-9)',
+    6: 'Acorn Slingshot (-6)',
+    7: 'Stone Nunchuck (-11)',
+    8: 'Cactus Shield (-5/Block)',
+    9: 'Life Absorb (-8/+4)',
+    10: 'Poison (-5x2)',
+    11: 'Wither Touch (-15/20% Miss)',
+    12: 'Pollen Cloud (-10/50% Block)',
+    13: 'Fungal Rot (-7/next -3)',
+    20: 'Roots Up (+10)',
+    21: 'Sun Beam (+8-12)',
+    22: 'Rain Storm (+15)',
+    23: 'White Mold (+10/20% +5)',
+    24: 'Greenhouse Gas (+12-18)',
+    25: 'Potassium Power Up (+20/10% Fail)',
+    26: 'Photosynthetic Surge (+15-20)',
+    27: 'Barkskin Armor (+10/Block)',
+    28: 'Sap Overflow (+12)',
+    29: 'Cloud Cover (+8/50% Block)',
+    30: 'Shadow Canopy (+10-15)',
+};
+
+// ---------- State ----------
+let currentWallet = null;
+let playerAddress = null;
+let currentBattleId = null;
+let randomObjectId = null;
+let unsubscribeBattle = null;
+
+// Init SuiClient directly (aligned with wallet.js RPC for consistency)
+const client = new SuiClient({ url: 'https://fullnode.mainnet.sui.io:443' });
+
+// Generate nonce for replay protection
+function generateNonce() {
+    return window.generateNonce ? window.generateNonce() : (crypto.randomUUID ? crypto.randomUUID().replace(/-/g, '').slice(0, 32) : Math.random().toString(36).slice(2));
+}
+
+async function disconnectWallet() {
+    if (typeof window.disconnectWallet === 'function') {
+        await window.disconnectWallet();
+    }
+    if (unsubscribeBattle) {
+        await unsubscribeBattle();
+        unsubscribeBattle = null;
+    }
+    currentWallet = null;
+    playerAddress = null;
+    currentBattleId = null;
+    randomObjectId = null;
+    document.getElementById('matchmakingStatus').innerText = 'Wallet disconnected';
+    document.getElementById('battleOptions').innerHTML = '';
+    document.getElementById('healthBar1').style.width = '0%';
+    document.getElementById('healthBar2').style.width = '0%';
+    document.getElementById('playerHP').innerText = 'Your Growth: 0';
+    document.getElementById('opponentHP').innerText = 'Opponent Growth: 0';
+    document.querySelectorAll('.nft-card').forEach(card => card.classList.remove('winner'));
+    // Stop music
+    const music = document.getElementById('battleMusic');
+    music.pause();
+    music.currentTime = 0;
+}
+
+// ---------- Other functions ----------
+async function ensureRandomObject() {
+    for (const id of RANDOM_OBJECT_CANDIDATES) {
+        try {
+            const o = await client.getObject({ id, options: { showType: true } });
+            if (o?.data?.type?.endsWith('::random::Random')) {
+                randomObjectId = id;
+                return;
+            }
+        } catch (_) {}
+    }
+    randomObjectId = RANDOM_OBJECT_CANDIDATES[0];
+}
+
+async function fetchIssuerFromConfig() {
+    const cfg = await client.getObject({ id: CONFIG_ID, options: { showContent: true } });
+    window.issuerAddress = cfg?.data?.content?.fields?.issuer;
+}
+
+async function getFirstValidSaplingNft(owner) {
+    console.log("🔍 Deep scan for Sapling NFTs in wallet & kiosks...");
+
+    const kiosks = new Set();
+
+    // Step 1: Get *all* owned objects (paginated)
+    let cursor = null;
+    try {
+        do {
+            const res = await client.getOwnedObjects({
+                owner,
+                options: { showType: true, showContent: true },
+                cursor,
+                limit: 50,
+            });
+
+            for (const o of res.data) {
+                const type = o?.data?.type;
+                if (!type) continue;
+
+                // ✅ Identify kiosk or cap (various formats)
+                if (type.includes("::kiosk::KioskOwnerCap")) {
+                    const kioskId =
+                        o?.data?.content?.fields?.for?.fields?.kiosk_id ||
+                        o?.data?.content?.fields?.kiosk_id ||
+                        o?.data?.content?.fields?.for;
+                    if (kioskId) kiosks.add(kioskId);
+                }
+
+                // ✅ Directly held Sapling NFT (legacy or moved)
+                if (type === SAPLING_STRUCT) {
+                    const id = o?.data?.objectId;
+                    if (id) {
+                        console.log("🌿 Found directly owned Sapling NFT:", id);
+                        return id;
+                    }
+                }
+            }
+
+            cursor = res.hasNextPage ? res.nextCursor : null;
+        } while (cursor);
+    } catch (err) {
+        console.warn("⚠️ Error fetching owned objects:", err.message);
+    }
+
+    console.log("🧩 Kiosks detected:", Array.from(kiosks));
+
+    // Step 2: Look inside each kiosk for your NFT
+    for (const kioskId of kiosks) {
+        try {
+            const fields = await client.getDynamicFields({ parentId: kioskId });
+            for (const f of fields.data) {
+                const nftId = f?.objectId;
+                if (!nftId) continue;
+
+                const obj = await client.getObject({
+                    id: nftId,
+                    options: { showType: true },
+                });
+
+                if (obj?.data?.type === SAPLING_STRUCT) {
+                    console.log(`🌱 Found Sapling NFT inside kiosk ${kioskId}: ${nftId}`);
+                    return nftId;
+                }
+            }
+        } catch (err) {
+            console.warn(`⚠️ Error reading kiosk ${kioskId}:`, err.message);
+        }
+    }
+
+    console.warn("❌ No valid Sapling NFT found in wallet or kiosks.");
+    return null;
+}
+
+function showDialog(message) {
+    const dialog = document.getElementById('battleInfoDialog');
+    const text = document.getElementById('battleInfoText');
+    text.textContent = message;
+    dialog.style.display = 'block';
+}
+
+function closeBattleInfoDialog() {
+    document.getElementById('battleInfoDialog').style.display = 'none';
+}
+
+async function joinBattle(nftId) {
+    document.querySelectorAll('.nft-card').forEach(card => card.classList.remove('winner'));
+    if (!currentWallet || !playerAddress) {
+        throw new Error('Wallet not connected');
+    }
+    try {
+        const txb = new TransactionBlock();
+        const [fee] = txb.splitCoins(txb.gas, [txb.pure.u64(ENTRY_FEE)]);
+        txb.moveCall({
+            target: `${PACKAGE_ID}::${MODULE}::join_queue`,
+            arguments: [
+                txb.object(CONFIG_ID),
+                txb.object(MATCHMAKING_QUEUE_ID),
+                txb.object(nftId),
+                fee,
+                txb.object(randomObjectId)
+            ],
+            typeArguments: ['0x2::sui::SUI'],
+        });
+        txb.setSender(playerAddress);
+
+        // Dynamic gas estimation
+        const dryRunResult = await client.devInspectTransactionBlock({ transactionBlock: txb, sender: playerAddress });
+        const { gasUsed } = dryRunResult.effects;
+        txb.setGasBudget(gasUsed.computationCost + gasUsed.storageCost + 10000000); // Add buffer for safety
+
+        const result = await window.signAndExecuteTransactionBlock({ transactionBlock: txb });
+        document.getElementById('matchmakingStatus').innerText = 'Joined! Waiting for opponent...';
+        listenForBattle();
+        return result;
+    } catch (error) {
+        console.error('Join battle failed:', error);
+        showDialog(`Join failed: ${error.message}`);
+        throw error;
+    }
+}
+
+async function useAbility(abilityId) {
+    if (!currentBattleId) {
+        showDialog('No active battle');
+        return;
+    }
+    if (!currentWallet || !playerAddress) {
+        showDialog('Wallet not connected');
+        return;
+    }
+    try {
+        const txb = new TransactionBlock();
+        txb.moveCall({
+            target: `${PACKAGE_ID}::${MODULE}::use_ability_id`,
+            arguments: [
+                txb.object(currentBattleId),
+                txb.pure.u8(abilityId),
+                txb.object(randomObjectId)
+            ],
+        });
+        txb.setSender(playerAddress);
+
+        // Dynamic gas estimation
+        const dryRunResult = await client.devInspectTransactionBlock({ transactionBlock: txb, sender: playerAddress });
+        const { gasUsed } = dryRunResult.effects;
+        txb.setGasBudget(gasUsed.computationCost + gasUsed.storageCost + 10000000); // Add buffer for safety
+
+        await window.signAndExecuteTransactionBlock({ transactionBlock: txb });
+    } catch (error) {
+        console.error('Use ability failed:', error);
+        showDialog(`Ability failed: ${error.message}`);
+    }
+}
+
+async function listenForBattle() {
+    if (!client) return;
+    try {
+        const { unsubscribe } = await client.subscribeEvent({
+            filter: { MoveEventType: BATTLE_UPDATE_EVENT },
+            onMessage: (evt) => {
+                try {
+                    const e = evt.parsedJson;
+                    if (!e || !e.battle_id || !e.player1 || !e.player2) {
+                        console.warn('Invalid battle event data:', e);
+                        return;
+                    }
+                    if (e.player1?.toLowerCase() !== playerAddress.toLowerCase() && e.player2?.toLowerCase() !== playerAddress.toLowerCase()) return;
+
+                    currentBattleId = e.battle_id;
+                    if (e.player2 && e.player2 !== "0x0") {
+                        hideWaitingOverlay();
+                    }
+                    updateBattleUI(e.player1, e.player2, e.player1_moves, e.player2_moves, Number(e.player1_growth), Number(e.player2_growth), e.winner ?? null);
+                } catch (err) {
+                    console.error('Event parse error', err);
+                }
+            },
+        });
+        unsubscribeBattle = unsubscribe;
+    } catch (error) {
+        console.error('Subscribe failed:', error);
+        showDialog('Failed to listen for battle updates');
+    }
+}
+
+let waitSeconds = 0;
+let waitInterval = null;
+
+function showWaitingOverlay() {
+    const overlay = document.getElementById("waitingOverlay");
+    overlay.classList.remove("hidden");
+    waitSeconds = 0;
+    if (waitInterval) clearInterval(waitInterval);
+    waitInterval = setInterval(() => {
+        waitSeconds++;
+        const mins = String(Math.floor(waitSeconds / 60)).padStart(2, '0');
+        const secs = String(waitSeconds % 60).padStart(2, '0');
+        const timerEl = document.getElementById("waitingTimer");
+        if (timerEl) timerEl.textContent = `${mins}:${secs} elapsed`;
+    }, 1000);
+}
+
+function hideWaitingOverlay() {
+    const overlay = document.getElementById("waitingOverlay");
+    overlay.classList.add("hidden");
+    if (waitInterval) clearInterval(waitInterval);
+}
+
+const lastImageSrc = {};
+
+function updateNFTImage(nftElement, growth) {
+    const img = nftElement.querySelector('img');
+    if (!img) return;
+
+    // ✅ Use a relative basePath, NOT root slash
+    const basePath = './assets/';
+
+    let newSrc;
+
+    if (growth <= 25) newSrc = `${basePath}seed.jpg`;
+    else if (growth <= 50) newSrc = `${basePath}sapling.jpg`;
+    else if (growth <= 75) newSrc = `${basePath}sapling2.jpg`;
+    else newSrc = `${basePath}full_tree.jpg`;
+
+    const id = nftElement.id;
+    if (lastImageSrc[id] !== newSrc) {
+        lastImageSrc[id] = newSrc;
+        img.src = newSrc;
+    }
+}
+
+function getMoveLabel(moveId) {
+    return MOVE_LABELS[moveId] ?? `Move ${moveId}`;
+}
+
+function updateBattleUI(player1, player2, player1_moves, player2_moves, player1_growth, player2_growth, winner) {
+    if (!currentBattleId) return;
+    const isPlayer1 = playerAddress.toLowerCase() === player1.toLowerCase();
+    const moves = isPlayer1 ? player1_moves : player2_moves;
+    const battleOptions = document.getElementById('battleOptions');
+    battleOptions.innerHTML = '';
+    moves.forEach(move => {
+        const button = document.createElement('button');
+        button.className = 'glow-button';
+        button.innerText = getMoveLabel(move);
+        button.setAttribute('role', 'button');
+        button.setAttribute('tabindex', '0');
+        // Fixed: Use addEventListener for CSP/accessibility best practices
+        button.addEventListener('click', () => useAbility(move));
+        button.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault(); // Prevent scroll on space
+                useAbility(move);
+            }
+        });
+        battleOptions.appendChild(button);
+    });
+
+    document.getElementById('healthBar1').style.width = `${player1_growth}%`;
+    document.getElementById('healthBar2').style.width = `${player2_growth}%`;
+    document.getElementById('playerHP').innerText = `Your Growth: ${isPlayer1 ? player1_growth : player2_growth}`;
+    document.getElementById('opponentHP').innerText = `Opponent Growth: ${isPlayer1 ? player2_growth : player1_growth}`;
+    updateNFTImage(document.getElementById('nft1'), player1_growth);
+    updateNFTImage(document.getElementById('nft2'), player2_growth);
+
+    if (winner && winner !== '0x0') {
+        hideWaitingOverlay();
+        document.getElementById('matchmakingStatus').innerText = `${winner.toLowerCase() === playerAddress.toLowerCase() ? 'You Win!' : 'Opponent Wins!'}`;
+        document.getElementById(winner.toLowerCase() === playerAddress.toLowerCase() ? 'nft1' : 'nft2').classList.add('winner');
+        document.querySelectorAll('.glow-button').forEach(btn => {
+            btn.disabled = true;
+            btn.setAttribute('aria-disabled', 'true');
+        });
+    }
+}
+
+async function connectOrDisconnectWallet() {
+    const btn = document.getElementById('connect-wallet-btn');
+    if (currentWallet) {
+        await disconnectWallet();
+        btn.innerText = 'Connect Wallet';
+    } else {
+        await connectBattleWallet();
+        btn.innerText = 'Disconnect Wallet';
+    }
+}
+
+async function connectBattleWallet() {
+    if (!window.connectWallet) {
+        showDialog('Wallet not available. Please install or enable your Sui wallet extension.');
+        return;
+    }
+    try {
+        const result = await window.connectWallet(); // from wallet.js
+        currentWallet = result.wallet;
+        playerAddress = result.address;
+        document.getElementById('matchmakingStatus').innerText =
+            `Connected: ${playerAddress.slice(0,6)}...${playerAddress.slice(-4)}`;
+
+        // ✅ Initialize SuiClient now that wallet is ready
+        // client = window.initSuiClient(); // Replaced with direct initialization above
+
+        await ensureRandomObject();
+        await fetchIssuerFromConfig();
+        const nftId = await getFirstValidSaplingNft(playerAddress);
+        if (!nftId) {
+            showDialog('No valid Sapling NFT found for this wallet.');
+            return;
+        }
+
+        // 👇 Show waiting overlay before joinBattle()
+        showWaitingOverlay();
+        showDialog('You have staked 3 SUI. Waiting for your opponent...');
+
+        await joinBattle(nftId);
+    } catch (error) {
+        console.error('Connect failed:', error);
+        showDialog(`Connect failed: ${error.message}`);
+    }
+}
+
+// DOM Ready: Initialize and attach listeners
+document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('matchmakingStatus').innerText = 'Connect wallet to start!';
+    document.getElementById('healthBar1').style.width = '0%';
+    document.getElementById('healthBar2').style.width = '0%';
+    updateNFTImage(document.getElementById('nft1'), 0);
+    updateNFTImage(document.getElementById('nft2'), 0);
+    if (typeof window.initializeWallet === 'function') {
+        window.initializeWallet().catch(console.error);
+    }
+
+    // Attach event listeners to replace inline onclick attributes
+    const connectBtn = document.getElementById('connect-wallet-btn');
+    if (connectBtn) {
+        connectBtn.addEventListener('click', connectOrDisconnectWallet);
+    }
+
+    const closeBtn = document.querySelector('#battleInfoDialog button');
+    if (closeBtn) {
+        closeBtn.addEventListener('click', closeBattleInfoDialog);
+    }
+
+    // Fixed: Define and attach changeBackground with relative paths
+    function changeBackground() {
+        // Placeholder implementation: Toggle between backgrounds or cycle through images
+        document.body.style.backgroundImage = document.body.style.backgroundImage.includes('background4.jpg') 
+            ? "url('./background1.jpg')"  // Relative path for CSP compliance
+            : "url('./background4.jpg')";
+    }
+    const logoImg = document.querySelector('.logo img');
+    if (logoImg) {
+        logoImg.addEventListener('click', changeBackground);
+    }
+});

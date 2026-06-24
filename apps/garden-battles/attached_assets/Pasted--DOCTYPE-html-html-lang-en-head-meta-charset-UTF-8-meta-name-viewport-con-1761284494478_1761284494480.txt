@@ -1,0 +1,1632 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>THICKQUIDITY - $TREE - Plant the Seeds to Financial Freedom</title>
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://unpkg.com https://cdn.jsdelivr.net https://cdn.jsdelivr.net/npm/@mysten/; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://fullnode.mainnet.sui.io:443;">
+    <script src="https://cdn.jsdelivr.net/npm/@mysten/sui@1.11.0/+esm"></script>
+    <script type="module" src="https://cdn.jsdelivr.net/npm/@mysten/wallet-standard@0.13.0/+esm"></script>
+    <script src="/wallet.js" defer></script>
+    <meta name="description" content="THICKQUIDITY ($TREE) is a fair launch token on the SUI blockchain, inspired by nature. Plant the seeds to financial freedom with our utility-driven DeFi ecosystem and thick liquidity.">
+    <meta name="keywords" content="THICKQUIDITY, $TREE, SUI, fair launch, cryptocurrency, DeFi, blockchain, financial freedom, nature, crypto, utility">
+    <meta name="author" content="THICKQUIDITY Team">
+    <meta name="robots" content="index, follow">
+    <!-- Open Graph for Social Sharing -->
+    <meta property="og:title" content="THICKQUIDITY - $TREE">
+    <meta property="og:description" content="Join THICKQUIDITY ($TREE) on the SUI network to cultivate wealth in a nature-inspired, utility-driven DeFi ecosystem with thick liquidity.">
+    <meta property="og:image" content="https://tree-token.net/thick.png">
+    <meta property="og:url" content="https://tree-token.net">
+    <meta property="og:type" content="website">
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="THICKQUIDITY - $TREE">
+    <meta name="twitter:description" content="Plant the seeds to financial freedom with $TREE, a fair launch token on the SUI blockchain with robust utility.">
+    <meta name="twitter:image" content="https://tree-token.net/thick.png">
+    <meta name="twitter:site" content="@thickquidity">
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="thick.png">
+    <!-- Sui Wallet Standard for multi-wallet support -->
+    <style>
+        :root {
+            --green-dark: #1a4731;
+            --green-mid: #276749;
+            --green-light: #34d399;
+            --dirt-brown: #4a3728;
+            --text-light: #f7fafc;
+            --gold-accent: #d4a017;
+            --tree-brown: #4a2f2f;
+            --teal-accent: #2dd4bf;
+        }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Arial', sans-serif;
+        }
+        body {
+            background: url('background1.jpg') no-repeat center center fixed;
+            background-size: cover;
+            color: var(--text-light);
+            overflow-x: hidden;
+            line-height: 1.6;
+            position: relative;
+            min-height: 100vh;
+        }
+        /* Animations */
+        @keyframes leaf-sway {
+            0% { transform: rotate(0deg); }
+            50% { transform: rotate(4deg); }
+            100% { transform: rotate(0deg); }
+        }
+        @keyframes grow {
+            0% { transform: scaleY(0); opacity: 0; }
+            100% { transform: scaleY(1); opacity: 1; }
+        }
+        @keyframes particle-burst {
+            0% { transform: translate(0, 0); opacity: 1; }
+            100% { transform: translate(var(--tx), var(--ty)); opacity: 0; }
+        }
+        @keyframes explode-leaves {
+            0% { transform: translate(0, 0) scale(1); opacity: 1; }
+            100% { transform: translate(var(--leaf-tx), var(--leaf-ty)) scale(0.5); opacity: 0; }
+        }
+        @keyframes page-flip {
+            0% { transform: rotateY(0deg); }
+            100% { transform: rotateY(-180deg); }
+        }
+        @keyframes page-flip-back {
+            0% { transform: rotateY(180deg); }
+            100% { transform: rotateY(0deg); }
+        }
+        .leaf {
+            animation: leaf-sway 3s ease-in-out infinite;
+        }
+        .grow-container {
+            transform-origin: bottom center;
+            opacity: 0;
+        }
+        .grow-container.visible {
+            animation: grow 1.2s ease-out forwards;
+        }
+        .glow {
+            box-shadow: 0 0 15px rgba(52, 211, 153, 0.6), 0 0 30px rgba(52, 211, 153, 0.3);
+        }
+        .hover-grow:hover {
+            transform: scale(1.1);
+            transition: transform 0.3s ease, background 0.3s ease;
+        }
+        .leaf-particle {
+            position: absolute;
+            width: 10px;
+            height: 6px;
+            background: var(--green-light);
+            border-radius: 50% 50% 0 0;
+            transform-origin: center;
+            animation: explode-leaves 1.5s ease-out forwards;
+            z-index: 3;
+        }
+        /* Hero Character */
+        .hero-character {
+            position: fixed;
+            bottom: 0;
+            right: clamp(10px, 3vw, 20px);
+            z-index: 3;
+            cursor: pointer;
+        }
+        .hero-character img {
+            width: clamp(60px, 15vw, 100px);
+            height: auto;
+            display: block;
+            transform: translateY(0);
+            transition: transform 0.3s ease;
+        }
+        .hero-character img:hover {
+            transform: scale(1.1);
+        }
+        .speech-bubble {
+            position: absolute;
+            bottom: clamp(80px, 20vw, 120px);
+            right: clamp(90px, 22vw, 140px);
+            background: var(--green-light);
+            color: var(--green-dark);
+            padding: clamp(8px, 2vw, 12px) clamp(12px, 3vw, 15px);
+            border-radius: 15px;
+            font-size: clamp(0.7rem, 2vw, 0.9rem);
+            font-weight: bold;
+            width: clamp(100px, 25vw, 140px);
+            text-align: center;
+            opacity: 0;
+            transform: translateY(10px);
+            transition: opacity 0.3s ease, transform 0.3s ease;
+            pointer-events: none;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            border: 2px solid var(--green-dark);
+        }
+        .speech-bubble::after {
+            content: '';
+            position: absolute;
+            bottom: -10px;
+            right: clamp(15px, 4vw, 20px);
+            border-width: 10px;
+            border-style: solid;
+            border-color: var(--green-light) transparent transparent transparent;
+        }
+        .speech-bubble.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        /* Canvas for tree animations */
+        #tree-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            pointer-events: none;
+            z-index: 1;
+            opacity: 0.7;
+        }
+        /* Header */
+        header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  padding: clamp(0.8rem, 3vw, 1rem) 5%;
+  background: linear-gradient(var(--green-dark), transparent);
+  backdrop-filter: blur(10px);
+  display: flex;
+  justify-content: center; /* Center the nav horizontally */
+  align-items: center;
+}
+.header-content {
+  display: flex;
+  flex-direction: column; /* Stack logo and nav */
+  align-items: center;
+  text-align: center;
+  gap: 0.5rem;
+}
+.logo {
+  height: clamp(3rem, 10vw, 5rem);
+  max-width: 90%;
+  filter: drop-shadow(0 0 10px var(--green-light));
+  margin-bottom: 0.25rem;
+}
+nav {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+        nav a {
+            color: var(--text-light);
+            text-decoration: none;
+            margin: clamp(0.5rem, 1.5vw, 1rem);
+            font-weight: bold;
+            font-size: clamp(0.8rem, 2.2vw, 1rem);
+            position: relative;
+            transition: color 0.3s;
+        }
+        nav a::after {
+            content: '';
+            position: absolute;
+            width: 0;
+            height: 2px;
+            bottom: -5px;
+            left: 0;
+            background: var(--green-light);
+            transition: width 0.3s;
+        }
+        nav a:hover::after {
+            width: 100%;
+        }
+        nav a:hover {
+            color: var(--green-light);
+        }
+        /* Wallet Connect Styles */
+        .wallet-selector {
+            position: relative;
+            display: inline-block;
+        }
+        .connect-wallet {
+            background: linear-gradient(45deg, var(--green-light), var(--gold-accent));
+            color: var(--green-dark);
+            padding: clamp(0.5rem, 1.5vw, 0.8rem) clamp(1rem, 2.5vw, 1.5rem);
+            border: none;
+            border-radius: 9999px;
+            font-weight: bold;
+            font-size: clamp(0.7rem, 2vw, 0.9rem);
+            cursor: pointer;
+            transition: transform 0.3s, box-shadow 0.3s;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .connect-wallet:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 15px var(--green-light);
+        }
+        .connect-wallet.connected {
+            background: var(--gold-accent);
+            color: var(--green-dark);
+        }
+        .wallet-dropdown {
+            display: none;
+            position: absolute;
+            top: 100%;
+            right: 0;
+            background: rgba(26, 71, 49, 0.95);
+            border: 1px solid var(--green-light);
+            border-radius: 0.5rem;
+            min-width: 200px;
+            z-index: 1001;
+            box-shadow: 0 0 10px var(--green-light);
+        }
+        .wallet-dropdown button {
+            display: block;
+            width: 100%;
+            padding: 0.75rem;
+            background: none;
+            border: none;
+            color: var(--text-light);
+            text-align: left;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        .wallet-dropdown button:hover {
+            background: rgba(52, 211, 153, 0.2);
+        }
+        .wallet-connect-modal {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(26, 71, 49, 0.95);
+            border: 2px solid var(--green-light);
+            padding: 1.5rem;
+            border-radius: 0.75rem;
+            z-index: 1002;
+            display: none;
+            max-width: 90vw;
+            max-height: 80vh;
+            overflow: auto;
+            color: var(--text-light);
+            text-align: center;
+        }
+        .wallet-qr {
+            margin: 1rem 0;
+        }
+        .wallet-qr img {
+            max-width: 200px;
+            border: 1px solid var(--green-light);
+            border-radius: 0.5rem;
+        }
+        .loading {
+            opacity: 0.7;
+            pointer-events: none;
+        }
+        .address-display {
+            font-size: 0.8rem;
+            color: var(--gold-accent);
+            margin-top: 0.5rem;
+        }
+        /* Hero */
+        .hero {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: clamp(1rem, 5vw, 2rem);
+            position: relative;
+            z-index: 2;
+        }
+        .hero-content {
+            max-width: 90%;
+            width: 100%;
+            animation: fadeIn 2s ease-out;
+            position: relative;
+        }
+        @keyframes fadeIn {
+            0% { opacity: 0; transform: translateY(50px); }
+            100% { opacity: 1; transform: translateY(0); }
+        }
+        .hero-logo {
+            max-width: 100%;
+            height: auto;
+            max-height: clamp(60px, 18vw, 100px);
+            margin: 0 auto clamp(1rem, 3vw, 1.5rem);
+            display: block;
+            filter: drop-shadow(0 0 15px var(--green-light));
+            opacity: 0;
+            animation: fadeIn 1s ease-out 0.5s forwards;
+        }
+        .hero p {
+            font-size: clamp(0.9rem, 2.8vw, 1.3rem);
+            margin-bottom: clamp(1rem, 3vw, 2rem);
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+            color: var(--tree-brown);
+            text-shadow: 0 0 15px var(--green-dark), 0 0 25px rgba(52, 211, 153, 0.5), 2px 2px 5px rgba(0, 0, 0, 0.5);
+        }
+        .cta-button {
+            display: inline-block;
+            background: linear-gradient(45deg, var(--green-light), var(--gold-accent));
+            color: var(--green-dark);
+            padding: clamp(0.6rem, 1.8vw, 0.9rem) clamp(1.2rem, 2.8vw, 2rem);
+            border-radius: 9999px;
+            text-decoration: none;
+            font-weight: bold;
+            font-size: clamp(0.8rem, 2.2vw, 1.1rem);
+            position: relative;
+            overflow: hidden;
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+        .cta-button::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+            transition: left 0.5s;
+        }
+        .cta-button:hover::before {
+            left: 100%;
+        }
+        .cta-button:hover {
+            transform: scale(1.15);
+            box-shadow: 0 0 20px var(--green-light);
+        }
+        /* Sections */
+        section {
+            padding: clamp(2rem, 6vw, 4rem) clamp(0.8rem, 4vw, 1.5rem);
+            position: relative;
+            z-index: 2;
+        }
+        section h2 {
+            font-size: clamp(1.5rem, 4vw, 2.5rem);
+            text-align: center;
+            margin-bottom: clamp(1rem, 3vw, 2rem);
+            text-shadow: 0 0 10px var(--green-dark);
+        }
+        .grow-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: clamp(0.8rem, 2.5vw, 1.5rem);
+            background: rgba(26, 71, 49, 0.8);
+            border-radius: 1rem;
+            position: relative;
+        }
+        .grow-container::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            border: 2px solid var(--green-light);
+            border-radius: 1rem;
+            opacity: 0.3;
+        }
+        /* About Section */
+        .about-content {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(min(250px, 100%), 1fr));
+            gap: clamp(0.8rem, 2.5vw, 1.5rem);
+        }
+        .about-text p {
+            margin-bottom: clamp(0.8rem, 2vw, 1rem);
+            font-size: clamp(0.8rem, 2.2vw, 0.9rem);
+        }
+        .about-stats {
+            display: flex;
+            flex-direction: column;
+            gap: clamp(0.6rem, 1.8vw, 0.8rem);
+        }
+        .stat-card {
+            background: var(--green-mid);
+            padding: clamp(0.6rem, 1.8vw, 0.9rem);
+            border-radius: 0.5rem;
+            text-align: center;
+        }
+        .stat-card h3 {
+            font-size: clamp(1rem, 2.8vw, 1.3rem);
+            color: var(--gold-accent);
+        }
+        /* Mission Section */
+        .mission-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr));
+            gap: clamp(0.8rem, 2.5vw, 1.5rem);
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .mission-card {
+            padding: clamp(0.8rem, 2.5vw, 1.5rem);
+            background: linear-gradient(var(--green-mid), var(--green-dark));
+            border-radius: 0.75rem;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+        .mission-card::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(52, 211, 153, 0.2), transparent);
+            transform: rotate(45deg);
+        }
+        .mission-card h3 {
+            font-size: clamp(1.2rem, 3vw, 1.5rem);
+            margin-bottom: clamp(0.6rem, 1.8vw, 1rem);
+            color: var(--gold-accent);
+        }
+        /* Tokenomics Section */
+        .tokenomics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
+            gap: clamp(0.8rem, 2.5vw, 1.5rem);
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .tokenomics-card {
+            padding: clamp(0.8rem, 2vw, 1.2rem);
+            background: var(--green-mid);
+            border-radius: 0.75rem;
+            text-align: center;
+        }
+        .tokenomics-card h3 {
+            font-size: clamp(1rem, 2.8vw, 1.3rem);
+            color: var(--gold-accent);
+            margin-bottom: clamp(0.4rem, 1.2vw, 0.6rem);
+        }
+        /* NFTs Section */
+        .nfts-content {
+            text-align: center;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .nfts-content img {
+            max-width: 100%;
+            height: auto;
+            max-height: clamp(50px, 15vw, 80px);
+            margin: 0 auto clamp(1rem, 3vw, 1.5rem);
+            display: block;
+            filter: drop-shadow(0 0 15px var(--green-light));
+            opacity: 0;
+            animation: fadeIn 1s ease-out 0.5s forwards;
+        }
+        .nfts-content p {
+            font-size: clamp(0.8rem, 2.2vw, 0.9rem);
+            margin-bottom: clamp(0.8rem, 2vw, 1rem);
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        /* Social Section */
+        .social-content {
+            text-align: center;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .social-content p {
+            font-size: clamp(0.8rem, 2.2vw, 0.9rem);
+            margin-bottom: clamp(0.8rem, 2vw, 1rem);
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        .video-container {
+            position: relative;
+            display: block;
+            width: 100%;
+            max-width: 560px;
+            aspect-ratio: 16 / 9;
+            margin: clamp(1rem, 3vw, 2rem) auto 0;
+            min-height: 0;
+            max-height: none;
+            overflow: hidden;
+            border-radius: 0.5rem;
+            box-shadow: 0 0 15px rgba(52, 211, 153, 0.8), 0 0 30px rgba(52, 211, 153, 0.4);
+        }
+        .video-container iframe {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border: 0;
+        }
+        /* Litepaper Section */
+        .litepaper-content {
+            text-align: center;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .litepaper-content p {
+            font-size: clamp(0.8rem, 2.2vw, 0.9rem);
+            margin-bottom: clamp(0.8rem, 2vw, 1rem);
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        /* Booklet Modal */
+        .booklet-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 200;
+            align-items: center;
+            justify-content: center;
+            overflow: auto;
+            padding: clamp(1rem, 3vw, 2rem);
+        }
+        .booklet-modal.open {
+            display: flex;
+        }
+        .booklet-container {
+            position: relative;
+            width: clamp(300px, 90vw, 800px);
+            height: clamp(400px, 60vh, 600px);
+            background: linear-gradient(var(--green-dark), var(--green-mid));
+            border: 3px solid var(--gold-accent);
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(52, 211, 153, 0.6);
+            display: flex;
+            perspective: 1000px;
+        }
+        .booklet {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            transform-style: preserve-3d;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .book-page {
+            position: absolute;
+            width: 50%;
+            height: 100%;
+            backface-visibility: hidden;
+            overflow: hidden;
+            background: #fff;
+            transition: transform 0.6s ease-in-out;
+        }
+        .book-page.left {
+            left: 0;
+            border-right: 1px solid var(--green-dark);
+            transform-origin: right;
+        }
+        .book-page.right {
+            right: 0;
+            border-left: 1px solid var(--green-dark);
+            transform-origin: left;
+        }
+        .book-page img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+        .book-page.flipping {
+            transform: rotateY(-180deg);
+        }
+        .book-page.flipping-back {
+            transform: rotateY(180deg);
+        }
+        .booklet-nav {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            width: clamp(44px, 10vw, 50px);
+            height: clamp(44px, 10vw, 50px);
+            background: var(--green-light);
+            color: var(--green-dark);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: clamp(1.2rem, 3vw, 1.5rem);
+            cursor: pointer;
+            user-select: none;
+            transition: transform 0.3s, box-shadow 0.3s;
+            z-index: 201;
+        }
+        .booklet-nav:hover {
+            transform: translateY(-50%) scale(1.2);
+            box-shadow: 0 0 15px var(--green-light);
+        }
+        .booklet-nav.left {
+            left: -60px;
+        }
+        .booklet-nav.right {
+            right: -60px;
+        }
+        .booklet-close {
+            position: absolute;
+            top: clamp(10px, 2vw, 15px);
+            right: clamp(10px, 2vw, 15px);
+            width: clamp(30px, 8vw, 40px);
+            height: clamp(30px, 8vw, 40px);
+            background: var(--green-dark);
+            color: var(--gold-accent);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: clamp(1rem, 2.5vw, 1.2rem);
+            cursor: pointer;
+            transition: transform 0.3s, box-shadow 0.3s;
+            z-index: 201;
+        }
+        .booklet-close:hover {
+            transform: scale(1.2);
+            box-shadow: 0 0 15px var(--green-light);
+        }
+        /* Join Section */
+        .join-content .buttons {
+            display: flex;
+            justify-content: center;
+            gap: clamp(0.8rem, 2vw, 1.2rem);
+            flex-wrap: wrap;
+        }
+        /* Dexscreener Chart */
+        #dexscreener-embed {
+            position: relative;
+            width: 100%;
+            padding-bottom: 125%;
+            margin-top: clamp(1rem, 3vw, 2rem);
+        }
+        @media (min-width: 1400px) {
+            #dexscreener-embed {
+                padding-bottom: 65%;
+            }
+        }
+        #dexscreener-embed iframe {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            border: 0;
+        }
+        /* Footer */
+        footer {
+            padding: clamp(1.5rem, 4vw, 2.5rem) clamp(0.8rem, 3vw, 1.5rem);
+            background: linear-gradient(var(--green-dark), var(--green-mid));
+            text-align: center;
+            z-index: 2;
+            position: relative;
+        }
+        footer p {
+            font-size: clamp(0.8rem, 2.2vw, 1rem);
+            margin-bottom: clamp(0.6rem, 1.8vw, 1rem);
+            color: var(--text-light);
+        }
+        footer .social-links {
+            display: flex;
+            justify-content: center;
+            gap: clamp(0.8rem, 2.5vw, 1.5rem);
+            margin-top: clamp(0.8rem, 2vw, 1.2rem);
+            flex-wrap: wrap;
+        }
+        footer a {
+            color: var(--text-light);
+            text-decoration: none;
+            font-size: clamp(0.8rem, 2.2vw, 1rem);
+            position: relative;
+            transition: color 0.3s;
+        }
+        footer a::after {
+            content: '';
+            position: absolute;
+            width: 0;
+            height: 2px;
+            bottom: -5px;
+            left: 0;
+            background: var(--gold-accent);
+            transition: width 0.3s;
+        }
+        footer a:hover::after {
+            width: 100%;
+        }
+        footer a:hover {
+            color: var(--gold-accent);
+        }
+        /* Responsive Design */
+        @media (max-width: 1024px) {
+            .hero-logo {
+                max-height: clamp(50px, 15vw, 80px);
+            }
+            .hero p {
+                font-size: clamp(0.8rem, 2.5vw, 1.1rem);
+            }
+            .cta-button {
+                padding: clamp(0.5rem, 1.5vw, 0.8rem) clamp(1rem, 2.5vw, 1.8rem);
+                font-size: clamp(0.7rem, 2vw, 1rem);
+            }
+            section {
+                padding: clamp(1.5rem, 5vw, 3rem) clamp(0.6rem, 3vw, 1.2rem);
+            }
+            .hero-character {
+                right: clamp(8px, 2.5vw, 15px);
+            }
+            .hero-character img {
+                width: clamp(50px, 12vw, 80px);
+            }
+            .speech-bubble {
+                bottom: clamp(60px, 15vw, 100px);
+                right: clamp(70px, 18vw, 110px);
+                width: clamp(80px, 20vw, 120px);
+                font-size: clamp(0.6rem, 1.8vw, 0.8rem);
+            }
+            .speech-bubble::after {
+                right: clamp(12px, 3.5vw, 15px);
+            }
+            .video-container {
+                width: 100%;
+                max-width: 560px;
+                aspect-ratio: 16 / 9;
+                box-shadow: 0 0 15px rgba(52, 211, 153, 0.8), 0 0 30px rgba(52, 211, 153, 0.4);
+            }
+            .booklet-container {
+                width: clamp(280px, 85vw, 600px);
+                height: clamp(350px, 50vh, 450px);
+            }
+            .booklet-nav.left {
+                left: -50px;
+            }
+            .booklet-nav.right {
+                right: -50px;
+            }
+        }
+        @media (max-width: 768px) {
+            .header-content {
+                flex-direction: column;
+                gap: clamp(0.6rem, 2vw, 1rem);
+            }
+            .logo {
+                height: clamp(2.5rem, 8vw, 4rem);
+            }
+            nav {
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+            nav a {
+                margin: clamp(0.4rem, 1.2vw, 0.8rem);
+                font-size: clamp(0.7rem, 2vw, 0.9rem);
+            }
+            .hero-logo {
+                max-height: clamp(40px, 12vw, 60px);
+            }
+            .hero p {
+                font-size: clamp(0.7rem, 2.2vw, 1rem);
+            }
+            section h2 {
+                font-size: clamp(1.2rem, 3.5vw, 1.8rem);
+            }
+            .hero-character {
+                right: clamp(6px, 2vw, 12px);
+            }
+            .hero-character img {
+                width: clamp(40px, 10vw, 60px);
+            }
+            .speech-bubble {
+                bottom: clamp(50px, 12vw, 80px);
+                right: clamp(60px, 15vw, 90px);
+                width: clamp(70px, 18vw, 100px);
+                font-size: clamp(0.5rem, 1.6vw, 0.7rem);
+                max-width: 80vw;
+            }
+            .speech-bubble::after {
+                right: clamp(10px, 3vw, 12px);
+            }
+            .video-container {
+                width: 100%;
+                max-width: 560px;
+                aspect-ratio: 16 / 9;
+                box-shadow: 0 0 15px rgba(52, 211, 153, 0.8), 0 0 30px rgba(52, 211, 153, 0.4);
+            }
+            .booklet-container {
+                width: clamp(260px, 80vw, 500px);
+                height: clamp(320px, 45vh, 400px);
+            }
+            .booklet-nav {
+                width: clamp(40px, 8vw, 45px);
+                height: clamp(40px, 8vw, 45px);
+                font-size: clamp(1rem, 2.5vw, 1.2rem);
+            }
+            .booklet-nav.left {
+                left: -45px;
+            }
+            .booklet-nav.right {
+                right: -45px;
+            }
+            .booklet-close {
+                width: clamp(28px, 7vw, 35px);
+                height: clamp(28px, 7vw, 35px);
+                font-size: clamp(0.9rem, 2vw, 1rem);
+            }
+        }
+        @media (max-width: 480px) {
+            .hero-logo {
+                max-height: clamp(30px, 10vw, 50px);
+            }
+            .hero p {
+                font-size: clamp(0.6rem, 2vw, 0.9rem);
+            }
+            .cta-button {
+                font-size: clamp(0.6rem, 1.8vw, 0.9rem);
+                padding: clamp(0.4rem, 1.5vw, 0.7rem) clamp(0.8rem, 2vw, 1.5rem);
+            }
+            section {
+                padding: clamp(1rem, 4vw, 2rem) clamp(0.4rem, 2vw, 0.8rem);
+            }
+            .hero-character {
+                right: clamp(4px, 1.5vw, 8px);
+            }
+            .hero-character img {
+                width: clamp(30px, 8vw, 50px);
+            }
+            .speech-bubble {
+                bottom: clamp(40px, 10vw, 60px);
+                right: clamp(50px, 12vw, 80px);
+                width: clamp(60px, 15vw, 90px);
+                font-size: clamp(0.4rem, 1.4vw, 0.6rem);
+            }
+            .speech-bubble::after {
+                right: clamp(8px, 2.5vw, 10px);
+                border-width: 8px;
+            }
+            .video-container {
+                width: 100%;
+                max-width: 560px;
+                aspect-ratio: 16 / 9;
+                box-shadow: 0 0 15px rgba(52, 211, 153, 0.8), 0 0 30px rgba(52, 211, 153, 0.4);
+            }
+            .booklet-container {
+                width: clamp(240px, 90vw, 320px);
+                height: clamp(300px, 60vh, 360px);
+            }
+            .book-page {
+                width: 100%;
+                border: none;
+                transform-origin: left;
+            }
+            .book-page.right {
+                display: none;
+            }
+            .booklet-nav.left {
+                left: -40px;
+            }
+            .booklet-nav.right {
+                right: -40px;
+            }
+            .booklet-close {
+                width: clamp(24px, 6vw, 30px);
+                height: clamp(24px, 6vw, 30px);
+                font-size: clamp(0.8rem, 1.8vw, 0.9rem);
+            }
+        }
+    </style>
+</head>
+<body>
+    <canvas id="tree-canvas" aria-hidden="true"></canvas>
+    <header>
+        <div class="header-content">
+            <img src="thick.png" alt="THICKQUIDITY Logo" class="logo leaf" loading="lazy">
+            <nav>
+                <a href="#about" aria-label="Learn about $TREE">$TREE</a>
+                <a href="#mission" aria-label="Our Mission">Mission</a>
+                <a href="#tokenomics" aria-label="Tokenomics of $TREE">Tokenomics</a>
+                <a href="#nfts" aria-label="Explore $TREE NFTs">NFTs</a>
+                <a href="#litepaper" aria-label="View the $TREE Litepaper">Litepaper</a>
+                <a href="#social" aria-label="Social Outreach">Social</a>
+                <a href="#join" aria-label="Join the $TREE Community">Join</a>
+            </nav>
+        </div>
+    </header>
+    <section class="hero">
+        <div class="hero-content">
+            <img src="thick.png" alt="THICKQUIDITY $TREE Logo" class="hero-logo" loading="lazy">
+            <p>
+                Planting the seeds to financial freedom with the water droplets of the SUI network.
+                Join the $TREE movement, a fair launch token with robust utility and thick liquidity for a thriving DeFi ecosystem.
+            </p>
+            <div class="hero-buttons">
+                <a href="#join" class="cta-button glow hover-grow" aria-label="Join the $TREE movement">Grow with $TREE</a>
+                <a href="https://app.turbos.finance/#/trade?input=0x2::sui::SUI&output=0x6c5a609f6d0288523ce4a6ed87d19ae127f62073ab75fd9b0b1c9b455d4895cf::tree::TREE&redirect=index.html&purchase=true"
+                   target="_blank" rel="noopener noreferrer"
+                   class="cta-button glow hover-grow" aria-label="Buy $TREE tokens">Buy $TREE!</a>
+              </div>
+              <div id="address-display" class="address-display" style="display: none;"></div>
+    </section>
+    <section id="about">
+        <div class="grow-container about-content" data-animate>
+            <div class="about-text">
+                <h2>About $TREE</h2>
+                <p>
+                    $TREE, powered by THICKQUIDITY on the SUI blockchain, is a fair launch token designed for utility and growth.
+                    Inspired by the resilience of ancient forests, we aim to foster financial prosperity, ecosystem stability,
+                    and sustainable wealth creation with thick liquidity to support long-term growth.
+                </p>
+                <p>
+                    Built on the SUI network's high-speed, low-cost infrastructure, $TREE combines purpose with potential.
+                    Whether you're a crypto sapling or a seasoned arborist, THICKQUIDITY invites you to stake your $TREE
+                    and grow with us toward a greener financial future with robust project utility. Stake your TREE on moonbags.io, and Turbos.finance
+                </p>
+            </div>
+            <div class="about-stats">
+                <div class="stat-card grow-container" data-animate>
+                    <h3>1B</h3>
+                    <p>Total $TREE Supply</p>
+                </div>
+                <div class="stat-card grow-container" data-animate>
+                    <h3>NFTrees</h3>
+                    <p>Utility NFTrees in development</p>
+                </div>
+                <div class="stat-card grow-container" data-animate>
+                    <h3>SUI-Powered</h3>
+                    <p>Fast, Scalable Blockchain</p>
+                </div>
+            </div>
+        </div>
+    </section>
+    <section id="mission">
+        <h2>Our Mission</h2>
+        <div class="mission-grid">
+            <div class="mission-card grow-container leaf" data-animate>
+                <h3>Growth</h3>
+                <p>
+                    Empower financial prosperity through innovative DeFi solutions and project utility on the SUI chain.
+                    $TREE holders can stake, trade, and grow their wealth with cutting-edge tools and thick liquidity.
+                </p>
+            </div>
+            <div class="mission-card grow-container leaf" data-animate>
+                <h3>Ecosystem</h3>
+                <p>
+                    Build a robust ecosystem where $TREE's thick liquidity ensures stability and growth.
+                    Our fair launch approach fosters collaboration and shared success for all members.
+                </p>
+            </div>
+            <div class="mission-card grow-container leaf" data-animate>
+                <h3>Sustainability</h3>
+                <p>
+                    Ensure long-term wealth with secure, transparent blockchain technology.
+                    Our roots are built to last, supporting a thriving future with strong project utility.
+                </p>
+            </div>
+        </div>
+    </section>
+    <section id="tokenomics">
+        <div class="grow-container" data-animate>
+            <h2>Tokenomics of $TREE</h2>
+            <div class="tokenomics-grid">
+                <div class="tokenomics-card grow-container" data-animate>
+                    <h3>Total Supply</h3>
+                    <p>1,000,000,000 $TREE tokens, ensuring a robust foundation for ecosystem growth.</p>
+                </div>
+                <div class="tokenomics-card grow-container" data-animate>
+                    <h3>NFTrees</h3>
+                    <p>Utility NFTrees in development.</p>
+                </div>
+                <div class="tokenomics-card grow-container" data-animate>
+                    <h3>Staking Rewards</h3>
+                    <p>Earn passive income by staking $TREE in our DeFi pools on SUI.</p>
+                </div>
+                <div class="tokenomics-card grow-container" data-animate>
+                    <h3>Fair Launch</h3>
+                    <p>Launched off moonbags.io, focused on utility and thick liquidity for sustained growth.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+    <section id="nfts">
+        <div class="grow-container nfts-content" data-animate>
+            <img src="tree.jpg" alt="$TREE NFT Preview" class="leaf" loading="lazy">
+            <h2>$TREE NFTs</h2>
+            <p>
+                $TREE NFTs unlock monthly SUI airdrops from staking pools, funded by developers, with 80% of sales fueling $TREE buybacks for locked liquidity. 5% will be donated to treefund.org and be livestreamed on Youtube, with reciept for verification.
+            </p>
+            <p>
+                Gain access to explosive gaming opportunities as a holder, and unlock ongoing ecosystem benefits. Crafted with stunning worldly tree designs and arborist-inspired details, 5% of every sale supports treefund.org, donated live on The Crypto Arborist’s YouTube. NFT Games will begin development in Q4 2025.
+            </p>
+            <div class="buttons">
+                <a href="#join" class="cta-button glow hover-grow leaf" aria-label="Learn more about $TREE NFTs">Learn More</a>
+            </div>
+        </div>
+    </section>
+    <section id="litepaper">
+        <div class="grow-container litepaper-content" data-animate>
+            <h2>$TREE Litepaper</h2>
+            <p>
+                Explore the $TREE Litepaper to learn about our vision, tokenomics, and utility-driven ecosystem.
+                Discover how THICKQUIDITY is planting the seeds for financial freedom on the SUI blockchain.
+            </p>
+            <div class="buttons">
+                <button class="cta-button glow hover-grow leaf open-booklet" aria-label="View the $TREE Litepaper">View Litepaper</button>
+            </div>
+        </div>
+    </section>
+    <section id="social">
+        <div class="grow-container social-content" data-animate>
+            <h2>Social Outreach Utility</h2>
+            <p>
+                Join @thecryptoarborist on YouTube for explosive $TREE content, diving deep into the DeFi ecosystem, SUI blockchain, and the growth of the $TREE universe.
+                The Crypto Arborist collaborates with team members across various projects to expand our reach and cultivate a thriving community through engaging discussions and insights.
+            </p>
+        </div>
+    </section>
+    <section id="join">
+        <div class="grow-container join-content" data-animate>
+            <h2>Join the $TREE Forest</h2>
+            <p>
+                Stake your $TREE in the SUI network and watch your financial freedom blossom.
+                Connect with our thriving ecosystem of crypto arborists, leverage our robust utility,
+                and cultivate wealth in a decentralized world with thick liquidity. Follow us on social platforms for updates!
+            </p>
+            <div class="buttons">
+                <a href="https://app.turbos.finance/#/trade?input=0x2::sui::SUI&output=0x6c5a609f6d0288523ce4a6ed87d19ae127f62073ab75fd9b0b1c9b455d4895cf::tree::TREE&redirect=index.html&purchase=true" target="_blank" rel="noopener noreferrer" class="cta-button glow hover-grow leaf" aria-label="Buy $TREE tokens">BUY $TREE</a>
+                <a href="https://x.com/thickquidity" target="_blank" rel="noopener noreferrer" class="cta-button glow hover-grow leaf" aria-label="Follow us on X">X</a>
+                <a href="https://youtube.com/@thecryptoarborist" target="_blank" rel="noopener noreferrer" class="cta-button glow hover-grow leaf" aria-label="Visit our YouTube channel">YouTube</a>
+                <a href="https://t.me/thickquidity" target="_blank" rel="noopener noreferrer" class="cta-button glow hover-grow leaf" aria-label="Join our Telegram group">Telegram</a>
+                <a href="https://sui.io" target="_blank" rel="noopener noreferrer" class="cta-button glow hover-grow leaf" aria-label="Explore the SUI Network">SUI Network</a>
+                <a href="https://dexscreener.com/sui/0xaa133ce1f8fd55d85b6fc87c1b3054cb717d83be477ef3635c661c21fbdfa0ee" target="_blank" rel="noopener noreferrer" class="cta-button glow hover-grow leaf" aria-label="View $TREE on Dexscreener">Dexscreener</a>
+            </div>
+    </div>
+    </section>
+    <footer>
+        <p>© 2025 THICKQUIDITY ($TREE). All rights reserved.</p>
+        <p>Growing the future of finance, one branch at a time.</p>
+        <div class="social-links">
+            <a href="https://app.turbos.finance/#/trade?input=0x2::sui::SUI&output=0x6c5a609f6d0288523ce4a6ed87d19ae127f62073ab75fd9b0b1c9b455d4895cf::tree::TREE&redirect=index.html&purchase=true" target="_blank" rel="noopener noreferrer" class="leaf" aria-label="Buy $TREE tokens">BUY $TREE</a>
+            <a href="https://x.com/thickquidity" target="_blank" rel="noopener noreferrer" class="leaf" aria-label="Follow us on X">X</a>
+            <a href="https://youtube.com/@thecryptoarborist" target="_blank" rel="noopener noreferrer" class="leaf" aria-label="Visit our YouTube channel">YouTube</a>
+            <a href="https://t.me/thickquidity" target="_blank" rel="noopener noreferrer" class="leaf" aria-label="Join our Telegram group">Telegram</a>
+            <a href="https://sui.io" target="_blank" rel="noopener noreferrer" class="leaf" aria-label="Explore the SUI Network">SUI Network</a>
+            <a href="https://dexscreener.com/sui/0xaa133ce1f8fd55d85b6fc87c1b3054cb717d83be477ef3635c661c21fbdfa0ee" target="_blank" rel="noopener noreferrer" class="leaf" aria-label="View $TREE on Dexscreener">Dexscreener</a>
+        </div>
+    </footer>
+    <div class="hero-character">
+        <img src="hero.png" alt="THICKQUIDITY Hero Character" role="button" tabindex="0" aria-label="Interact with hero" aria-hidden="true" loading="lazy" onclick="document.querySelector('.hero-character').click();" onkeydown="if(event.key==='Enter') this.click();">
+        <div class="speech-bubble"></div>
+    </div>
+    <div class="booklet-modal">
+        <div class="booklet-container">
+            <div class="booklet">
+                <div class="book-page left">
+                    <img src="litepaper/1.png" alt="Litepaper Page 1" loading="lazy">
+                </div>
+                <div class="book-page right">
+                    <img src="litepaper/2.png" alt="Litepaper Page 2" loading="lazy">
+                </div>
+            </div>
+            <div class="booklet-nav left" role="button" aria-label="Previous Litepaper Page">←</div>
+            <div class="booklet-nav right" role="button" aria-label="Next Litepaper Page">→</div>
+            <div class="booklet-close" role="button" aria-label="Close Litepaper">✕</div>
+        </div>
+    </div>
+    <!-- WalletConnect Modal -->
+    <div id="wallet-connect-modal" class="wallet-connect-modal">
+        <h3>Connect via WalletConnect</h3>
+        <p>Use a SUI-compatible wallet (e.g., Suiet, Martian). Scan the QR or use deep link.</p>
+        <div class="wallet-qr" id="wallet-qr-container">
+            <!-- QR will be injected here -->
+        </div>
+        <button class="cta-button" onclick="closeWalletModal()">Close</button>
+    </div>
+    <script type="module">
+        // ---------- Wallet State ----------
+        let currentWallet = null;
+        let playerAddress = null;
+        const NETWORK = 'mainnet'; // Match your config
+        const channel = new BroadcastChannel('wallet-channel');
+        // ---------- Wallet Standard Helpers ----------
+        async function discoverWallets() {
+            const wallets = getWallets();
+            return wallets.filter(wallet => wallet.features['sui:signAndExecuteTransactionBlock']);
+        }
+        async function connectWallet(wallet) {
+            try {
+                if (wallet.features['standard:connect']) {
+                    await wallet.features['standard:connect'].connect();
+                }
+                if (wallet.accounts.length === 0) {
+                    throw new Error('No accounts authorized');
+                }
+                const account = wallet.accounts[0];
+                if (account.chains[0] !== `sui:${NETWORK}`) {
+                    throw new Error(`Wallet not on ${NETWORK}`);
+                }
+                return account.address;
+            } catch (error) {
+                console.error('Wallet connect error:', error);
+                throw error;
+            }
+        }
+        function disconnectWallet() {
+            if (currentWallet && currentWallet.features['standard:disconnect']) {
+                currentWallet.features['standard:disconnect'].disconnect();
+            }
+            currentWallet = null;
+            playerAddress = null;
+            document.getElementById('connect-wallet').classList.remove('connected');
+            document.getElementById('connect-wallet').innerText = 'Connect Wallet';
+            document.getElementById('address-display').style.display = 'none';
+            const dropdown = document.getElementById('wallet-dropdown');
+            dropdown.innerHTML = '';
+            dropdown.style.display = 'none';
+            channel.postMessage({type: 'disconnect'});
+        }
+        function showWalletConnectModal() {
+            document.getElementById('wallet-connect-modal').style.display = 'block';
+            // TODO: Generate real QR with @walletconnect/sui (placeholder for now)
+            const qrContainer = document.getElementById('wallet-qr-container');
+            qrContainer.innerHTML = '<p>QR Code Placeholder - Integrate WalletConnect SDK for full support.</p>';
+        }
+        function closeWalletModal() {
+            document.getElementById('wallet-connect-modal').style.display = 'none';
+        }
+        // Expose connect function
+        window.connectWallet = async function() {
+            const connectBtn = document.getElementById('connect-wallet');
+            connectBtn.classList.add('loading');
+            try {
+              const result = await window.connectWallet(); // From wallet.js
+              playerAddress = result.address;
+              await initAfterConnect();
+            } catch (error) {
+              alert(`Connect failed: ${error.message}`);
+            } finally {
+              connectBtn.classList.remove('loading');
+            }
+        };
+        async function initAfterConnect() {
+            document.getElementById('connect-wallet').classList.add('connected');
+            document.getElementById('connect-wallet').innerText = 'Wallet Connected';
+            const addrDisplay = document.getElementById('address-display');
+            addrDisplay.innerText = `${playerAddress.slice(0, 6)}...${playerAddress.slice(-4)}`;
+            addrDisplay.style.display = 'block';
+            channel.postMessage({type: 'connect', address: playerAddress});
+            // Optional: Enable staking button or redirect
+            console.log('Connected to SUI wallet:', playerAddress);
+        }
+        channel.addEventListener('message', (e) => {
+            if (e.data.type === 'connect') {
+                playerAddress = e.data.address;
+                document.getElementById('connect-wallet').classList.add('connected');
+                document.getElementById('connect-wallet').innerText = 'Wallet Connected';
+                const addrDisplay = document.getElementById('address-display');
+                addrDisplay.innerText = `${playerAddress.slice(0, 6)}...${playerAddress.slice(-4)}`;
+                addrDisplay.style.display = 'block';
+            } else if (e.data.type === 'disconnect') {
+                currentWallet = null;
+                playerAddress = null;
+                document.getElementById('connect-wallet').classList.remove('connected');
+                document.getElementById('connect-wallet').innerText = 'Connect Wallet';
+                document.getElementById('address-display').style.display = 'none';
+            }
+        });
+        // Auto-restore on load
+        document.addEventListener('DOMContentLoaded', async () => {
+            const wallets = await discoverWallets();
+            for (const wallet of wallets) {
+                if (wallet.accounts.length > 0) {
+                    currentWallet = wallet;
+                    playerAddress = wallet.accounts[0].address;
+                    await initAfterConnect();
+                    break;
+                }
+            }
+        });
+        // Close dropdown on outside click
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.wallet-selector')) {
+                document.getElementById('wallet-dropdown').style.display = 'none';
+            }
+        });
+        // Handle post-purchase redirect query params
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('purchase') === 'true') {
+            alert('Purchase completed! Welcome back to the $TREE forest.');
+            // Optionally, trigger any post-purchase logic here
+        }
+    </script>
+    <script>
+        // Fallback for canvas, video embed, and booklet debugging
+        try {
+            // Scroll-triggered animations for containers
+            document.addEventListener('DOMContentLoaded', () => {
+                const elements = document.querySelectorAll('[data-animate]');
+         
+                const observer = new IntersectionObserver((entries) => {
+                    entries.forEach(entry => {
+                        if (entry.isIntersecting) {
+                            entry.target.classList.add('visible');
+                            observer.unobserve(entry.target);
+                        }
+                    });
+                }, {
+                    threshold: 0.2
+                });
+                elements.forEach(element => observer.observe(element));
+                // Hero logo leaf explosion
+                const heroLogo = document.querySelector('.hero-logo');
+                const heroContent = document.querySelector('.hero-content');
+                function createLeafParticles() {
+                    const logoRect = heroLogo.getBoundingClientRect();
+                    const centerX = logoRect.left + logoRect.width / 2;
+                    const centerY = logoRect.top + logoRect.height / 2;
+                    for (let i = 0; i < 8; i++) {
+                        const leaf = document.createElement('div');
+                        leaf.className = 'leaf-particle';
+                        const angle = (Math.PI * 2 * i) / 8;
+                        const distance = 50 + Math.random() * 50;
+                        const tx = Math.cos(angle) * distance;
+                        const ty = Math.sin(angle) * distance;
+                        leaf.style.setProperty('--leaf-tx', `${tx}px`);
+                        leaf.style.setProperty('--leaf-ty', `${ty}px`);
+                        leaf.style.left = `${centerX}px`;
+                        leaf.style.top = `${centerY}px`;
+                        document.body.appendChild(leaf);
+                        // Remove leaf after animation
+                        setTimeout(() => {
+                            leaf.remove();
+                        }, 1500);
+                    }
+                }
+                // Trigger leaf explosion on load
+                setTimeout(createLeafParticles, 500);
+                // Hero character speech bubble
+                const heroCharacter = document.querySelector('.hero-character');
+                const speechBubble = document.querySelector('.speech-bubble');
+                const phrases = [
+                    "Get your $TREE roots started!",
+                    "Based DEV!",
+                    "Join the $TREE forest now!"
+                ];
+                let currentPhraseIndex = 0;
+                heroCharacter.addEventListener('click', () => {
+                    speechBubble.textContent = phrases[currentPhraseIndex].replace(/[<>&]/g, '');
+                    speechBubble.classList.add('visible');
+                    setTimeout(() => {
+                        speechBubble.classList.remove('visible');
+                    }, 2000); // Hide after 2 seconds
+                    currentPhraseIndex = (currentPhraseIndex + 1) % phrases.length;
+                });
+                // Debug video container dimensions
+                const videoContainer = document.querySelector('.video-container');
+                if (videoContainer) {
+                    const rect = videoContainer.getBoundingClientRect();
+                    console.log(`Video container dimensions: width=${rect.width}px, height=${rect.height}px, aspect-ratio=${rect.width / rect.height}`);
+                }
+                // Booklet functionality
+                const bookletModal = document.querySelector('.booklet-modal');
+                const openBookletBtn = document.querySelector('.open-booklet');
+                const closeBookletBtn = document.querySelector('.booklet-close');
+                const leftNav = document.querySelector('.booklet-nav.left');
+                const rightNav = document.querySelector('.booklet-nav.right');
+                const leftPage = document.querySelector('.book-page.left');
+                const rightPage = document.querySelector('.book-page.right');
+                const pages = Array.from({ length: 12 }, (_, i) => `litepaper/${i + 1}.png`);
+                let currentPage = 0;
+                const isMobile = () => window.innerWidth <= 480;
+                // Preload images
+                pages.forEach(src => {
+                    const img = new Image();
+                    img.src = src;
+                });
+                function updatePages() {
+                    const leftImg = leftPage.querySelector('img');
+                    const rightImg = rightPage.querySelector('img');
+                    leftImg.onerror = () => leftImg.src = '/fallback-litepaper.png';
+                    if (rightImg) {
+                        rightImg.onerror = () => rightImg.src = '/fallback-litepaper.png';
+                    }
+                    if (isMobile()) {
+                        // Single-page view for mobile
+                        leftPage.style.display = 'block';
+                        rightPage.style.display = 'none';
+                        leftImg.src = pages[currentPage] || pages[0];
+                        leftImg.alt = `Litepaper Page ${currentPage + 1}`;
+                        leftNav.style.display = currentPage === 0 ? 'none' : 'flex';
+                        rightNav.style.display = currentPage >= pages.length - 1 ? 'none' : 'flex';
+                    } else {
+                        // Two-page view for desktop
+                        leftPage.style.display = 'block';
+                        rightPage.style.display = 'block';
+                        leftImg.src = pages[currentPage] || pages[0];
+                        leftImg.alt = `Litepaper Page ${currentPage + 1}`;
+                        rightImg.src = pages[currentPage + 1] || pages[0];
+                        rightImg.alt = `Litepaper Page ${currentPage + 2}`;
+                        leftNav.style.display = currentPage === 0 ? 'none' : 'flex';
+                        rightNav.style.display = currentPage >= pages.length - 2 ? 'none' : 'flex';
+                    }
+                }
+                openBookletBtn.addEventListener('click', () => {
+                    bookletModal.classList.add('open');
+                    updatePages();
+                });
+                closeBookletBtn.addEventListener('click', () => {
+                    bookletModal.classList.remove('open');
+                    currentPage = 0;
+                    updatePages();
+                });
+                rightNav.addEventListener('click', () => {
+                    if (isMobile()) {
+                        if (currentPage < pages.length - 1) {
+                            if (isMobile()) currentPage += 1;
+                            leftPage.classList.add('flipping');
+                            setTimeout(() => {
+                                updatePages();
+                                leftPage.classList.remove('flipping');
+                            }, 600);
+                        }
+                    } else {
+                        if (currentPage < pages.length - 2) {
+                            rightPage.classList.add('flipping');
+                            setTimeout(() => {
+                                currentPage += 2;
+                                updatePages();
+                                rightPage.classList.remove('flipping');
+                            }, 600);
+                        }
+                    }
+                });
+                leftNav.addEventListener('click', () => {
+                    if (isMobile()) {
+                        if (currentPage > 0) {
+                            leftPage.classList.add('flipping-back');
+                            setTimeout(() => {
+                                currentPage -= 1;
+                                updatePages();
+                                leftPage.classList.remove('flipping-back');
+                            }, 600);
+                        }
+                    } else {
+                        if (currentPage > 0) {
+                            leftPage.classList.add('flipping-back');
+                            setTimeout(() => {
+                                currentPage -= 2;
+                                updatePages();
+                                leftPage.classList.remove('flipping-back');
+                            }, 600);
+                        }
+                    }
+                });
+                // Handle window resize
+                window.addEventListener('resize', () => {
+                    updatePages();
+                });
+                // Keyboard navigation
+                document.addEventListener('keydown', (e) => {
+                    if (!bookletModal.classList.contains('open')) return;
+                    if (e.key === 'ArrowRight') {
+                        if (isMobile() && currentPage < pages.length - 1) {
+                            rightNav.click();
+                        } else if (!isMobile() && currentPage < pages.length - 2) {
+                            rightNav.click();
+                        }
+                    } else if (e.key === 'ArrowLeft' && currentPage > 0) {
+                        leftNav.click();
+                    } else if (e.key === 'Escape') {
+                        closeBookletBtn.click();
+                    }
+                });
+                // Tree and particle animation on canvas
+                const canvas = document.getElementById('tree-canvas');
+                const ctx = canvas.getContext('2d');
+                if (!ctx) {
+                    console.error('Canvas context not supported');
+                    return;
+                }
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+                window.addEventListener('resize', () => {
+                    canvas.width = window.innerWidth;
+                    canvas.height = window.innerHeight;
+                });
+                class Particle {
+                    constructor(x, y) {
+                        this.x = x;
+                        this.y = y;
+                        this.size = Math.random() * 5 + 5;
+                        this.vx = (Math.random() - 0.5) * 6;
+                        this.vy = (Math.random() - 0.5) * 6;
+                        this.opacity = 1;
+                        this.style = document.documentElement.style;
+                        this.style.setProperty('--tx', `${this.vx * 50}px`);
+                        this.style.setProperty('--ty', `${this.vy * 50}px`);
+                    }
+                    draw() {
+                        ctx.fillStyle = `rgba(52, 211, 153, ${this.opacity})`;
+                        ctx.beginPath();
+                        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                    update() {
+                        this.x += this.vx;
+                        this.y += this.vy;
+                        this.opacity -= 0.015;
+                        this.size *= 0.98;
+                    }
+                }
+                class Branch {
+                    constructor(x, y, angle, length, depth, treeId) {
+                        this.x = x;
+                        this.y = y;
+                        this.angle = angle;
+                        this.length = length;
+                        this.depth = depth;
+                        this.treeId = treeId;
+                        this.growth = 0;
+                        this.maxLength = length;
+                        this.leaves = [];
+                        this.particles = [];
+                        this.isBursting = false;
+                        this.growthComplete = false;
+                    }
+                    grow() {
+                        if (this.growth < this.maxLength) {
+                            this.growth += 0.1; // Very slow growth
+                            if (this.growth >= this.maxLength && !this.growthComplete) {
+                                this.growthComplete = true;
+                                if (this.depth > 0) {
+                                    const numSplits = Math.floor(Math.random() * 3) + 2; // 2–4 splits
+                                    for (let i = 0; i < numSplits; i++) {
+                                        const newAngle = this.angle + (Math.random() - 0.5) * Math.PI / 3;
+                                        const newLength = this.length * (0.5 + Math.random() * 0.3);
+                                        const newBranch = new Branch(
+                                            this.x + Math.cos(this.angle) * this.length,
+                                            this.y + Math.sin(this.angle) * this.length,
+                                            newAngle,
+                                            newLength,
+                                            this.depth - 1,
+                                            this.treeId
+                                        );
+                                        trees.push(newBranch);
+                                    }
+                                }
+                                if (this.depth === 0 && this.leaves.length === 0) {
+                                    for (let i = 0; i < 3; i++) {
+                                        this.leaves.push({
+                                            x: this.x + Math.cos(this.angle) * this.growth,
+                                            y: this.y + Math.sin(this.angle) * this.growth,
+                                            size: Math.random() * 8 + 4
+                                        });
+                                    }
+                                }
+                            }
+                        } else if (this.growthComplete && this.depth === 0 && !this.isBursting) {
+                            if (Math.random() < 0.005) { // Slow transition to bursting
+                                this.isBursting = true;
+                                for (let i = 0; i < 8; i++) {
+                                    this.particles.push(new Particle(
+                                        this.x + Math.cos(this.angle) * this.growth,
+                                        this.y + Math.sin(this.angle) * this.growth
+                                    ));
+                                }
+                            }
+                        }
+                    }
+                    draw() {
+                        if (this.isBursting) {
+                            this.particles.forEach(particle => {
+                                particle.update();
+                                particle.draw();
+                            });
+                            return;
+                        }
+                        // Draw branch
+                        ctx.beginPath();
+                        ctx.moveTo(this.x, this.y);
+                        const endX = this.x + Math.cos(this.angle) * this.growth;
+                        const endY = this.y + Math.sin(this.angle) * this.growth;
+                        ctx.lineTo(endX, endY);
+                        ctx.strokeStyle = 'var(--tree-brown)';
+                        ctx.lineWidth = this.depth + 1;
+                        ctx.stroke();
+                        // Draw leaves
+                        if (this.growthComplete && this.depth === 0) {
+                            this.leaves.forEach(leaf => {
+                                ctx.fillStyle = 'var(--green-light)';
+                                ctx.beginPath();
+                                ctx.arc(leaf.x, leaf.y, leaf.size, 0, Math.PI * 2);
+                                ctx.fill();
+                            });
+                        }
+                    }
+                }
+                const trees = [];
+                const maxTrees = 5;
+                let treeIdCounter = 0;
+                function spawnTree() {
+                    if (trees.length >= maxTrees) return;
+                    const x = Math.random() * canvas.width;
+                    const y = canvas.height; // Start at bottom
+                    const angle = -Math.PI / 2 + (Math.random() - 0.5) * Math.PI / 6; // Narrow upward angle
+                    const length = 50 + Math.random() * 100;
+                    trees.push(new Branch(x, y, angle, length, 2, treeIdCounter++));
+                }
+                let lastFrame = 0;
+                function animate() {
+                    const now = performance.now();
+                    if (now - lastFrame < 16) return requestAnimationFrame(animate);
+                    lastFrame = now;
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    trees.forEach(tree => {
+                        tree.grow();
+                        tree.draw();
+                    });
+                    // Track bursting branches and remove trees when all final branches have burst
+                    const treeBurstingStatus = new Map();
+                    trees.forEach(tree => {
+                        if (tree.depth === 0 && tree.isBursting && tree.particles.every(p => p.opacity <= 0)) {
+                            treeBurstingStatus.set(tree.treeId, (treeBurstingStatus.get(tree.treeId) || 0) + 1);
+                        }
+                    });
+                    const treeIdsToRemove = new Set();
+                    treeBurstingStatus.forEach((burstCount, treeId) => {
+                        const finalBranches = trees.filter(t => t.treeId === treeId && t.depth === 0).length;
+                        if (burstCount === finalBranches && finalBranches > 0) {
+                            treeIdsToRemove.add(treeId);
+                        }
+                    });
+                    for (let i = trees.length - 1; i >= 0; i--) {
+                        if (treeIdsToRemove.has(trees[i].treeId)) {
+                            trees.splice(i, 1);
+                        }
+                    }
+                    // Spawn new trees only if there are fewer than maxTrees and no trees are in the process of bursting
+                    if (trees.length < maxTrees && trees.every(tree => !tree.isBursting) && Math.random() < 0.02) {
+                        spawnTree();
+                    }
+                    requestAnimationFrame(animate);
+                }
+                // Start with 3 trees
+                for (let i = 0; i < 3; i++) {
+                    spawnTree();
+                }
+                animate();
+            });
+        } catch (error) {
+            console.error('Script error:', error);
+            alert('An error occurred. Please refresh.');
+        }
+        // --- Arboretum & Battles Coming Soon pop-ups ---
+        document.addEventListener('DOMContentLoaded', () => {
+    const arboretumLink = document.querySelector('a[href="/arboretum.html"]');
+    const battleLink = document.querySelector('a[href="/battle.html"]');
+    function showComingSoon(event) {
+      event.preventDefault(); // stops navigation
+      event.stopPropagation(); // stops other handlers
+      alert("🌱 Coming Soon! Our Arboretum and Battle features are growing!");
+      return false;
+    }
+    if (arboretumLink) {
+      arboretumLink.addEventListener('click', showComingSoon);
+      arboretumLink.removeAttribute('href'); // ensure it doesn't navigate even if JS is delayed
+      arboretumLink.style.cursor = 'pointer';
+    }
+    if (battleLink) {
+      battleLink.addEventListener('click', showComingSoon);
+      battleLink.removeAttribute('href');
+      battleLink.style.cursor = 'pointer';
+    }
+  });
+</script>
+</body>
+</html>

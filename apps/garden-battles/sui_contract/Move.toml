@@ -1,0 +1,9 @@
+[package]
+name = "battle_garden"
+version = "0.0.2"
+published-at = "0xfff4c6177eaa2cec6bc2c5aa4366cbf8a55c8ba58e3196f0c803f6f0ce301070"
+edition = "2024.beta"
+
+
+[addresses]
+battle_garden = "0x0"
