@@ -339,6 +339,10 @@ export default function Battle() {
       ? battleState.player1Moves
       : battleState.player2Moves
     : [];
+  const attacksAreStalled =
+    isGardenBotBattle &&
+    opponentGrowth <= 0 &&
+    playerMoves.some((moveId) => MOVE_META[moveId]?.type === "attack");
 
   const thresholdWinner =
     battleState &&
@@ -1473,6 +1477,26 @@ export default function Battle() {
               );
             })()}
 
+            {attacksAreStalled && !battleFinished && (
+              <div
+                role="status"
+                style={{
+                  marginBottom: "10px",
+                  padding: "10px 14px",
+                  border: "1px solid #ffaa33",
+                  borderRadius: "8px",
+                  background: "rgba(80, 45, 0, 0.82)",
+                  color: "#ffe5b4",
+                  textAlign: "center",
+                  fontSize: "clamp(11px, 2.5vw, 13px)",
+                  fontWeight: "bold",
+                  lineHeight: "1.4",
+                }}
+              >
+                Garden Bot is at 0 Growth. Attack moves cannot push that bar lower; use growth or start a new bot hand.
+              </div>
+            )}
+
             {/* Inline error banner */}
             {inlineError && (
               <div
@@ -1655,6 +1679,30 @@ export default function Battle() {
                 >
                   {isForfeiting ? "Forfeiting..." : "Forfeit Battle"}
                 </button>
+                {isGardenBotBattle && (
+                  <button
+                    onClick={handleStartBotBattle}
+                    disabled={isStartingBot}
+                    style={{
+                      minHeight: "48px",
+                      padding: "14px 18px",
+                      borderRadius: "10px",
+                      border: "2px solid #00e5ff",
+                      background: isStartingBot
+                        ? "rgba(0, 90, 100, 0.5)"
+                        : "linear-gradient(45deg, #00e5ff, #00ffaa)",
+                      color: isStartingBot ? "#d4f8ff" : "#001414",
+                      cursor: isStartingBot ? "not-allowed" : "pointer",
+                      fontWeight: "bold",
+                      textTransform: "uppercase",
+                      boxShadow: isStartingBot
+                        ? "none"
+                        : "0 0 18px rgba(0, 229, 255, 0.45)",
+                    }}
+                  >
+                    {isStartingBot ? "Starting..." : "New Bot Hand"}
+                  </button>
+                )}
                 {canClaimTimeout && (
                   <button
                     onClick={handleClaimTimeout}

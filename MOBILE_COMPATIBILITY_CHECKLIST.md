@@ -19,6 +19,7 @@ Mobile support is a core release requirement for Garden Battles and NFTree. Ever
 | Battle move cards | Partial | Four cards can become tight on narrow phones. | Existing grid uses auto-fit responsive columns. | Confirm touch spacing and text wrapping at 320px. | No |
 | Battle log | Yes | New log entries previously scrolled the whole page after moves. | Log now scrolls internally instead of forcing the page to the bottom. | Confirm momentum scrolling and readability on iOS/Android. | Partial |
 | Garden Bot round feedback | Yes | Bot responses were easy to miss because they happen inside the same wallet-confirmed move. | Added clear round-result detail text showing that Garden Bot answered in the same confirmation and listing both growth totals. | Exact bot move names require a future contract event upgrade. | Partial |
+| Garden Bot stalled hands | Yes | Attack-heavy hands can feel useless when Garden Bot is already at 0 Growth because attack moves cannot reduce Growth below zero. | Added a visible stalled-attack warning and a touch-friendly New Bot Hand escape control for practice battles. | Paid TREE reroll still requires the on-chain TreeConfig object and utility coin settings before wiring the real reroll call. | Partial |
 | Winner panel | Yes | New winner/share panel started as a desktop two-column layout. | Changed to responsive auto-fit grid with 44px minimum share controls. | Needs visual review with actual winner state on phone widths. | Partial |
 | Share controls | Yes | Social share buttons needed practical tap targets. | Added minimum touch target sizing and wrapping buttons. | Native mobile share sheet needs real-device check. | Partial |
 | Wallet connection flow | Partial | Wallet connect worked in preview, but Garden Bot start stayed on an old completed battle after confirmation. | Garden Bot start now clears stale finished state, waits for the confirmed transaction, and applies the new battle from the transaction event. | Must retest wallet-confirmed Garden Bot start on desktop and mobile wallet/deep-link flow. | Partial |
@@ -34,6 +35,7 @@ Mobile support is a core release requirement for Garden Battles and NFTree. Ever
 - The winner/share panel needed mobile-first sizing before it could be considered safe for release.
 - After confirming Play Garden Bot, the interface could remain on a stale completed Garden Bot result instead of showing the newly created battle.
 - Garden Bot responses happen inside the player's transaction, but the UI did not clearly show the bot response after every move.
+- Garden Bot attack-heavy hands can stall when the bot is at 0 Growth, because Growth is clamped at zero rather than acting like a health meter.
 - Wallet, navigation, how-to-play, admin, leaderboard, and tournament flows still need dedicated mobile review.
 
 ## Fixes Applied In Current Pass
@@ -46,6 +48,8 @@ Mobile support is a core release requirement for Garden Battles and NFTree. Ever
 - Winner/share controls now use responsive wrapping and minimum practical touch targets.
 - Play Garden Bot now clears the old winner screen before signing, waits for the confirmed transaction digest, and loads the active battle from the emitted `BattleUpdate` event.
 - Garden Bot move feedback now shows a round result after every move, including a note that the bot answered inside the same wallet confirmation and the resulting growth totals for both sides.
+- Garden Bot battles now warn when attack moves are stalled at 0 opponent Growth and offer a New Bot Hand practice reset.
+- Future hand generation in the Move source now uses two attacks, one pure growth, and one growth-capable hybrid slot to avoid garbage hands after the next contract upgrade.
 
 ## Validation Log
 
@@ -57,6 +61,7 @@ Mobile support is a core release requirement for Garden Battles and NFTree. Ever
 | Mobile viewport visual checks | Pending | Must test 320, 375, 390, 414, and 768px after browser preview is available. |
 | Preview wallet connect | Passed | Wallet connect worked on the Netlify preview; wallet warned to proceed with caution. |
 | Garden Bot start after wallet confirmation | Pending | Retest after the stale-finished-battle fix is redeployed. |
+| Garden Bot stalled-hand escape | Pending | Retest New Bot Hand on a draft deploy with a connected wallet. |
 | Real mobile wallet flow | Pending | Must verify on mobile wallet/deep-link flow before production-ready status. |
 
 ## Release Gate
