@@ -161,7 +161,7 @@ const getLeaderboardQuery = db.prepare(`
   SELECT address, wins, losses, total_battles, current_streak, rank_title, badges
   FROM player_stats
   WHERE total_battles > 0
-  ORDER BY wins DESC, win_rate DESC
+  ORDER BY wins DESC, (CAST(wins AS REAL) / NULLIF(total_battles, 0)) DESC
   LIMIT ? OFFSET ?
 `);
 
