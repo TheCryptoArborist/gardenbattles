@@ -10,11 +10,13 @@ export interface ActionEntry {
   nextPlayerGrowth: number;
   prevOpponentGrowth: number;
   nextOpponentGrowth: number;
+  details?: string[];
 }
 
 interface BattleLogProps {
   entries: ActionEntry[];
   isPlayer1: boolean;
+  opponentLabel?: string;
 }
 
 function formatDelta(prev: number, next: number): string {
@@ -23,7 +25,11 @@ function formatDelta(prev: number, next: number): string {
   return diff > 0 ? `+${diff}` : `${diff}`;
 }
 
-export default function BattleLog({ entries, isPlayer1 }: BattleLogProps) {
+export default function BattleLog({
+  entries,
+  isPlayer1,
+  opponentLabel = "Opponent",
+}: BattleLogProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -64,7 +70,7 @@ export default function BattleLog({ entries, isPlayer1 }: BattleLogProps) {
         const isGrowth = meta?.type === "growth" || meta?.type === "hybrid";
         const label =
           MOVE_LABELS[entry.moveId] ||
-          (entry.actor === "you" ? "Your move" : "Opponent move");
+          (entry.actor === "you" ? "Your move" : `${opponentLabel} move`);
 
         const myPrev = entry.actor === "you" ? entry.prevPlayerGrowth : entry.prevOpponentGrowth;
         const myNext = entry.actor === "you" ? entry.nextPlayerGrowth : entry.nextOpponentGrowth;
