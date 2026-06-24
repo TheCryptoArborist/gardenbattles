@@ -19,7 +19,7 @@ Mobile support is a core release requirement for Garden Battles and NFTree. Ever
 | Battle move cards | Partial | Four cards can become tight on narrow phones. | Existing grid uses auto-fit responsive columns. | Confirm touch spacing and text wrapping at 320px. | No |
 | Battle log | Yes | New log entries previously scrolled the whole page after moves. | Log now scrolls internally instead of forcing the page to the bottom. | Confirm momentum scrolling and readability on iOS/Android. | Partial |
 | Garden Bot round feedback | Yes | Bot responses were easy to miss because they happen inside the same wallet-confirmed move. | Added a separate Garden Bot response log row after each player move, plus round-result detail text showing both growth totals. | Exact bot move names require a future contract event upgrade. | Partial |
-| Garden Bot stalled hands | Yes | Attack-heavy hands can feel useless when Garden Bot is already at 0 Growth because attack moves cannot reduce Growth below zero. | Added a visible stalled-attack warning, bad-hand detector, hand summary, and a touch-friendly New Bot Hand escape control for practice battles. | Paid TREE reroll still requires the on-chain TreeConfig object and utility coin settings before wiring the real reroll call. | Partial |
+| Garden Bot stalled hands | Yes | Attack-heavy hands can feel useless when Garden Bot is already at 0 Growth because attack moves cannot reduce Growth below zero. | Added a visible stalled-attack warning, bad-hand detector that counts only real self-growth moves, hand summary, and a touch-friendly New Bot Hand escape control for practice battles. | Paid TREE reroll still requires the on-chain TreeConfig object and utility coin settings before wiring the real reroll call. | Partial |
 | Battle move loading state | Yes | Move cards could disappear if the active battle state existed before moves were populated. | Battle controls now remain visible and show a chain-loading message when no move cards are available. | Needs live preview test against a slow RPC response. | Partial |
 | Winner panel | Yes | New winner/share panel started as a desktop two-column layout. | Changed to responsive auto-fit grid with 44px minimum share controls. | Needs visual review with actual winner state on phone widths. | Partial |
 | Share controls | Yes | Social share buttons needed practical tap targets. | Added minimum touch target sizing and wrapping buttons. | Native mobile share sheet needs real-device check. | Partial |
@@ -50,7 +50,7 @@ Mobile support is a core release requirement for Garden Battles and NFTree. Ever
 - Winner/share controls now use responsive wrapping and minimum practical touch targets.
 - Play Garden Bot now clears the old winner screen before signing, waits for the confirmed transaction digest, and loads the active battle from the emitted `BattleUpdate` event.
 - Garden Bot move feedback now creates a separate Garden Bot response entry after each player move, including a note that the bot answered inside the same wallet confirmation and the resulting growth totals for both sides.
-- Garden Bot battles now warn when attack moves are stalled at 0 opponent Growth, detect bad hands with fewer than two growth-capable moves, and offer a New Bot Hand practice reset.
+- Garden Bot battles now warn when attack moves are stalled at 0 opponent Growth, detect bad hands with fewer than two real self-growth moves, and offer a New Bot Hand practice reset.
 - Active battle controls now stay visible even when moves are still loading from chain.
 - Future hand generation in the Move source now uses two attacks, one pure growth, and one growth-capable hybrid slot to avoid garbage hands after the next contract upgrade.
 
@@ -61,7 +61,7 @@ Mobile support is a core release requirement for Garden Battles and NFTree. Ever
 | Static syntax check | Passed | `npm run check` passed after the battle UI changes. |
 | Production frontend build | Passed | Vite production build passed using the local Windows workaround. |
 | Desktop visual browser check | Blocked | The local browser preview was blocked by the desktop environment. |
-| Mobile viewport visual checks | Pending | Must test 320, 375, 390, 414, and 768px after browser preview is available. |
+| Mobile viewport visual checks | Partial | Local built battle page rendered at 390px with no horizontal overflow; 320, 375, 414, and 768px still need full pass. |
 | Preview wallet connect | Passed | Wallet connect worked on the Netlify preview; wallet warned to proceed with caution. |
 | Garden Bot start after wallet confirmation | Pending | Retest after the stale-finished-battle fix is redeployed. |
 | Garden Bot stalled-hand escape | Pending | Retest New Bot Hand on a draft deploy with a connected wallet. |

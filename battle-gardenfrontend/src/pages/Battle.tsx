@@ -3,7 +3,12 @@ import { Link } from "wouter";
 import { Trophy } from "lucide-react";
 import { ConnectButton } from "@mysten/dapp-kit";
 import { useSuiWallet } from "@/hooks/useSuiWallet";
-import { MOVE_LABELS, MOVE_META, SUI_CONFIG } from "@/lib/sui-config";
+import {
+  MOVE_LABELS,
+  MOVE_META,
+  SUI_CONFIG,
+  moveGrowsSelf,
+} from "@/lib/sui-config";
 import BattleDialog from "@/components/BattleDialog";
 import WaitingOverlay from "@/components/WaitingOverlay";
 import AdminPanel from "@/components/AdminPanel";
@@ -339,17 +344,14 @@ export default function Battle() {
       ? battleState.player1Moves
       : battleState.player2Moves
     : [];
-  const growthCapableMoveCount = playerMoves.filter((moveId) => {
-    const moveType = MOVE_META[moveId]?.type;
-    return moveType === "growth" || moveType === "hybrid";
-  }).length;
+  const growthMoveCount = playerMoves.filter(moveGrowsSelf).length;
   const attackMoveCount = playerMoves.filter(
     (moveId) => MOVE_META[moveId]?.type === "attack",
   ).length;
   const handNeedsReroll =
     isGardenBotBattle &&
     playerMoves.length > 0 &&
-    growthCapableMoveCount < 2;
+    growthMoveCount < 2;
   const attacksAreStalled =
     isGardenBotBattle &&
     opponentGrowth <= 0 &&
@@ -1458,7 +1460,7 @@ export default function Battle() {
                   lineHeight: "1.35",
                 }}
               >
-                Current hand: {attackMoveCount} attack, {growthCapableMoveCount} growth-capable.
+                Current hand: {attackMoveCount} attack, {growthMoveCount} growth moves.
               </div>
             )}
 
@@ -1524,7 +1526,7 @@ export default function Battle() {
                 }}
               >
                 {handNeedsReroll
-                  ? "Bad Garden Bot hand detected. You have fewer than two growth-capable moves; start a new bot hand to avoid a stalled match."
+                  ? "Bad Garden Bot hand detected. You have fewer than two moves that grow your tree; start a new bot hand to avoid a stalled match."
                   : "Garden Bot is at 0 Growth. Attack moves cannot push that bar lower; use growth or start a new bot hand."}
               </div>
             )}
