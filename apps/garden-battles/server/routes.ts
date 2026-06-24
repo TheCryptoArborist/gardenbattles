@@ -31,6 +31,7 @@ const MODULE = process.env.BATTLE_MODULE || "battle";
 const BATTLE_UPDATE_EVENT = `${EVENT_PACKAGE_ID}::${MODULE}::BattleUpdate`;
 const POLL_INTERVAL_MS = 2_000; // poll every 2 s
 const RANDOM_OBJECT_ID = process.env.SUI_RANDOM_OBJECT_ID || "0x8";
+const DISABLE_SUI_RELAY = process.env.DISABLE_SUI_RELAY === "true";
 
 // ─── Bot configuration ───────────────────────────────────────────────────────
 const BOT_PRIVATE_KEY = process.env.BATTLE_BOT_PRIVATE_KEY;
@@ -554,11 +555,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ── Start Sui polling loop ──────────────────────────────────────────────────
-  console.log(
-    `[relay] starting Sui event polling every ${POLL_INTERVAL_MS / 1000}s`,
-  );
-  pollSuiEvents(); // immediate first poll
-  setInterval(pollSuiEvents, POLL_INTERVAL_MS);
+  if (DISABLE_SUI_RELAY) {
+    console.log("[relay] Sui event polling disabled by DISABLE_SUI_RELAY=true");
+  } else {
+    console.log(
+      `[relay] starting Sui event polling every ${POLL_INTERVAL_MS / 1000}s`,
+    );
+    pollSuiEvents(); // immediate first poll
+    setInterval(pollSuiEvents, POLL_INTERVAL_MS);
+  }
 
   return httpServer;
 }
