@@ -272,6 +272,50 @@ async function getLiveBattleState(
 
 // ─── Provider ─────────────────────────────────────────────────────────────────
 
+async function getBattleStateFromTransaction(
+  suiClient: any,
+  digest: string,
+  address: string,
+): Promise<BattleState | null> {
+  const tx = await suiClient.waitForTransaction({
+    digest,
+    timeout: 45_000,
+    pollInterval: 1_500,
+    options: {
+      showEvents: true,
+      showObjectChanges: true,
+    },
+  });
+
+  const eventState = tx.events
+    ?.filter((event: any) => event.type === getBattleUpdateEvent())
+    .map((event: any) => parseBattleStateFromEvent(event.parsedJson))
+    .find((state: BattleState | null) =>
+      isActiveBattleForAddress(state, address),
+    );
+  if (eventState) return eventState;
+
+  const createdBattle = tx.objectChanges?.find(
+    (change: any) =>
+      change.type === "created" &&
+      typeof change.objectType === "string" &&
+      change.objectType.endsWith(`::${SUI_CONFIG.MODULE}::Battle`) &&
+      typeof change.objectId === "string",
+  );
+
+  if (createdBattle?.objectId) {
+    const liveState = await getLiveBattleState(
+      suiClient,
+      createdBattle.objectId,
+    );
+    return isActiveBattleForAddress(liveState ?? null, address)
+      ? (liveState as BattleState)
+      : null;
+  }
+
+  return null;
+}
+
 export function SuiWalletProvider({ children }: { children: ReactNode }) {
   const currentAccount = useCurrentAccount();
   const suiClient = useSuiClient();
@@ -476,6 +520,10 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
 
             // Is this battle relevant to us?
             if (battleBelongsToAddress(newState, address)) {
+              if (isWaiting && !isActiveBattleForAddress(newState, address)) {
+                continue;
+              }
+
               // Update state if it's newer or we were waiting
               if (
                 isWaiting ||
@@ -769,6 +817,10 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
         );
       }
 
+      clearBattleState();
+      clearActionLog();
+      setIsWaiting(true);
+
       const tx = new Transaction();
       const botAddress = SUI_CONFIG.BOT_ADDRESS;
 
@@ -806,18 +858,42 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
         signAndExecuteTransaction(
           { transaction: tx, chain: SUI_CONFIG.CHAIN },
           {
-            onSuccess: () => {
-              setIsWaiting(true);
+            onSuccess: async (result) => {
+              try {
+                const newState = await getBattleStateFromTransaction(
+                  suiClient,
+                  result.digest,
+                  address,
+                );
+
+                if (newState) {
+                  await applyBattleState(newState, { verifyLive: true });
+                }
+              } catch (err) {
+                console.warn(
+                  "[battle] post-bot-start refresh will retry via polling:",
+                  err,
+                );
+              }
               resolve();
             },
             onError: (err: any) => {
+              setIsWaiting(false);
               reject(new Error(err?.message ?? "Failed to start bot battle"));
             },
           },
         );
       });
     },
-    [address, randomObjectId, signAndExecuteTransaction],
+    [
+      address,
+      randomObjectId,
+      suiClient,
+      applyBattleState,
+      clearBattleState,
+      clearActionLog,
+      signAndExecuteTransaction,
+    ],
   );
 
   // ── 6. Use an ability ─────────────────────────────────────────────────────
