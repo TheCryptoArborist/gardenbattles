@@ -1189,7 +1189,8 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
     const p2Changed = next.player2Growth !== prev.player2Growth;
     const turnAdvanced =
       next.turn !== prev.turn || next.lastMoveMs !== prev.lastMoveMs;
-    if (!p1Changed && !p2Changed && !turnAdvanced) return;
+    const hasLocalMove = lastMoveIdRef.current !== 0;
+    if (!p1Changed && !p2Changed && !turnAdvanced && !hasLocalMove) return;
 
     const isP1 = prev.player1?.toLowerCase() === myAddress.toLowerCase();
     const p1Acted = prev.turn === 0;
@@ -1224,7 +1225,12 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
             "Garden Bot answered inside this same confirmation.",
             `Your tree: ${playerPrevGrowth} -> ${playerNextGrowth} (${formatDelta(playerNextGrowth - playerPrevGrowth)})`,
             `Garden Bot: ${opponentPrevGrowth} -> ${opponentNextGrowth} (${formatDelta(opponentNextGrowth - opponentPrevGrowth)})`,
+            playerNextGrowth === playerPrevGrowth &&
+            opponentNextGrowth === opponentPrevGrowth
+              ? "No visible Growth changed this round; the bot may have missed, blocked, or used a status move."
+              : "",
           ]
+            .filter(Boolean)
         : undefined;
 
     const entries = [
@@ -1236,6 +1242,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
     ];
 
     setActionLog((log) => [...log, ...entries]);
+    lastMoveIdRef.current = 0;
   }
 
   return (

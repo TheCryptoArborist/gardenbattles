@@ -339,6 +339,17 @@ export default function Battle() {
       ? battleState.player1Moves
       : battleState.player2Moves
     : [];
+  const growthCapableMoveCount = playerMoves.filter((moveId) => {
+    const moveType = MOVE_META[moveId]?.type;
+    return moveType === "growth" || moveType === "hybrid";
+  }).length;
+  const attackMoveCount = playerMoves.filter(
+    (moveId) => MOVE_META[moveId]?.type === "attack",
+  ).length;
+  const handNeedsReroll =
+    isGardenBotBattle &&
+    playerMoves.length > 0 &&
+    growthCapableMoveCount < 2;
   const attacksAreStalled =
     isGardenBotBattle &&
     opponentGrowth <= 0 &&
@@ -1394,7 +1405,7 @@ export default function Battle() {
           </section>
         )}
 
-        {playerMoves.length > 0 && battleState && !battleFinished && (
+        {battleState && !battleFinished && (
           <div
             style={{
               margin: "15px auto",
@@ -1431,6 +1442,25 @@ export default function Battle() {
                     ? `⏳ Waiting for your opponent...`
                     : `⏳ Choose your move — each turn = 1 wallet confirmation`}
             </div>
+
+            {isGardenBotBattle && playerMoves.length > 0 && (
+              <div
+                style={{
+                  marginBottom: "10px",
+                  padding: "9px 12px",
+                  border: "1px solid rgba(0, 229, 255, 0.55)",
+                  borderRadius: "8px",
+                  background: "rgba(0, 45, 65, 0.78)",
+                  color: "#c9fbff",
+                  textAlign: "center",
+                  fontSize: "clamp(11px, 2.5vw, 13px)",
+                  fontWeight: "bold",
+                  lineHeight: "1.35",
+                }}
+              >
+                Current hand: {attackMoveCount} attack, {growthCapableMoveCount} growth-capable.
+              </div>
+            )}
 
             {actionLog.length > 0 && (() => {
               const latest = actionLog[actionLog.length - 1];
@@ -1477,7 +1507,7 @@ export default function Battle() {
               );
             })()}
 
-            {attacksAreStalled && !battleFinished && (
+            {(attacksAreStalled || handNeedsReroll) && !battleFinished && (
               <div
                 role="status"
                 style={{
@@ -1493,7 +1523,9 @@ export default function Battle() {
                   lineHeight: "1.4",
                 }}
               >
-                Garden Bot is at 0 Growth. Attack moves cannot push that bar lower; use growth or start a new bot hand.
+                {handNeedsReroll
+                  ? "Bad Garden Bot hand detected. You have fewer than two growth-capable moves; start a new bot hand to avoid a stalled match."
+                  : "Garden Bot is at 0 Growth. Attack moves cannot push that bar lower; use growth or start a new bot hand."}
               </div>
             )}
 
@@ -1541,6 +1573,25 @@ export default function Battle() {
                 gap: "10px",
               }}
             >
+              {playerMoves.length === 0 && (
+                <div
+                  role="status"
+                  style={{
+                    gridColumn: "1 / -1",
+                    minHeight: "52px",
+                    padding: "14px",
+                    border: "1px solid rgba(68, 170, 255, 0.55)",
+                    borderRadius: "10px",
+                    background: "rgba(0, 35, 65, 0.78)",
+                    color: "#d8f3ff",
+                    textAlign: "center",
+                    fontSize: "clamp(12px, 2.5vw, 14px)",
+                    fontWeight: "bold",
+                  }}
+                >
+                  Loading battle moves from chain...
+                </div>
+              )}
               {playerMoves.map((moveId) => {
                 const meta = MOVE_META[moveId];
                 const isAttack = meta?.type === "attack";
