@@ -101,6 +101,14 @@ export const MOVE_META: Record<number, MoveMeta> = {
   30: { type: "growth", emoji: "🌳", effect: "Grows YOUR tree +10 to +15" },
 };
 
+const SELF_GROWTH_MOVE_IDS = new Set([
+  9, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30,
+]);
+
+export function moveGrowsSelf(moveId: number): boolean {
+  return SELF_GROWTH_MOVE_IDS.has(moveId);
+}
+
 export function getBattleUpdateEvent() {
   return `${SUI_CONFIG.ORIGINAL_PACKAGE_ID}::${SUI_CONFIG.MODULE}::BattleUpdate`;
 }

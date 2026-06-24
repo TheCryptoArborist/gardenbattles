@@ -92,6 +92,30 @@ function isZeroAddress(address: string | null | undefined): boolean {
   return !address || address === "0x0";
 }
 
+function normalizeAddress(value: unknown): string | null {
+  return typeof value === "string" && value ? value.toLowerCase() : null;
+}
+
+function isGardenBotAddress(value: unknown): boolean {
+  return normalizeAddress(value) === SUI_CONFIG.BOT_ADDRESS.toLowerCase();
+}
+
+function readOnChainBool(value: any): boolean {
+  return value === true || value === "true" || value?.fields?.value === true;
+}
+
+function inferIsBotBattle(
+  explicitValue: any,
+  player1: unknown,
+  player2: unknown,
+): boolean {
+  return (
+    readOnChainBool(explicitValue) ||
+    isGardenBotAddress(player1) ||
+    isGardenBotAddress(player2)
+  );
+}
+
 function battleBelongsToAddress(
   state: BattleState | null,
   address: string | null,
@@ -144,10 +168,12 @@ function parseBattleStateFromEvent(json: any): BattleState | null {
   if (!json?.battle_id || !json?.player1 || !json?.player2) return null;
 
   const parsedTurn = Number(json.turn);
+  const player1 = json.player1.toLowerCase();
+  const player2 = json.player2.toLowerCase();
   return {
     battleId: json.battle_id,
-    player1: json.player1.toLowerCase(),
-    player2: json.player2.toLowerCase(),
+    player1,
+    player2,
     player1Moves: json.player1_moves ?? [],
     player2Moves: json.player2_moves ?? [],
     player1Growth: Number(json.player1_growth ?? 0),
@@ -155,7 +181,7 @@ function parseBattleStateFromEvent(json: any): BattleState | null {
     turn: Number.isFinite(parsedTurn) ? parsedTurn : 0,
     winner: normalizeWinner(json.winner),
     finished: !!normalizeWinner(json.winner),
-    isBotBattle: Boolean(json.is_bot_battle),
+    isBotBattle: inferIsBotBattle(json.is_bot_battle, player1, player2),
     lastMoveMs: Number(json.last_move_ms ?? 0),
   };
 }
@@ -209,10 +235,12 @@ function parseBattleStateFromObjectFields(
 ): BattleState | null {
   if (!fields?.player1 || !fields?.player2) return null;
 
+  const player1 = String(fields.player1).toLowerCase();
+  const player2 = String(fields.player2).toLowerCase();
   return {
     battleId,
-    player1: String(fields.player1).toLowerCase(),
-    player2: String(fields.player2).toLowerCase(),
+    player1,
+    player2,
     player1Moves: normalizeMoveList(fields.p1_moves),
     player2Moves: normalizeMoveList(fields.p2_moves),
     player1Growth: Number(fields.p1_growth ?? 0),
@@ -220,7 +248,7 @@ function parseBattleStateFromObjectFields(
     turn: Number(fields.turn ?? 0),
     winner: normalizeWinner(fields.winner),
     finished: Boolean(fields.finished) || !!normalizeWinner(fields.winner),
-    isBotBattle: Boolean(fields.is_bot_battle),
+    isBotBattle: inferIsBotBattle(fields.is_bot_battle, player1, player2),
     lastMoveMs: Number(fields.last_move_ms ?? 0),
   };
 }
@@ -243,6 +271,50 @@ async function getLiveBattleState(
 }
 
 // ─── Provider ─────────────────────────────────────────────────────────────────
+
+async function getBattleStateFromTransaction(
+  suiClient: any,
+  digest: string,
+  address: string,
+): Promise<BattleState | null> {
+  const tx = await suiClient.waitForTransaction({
+    digest,
+    timeout: 45_000,
+    pollInterval: 1_500,
+    options: {
+      showEvents: true,
+      showObjectChanges: true,
+    },
+  });
+
+  const eventState = tx.events
+    ?.filter((event: any) => event.type === getBattleUpdateEvent())
+    .map((event: any) => parseBattleStateFromEvent(event.parsedJson))
+    .find((state: BattleState | null) =>
+      isActiveBattleForAddress(state, address),
+    );
+  if (eventState) return eventState;
+
+  const createdBattle = tx.objectChanges?.find(
+    (change: any) =>
+      change.type === "created" &&
+      typeof change.objectType === "string" &&
+      change.objectType.endsWith(`::${SUI_CONFIG.MODULE}::Battle`) &&
+      typeof change.objectId === "string",
+  );
+
+  if (createdBattle?.objectId) {
+    const liveState = await getLiveBattleState(
+      suiClient,
+      createdBattle.objectId,
+    );
+    return isActiveBattleForAddress(liveState ?? null, address)
+      ? (liveState as BattleState)
+      : null;
+  }
+
+  return null;
+}
 
 export function SuiWalletProvider({ children }: { children: ReactNode }) {
   const currentAccount = useCurrentAccount();
@@ -448,6 +520,10 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
 
             // Is this battle relevant to us?
             if (battleBelongsToAddress(newState, address)) {
+              if (isWaiting && !isActiveBattleForAddress(newState, address)) {
+                continue;
+              }
+
               // Update state if it's newer or we were waiting
               if (
                 isWaiting ||
@@ -741,6 +817,10 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
         );
       }
 
+      clearBattleState();
+      clearActionLog();
+      setIsWaiting(true);
+
       const tx = new Transaction();
       const botAddress = SUI_CONFIG.BOT_ADDRESS;
 
@@ -778,18 +858,42 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
         signAndExecuteTransaction(
           { transaction: tx, chain: SUI_CONFIG.CHAIN },
           {
-            onSuccess: () => {
-              setIsWaiting(true);
+            onSuccess: async (result) => {
+              try {
+                const newState = await getBattleStateFromTransaction(
+                  suiClient,
+                  result.digest,
+                  address,
+                );
+
+                if (newState) {
+                  await applyBattleState(newState, { verifyLive: true });
+                }
+              } catch (err) {
+                console.warn(
+                  "[battle] post-bot-start refresh will retry via polling:",
+                  err,
+                );
+              }
               resolve();
             },
             onError: (err: any) => {
+              setIsWaiting(false);
               reject(new Error(err?.message ?? "Failed to start bot battle"));
             },
           },
         );
       });
     },
-    [address, randomObjectId, signAndExecuteTransaction],
+    [
+      address,
+      randomObjectId,
+      suiClient,
+      applyBattleState,
+      clearBattleState,
+      clearActionLog,
+      signAndExecuteTransaction,
+    ],
   );
 
   // ── 6. Use an ability ─────────────────────────────────────────────────────
@@ -1085,25 +1189,63 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
     const p2Changed = next.player2Growth !== prev.player2Growth;
     const turnAdvanced =
       next.turn !== prev.turn || next.lastMoveMs !== prev.lastMoveMs;
-    if (!p1Changed && !p2Changed && !turnAdvanced) return;
+    const hasLocalMove = lastMoveIdRef.current !== 0;
+    if (!p1Changed && !p2Changed && !turnAdvanced && !hasLocalMove) return;
 
     const isP1 = prev.player1?.toLowerCase() === myAddress.toLowerCase();
     const p1Acted = prev.turn === 0;
     const actor: "you" | "opponent" =
       (isP1 && p1Acted) || (!isP1 && !p1Acted) ? "you" : "opponent";
 
-    const entry: ActionEntry = {
+    const createEntry = (
+      entryActor: "you" | "opponent",
+      moveId: number,
+      details?: string[],
+    ): ActionEntry => ({
       id: `${Date.now()}-${Math.random()}`,
       timestamp: Date.now(),
-      actor,
-      moveId: actor === "you" ? lastMoveIdRef.current : 0,
+      actor: entryActor,
+      moveId,
       prevPlayerGrowth: isP1 ? prev.player1Growth : prev.player2Growth,
       nextPlayerGrowth: isP1 ? next.player1Growth : next.player2Growth,
       prevOpponentGrowth: isP1 ? prev.player2Growth : prev.player1Growth,
       nextOpponentGrowth: isP1 ? next.player2Growth : next.player1Growth,
-    };
+      details,
+    });
 
-    setActionLog((log) => [...log, entry]);
+    const playerPrevGrowth = isP1 ? prev.player1Growth : prev.player2Growth;
+    const playerNextGrowth = isP1 ? next.player1Growth : next.player2Growth;
+    const opponentPrevGrowth = isP1 ? prev.player2Growth : prev.player1Growth;
+    const opponentNextGrowth = isP1 ? next.player2Growth : next.player1Growth;
+    const formatDelta = (delta: number) =>
+      delta > 0 ? `+${delta}` : delta < 0 ? `${delta}` : "no change";
+    const botResponseDetails =
+      next.isBotBattle && actor === "you"
+        ? [
+            "Garden Bot responded during this same wallet confirmation.",
+            `Your tree: ${playerPrevGrowth} -> ${playerNextGrowth} (${formatDelta(playerNextGrowth - playerPrevGrowth)})`,
+            `Garden Bot: ${opponentPrevGrowth} -> ${opponentNextGrowth} (${formatDelta(opponentNextGrowth - opponentPrevGrowth)})`,
+            playerNextGrowth === playerPrevGrowth &&
+            opponentNextGrowth === opponentPrevGrowth
+              ? "No visible Growth changed this round; the bot may have missed, blocked, or used a status move."
+              : "",
+          ]
+            .filter(Boolean)
+        : undefined;
+
+    const entries = [
+      createEntry(
+        actor,
+        actor === "you" ? lastMoveIdRef.current : 0,
+      ),
+    ];
+
+    if (next.isBotBattle && actor === "you") {
+      entries.push(createEntry("opponent", 0, botResponseDetails));
+    }
+
+    setActionLog((log) => [...log, ...entries]);
+    lastMoveIdRef.current = 0;
   }
 
   return (

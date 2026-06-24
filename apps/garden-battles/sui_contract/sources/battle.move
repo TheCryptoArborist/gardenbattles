@@ -69,30 +69,32 @@ module battle_garden::battle {
         vector::push_back(&mut attacks, 5);
         vector::push_back(&mut attacks, 6);
         vector::push_back(&mut attacks, 7);
+        vector::push_back(&mut attacks, 10);
+        vector::push_back(&mut attacks, 11);
+        vector::push_back(&mut attacks, 12);
+        vector::push_back(&mut attacks, 13);
 
-        let mut supports = vector::empty<u8>();
-        vector::push_back(&mut supports, 8);
-        vector::push_back(&mut supports, 9);
-        vector::push_back(&mut supports, 10);
-        vector::push_back(&mut supports, 11);
-        vector::push_back(&mut supports, 12);
-        vector::push_back(&mut supports, 13);
-        vector::push_back(&mut supports, 20);
-        vector::push_back(&mut supports, 21);
-        vector::push_back(&mut supports, 22);
-        vector::push_back(&mut supports, 23);
-        vector::push_back(&mut supports, 24);
-        vector::push_back(&mut supports, 25);
-        vector::push_back(&mut supports, 26);
-        vector::push_back(&mut supports, 27);
-        vector::push_back(&mut supports, 28);
-        vector::push_back(&mut supports, 29);
-        vector::push_back(&mut supports, 30);
+        let mut growths = vector::empty<u8>();
+        vector::push_back(&mut growths, 20);
+        vector::push_back(&mut growths, 21);
+        vector::push_back(&mut growths, 22);
+        vector::push_back(&mut growths, 23);
+        vector::push_back(&mut growths, 24);
+        vector::push_back(&mut growths, 25);
+        vector::push_back(&mut growths, 26);
+        vector::push_back(&mut growths, 28);
+        vector::push_back(&mut growths, 30);
+
+        let mut utility = vector::empty<u8>();
+        vector::push_back(&mut utility, 9);
+        vector::push_back(&mut utility, 27);
+        vector::push_back(&mut utility, 29);
 
         let mut moves = vector::empty<u8>();
         let mut rng = random::new_generator(_arg0, _arg1);
         let attacks_len: u64 = vector::length(&attacks);
-        let supports_len: u64 = vector::length(&supports);
+        let growths_len: u64 = vector::length(&growths);
+        let utility_len: u64 = vector::length(&utility);
         let idx1 = random::generate_u64(&mut rng) % attacks_len;
         let mut idx2 = random::generate_u64(&mut rng) % attacks_len;
         if (idx1 == idx2) {
@@ -100,13 +102,10 @@ module battle_garden::battle {
         };
         vector::push_back(&mut moves, *vector::borrow(&attacks, idx1));
         vector::push_back(&mut moves, *vector::borrow(&attacks, idx2));
-        let idx3 = random::generate_u64(&mut rng) % supports_len;
-        let mut idx4 = random::generate_u64(&mut rng) % supports_len;
-        if (idx3 == idx4) {
-            idx4 = (idx3 + 1) % supports_len;
-        };
-        vector::push_back(&mut moves, *vector::borrow(&supports, idx3));
-        vector::push_back(&mut moves, *vector::borrow(&supports, idx4));
+        let idx3 = random::generate_u64(&mut rng) % growths_len;
+        let idx4 = random::generate_u64(&mut rng) % utility_len;
+        vector::push_back(&mut moves, *vector::borrow(&growths, idx3));
+        vector::push_back(&mut moves, *vector::borrow(&utility, idx4));
         moves
     }
 

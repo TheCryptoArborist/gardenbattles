@@ -3,7 +3,12 @@ import { Link } from "wouter";
 import { Trophy } from "lucide-react";
 import { ConnectButton } from "@mysten/dapp-kit";
 import { useSuiWallet } from "@/hooks/useSuiWallet";
-import { MOVE_LABELS, MOVE_META, SUI_CONFIG } from "@/lib/sui-config";
+import {
+  MOVE_LABELS,
+  MOVE_META,
+  SUI_CONFIG,
+  moveGrowsSelf,
+} from "@/lib/sui-config";
 import BattleDialog from "@/components/BattleDialog";
 import WaitingOverlay from "@/components/WaitingOverlay";
 import AdminPanel from "@/components/AdminPanel";
@@ -12,14 +17,18 @@ import BattleLog from "@/components/BattleLog";
 import PlayerRecord from "@/components/PlayerRecord";
 import ForestPower from "@/components/ForestPower";
 
-function getNFTImage(growth: number, nftImageUrl?: string): string {
-  // If we have a custom NFT image, use it once the "seed" phase is over (or always)
-  // For now, let's use the custom image if growth > 25, otherwise show the seed
-  if (growth <= 25) return "/assets/seed.jpg";
-  if (nftImageUrl) return nftImageUrl;
+function getNFTImage(
+  growth: number,
+  nftImageUrl?: string,
+  growthTarget = 100,
+  revealNft = false,
+): string {
+  if (revealNft && nftImageUrl) return nftImageUrl;
 
-  if (growth <= 50) return "/assets/sapling.jpg";
-  if (growth <= 75) return "/assets/sapling2.jpg";
+  const progress = growthTarget > 0 ? growth / growthTarget : 0;
+  if (progress < 0.25) return "/assets/seed.jpg";
+  if (progress < 0.5) return "/assets/sapling.jpg";
+  if (progress < 1) return "/assets/sapling2.jpg";
   return "/assets/full_tree.jpg";
 }
 
@@ -324,19 +333,49 @@ export default function Battle() {
       ? battleState.player2Growth
       : battleState.player1Growth
     : 0;
-  const growthTarget = battleState?.isBotBattle ? 50 : 100;
+  const isGardenBotBattle =
+    !!battleState &&
+    (battleState.isBotBattle ||
+      battleState.player1?.toLowerCase() === SUI_CONFIG.BOT_ADDRESS.toLowerCase() ||
+      battleState.player2?.toLowerCase() === SUI_CONFIG.BOT_ADDRESS.toLowerCase());
+  const growthTarget = isGardenBotBattle ? 50 : 100;
   const playerMoves = battleState
     ? isPlayer1
       ? battleState.player1Moves
       : battleState.player2Moves
     : [];
+  const growthMoveCount = playerMoves.filter(moveGrowsSelf).length;
+  const attackMoveCount = playerMoves.filter(
+    (moveId) => MOVE_META[moveId]?.type === "attack",
+  ).length;
+  const handNeedsReroll =
+    isGardenBotBattle &&
+    playerMoves.length > 0 &&
+    growthMoveCount < 2;
+  const attacksAreStalled =
+    isGardenBotBattle &&
+    opponentGrowth <= 0 &&
+    playerMoves.some((moveId) => MOVE_META[moveId]?.type === "attack");
 
-  const winner = battleState?.winner
-    ? battleState.winner.toLowerCase() === address?.toLowerCase()
-      ? "player"
-      : "opponent"
-    : null;
+  const thresholdWinner =
+    battleState &&
+    isGardenBotBattle &&
+    !battleState.winner &&
+    !battleState.finished
+      ? playerGrowth >= growthTarget
+        ? "player"
+        : opponentGrowth >= growthTarget
+          ? "opponent"
+          : null
+      : null;
+  const winner =
+    battleState?.winner
+      ? battleState.winner.toLowerCase() === address?.toLowerCase()
+        ? "player"
+        : "opponent"
+      : thresholdWinner;
   const battleFinished = !!winner || !!battleState?.finished;
+  const winnerNeedsChainFinalization = !!thresholdWinner && !battleState?.winner;
   const PLAYER_BATTLE_TIMEOUT_MS = 24 * 60 * 60 * 1000;
   const BOT_BATTLE_TIMEOUT_MS = 10 * 60 * 1000;
   const battleTimeoutMs = battleState?.isBotBattle
@@ -471,19 +510,69 @@ export default function Battle() {
       ? "Opponent has been idle for too long — you may claim timeout victory."
       : isMyTurn
         ? "Your turn! Choose a move."
-        : battleState.isBotBattle
+        : isGardenBotBattle
           ? "Garden Bot is thinking..."
           : "Waiting for your opponent to move.";
   } else if (winner) {
     battleStatus =
       winner === "player"
         ? "You Win!"
-        : battleState?.isBotBattle
+        : isGardenBotBattle
           ? "Garden Bot Wins!"
           : "Opponent Wins!";
   } else if (battleState?.finished) {
     battleStatus = "Battle ended.";
   }
+
+  const shareUrl =
+    typeof window !== "undefined"
+      ? `${window.location.origin}/battle`
+      : "https://nftree.net/battle";
+  const winnerTitle =
+    winner === "player"
+      ? "You Win!"
+      : isGardenBotBattle
+        ? "Garden Bot Wins"
+        : "Opponent Wins";
+  const winnerImage =
+    winner === "player"
+      ? getNFTImage(playerGrowth, playerNftImageUrl || undefined, growthTarget, true)
+      : getNFTImage(
+          opponentGrowth,
+          isGardenBotBattle ? undefined : opponentNftImageUrl || undefined,
+          growthTarget,
+          !isGardenBotBattle,
+        );
+  const shareText =
+    winner === "player"
+      ? `I just won a Garden Battles match on NFTree at ${playerGrowth}/${growthTarget} Growth.`
+      : `Garden Battles match complete at ${Math.max(playerGrowth, opponentGrowth)}/${growthTarget} Growth.`;
+  const encodedShareText = encodeURIComponent(shareText);
+  const encodedShareUrl = encodeURIComponent(shareUrl);
+
+  const handleNativeShareWin = async () => {
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: "Garden Battles",
+          text: shareText,
+          url: shareUrl,
+        });
+      } else {
+        await navigator.clipboard.writeText(`${shareText} ${shareUrl}`);
+        setDialogOpen(true);
+        setDialogMessage("Win share text copied.");
+      }
+    } catch {
+      // User cancelled the native share sheet.
+    }
+  };
+
+  const handleCopyWin = async () => {
+    await navigator.clipboard.writeText(`${shareText} ${shareUrl}`);
+    setDialogOpen(true);
+    setDialogMessage("Win share text copied.");
+  };
 
   // Check if user is admin to show admin panel
   const isAdmin =
@@ -855,7 +944,12 @@ export default function Battle() {
               data-testid="nft-card-player"
             >
               <img
-                src={getNFTImage(playerGrowth, playerNftImageUrl || undefined)}
+                src={getNFTImage(
+                  playerGrowth,
+                  playerNftImageUrl || undefined,
+                  growthTarget,
+                  winner === "player",
+                )}
                 alt="Player 1 Sapling"
                 style={{
                   maxWidth: "90%",
@@ -982,7 +1076,7 @@ export default function Battle() {
                 textTransform: "uppercase",
               }}
             >
-              {battleState?.isBotBattle ? "Garden Bot" : "Opponent"}
+              {isGardenBotBattle ? "Garden Bot" : "Opponent"}
             </div>
             <div
               className={opponentAnimation}
@@ -1023,7 +1117,9 @@ export default function Battle() {
               <img
                 src={getNFTImage(
                   opponentGrowth,
-                  opponentNftImageUrl || undefined,
+                  isGardenBotBattle ? undefined : opponentNftImageUrl || undefined,
+                  growthTarget,
+                  winner === "opponent" && !isGardenBotBattle,
                 )}
                 alt="Player 2 Sapling"
                 style={{
@@ -1070,7 +1166,7 @@ export default function Battle() {
               }}
             >
               🌿{" "}
-              {battleState?.isBotBattle
+              {isGardenBotBattle
                 ? "Garden Bot Growth"
                 : "Opponent Growth"}
             </p>
@@ -1114,7 +1210,204 @@ export default function Battle() {
         </div>
 
         {/* Battle Options — Color-coded move cards */}
-        {playerMoves.length > 0 && battleState && !battleState.finished && (
+        {battleFinished && winner && (
+          <section
+            style={{
+              width: "min(760px, calc(100% - 24px))",
+              margin: "14px auto 18px",
+              padding: "clamp(12px, 4vw, 18px)",
+              borderRadius: "10px",
+              border: "2px solid #00ff88",
+              background:
+                "linear-gradient(135deg, rgba(0,45,35,0.92), rgba(0,12,30,0.9))",
+              boxShadow: "0 0 30px rgba(0,255,136,0.45)",
+              display: "grid",
+              gridTemplateColumns:
+                "repeat(auto-fit, minmax(min(100%, 220px), 1fr))",
+              gap: "clamp(12px, 4vw, 18px)",
+              alignItems: "center",
+              textAlign: "left",
+            }}
+            data-testid="winner-panel"
+          >
+            <div
+              style={{
+                aspectRatio: "1 / 1",
+                borderRadius: "12px",
+                border: "1px solid rgba(0,255,136,0.7)",
+                background: "rgba(0,0,0,0.35)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                overflow: "hidden",
+                boxShadow: "0 0 24px rgba(0,255,136,0.35)",
+              }}
+            >
+              <img
+                src={winnerImage}
+                alt="Winner NFTree"
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  objectFit: "cover",
+                }}
+                data-testid="winner-image"
+              />
+            </div>
+            <div>
+              <div
+                style={{
+                  color: "#00ff88",
+                  fontSize: "12px",
+                  fontWeight: "bold",
+                  letterSpacing: "1px",
+                  textTransform: "uppercase",
+                  marginBottom: "8px",
+                }}
+              >
+                Battle Result
+              </div>
+              <h2
+                style={{
+                  margin: "0 0 8px",
+                  color: "#ffffff",
+                  fontSize: "clamp(28px, 6vw, 48px)",
+                  lineHeight: 1,
+                  textShadow: "0 0 18px rgba(0,255,136,0.7)",
+                }}
+              >
+                {winnerTitle}
+              </h2>
+              <p
+                style={{
+                  margin: "0 0 14px",
+                  color: "#cffff0",
+                  fontSize: "clamp(12px, 2.8vw, 15px)",
+                  lineHeight: 1.5,
+                }}
+              >
+                {winnerNeedsChainFinalization
+                  ? "The Garden Bot target was reached. The interface is stopping this match here while the contract target bug is queued for upgrade."
+                  : `${Math.max(playerGrowth, opponentGrowth)} / ${growthTarget} Growth reached.`}
+              </p>
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: "10px",
+                }}
+              >
+                <button
+                  onClick={handleNativeShareWin}
+                  style={{
+                    minHeight: "44px",
+                    minWidth: "92px",
+                    flex: "1 1 104px",
+                    padding: "10px 14px",
+                    borderRadius: "8px",
+                    border: "1px solid #00ff88",
+                    background: "rgba(0,255,136,0.16)",
+                    color: "#eafff6",
+                    cursor: "pointer",
+                    fontWeight: "bold",
+                    fontSize: "14px",
+                  }}
+                >
+                  Share
+                </button>
+                <button
+                  onClick={handleCopyWin}
+                  style={{
+                    minHeight: "44px",
+                    minWidth: "92px",
+                    flex: "1 1 104px",
+                    padding: "10px 14px",
+                    borderRadius: "8px",
+                    border: "1px solid #88ccff",
+                    background: "rgba(0,90,140,0.22)",
+                    color: "#e6f6ff",
+                    cursor: "pointer",
+                    fontWeight: "bold",
+                    fontSize: "14px",
+                  }}
+                >
+                  Copy
+                </button>
+                <a
+                  href={`https://twitter.com/intent/tweet?text=${encodedShareText}&url=${encodedShareUrl}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    minHeight: "44px",
+                    minWidth: "64px",
+                    flex: "1 1 72px",
+                    padding: "10px 14px",
+                    borderRadius: "8px",
+                    border: "1px solid #ffffff",
+                    color: "#ffffff",
+                    textDecoration: "none",
+                    fontWeight: "bold",
+                    fontSize: "14px",
+                    textAlign: "center",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  X
+                </a>
+                <a
+                  href={`https://t.me/share/url?url=${encodedShareUrl}&text=${encodedShareText}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    minHeight: "44px",
+                    minWidth: "116px",
+                    flex: "1 1 116px",
+                    padding: "10px 14px",
+                    borderRadius: "8px",
+                    border: "1px solid #2aa8ff",
+                    color: "#dff4ff",
+                    textDecoration: "none",
+                    fontWeight: "bold",
+                    fontSize: "14px",
+                    textAlign: "center",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  Telegram
+                </a>
+                <a
+                  href={`https://www.facebook.com/sharer/sharer.php?u=${encodedShareUrl}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    minHeight: "44px",
+                    minWidth: "116px",
+                    flex: "1 1 116px",
+                    padding: "10px 14px",
+                    borderRadius: "8px",
+                    border: "1px solid #7da7ff",
+                    color: "#e9f0ff",
+                    textDecoration: "none",
+                    fontWeight: "bold",
+                    fontSize: "14px",
+                    textAlign: "center",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  Facebook
+                </a>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {battleState && !battleFinished && (
           <div
             style={{
               margin: "15px auto",
@@ -1152,24 +1445,48 @@ export default function Battle() {
                     : `⏳ Choose your move — each turn = 1 wallet confirmation`}
             </div>
 
+            {isGardenBotBattle && playerMoves.length > 0 && (
+              <div
+                style={{
+                  marginBottom: "10px",
+                  padding: "9px 12px",
+                  border: "1px solid rgba(0, 229, 255, 0.55)",
+                  borderRadius: "8px",
+                  background: "rgba(0, 45, 65, 0.78)",
+                  color: "#c9fbff",
+                  textAlign: "center",
+                  fontSize: "clamp(11px, 2.5vw, 13px)",
+                  fontWeight: "bold",
+                  lineHeight: "1.35",
+                }}
+              >
+                Current hand: {attackMoveCount} attack, {growthMoveCount} growth moves.
+              </div>
+            )}
+
             {actionLog.length > 0 && (() => {
               const latest = actionLog[actionLog.length - 1];
               const playerDelta =
                 latest.nextPlayerGrowth - latest.prevPlayerGrowth;
               const opponentDelta =
                 latest.nextOpponentGrowth - latest.prevOpponentGrowth;
-              const messages = [
-                playerDelta > 0 ? `You gained +${playerDelta} growth` : null,
-                playerDelta < 0
-                  ? `Your tree lost ${Math.abs(playerDelta)} growth`
-                  : null,
-                opponentDelta < 0
-                  ? `Opponent lost ${Math.abs(opponentDelta)} growth`
-                  : null,
-                opponentDelta > 0
-                  ? `Opponent gained +${opponentDelta} growth`
-                  : null,
-              ].filter(Boolean);
+              const opponentName = isGardenBotBattle ? "Garden Bot" : "Opponent";
+              const messages = latest.details?.length
+                ? latest.details
+                : [
+                    playerDelta > 0
+                      ? `You gained +${playerDelta} growth`
+                      : null,
+                    playerDelta < 0
+                      ? `Your tree lost ${Math.abs(playerDelta)} growth`
+                      : null,
+                    opponentDelta < 0
+                      ? `${opponentName} lost ${Math.abs(opponentDelta)} growth`
+                      : null,
+                    opponentDelta > 0
+                      ? `${opponentName} gained +${opponentDelta} growth`
+                      : null,
+                  ].filter(Boolean);
               return (
                 <div
                   role="status"
@@ -1191,6 +1508,28 @@ export default function Battle() {
                 </div>
               );
             })()}
+
+            {(attacksAreStalled || handNeedsReroll) && !battleFinished && (
+              <div
+                role="status"
+                style={{
+                  marginBottom: "10px",
+                  padding: "10px 14px",
+                  border: "1px solid #ffaa33",
+                  borderRadius: "8px",
+                  background: "rgba(80, 45, 0, 0.82)",
+                  color: "#ffe5b4",
+                  textAlign: "center",
+                  fontSize: "clamp(11px, 2.5vw, 13px)",
+                  fontWeight: "bold",
+                  lineHeight: "1.4",
+                }}
+              >
+                {handNeedsReroll
+                  ? "Bad Garden Bot hand detected. You have fewer than two moves that grow your tree; start a new bot hand to avoid a stalled match."
+                  : "Garden Bot is at 0 Growth. Attack moves cannot push that bar lower; use growth or start a new bot hand."}
+              </div>
+            )}
 
             {/* Inline error banner */}
             {inlineError && (
@@ -1236,6 +1575,25 @@ export default function Battle() {
                 gap: "10px",
               }}
             >
+              {playerMoves.length === 0 && (
+                <div
+                  role="status"
+                  style={{
+                    gridColumn: "1 / -1",
+                    minHeight: "52px",
+                    padding: "14px",
+                    border: "1px solid rgba(68, 170, 255, 0.55)",
+                    borderRadius: "10px",
+                    background: "rgba(0, 35, 65, 0.78)",
+                    color: "#d8f3ff",
+                    textAlign: "center",
+                    fontSize: "clamp(12px, 2.5vw, 14px)",
+                    fontWeight: "bold",
+                  }}
+                >
+                  Loading battle moves from chain...
+                </div>
+              )}
               {playerMoves.map((moveId) => {
                 const meta = MOVE_META[moveId];
                 const isAttack = meta?.type === "attack";
@@ -1374,6 +1732,30 @@ export default function Battle() {
                 >
                   {isForfeiting ? "Forfeiting..." : "Forfeit Battle"}
                 </button>
+                {isGardenBotBattle && (
+                  <button
+                    onClick={handleStartBotBattle}
+                    disabled={isStartingBot}
+                    style={{
+                      minHeight: "48px",
+                      padding: "14px 18px",
+                      borderRadius: "10px",
+                      border: "2px solid #00e5ff",
+                      background: isStartingBot
+                        ? "rgba(0, 90, 100, 0.5)"
+                        : "linear-gradient(45deg, #00e5ff, #00ffaa)",
+                      color: isStartingBot ? "#d4f8ff" : "#001414",
+                      cursor: isStartingBot ? "not-allowed" : "pointer",
+                      fontWeight: "bold",
+                      textTransform: "uppercase",
+                      boxShadow: isStartingBot
+                        ? "none"
+                        : "0 0 18px rgba(0, 229, 255, 0.45)",
+                    }}
+                  >
+                    {isStartingBot ? "Starting..." : "New Bot Hand"}
+                  </button>
+                )}
                 {canClaimTimeout && (
                   <button
                     onClick={handleClaimTimeout}
@@ -1446,7 +1828,11 @@ export default function Battle() {
               >
                 📜 Battle Log
               </div>
-              <BattleLog entries={actionLog} isPlayer1={!!isPlayer1} />
+              <BattleLog
+                entries={actionLog}
+                isPlayer1={!!isPlayer1}
+                opponentLabel={isGardenBotBattle ? "Garden Bot" : "Opponent"}
+              />
             </div>
           </div>
         )}
