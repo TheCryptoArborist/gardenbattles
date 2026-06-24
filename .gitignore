@@ -1,5 +1,7 @@
 node_modules
 dist
+.netlify
+.npm-cache
 .DS_Store
 server/public
 vite.config.ts.*
