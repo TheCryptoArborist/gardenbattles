@@ -1219,10 +1219,10 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
     const opponentNextGrowth = isP1 ? next.player2Growth : next.player1Growth;
     const formatDelta = (delta: number) =>
       delta > 0 ? `+${delta}` : delta < 0 ? `${delta}` : "no change";
-    const botRoundDetails =
+    const botResponseDetails =
       next.isBotBattle && actor === "you"
         ? [
-            "Garden Bot answered inside this same confirmation.",
+            "Garden Bot responded during this same wallet confirmation.",
             `Your tree: ${playerPrevGrowth} -> ${playerNextGrowth} (${formatDelta(playerNextGrowth - playerPrevGrowth)})`,
             `Garden Bot: ${opponentPrevGrowth} -> ${opponentNextGrowth} (${formatDelta(opponentNextGrowth - opponentPrevGrowth)})`,
             playerNextGrowth === playerPrevGrowth &&
@@ -1237,9 +1237,12 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
       createEntry(
         actor,
         actor === "you" ? lastMoveIdRef.current : 0,
-        botRoundDetails,
       ),
     ];
+
+    if (next.isBotBattle && actor === "you") {
+      entries.push(createEntry("opponent", 0, botResponseDetails));
+    }
 
     setActionLog((log) => [...log, ...entries]);
     lastMoveIdRef.current = 0;
