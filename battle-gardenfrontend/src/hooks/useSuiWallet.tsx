@@ -1199,6 +1199,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
     const createEntry = (
       entryActor: "you" | "opponent",
       moveId: number,
+      details?: string[],
     ): ActionEntry => ({
       id: `${Date.now()}-${Math.random()}`,
       timestamp: Date.now(),
@@ -1208,22 +1209,31 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
       nextPlayerGrowth: isP1 ? next.player1Growth : next.player2Growth,
       prevOpponentGrowth: isP1 ? prev.player2Growth : prev.player1Growth,
       nextOpponentGrowth: isP1 ? next.player2Growth : next.player1Growth,
+      details,
     });
 
-    const entries = [createEntry(actor, actor === "you" ? lastMoveIdRef.current : 0)];
+    const playerPrevGrowth = isP1 ? prev.player1Growth : prev.player2Growth;
+    const playerNextGrowth = isP1 ? next.player1Growth : next.player2Growth;
+    const opponentPrevGrowth = isP1 ? prev.player2Growth : prev.player1Growth;
+    const opponentNextGrowth = isP1 ? next.player2Growth : next.player1Growth;
+    const formatDelta = (delta: number) =>
+      delta > 0 ? `+${delta}` : delta < 0 ? `${delta}` : "no change";
+    const botRoundDetails =
+      next.isBotBattle && actor === "you"
+        ? [
+            "Garden Bot answered inside this same confirmation.",
+            `Your tree: ${playerPrevGrowth} -> ${playerNextGrowth} (${formatDelta(playerNextGrowth - playerPrevGrowth)})`,
+            `Garden Bot: ${opponentPrevGrowth} -> ${opponentNextGrowth} (${formatDelta(opponentNextGrowth - opponentPrevGrowth)})`,
+          ]
+        : undefined;
 
-    if (next.isBotBattle && actor === "you") {
-      const playerLostGrowth =
-        (isP1 ? next.player1Growth : next.player2Growth) <
-        (isP1 ? prev.player1Growth : prev.player2Growth);
-      const botGainedGrowth =
-        (isP1 ? next.player2Growth : next.player1Growth) >
-        (isP1 ? prev.player2Growth : prev.player1Growth);
-
-      if (playerLostGrowth || botGainedGrowth) {
-        entries.push(createEntry("opponent", 0));
-      }
-    }
+    const entries = [
+      createEntry(
+        actor,
+        actor === "you" ? lastMoveIdRef.current : 0,
+        botRoundDetails,
+      ),
+    ];
 
     setActionLog((log) => [...log, ...entries]);
   }

@@ -10,6 +10,7 @@ export interface ActionEntry {
   nextPlayerGrowth: number;
   prevOpponentGrowth: number;
   nextOpponentGrowth: number;
+  details?: string[];
 }
 
 interface BattleLogProps {
@@ -92,6 +93,7 @@ export default function BattleLog({
 
         const selfDelta = myNext - myPrev;
         const oppDelta = oppNext - oppPrev;
+        const hasDetails = !!entry.details?.length;
         const accentColor = entry.actor === "you" ? "#00ff00" : "#ff6600";
         const bgColor =
           entry.actor === "you"
@@ -176,7 +178,19 @@ export default function BattleLog({
                 marginTop: "2px",
               }}
             >
-              {selfDelta !== 0 && (
+              {entry.details?.map((detail) => (
+                <span
+                  key={detail}
+                  style={{
+                    fontFamily: "Orbitron, sans-serif",
+                    fontSize: "11px",
+                    color: "#b7fff1",
+                  }}
+                >
+                  {detail}
+                </span>
+              ))}
+              {!hasDetails && selfDelta !== 0 && (
                 <span
                   style={{
                     fontSize: "11px",
@@ -188,7 +202,7 @@ export default function BattleLog({
                   {myPrev} -&gt; {myNext} ({formatDelta(myPrev, myNext)})
                 </span>
               )}
-              {oppDelta !== 0 && (
+              {!hasDetails && oppDelta !== 0 && (
                 <span
                   style={{
                     fontSize: "11px",

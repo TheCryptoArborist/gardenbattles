@@ -1434,18 +1434,23 @@ export default function Battle() {
                 latest.nextPlayerGrowth - latest.prevPlayerGrowth;
               const opponentDelta =
                 latest.nextOpponentGrowth - latest.prevOpponentGrowth;
-              const messages = [
-                playerDelta > 0 ? `You gained +${playerDelta} growth` : null,
-                playerDelta < 0
-                  ? `Your tree lost ${Math.abs(playerDelta)} growth`
-                  : null,
-                opponentDelta < 0
-                  ? `Opponent lost ${Math.abs(opponentDelta)} growth`
-                  : null,
-                opponentDelta > 0
-                  ? `Opponent gained +${opponentDelta} growth`
-                  : null,
-              ].filter(Boolean);
+              const opponentName = isGardenBotBattle ? "Garden Bot" : "Opponent";
+              const messages = latest.details?.length
+                ? latest.details
+                : [
+                    playerDelta > 0
+                      ? `You gained +${playerDelta} growth`
+                      : null,
+                    playerDelta < 0
+                      ? `Your tree lost ${Math.abs(playerDelta)} growth`
+                      : null,
+                    opponentDelta < 0
+                      ? `${opponentName} lost ${Math.abs(opponentDelta)} growth`
+                      : null,
+                    opponentDelta > 0
+                      ? `${opponentName} gained +${opponentDelta} growth`
+                      : null,
+                  ].filter(Boolean);
               return (
                 <div
                   role="status"

@@ -18,6 +18,7 @@ Mobile support is a core release requirement for Garden Battles and NFTree. Ever
 | Battle screen layout | Partial | Battle view is visually dense and can crowd small screens. | Existing battle grid uses responsive sizing and overflow-x is hidden. | Needs real-device or browser viewport review after local preview is accessible. | No |
 | Battle move cards | Partial | Four cards can become tight on narrow phones. | Existing grid uses auto-fit responsive columns. | Confirm touch spacing and text wrapping at 320px. | No |
 | Battle log | Yes | New log entries previously scrolled the whole page after moves. | Log now scrolls internally instead of forcing the page to the bottom. | Confirm momentum scrolling and readability on iOS/Android. | Partial |
+| Garden Bot round feedback | Yes | Bot responses were easy to miss because they happen inside the same wallet-confirmed move. | Added clear round-result detail text showing that Garden Bot answered in the same confirmation and listing both growth totals. | Exact bot move names require a future contract event upgrade. | Partial |
 | Winner panel | Yes | New winner/share panel started as a desktop two-column layout. | Changed to responsive auto-fit grid with 44px minimum share controls. | Needs visual review with actual winner state on phone widths. | Partial |
 | Share controls | Yes | Social share buttons needed practical tap targets. | Added minimum touch target sizing and wrapping buttons. | Native mobile share sheet needs real-device check. | Partial |
 | Wallet connection flow | Partial | Wallet connect worked in preview, but Garden Bot start stayed on an old completed battle after confirmation. | Garden Bot start now clears stale finished state, waits for the confirmed transaction, and applies the new battle from the transaction event. | Must retest wallet-confirmed Garden Bot start on desktop and mobile wallet/deep-link flow. | Partial |
@@ -32,6 +33,7 @@ Mobile support is a core release requirement for Garden Battles and NFTree. Ever
 - The Battle Log auto-scroll behavior moved the entire page after moves instead of only scrolling the log.
 - The winner/share panel needed mobile-first sizing before it could be considered safe for release.
 - After confirming Play Garden Bot, the interface could remain on a stale completed Garden Bot result instead of showing the newly created battle.
+- Garden Bot responses happen inside the player's transaction, but the UI did not clearly show the bot response after every move.
 - Wallet, navigation, how-to-play, admin, leaderboard, and tournament flows still need dedicated mobile review.
 
 ## Fixes Applied In Current Pass
@@ -43,6 +45,7 @@ Mobile support is a core release requirement for Garden Battles and NFTree. Ever
 - Winner screen includes share, copy, X, Telegram, and Facebook actions.
 - Winner/share controls now use responsive wrapping and minimum practical touch targets.
 - Play Garden Bot now clears the old winner screen before signing, waits for the confirmed transaction digest, and loads the active battle from the emitted `BattleUpdate` event.
+- Garden Bot move feedback now shows a round result after every move, including a note that the bot answered inside the same wallet confirmation and the resulting growth totals for both sides.
 
 ## Validation Log
 
