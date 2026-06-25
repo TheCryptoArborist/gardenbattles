@@ -25,7 +25,7 @@ Mobile support is a core release requirement for Garden Battles and NFTree. Ever
 | Share controls | Yes | Social share buttons needed practical tap targets. | Added minimum touch target sizing and wrapping buttons. | Native mobile share sheet needs real-device check. | Partial |
 | Wallet connection flow | Partial | Wallet connect worked in preview, but Garden Bot start stayed on an old completed battle after confirmation. | Garden Bot start now clears stale finished state, waits for the confirmed transaction, and applies the new battle from the transaction event. Local wallet-connected Garden Bot UI test passed at `http://localhost:5000/battle`. | Mobile wallet/deep-link flow still requires real-device testing. | Partial |
 | Header and navigation | Not yet | Header may crowd wallet/account controls on phones. | None yet. | Needs mobile navigation review and possibly collapsed menu. | No |
-| How-to-play panel | Not yet | Panel may be too text-heavy on small screens. | None yet. | Needs shorter mobile copy or collapsible sections. | No |
+| How-to-play helper/modal | Partial | Previous inline panel was too dense and clipped on small screens. | Replaced with a compact How To Play control that opens a scrollable helper modal. | Copy is provisional because gameplay rules may still change; full mobile and real-device QA still required. | Partial |
 | Admin/config panels | Not yet | Unknown. | None yet. | Must verify forms, buttons, and modal behavior on phones. | No |
 | Leaderboard/tournament views | Not yet | Unknown. | None yet. | Wide ranking data should become cards or horizontal scroll. | No |
 
@@ -122,7 +122,11 @@ Mobile support is a core release requirement for Garden Battles and NFTree. Ever
 - [ ] Mode cards visually match the recovered concept direction. Status: pending visual QA.
 - [ ] Big Garden Battles logo treatment is preserved. Status: partially exists; pending visual QA.
 - [ ] Active battle/status strip is represented. Status: pending visual design.
-- [ ] How To Play panel remains accessible and mobile-safe. Status: pending visual QA.
+- [ ] How To Play helper/modal remains accessible and mobile-safe. Status: provisional implementation; pending visual QA and final gameplay copy.
+- [ ] Bottom dense gameplay/info panel is replaced by an Arboretum Coming Soon promo. Status: provisional visual direction; not final production design.
+- [ ] Arboretum promo uses `apps/garden-battles/battle-gardenfrontend/public/assets/arboretum-promo.png`. Status: provisional asset in use; pending final optimization and design approval.
+- [ ] Arboretum mechanics, route/link, rewards details, and final production design are still subject to change. Status: documented.
+- [ ] Arboretum design must not be treated as final. Status: documented.
 
 ### Battle Arena Layout
 

@@ -473,6 +473,370 @@
     flex-wrap: wrap;
   }
 
+  .gb-how-to-play-trigger-wrap {
+    display: flex;
+    justify-content: center;
+    margin: 14px auto;
+    max-width: min(94vw, 760px);
+    width: 100%;
+  }
+
+  .gb-how-to-play-trigger {
+    align-items: center;
+    background:
+      linear-gradient(135deg, rgba(3, 27, 22, 0.88), rgba(7, 53, 47, 0.74)),
+      var(--gb-panel);
+    border: 1px solid rgba(0, 213, 199, 0.46);
+    border-radius: 8px;
+    box-shadow:
+      0 0 14px rgba(0, 213, 199, 0.22),
+      inset 0 0 18px rgba(57, 255, 136, 0.06);
+    color: var(--gb-text);
+    cursor: pointer;
+    display: flex;
+    flex-wrap: wrap;
+    font-family: Orbitron, sans-serif;
+    font-size: clamp(13px, 2.8vw, 15px);
+    font-weight: 700;
+    gap: 10px;
+    justify-content: center;
+    letter-spacing: 0;
+    line-height: 1.2;
+    min-height: 48px;
+    padding: 10px 16px;
+    text-transform: uppercase;
+    transition:
+      background 0.2s ease,
+      border-color 0.2s ease,
+      box-shadow 0.2s ease,
+      color 0.2s ease;
+    width: min(100%, 760px);
+  }
+
+  .gb-how-to-play-trigger:hover,
+  .gb-how-to-play-trigger:focus-visible {
+    background: rgba(0, 213, 199, 0.12);
+    border-color: var(--gb-teal);
+    box-shadow: 0 0 18px rgba(0, 213, 199, 0.34);
+    color: var(--gb-gold);
+    outline: none;
+  }
+
+  .gb-how-to-play-trigger-icon {
+    align-items: center;
+    border: 1px solid rgba(57, 255, 136, 0.66);
+    border-radius: 50%;
+    color: var(--gb-tree-green);
+    display: inline-flex;
+    flex: 0 0 auto;
+    height: 26px;
+    justify-content: center;
+    width: 26px;
+  }
+
+  .gb-how-to-play-trigger-meta {
+    color: var(--gb-text-muted);
+    font-size: 11px;
+    text-transform: none;
+  }
+
+  .gb-how-to-play-overlay {
+    align-items: center;
+    background: rgba(0, 10, 8, 0.76);
+    display: flex;
+    inset: 0;
+    justify-content: center;
+    padding: 20px;
+    position: fixed;
+    z-index: 80;
+  }
+
+  .gb-how-to-play-modal {
+    background:
+      linear-gradient(145deg, rgba(3, 27, 22, 0.98), rgba(7, 53, 47, 0.94)),
+      var(--gb-panel-strong);
+    border: 1px solid rgba(57, 255, 136, 0.42);
+    border-radius: 8px;
+    box-shadow:
+      0 0 28px rgba(0, 213, 199, 0.28),
+      inset 0 0 28px rgba(57, 255, 136, 0.08);
+    color: var(--gb-text);
+    display: flex;
+    flex-direction: column;
+    font-family: Orbitron, sans-serif;
+    max-height: min(86vh, 760px);
+    max-width: 920px;
+    overflow: hidden;
+    width: min(94vw, 920px);
+  }
+
+  .gb-how-to-play-modal-header {
+    align-items: center;
+    border-bottom: 1px solid rgba(0, 213, 199, 0.22);
+    display: flex;
+    gap: 12px;
+    justify-content: space-between;
+    padding: 18px 20px;
+  }
+
+  .gb-how-to-play-eyebrow {
+    color: var(--gb-text-muted);
+    font-size: 11px;
+    line-height: 1.2;
+    margin: 0 0 5px;
+    text-transform: uppercase;
+  }
+
+  .gb-how-to-play-modal h2 {
+    color: var(--gb-tree-green);
+    font-size: clamp(20px, 4.5vw, 30px);
+    line-height: 1.05;
+    margin: 0;
+    text-shadow: 0 0 14px rgba(57, 255, 136, 0.45);
+    text-transform: uppercase;
+  }
+
+  .gb-how-to-play-close {
+    align-items: center;
+    background: rgba(4, 38, 31, 0.74);
+    border: 1px solid rgba(57, 255, 136, 0.44);
+    border-radius: 8px;
+    color: var(--gb-text);
+    cursor: pointer;
+    display: inline-flex;
+    flex: 0 0 auto;
+    font-family: Orbitron, sans-serif;
+    font-weight: 700;
+    height: 38px;
+    justify-content: center;
+    width: 38px;
+  }
+
+  .gb-how-to-play-close:hover,
+  .gb-how-to-play-close:focus-visible {
+    border-color: var(--gb-teal);
+    color: var(--gb-gold);
+    outline: none;
+  }
+
+  .gb-how-to-play-modal-body {
+    overflow-y: auto;
+    padding: 16px 20px 20px;
+  }
+
+  .gb-how-to-play-note {
+    background: rgba(0, 213, 199, 0.08);
+    border: 1px solid rgba(0, 213, 199, 0.24);
+    border-radius: 8px;
+    color: var(--gb-text-muted);
+    font-size: 13px;
+    line-height: 1.5;
+    margin: 0 0 14px;
+    padding: 11px 12px;
+  }
+
+  .gb-how-to-play-section-grid {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  }
+
+  .gb-how-to-play-card {
+    background: rgba(4, 38, 31, 0.56);
+    border: 1px solid rgba(57, 255, 136, 0.24);
+    border-radius: 8px;
+    box-shadow: inset 0 0 18px rgba(0, 213, 199, 0.06);
+    padding: 14px;
+  }
+
+  .gb-how-to-play-card-number {
+    color: var(--gb-gold);
+    display: block;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1;
+    margin-bottom: 8px;
+  }
+
+  .gb-how-to-play-card h3 {
+    color: var(--gb-tree-green);
+    font-size: 14px;
+    line-height: 1.2;
+    margin: 0 0 8px;
+    text-transform: uppercase;
+  }
+
+  .gb-how-to-play-card p {
+    color: var(--gb-text);
+    font-size: 13px;
+    line-height: 1.45;
+    margin: 0 0 10px;
+  }
+
+  .gb-how-to-play-card ul {
+    color: var(--gb-text-muted);
+    font-size: 12px;
+    line-height: 1.45;
+    margin: 0;
+    padding-left: 18px;
+  }
+
+  .gb-how-to-play-card li + li {
+    margin-top: 5px;
+  }
+
+  .gb-arboretum-promo {
+    margin: clamp(18px, 4vw, 32px) auto;
+    max-width: 1100px;
+    padding: 0 clamp(12px, 3vw, 24px);
+    width: 100%;
+  }
+
+  .gb-arboretum-promo-panel {
+    background: #031b16;
+    border: 1px solid rgba(0, 213, 199, 0.46);
+    border-radius: 8px;
+    box-shadow:
+      0 0 28px rgba(0, 213, 199, 0.24),
+      inset 0 0 34px rgba(57, 255, 136, 0.08);
+    overflow: hidden;
+    position: relative;
+  }
+
+  .gb-arboretum-promo-image {
+    display: block;
+    height: auto;
+    max-width: 100%;
+    width: 100%;
+  }
+
+  .gb-arboretum-promo-panel::before,
+  .gb-arboretum-promo-panel::after {
+    background: linear-gradient(90deg, transparent, rgba(57, 255, 136, 0.64), transparent);
+    content: "";
+    height: 1px;
+    left: 18px;
+    position: absolute;
+    right: 18px;
+  }
+
+  .gb-arboretum-promo-panel::before {
+    box-shadow: 0 78px 120px rgba(0, 213, 199, 0.08);
+    top: 10px;
+  }
+
+  .gb-arboretum-promo-panel::after {
+    bottom: 10px;
+  }
+
+  .gb-arboretum-promo-copy {
+    min-width: 0;
+    position: relative;
+    z-index: 1;
+  }
+
+  .gb-arboretum-promo-kicker {
+    color: var(--gb-gold);
+    font-family: Orbitron, sans-serif;
+    font-size: clamp(14px, 2.2vw, 24px);
+    font-weight: 800;
+    line-height: 1;
+    margin: 0 0 8px;
+    text-shadow: 0 0 12px rgba(255, 211, 78, 0.48);
+    text-transform: uppercase;
+  }
+
+  .gb-arboretum-promo h2 {
+    color: var(--gb-tree-green);
+    font-family: Orbitron, sans-serif;
+    font-size: clamp(36px, 7vw, 78px);
+    font-weight: 900;
+    line-height: 0.92;
+    margin: 0;
+    text-shadow:
+      0 0 18px rgba(57, 255, 136, 0.62),
+      0 3px 0 rgba(0, 0, 0, 0.55);
+    text-transform: uppercase;
+  }
+
+  .gb-arboretum-promo-subtitle {
+    color: var(--gb-text);
+    font-family: Orbitron, sans-serif;
+    font-size: clamp(15px, 2.4vw, 26px);
+    font-weight: 800;
+    line-height: 1.2;
+    margin: 10px 0 0;
+    text-transform: uppercase;
+  }
+
+  .gb-arboretum-promo-body {
+    color: var(--gb-text-muted);
+    font-size: clamp(12px, 1.5vw, 15px);
+    line-height: 1.55;
+    margin: 12px 0 0;
+    max-width: 640px;
+  }
+
+  .gb-arboretum-promo-highlights {
+    display: grid;
+    gap: 8px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    min-width: 0;
+    position: relative;
+    z-index: 1;
+  }
+
+  .gb-arboretum-promo-highlights span {
+    align-items: center;
+    background: rgba(4, 38, 31, 0.7);
+    border: 1px solid rgba(0, 213, 199, 0.34);
+    border-radius: 8px;
+    color: var(--gb-text);
+    display: flex;
+    font-family: Orbitron, sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    justify-content: center;
+    min-height: 42px;
+    padding: 8px;
+    text-align: center;
+    text-transform: uppercase;
+  }
+
+  .gb-arboretum-promo-action,
+  .gb-arboretum-mobile-card-body a {
+    align-items: center;
+    background: rgba(255, 211, 78, 0.14);
+    border: 1px solid rgba(255, 211, 78, 0.58);
+    border-radius: 8px;
+    color: var(--gb-gold);
+    display: inline-flex;
+    font-family: Orbitron, sans-serif;
+    font-size: 12px;
+    font-weight: 800;
+    justify-content: center;
+    min-height: 42px;
+    padding: 0 12px;
+    position: relative;
+    text-decoration: none;
+    text-transform: uppercase;
+    white-space: nowrap;
+    z-index: 1;
+  }
+
+  .gb-arboretum-promo-action:hover,
+  .gb-arboretum-promo-action:focus-visible,
+  .gb-arboretum-mobile-card-body a:hover,
+  .gb-arboretum-mobile-card-body a:focus-visible {
+    border-color: var(--gb-tree-green);
+    color: var(--gb-tree-green);
+    outline: none;
+  }
+
+  .gb-arboretum-mobile-card {
+    display: none;
+  }
+
   .gb-mobile-nav-section {
     display: flex;
     flex: 1 1 100%;
@@ -510,6 +874,14 @@
     .gb-header-nav {
       display: none;
     }
+
+    .gb-arboretum-promo-panel {
+      grid-template-columns: minmax(0, 1fr) auto;
+    }
+
+    .gb-arboretum-promo-highlights {
+      display: none;
+    }
   }
 
   @media (max-width: 480px) {
@@ -540,6 +912,117 @@
 
     .gb-player-status-strip {
       justify-content: stretch;
+    }
+
+    .gb-how-to-play-trigger-wrap {
+      margin: 10px auto;
+      max-width: calc(100vw - 20px);
+    }
+
+    .gb-how-to-play-trigger {
+      align-items: center;
+      min-height: 44px;
+      padding: 9px 10px;
+    }
+
+    .gb-how-to-play-trigger-meta {
+      flex: 1 1 100%;
+    }
+
+    .gb-how-to-play-overlay {
+      align-items: flex-end;
+      padding: 0;
+    }
+
+    .gb-how-to-play-modal {
+      border-bottom: 0;
+      border-radius: 8px 8px 0 0;
+      max-height: 92vh;
+      width: 100vw;
+    }
+
+    .gb-how-to-play-modal-header {
+      padding: 14px 14px 12px;
+    }
+
+    .gb-how-to-play-modal-body {
+      padding: 12px 14px 16px;
+    }
+
+    .gb-how-to-play-section-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .gb-how-to-play-card {
+      padding: 12px;
+    }
+
+    .gb-arboretum-promo {
+      margin: 14px auto 18px;
+      padding: 0 10px;
+    }
+
+    .gb-arboretum-promo-panel {
+      display: none;
+    }
+
+    .gb-arboretum-mobile-card {
+      background: rgba(3, 27, 22, 0.9);
+      border: 1px solid rgba(0, 213, 199, 0.42);
+      border-radius: 8px;
+      box-shadow: 0 0 14px rgba(0, 213, 199, 0.18);
+      color: var(--gb-text);
+      display: block;
+      overflow: hidden;
+    }
+
+    .gb-arboretum-mobile-card summary {
+      cursor: pointer;
+      display: grid;
+      gap: 4px;
+      list-style: none;
+      padding: 12px 14px;
+    }
+
+    .gb-arboretum-mobile-card summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .gb-arboretum-mobile-card summary span {
+      color: var(--gb-gold);
+      font-family: Orbitron, sans-serif;
+      font-size: 11px;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+
+    .gb-arboretum-mobile-card summary strong {
+      color: var(--gb-tree-green);
+      font-family: Orbitron, sans-serif;
+      font-size: 22px;
+      line-height: 1;
+      text-transform: uppercase;
+    }
+
+    .gb-arboretum-mobile-card summary small {
+      color: var(--gb-text);
+      font-family: Orbitron, sans-serif;
+      font-size: 12px;
+      font-weight: 700;
+      line-height: 1.35;
+      text-transform: uppercase;
+    }
+
+    .gb-arboretum-mobile-card-body {
+      border-top: 1px solid rgba(0, 213, 199, 0.18);
+      padding: 0 14px 14px;
+    }
+
+    .gb-arboretum-mobile-card-body p {
+      color: var(--gb-text-muted);
+      font-size: 12px;
+      line-height: 1.45;
+      margin: 12px 0;
     }
   }
 

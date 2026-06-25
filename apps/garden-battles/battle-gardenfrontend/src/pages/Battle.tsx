@@ -45,6 +45,35 @@ const treeUtilityLinks = [
   },
 ];
 
+function ArboretumComingSoonPromo() {
+  return (
+    <section className="gb-arboretum-promo" aria-label="Arboretum coming soon">
+      <div className="gb-arboretum-promo-panel">
+        <img
+          src="/assets/arboretum-promo.png"
+          alt="COMING SOON!!! Arboretum. Plant your NFTrees and EARN SUI!!!"
+          className="gb-arboretum-promo-image"
+        />
+      </div>
+
+      <details className="gb-arboretum-mobile-card">
+        <summary>
+          <span>COMING SOON!!!</span>
+          <strong>Arboretum</strong>
+          <small>Plant your NFTrees and EARN SUI!!!</small>
+        </summary>
+        <div className="gb-arboretum-mobile-card-body">
+          <p>
+            A future TREE utility for planting, care, rewards, and garden
+            progression.
+          </p>
+          <Link href="/mint">Preview Sapling Mint</Link>
+        </div>
+      </details>
+    </section>
+  );
+}
+
 function getNFTImage(
   growth: number,
   nftImageUrl?: string,
@@ -2021,140 +2050,7 @@ export default function Battle() {
           {battleStatus}
         </p>
 
-        {/* Game Info Section */}
-        <div
-          style={{
-            margin: "clamp(15px, 4vw, 25px) auto",
-            maxWidth: "900px",
-            padding: "clamp(15px, 4vw, 25px)",
-            background: "rgba(0, 50, 0, 0.8)",
-            border: "2px solid #00ff00",
-            borderRadius: "15px",
-            boxShadow: "0 0 15px #00ff00",
-            textAlign: "left",
-          }}
-        >
-          <h2
-            style={{
-              color: "#00ff00",
-              textShadow: "0 0 5px #00ff00",
-              marginBottom: "15px",
-              fontFamily: "FantasyBattles, sans-serif",
-              fontSize: "clamp(16px, 4vw, 24px)",
-            }}
-          >
-            Gameplay: The Garden Battles
-          </h2>
-          <p
-            style={{
-              color: "#00ffcc",
-              fontSize: "clamp(12px, 3vw, 18px)",
-              lineHeight: "1.5",
-              marginBottom: "15px",
-            }}
-          >
-            Welcome to The Garden Battles by Thickquidity, a thrilling 1v1
-            strategy game powered by the Sui blockchain! To participate, you
-            must hold a Sapling NFT from our official issuer. Engage in
-            turn-based battles where your NFT grows from a seed to a full tree
-            as you increase your Growth points. PvP battles finish at 100
-            Growth; practice battles against Garden Bot finish at 50.
-          </p>
-          <ul
-            style={{
-              listStyleType: "disc",
-              marginLeft: "20px",
-              color: "#00ffcc",
-              fontSize: "clamp(11px, 2.8vw, 16px)",
-            }}
-          >
-            <li style={{ marginBottom: "10px" }}>
-              <strong>NFT Requirement</strong>: Hold a Sapling NFT to access
-              battles.
-            </li>
-            <li style={{ marginBottom: "10px" }}>
-              <strong>Entry Fee</strong>: Each battle costs {entryFeeLabel}.
-            </li>
-            <li style={{ marginBottom: "10px" }}>
-              <strong>Rewards</strong>: The winner receives 5 SUI, with 1 SUI
-              supporting Thickquidity's token buyback program.
-            </li>
-            <li style={{ marginBottom: "10px" }}>
-              <strong>Gameplay</strong>: Each player is randomly assigned four
-              moves per battle—two to reduce the opponent's Growth (e.g., Thorn
-              Spike Bomb, Razor Leaf Sword) and two to boost their own (e.g.,
-              Sun Beam, Photosynthetic Surge).
-            </li>
-            <li style={{ marginBottom: "10px" }}>
-              <strong>Visuals</strong>: Watch your NFT evolve from seed (0-25
-              Growth) to sapling (26-50), mature sapling (51-75), and full tree
-              (76-100).
-            </li>
-          </ul>
-
-          <h2
-            style={{
-              color: "#00ff00",
-              textShadow: "0 0 5px #00ff00",
-              marginTop: "25px",
-              marginBottom: "15px",
-              fontFamily: "FantasyBattles, sans-serif",
-              fontSize: "clamp(16px, 4vw, 24px)",
-            }}
-          >
-            Explore The Arboretum
-          </h2>
-          <Link
-            href="/mint"
-            style={{
-              display: "inline-block",
-              color: "#00ffcc",
-              fontSize: "clamp(14px, 3.5vw, 22px)",
-              marginBottom: "15px",
-              textDecoration: "underline",
-              fontWeight: "bold",
-            }}
-          >
-            Click here to Mint your Sapling NFT and join the Arboretum!
-          </Link>
-          <p
-            style={{
-              color: "#00ffcc",
-              fontSize: "clamp(12px, 3vw, 18px)",
-              lineHeight: "1.5",
-              marginBottom: "15px",
-            }}
-          >
-            Get ready for Phase 2 of The Garden Battles, launching in Q4 2025
-            with the introduction of The Arboretum! This exciting expansion
-            brings dynamic NFT utility, unlocking massive rewards for Sapling
-            NFT holders. Stay tuned for new gameplay mechanics, enhanced
-            strategies, and opportunities to grow your rewards in the lush,
-            competitive world of The Arboretum.
-          </p>
-          <ul
-            style={{
-              listStyleType: "disc",
-              marginLeft: "20px",
-              color: "#00ffcc",
-              fontSize: "clamp(11px, 2.8vw, 16px)",
-            }}
-          >
-            <li style={{ marginBottom: "10px" }}>
-              <strong>Dynamic NFT Utility</strong>: Your Sapling NFTs will
-              unlock new abilities and perks.
-            </li>
-            <li style={{ marginBottom: "10px" }}>
-              <strong>Massive Rewards</strong>: Compete for exclusive prizes and
-              boosted payouts.
-            </li>
-            <li style={{ marginBottom: "10px" }}>
-              <strong>Launch</strong>: Expected in Q4 2025—join our community
-              for updates!
-            </li>
-          </ul>
-        </div>
-
+        <ArboretumComingSoonPromo />
         {/* Footer */}
         <footer
           style={{
