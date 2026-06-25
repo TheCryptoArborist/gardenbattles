@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Link } from "wouter";
-import { Trophy } from "lucide-react";
+import { Menu, Trophy, X } from "lucide-react";
 import { ConnectButton } from "@mysten/dapp-kit";
 import { useSuiWallet } from "@/hooks/useSuiWallet";
 import {
@@ -16,6 +16,34 @@ import HowToPlay from "@/components/HowToPlay";
 import BattleLog from "@/components/BattleLog";
 import PlayerRecord from "@/components/PlayerRecord";
 import ForestPower from "@/components/ForestPower";
+
+const ecosystemLinks = [
+  { label: "Home", href: "https://tree-token.net", testId: "home" },
+  { label: "NFTree.net", href: "https://nftree.net", testId: "nftree-net" },
+  {
+    label: "NFTree Reward Site",
+    href: "https://treedrop.xyz",
+    testId: "nftree-reward-site",
+  },
+];
+
+const treeUtilityLinks = [
+  {
+    label: "Buy TREE",
+    href: "https://dex.suidex.org/swap?from=SUI&to=Tree",
+    testId: "buy-tree",
+  },
+  {
+    label: "Add V3 LP",
+    href: "https://dex.suidex.org/pools/v3/0x39d5ba22e01e45bc4129ec28a0bef52e8fee8db5d07d337adf9540e3cb9074cf/add",
+    testId: "add-v3-lp",
+  },
+  {
+    label: "Stake V2",
+    href: "https://dex.suidex.org/zap?pool=0x35a1be1f01f9edf7f5221d226f357d194d43c28f2a65cb38640935518d9a5bfc&stake=true",
+    testId: "stake-v2",
+  },
+];
 
 function getNFTImage(
   growth: number,
@@ -68,6 +96,7 @@ export default function Battle() {
   const [isClaimingTimeout, setIsClaimingTimeout] = useState(false);
   const [isForfeiting, setIsForfeiting] = useState(false);
   const [isAdminClosing, setIsAdminClosing] = useState(false);
+  const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
   const entryFeeLabel = `${(entryFeeMist / 1e9).toLocaleString(undefined, {
     maximumFractionDigits: 9,
   })} SUI`;
@@ -671,18 +700,7 @@ export default function Battle() {
       >
         {/* Header */}
         <header
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            padding: "clamp(10px, 2vw, 15px) clamp(15px, 3vw, 30px)",
-            background: "rgba(0, 50, 0, 0.8)",
-            borderBottom: "2px solid #00ff00",
-            boxShadow: "0 0 15px #00ff00",
-            position: "relative",
-            flexWrap: "wrap",
-            gap: "10px",
-          }}
+          className="gb-app-header"
         >
           <Link href="/">
             <img
@@ -706,104 +724,112 @@ export default function Battle() {
             />
           </Link>
 
-          <nav
-            style={{
-              display: "flex",
-              gap: "clamp(8px, 2vw, 10px)",
-              flexWrap: "wrap",
-            }}
-          >
-            <Link
-              href="/"
-              style={{
-                color: "#00ff00",
-                margin: "0",
-                textDecoration: "none",
-                fontSize: "clamp(14px, 2.5vw, 16px)",
-                transition: "color 0.3s ease",
-                whiteSpace: "nowrap",
-              }}
-              onMouseEnter={(e) => (e.currentTarget.style.color = "#00cc00")}
-              onMouseLeave={(e) => (e.currentTarget.style.color = "#00ff00")}
-              data-testid="link-home"
-            >
-              Home
-            </Link>
-            <Link
-              href="/mint"
-              style={{
-                color: "#00ff00",
-                margin: "0",
-                textDecoration: "none",
-                fontSize: "clamp(14px, 2.5vw, 16px)",
-                transition: "color 0.3s ease",
-                cursor: "pointer",
-                whiteSpace: "nowrap",
-              }}
-              onMouseEnter={(e) => (e.currentTarget.style.color = "#00cc00")}
-              onMouseLeave={(e) => (e.currentTarget.style.color = "#00ff00")}
-              data-testid="link-arboretum"
-            >
-              Arboretum
-            </Link>
-            <Link
-              href="/leaderboard"
-              style={{
-                color: "#00ff00",
-                margin: "0",
-                textDecoration: "none",
-                fontSize: "clamp(14px, 2.5vw, 16px)",
-                transition: "color 0.3s ease",
-                cursor: "pointer",
-                whiteSpace: "nowrap",
-              }}
-              onMouseEnter={(e) => (e.currentTarget.style.color = "#00cc00")}
-              onMouseLeave={(e) => (e.currentTarget.style.color = "#00ff00")}
-              data-testid="link-leaderboard"
-            >
-              Leaderboard
-            </Link>
+          <nav className="gb-header-nav" aria-label="TREE ecosystem navigation">
+            {ecosystemLinks.map((link) => (
+              <a
+                key={link.href}
+                href={link.href}
+                className="gb-nav-link"
+                target="_blank"
+                rel="noreferrer"
+                data-testid={`link-${link.testId}`}
+              >
+                {link.label}
+              </a>
+            ))}
+            {treeUtilityLinks.map((link) => (
+              <a
+                key={link.href}
+                href={link.href}
+                className="gb-nav-link"
+                target="_blank"
+                rel="noreferrer"
+                data-testid={`link-${link.testId}`}
+              >
+                {link.label}
+              </a>
+            ))}
           </nav>
 
           <div
-            style={{
-              display: "flex",
-              gap: "8px",
-              alignItems: "center",
-              flexWrap: "wrap",
-            }}
+            className="gb-header-actions"
           >
-            {address && <ForestPower address={address} />}
-            {address && <PlayerRecord address={address} />}
             <button
               onClick={handleForceRefund}
               disabled={!isConnected || isRefunding}
-              style={{
-                padding: "clamp(8px, 2vw, 10px) clamp(12px, 3vw, 20px)",
-                background: isRefunding
-                  ? "rgba(100, 100, 100, 0.5)"
-                  : "linear-gradient(45deg, #cc0000, #ff3333)",
-                color: "#fff",
-                border: "2px solid #ff0000",
-                borderRadius: "8px",
-                fontSize: "clamp(12px, 2.5vw, 14px)",
-                fontFamily: "Orbitron, sans-serif",
-                fontWeight: "bold",
-                cursor: !isConnected || isRefunding ? "not-allowed" : "pointer",
-                textTransform: "uppercase",
-                boxShadow: isRefunding
-                  ? "none"
-                  : "0 0 10px rgba(255, 0, 0, 0.6)",
-                opacity: !isConnected || isRefunding ? 0.5 : 1,
-                whiteSpace: "nowrap",
-              }}
+              className="gb-refund-button"
               data-testid="button-emergency-refund"
             >
-              {isRefunding ? "Processing..." : "Get Refund"}
+              <span className="gb-refund-label-full">
+                {isRefunding ? "Processing..." : "Get Refund"}
+              </span>
+              <span className="gb-refund-label-compact">
+                {isRefunding ? "Processing" : "Refund"}
+              </span>
             </button>
             <ConnectButton connectText="Connect Wallet" />
+            <button
+              type="button"
+              className="gb-mobile-menu-toggle"
+              aria-expanded={headerMenuOpen}
+              aria-controls="battle-header-mobile-nav"
+              aria-label={headerMenuOpen ? "Close TREE menu" : "Open TREE menu"}
+              onClick={() => setHeaderMenuOpen((open) => !open)}
+            >
+              {headerMenuOpen ? <X size={18} /> : <Menu size={18} />}
+            </button>
           </div>
+          <nav
+            id="battle-header-mobile-nav"
+            className="gb-mobile-nav-panel"
+            data-open={headerMenuOpen}
+            aria-label="TREE ecosystem mobile navigation"
+          >
+            {ecosystemLinks.map((link) => (
+              <a
+                key={link.href}
+                href={link.href}
+                className="gb-nav-link"
+                target="_blank"
+                rel="noreferrer"
+                data-testid={`mobile-link-${link.testId}`}
+              >
+                {link.label}
+              </a>
+            ))}
+            {treeUtilityLinks.map((link) => (
+              <a
+                key={link.href}
+                href={link.href}
+                className="gb-nav-link"
+                target="_blank"
+                rel="noreferrer"
+                data-testid={`mobile-link-${link.testId}`}
+              >
+                {link.label}
+              </a>
+            ))}
+            <button
+              type="button"
+              onClick={handleForceRefund}
+              disabled={!isConnected || isRefunding}
+              className="gb-mobile-refund-menu-item"
+              data-testid="mobile-button-emergency-refund"
+            >
+              {isRefunding ? "Processing" : "Refund"}
+            </button>
+          </nav>
         </header>
+
+        {address && (
+          <section
+            className="gb-player-status-strip"
+            aria-label="Connected player status"
+          >
+            <ForestPower address={address} />
+            <PlayerRecord address={address} />
+          </section>
+        )}
 
         {/* 2-Player Warning Banner */}
         {!battleState && isWaiting && (

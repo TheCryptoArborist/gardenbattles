@@ -29,6 +29,170 @@ Mobile support is a core release requirement for Garden Battles and NFTree. Ever
 | Admin/config panels | Not yet | Unknown. | None yet. | Must verify forms, buttons, and modal behavior on phones. | No |
 | Leaderboard/tournament views | Not yet | Unknown. | None yet. | Wide ranking data should become cards or horizontal scroll. | No |
 
+## NFTree / TREE Visual Alignment
+
+- [ ] NFTree/TREE palette applied to Garden Battles header/theme. Status: in progress; pending visual QA.
+- [ ] Deep forest / dark teal background retained. Status: in progress; pending visual QA.
+- [ ] Bright TREE green primary accent used. Status: in progress; pending visual QA.
+- [ ] Cyan/teal secondary accent used. Status: in progress; pending visual QA.
+- [ ] Gold/yellow highlight available. Status: in progress; pending visual QA.
+- [ ] Orange warning/accent retained for warnings. Status: in progress; pending visual QA.
+- [ ] Soft mint/white text remains readable. Status: in progress; pending visual QA.
+- [ ] Muted mint/green secondary text remains readable. Status: in progress; pending visual QA.
+- [ ] Translucent dark panels with glow/border accents used. Status: in progress; pending visual QA.
+- [ ] CSS variables/theme tokens preferred over scattered hardcoded colors. Status: in progress for the header/theme pass; broader app hardcoded colors remain.
+- [ ] Mobile contrast checked at 320px. Status: pending visual QA.
+- [ ] Mobile contrast checked at 360px. Status: pending visual QA.
+- [ ] Mobile contrast checked at 390px. Status: pending visual QA.
+- [ ] Mobile contrast checked at 414px. Status: pending visual QA.
+- [ ] Mobile contrast checked at 430px. Status: pending visual QA.
+- [ ] Battle identity preserved; do not blindly copy NFTree layout. Status: pending visual QA.
+- [ ] Left logo/token area preserved exactly as-is. Status: pending visual QA.
+- [ ] Connect Wallet remains visible up top. Status: pending disconnected and connected-wallet visual QA.
+- [ ] Get Refund remains visible up top if it fits. Status: pending disconnected and connected-wallet visual QA.
+- [ ] TREE ecosystem links remain usable on desktop. Status: pending visual QA.
+- [ ] TREE ecosystem links collapse cleanly on mobile. Status: pending menu interaction QA.
+
+## Garden Bot Visual Evolution + Animation
+
+### Visual Concept
+
+- [ ] 4-stage Garden Bot evolution system documented. Status: concept documented; pending implementation plan.
+- [ ] Stage 1 robotic seedling concept documented. Status: concept documented; reference only, not a production asset.
+- [ ] Stage 2 young biomechanical tree concept documented. Status: concept documented; reference only, not a production asset.
+- [ ] Stage 3 powered guardian concept documented. Status: concept documented; reference only, not a production asset.
+- [ ] Stage 4 final titan concept documented. Status: concept documented; reference only, not a production asset.
+- [ ] Visual style aligns with Garden Battles, TREE, and NFTree. Status: pending art direction review.
+- [ ] These are concept references only, not final production assets yet. Status: documented.
+
+### Gameplay Mapping
+
+- [ ] Define what triggers each stage. Status: pending design decision.
+- [ ] Decide whether stages are tied to Garden Bot growth amount. Status: pending design decision.
+- [ ] Decide whether stages are tied to turn count. Status: pending design decision.
+- [ ] Decide whether stages are tied to battle phase. Status: pending design decision.
+- [ ] Decide whether stages are visual-only or affect gameplay. Status: pending design decision.
+- [ ] Define exact thresholds for Stage 1 -> 2 -> 3 -> 4. Status: pending design decision.
+
+### Asset Requirements
+
+- [ ] Final production art selected for all 4 stages. Status: pending.
+- [ ] Transparent PNG/WebP or optimized game assets prepared. Status: pending.
+- [ ] Mobile-friendly asset sizes prepared. Status: pending.
+- [ ] Desktop-friendly asset sizes prepared. Status: pending.
+- [ ] Asset naming/file structure standardized. Status: pending.
+- [ ] Legacy placeholder art identified for replacement. Status: pending.
+
+### Animation Requirements
+
+- [ ] Stage 1 idle animation planned. Status: pending.
+- [ ] Stage 2 idle animation planned. Status: pending.
+- [ ] Stage 3 idle animation planned. Status: pending.
+- [ ] Stage 4 idle animation planned. Status: pending.
+- [ ] Transition animation planned between stages. Status: pending.
+- [ ] Hit/growth/defend/utility reactions planned. Status: pending.
+- [ ] Victory/defeat animation considered. Status: pending.
+- [ ] Animation performance considered for mobile. Status: pending.
+- [ ] Reduced-motion fallback considered. Status: pending.
+
+### UI Integration
+
+- [ ] Stage art displays correctly in Garden Bot battle state. Status: pending visual QA.
+- [ ] Stage art does not break player/opponent layout. Status: pending visual QA.
+- [ ] Stage art does not cause horizontal overflow on mobile. Status: pending visual QA.
+- [ ] Stage art works with the battle log, move cards, and warning panels. Status: pending visual QA.
+- [ ] Stage art can be tested at 320/360/390/414/430 widths. Status: pending visual QA.
+- [ ] Stage art can be tested on tablet and desktop. Status: pending visual QA.
+
+### QA
+
+- [ ] All 4 stages reviewed in static preview. Status: pending.
+- [ ] All 4 stages reviewed in active Garden Bot battle state. Status: pending.
+- [ ] Stage transitions tested locally. Status: pending.
+- [ ] Mobile QA completed. Status: pending.
+- [ ] Final art direction approved before production merge. Status: pending.
+
+## Garden Battles Visual Theme / Recovered Concept Direction
+
+### Home / Mode Selection
+
+- [ ] Garden Battles home screen supports Garden Bot mode. Status: partially exists; pending concept-aligned visual pass.
+- [ ] Garden Battles home screen supports PvP Battle mode. Status: partially exists; pending concept-aligned visual pass.
+- [ ] Garden Battles home screen documents Canopy Clash as a future tournament mode. Status: pending.
+- [ ] Mode cards visually match the recovered concept direction. Status: pending visual QA.
+- [ ] Big Garden Battles logo treatment is preserved. Status: partially exists; pending visual QA.
+- [ ] Active battle/status strip is represented. Status: pending visual design.
+- [ ] How To Play panel remains accessible and mobile-safe. Status: pending visual QA.
+
+### Battle Arena Layout
+
+- [ ] Battle screen follows dark forest / neon arena theme. Status: in progress; pending visual QA.
+- [ ] Player tree and opponent/Garden Bot tree are visually prominent. Status: partially exists; pending visual QA.
+- [ ] Turn counter is visible. Status: pending.
+- [ ] Timer is visible if active. Status: pending.
+- [ ] Move cards are readable and visually distinct. Status: partially exists; pending visual QA.
+- [ ] Battle activity log is readable and scrollable. Status: partially exists; pending visual QA.
+- [ ] Warning panels remain readable. Status: partially exists; pending visual QA.
+- [ ] Mobile layout does not overflow. Status: pending visual QA for this theme pass.
+
+### TREE Power / Utility Panel
+
+- [ ] TREE Power panel concept documented. Status: concept documented; pending implementation plan.
+- [ ] Buy TREE action documented. Status: concept documented; header link exists, panel integration pending.
+- [ ] Reroll action documented. Status: concept documented; live behavior needs separate wallet/chain review.
+- [ ] Move swap / utility action documented. Status: concept documented; pending design decision.
+- [ ] TREE balance display documented. Status: partially exists through connected-wallet TREE status; panel integration pending.
+- [ ] Confirm which actions are live vs placeholders. Status: pending.
+
+### Prize & Payout Panel
+
+- [ ] Prize & Payout panel concept documented. Status: concept documented; pending implementation plan.
+- [ ] Entry amount display documented. Status: partially exists; panel integration pending.
+- [ ] Winner payout display documented. Status: partially exists; panel integration pending.
+- [ ] Treasury amount display documented. Status: pending.
+- [ ] TREE sink/removal display documented. Status: pending.
+- [ ] Confirm which values are informational vs wired to live data. Status: pending.
+
+### Growth Stage Visuals
+
+- [ ] Player tree 4-stage growth system documented. Status: partially exists; pending visual QA and asset review.
+- [ ] Garden Bot 4-stage evolution system documented. Status: concept documented; pending implementation plan.
+- [ ] Stage thresholds still need definition. Status: pending design decision.
+- [ ] Confirm whether stage changes are visual-only or gameplay-affecting. Status: pending design decision.
+- [ ] Confirm whether stages are tied to growth amount, turn count, or battle phase. Status: pending design decision.
+
+### Garden Bot Stage Art
+
+- [ ] Stage 1 robotic seedling concept documented. Status: concept documented; reference only, not a production asset.
+- [ ] Stage 2 young biomechanical tree concept documented. Status: concept documented; reference only, not a production asset.
+- [ ] Stage 3 powered guardian concept documented. Status: concept documented; reference only, not a production asset.
+- [ ] Stage 4 final titan concept documented. Status: concept documented; reference only, not a production asset.
+- [ ] Final production assets still pending. Status: pending.
+- [ ] Asset naming and folder structure still pending. Status: pending.
+
+### Animation Direction
+
+- [ ] Idle glow animation planned. Status: pending.
+- [ ] Leaf/circuit shimmer planned. Status: pending.
+- [ ] Floating particles planned. Status: pending.
+- [ ] Stage transition animation planned. Status: pending.
+- [ ] Hit/growth/defend/reaction animations planned. Status: pending.
+- [ ] Reduced-motion fallback required. Status: pending.
+- [ ] Mobile performance testing required. Status: pending.
+
+### Visual QA
+
+- [ ] Test at 320px. Status: pending visual QA.
+- [ ] Test at 360px. Status: pending visual QA.
+- [ ] Test at 390px. Status: pending visual QA.
+- [ ] Test at 414px. Status: pending visual QA.
+- [ ] Test at 430px. Status: pending visual QA.
+- [ ] Test tablet. Status: pending visual QA.
+- [ ] Test desktop. Status: pending visual QA.
+- [ ] Test connected wallet state. Status: pending visual QA.
+- [ ] Test active Garden Bot state. Status: pending visual QA.
+- [ ] Test winner/share panel state. Status: pending visual QA.
+
 ## Current Mobile Issues Found
 
 - Battle completion target logic and artwork progression were tied to the old 100 Growth game, which made 50 Growth Garden Bot matches confusing.

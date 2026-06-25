@@ -4,6 +4,20 @@
 
 /* LIGHT MODE */
 :root {
+  --gb-bg-deep: #031b16;
+  --gb-bg-teal: #07352f;
+  --gb-panel: rgba(3, 27, 22, 0.86);
+  --gb-panel-strong: rgba(4, 38, 31, 0.94);
+  --gb-tree-green: #39ff88;
+  --gb-tree-green-soft: #9efcc2;
+  --gb-teal: #00d5c7;
+  --gb-gold: #f5c542;
+  --gb-orange: #ff8a2a;
+  --gb-text: #f3fff7;
+  --gb-text-muted: #9bd9bd;
+  --gb-border-glow: rgba(57, 255, 136, 0.68);
+  --gb-shadow-green: rgba(57, 255, 136, 0.36);
+
   --button-outline: rgba(0,0,0, .10);
   --badge-outline: rgba(0,0,0, .05);
 
@@ -123,6 +137,20 @@
 }
 
 .dark {
+  --gb-bg-deep: #031b16;
+  --gb-bg-teal: #07352f;
+  --gb-panel: rgba(3, 27, 22, 0.86);
+  --gb-panel-strong: rgba(4, 38, 31, 0.94);
+  --gb-tree-green: #39ff88;
+  --gb-tree-green-soft: #9efcc2;
+  --gb-teal: #00d5c7;
+  --gb-gold: #f5c542;
+  --gb-orange: #ff8a2a;
+  --gb-text: #f3fff7;
+  --gb-text-muted: #9bd9bd;
+  --gb-border-glow: rgba(57, 255, 136, 0.68);
+  --gb-shadow-green: rgba(57, 255, 136, 0.36);
+
   --button-outline: rgba(255,255,255, .10);
   --badge-outline: rgba(255,255,255, .05);
 
@@ -239,6 +267,224 @@
 
   body {
     @apply font-sans antialiased bg-background text-foreground;
+  }
+}
+
+@layer components {
+  .gb-app-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: clamp(10px, 2vw, 15px) clamp(15px, 3vw, 30px);
+    background:
+      linear-gradient(135deg, rgba(3, 27, 22, 0.94), rgba(7, 53, 47, 0.88)),
+      var(--gb-panel);
+    border-bottom: 2px solid var(--gb-border-glow);
+    box-shadow: 0 0 18px var(--gb-shadow-green);
+    position: relative;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .gb-header-nav {
+    display: flex;
+    gap: clamp(8px, 1.5vw, 14px);
+    align-items: center;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .gb-header-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .gb-player-status-strip {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    padding: 10px 15px;
+    background: linear-gradient(
+      135deg,
+      rgba(3, 27, 22, 0.78),
+      rgba(7, 53, 47, 0.64)
+    );
+    border-bottom: 1px solid rgba(57, 255, 136, 0.28);
+    box-shadow: inset 0 0 18px rgba(0, 213, 199, 0.08);
+  }
+
+  .gb-nav-link,
+  .gb-nav-placeholder,
+  .gb-mobile-menu-toggle,
+  .gb-mobile-refund-menu-item {
+    color: var(--gb-tree-green);
+    background: rgba(4, 38, 31, 0.54);
+    border: 1px solid rgba(57, 255, 136, 0.42);
+    border-radius: 8px;
+    box-shadow: 0 0 10px rgba(0, 213, 199, 0.12);
+    font-family: Orbitron, sans-serif;
+    font-size: clamp(12px, 1.8vw, 14px);
+    font-weight: 700;
+    line-height: 1;
+    min-height: 38px;
+    padding: 0 12px;
+    text-decoration: none;
+    text-transform: uppercase;
+    white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition:
+      border-color 0.2s ease,
+      box-shadow 0.2s ease,
+      color 0.2s ease,
+      background 0.2s ease;
+  }
+
+  .gb-nav-link:hover,
+  .gb-nav-link:focus-visible,
+  .gb-mobile-menu-toggle:hover,
+  .gb-mobile-menu-toggle:focus-visible,
+  .gb-mobile-refund-menu-item:hover,
+  .gb-mobile-refund-menu-item:focus-visible {
+    color: var(--gb-gold);
+    background: rgba(0, 213, 199, 0.12);
+    border-color: var(--gb-teal);
+    box-shadow: 0 0 14px rgba(0, 213, 199, 0.35);
+    outline: none;
+  }
+
+  .gb-nav-placeholder {
+    color: var(--gb-text-muted);
+    cursor: not-allowed;
+    opacity: 0.72;
+  }
+
+  .gb-mobile-menu-toggle {
+    cursor: pointer;
+    min-width: 42px;
+    padding: 0 10px;
+  }
+
+  .gb-refund-button {
+    background: rgba(47, 11, 11, 0.58);
+    border: 1px solid rgba(255, 101, 101, 0.72);
+    border-radius: 8px;
+    box-shadow: 0 0 8px rgba(255, 64, 64, 0.22);
+    color: #ffdede;
+    cursor: pointer;
+    font-family: Orbitron, sans-serif;
+    font-size: clamp(11px, 1.7vw, 13px);
+    font-weight: 700;
+    min-height: 38px;
+    padding: 0 12px;
+    text-transform: uppercase;
+    white-space: nowrap;
+    transition:
+      background 0.2s ease,
+      border-color 0.2s ease,
+      box-shadow 0.2s ease,
+      color 0.2s ease,
+      opacity 0.2s ease;
+  }
+
+  .gb-refund-button:hover:not(:disabled),
+  .gb-refund-button:focus-visible:not(:disabled) {
+    background: rgba(79, 18, 18, 0.72);
+    border-color: rgba(255, 138, 42, 0.9);
+    box-shadow: 0 0 10px rgba(255, 138, 42, 0.28);
+    color: #fff3e0;
+    outline: none;
+  }
+
+  .gb-refund-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.48;
+  }
+
+  .gb-refund-label-compact {
+    display: none;
+  }
+
+  .gb-mobile-refund-menu-item {
+    display: none;
+    border-color: rgba(255, 101, 101, 0.58);
+    color: #ffdede;
+  }
+
+  .gb-mobile-nav-panel {
+    display: none;
+    flex-basis: 100%;
+    width: 100%;
+    background: var(--gb-panel-strong);
+    border: 1px solid rgba(57, 255, 136, 0.34);
+    border-radius: 8px;
+    box-shadow: inset 0 0 24px rgba(0, 213, 199, 0.08);
+    gap: 8px;
+    padding: 10px;
+  }
+
+  .gb-mobile-nav-panel[data-open="true"] {
+    display: flex;
+    flex-wrap: wrap;
+  }
+
+  @media (min-width: 900px) {
+    .gb-mobile-menu-toggle {
+      display: none;
+    }
+  }
+
+  @media (max-width: 899px) {
+    .gb-header-nav {
+      display: none;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .gb-app-header {
+      align-items: flex-start;
+      gap: 8px;
+    }
+
+    .gb-header-actions {
+      flex: 1 1 210px;
+      justify-content: flex-end;
+    }
+
+    .gb-nav-link,
+    .gb-nav-placeholder,
+    .gb-mobile-refund-menu-item {
+      flex: 1 1 132px;
+      min-height: 42px;
+    }
+
+    .gb-refund-label-full {
+      display: none;
+    }
+
+    .gb-refund-label-compact {
+      display: inline;
+    }
+
+    .gb-player-status-strip {
+      justify-content: stretch;
+    }
+  }
+
+  @media (max-width: 360px) {
+    .gb-header-actions > .gb-refund-button {
+      display: none;
+    }
+
+    .gb-mobile-nav-panel[data-open="true"] .gb-mobile-refund-menu-item {
+      display: inline-flex;
+    }
   }
 }
 
