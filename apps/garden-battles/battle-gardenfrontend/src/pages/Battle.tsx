@@ -725,30 +725,40 @@ export default function Battle() {
           </Link>
 
           <nav className="gb-header-nav" aria-label="TREE ecosystem navigation">
-            {ecosystemLinks.map((link) => (
-              <a
-                key={link.href}
-                href={link.href}
-                className="gb-nav-link"
-                target="_blank"
-                rel="noreferrer"
-                data-testid={`link-${link.testId}`}
-              >
-                {link.label}
-              </a>
-            ))}
-            {treeUtilityLinks.map((link) => (
-              <a
-                key={link.href}
-                href={link.href}
-                className="gb-nav-link"
-                target="_blank"
-                rel="noreferrer"
-                data-testid={`link-${link.testId}`}
-              >
-                {link.label}
-              </a>
-            ))}
+            <div className="gb-nav-group" aria-label="TREE ecosystem links">
+              {ecosystemLinks.map((link) => (
+                <a
+                  key={link.href}
+                  href={link.href}
+                  className="gb-nav-link"
+                  target="_blank"
+                  rel="noreferrer"
+                  data-testid={`link-${link.testId}`}
+                >
+                  {link.label}
+                </a>
+              ))}
+            </div>
+            <div className="gb-nav-divider" aria-hidden="true" />
+            <div className="gb-nav-group gb-nav-group-suidex" aria-label="SuiDex TREE utilities">
+              <img
+                src="/assets/suidex-handshake.png"
+                alt="SuiDex"
+                className="gb-suidex-logo"
+              />
+              {treeUtilityLinks.map((link) => (
+                <a
+                  key={link.href}
+                  href={link.href}
+                  className="gb-nav-link"
+                  target="_blank"
+                  rel="noreferrer"
+                  data-testid={`link-${link.testId}`}
+                >
+                  {link.label}
+                </a>
+              ))}
+            </div>
           </nav>
 
           <div
@@ -785,30 +795,42 @@ export default function Battle() {
             data-open={headerMenuOpen}
             aria-label="TREE ecosystem mobile navigation"
           >
-            {ecosystemLinks.map((link) => (
-              <a
-                key={link.href}
-                href={link.href}
-                className="gb-nav-link"
-                target="_blank"
-                rel="noreferrer"
-                data-testid={`mobile-link-${link.testId}`}
-              >
-                {link.label}
-              </a>
-            ))}
-            {treeUtilityLinks.map((link) => (
-              <a
-                key={link.href}
-                href={link.href}
-                className="gb-nav-link"
-                target="_blank"
-                rel="noreferrer"
-                data-testid={`mobile-link-${link.testId}`}
-              >
-                {link.label}
-              </a>
-            ))}
+            <div className="gb-mobile-nav-section" aria-label="TREE ecosystem links">
+              {ecosystemLinks.map((link) => (
+                <a
+                  key={link.href}
+                  href={link.href}
+                  className="gb-nav-link"
+                  target="_blank"
+                  rel="noreferrer"
+                  data-testid={`mobile-link-${link.testId}`}
+                >
+                  {link.label}
+                </a>
+              ))}
+            </div>
+            <div className="gb-mobile-nav-section" aria-label="SuiDex TREE utilities">
+              <span className="gb-mobile-nav-label">
+                <img
+                  src="/assets/suidex-handshake.png"
+                  alt=""
+                  className="gb-suidex-logo"
+                />
+                SuiDex
+              </span>
+              {treeUtilityLinks.map((link) => (
+                <a
+                  key={link.href}
+                  href={link.href}
+                  className="gb-nav-link"
+                  target="_blank"
+                  rel="noreferrer"
+                  data-testid={`mobile-link-${link.testId}`}
+                >
+                  {link.label}
+                </a>
+              ))}
+            </div>
             <button
               type="button"
               onClick={handleForceRefund}

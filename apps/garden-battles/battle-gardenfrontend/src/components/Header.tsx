@@ -54,28 +54,38 @@ export default function Header() {
       </div>
       
       <nav className="gb-header-nav" aria-label="TREE ecosystem navigation">
-        {ecosystemLinks.map((link) => (
-          <a
-            key={link.href}
-            href={link.href}
-            className="gb-nav-link"
-            target="_blank"
-            rel="noreferrer"
-          >
-            {link.label}
-          </a>
-        ))}
-        {treeUtilityLinks.map((link) => (
-          <a
-            key={link.href}
-            href={link.href}
-            className="gb-nav-link"
-            target="_blank"
-            rel="noreferrer"
-          >
-            {link.label}
-          </a>
-        ))}
+        <div className="gb-nav-group" aria-label="TREE ecosystem links">
+          {ecosystemLinks.map((link) => (
+            <a
+              key={link.href}
+              href={link.href}
+              className="gb-nav-link"
+              target="_blank"
+              rel="noreferrer"
+            >
+              {link.label}
+            </a>
+          ))}
+        </div>
+        <div className="gb-nav-divider" aria-hidden="true" />
+        <div className="gb-nav-group gb-nav-group-suidex" aria-label="SuiDex TREE utilities">
+          <img
+            src="/assets/suidex-handshake.png"
+            alt="SuiDex"
+            className="gb-suidex-logo"
+          />
+          {treeUtilityLinks.map((link) => (
+            <a
+              key={link.href}
+              href={link.href}
+              className="gb-nav-link"
+              target="_blank"
+              rel="noreferrer"
+            >
+              {link.label}
+            </a>
+          ))}
+        </div>
       </nav>
 
       <div className="gb-header-actions" data-testid="wallet-connect-button">
@@ -97,28 +107,40 @@ export default function Header() {
         data-open={menuOpen}
         aria-label="TREE ecosystem mobile navigation"
       >
-        {ecosystemLinks.map((link) => (
-          <a
-            key={link.href}
-            href={link.href}
-            className="gb-nav-link"
-            target="_blank"
-            rel="noreferrer"
-          >
-            {link.label}
-          </a>
-        ))}
-        {treeUtilityLinks.map((link) => (
-          <a
-            key={link.href}
-            href={link.href}
-            className="gb-nav-link"
-            target="_blank"
-            rel="noreferrer"
-          >
-            {link.label}
-          </a>
-        ))}
+        <div className="gb-mobile-nav-section" aria-label="TREE ecosystem links">
+          {ecosystemLinks.map((link) => (
+            <a
+              key={link.href}
+              href={link.href}
+              className="gb-nav-link"
+              target="_blank"
+              rel="noreferrer"
+            >
+              {link.label}
+            </a>
+          ))}
+        </div>
+        <div className="gb-mobile-nav-section" aria-label="SuiDex TREE utilities">
+          <span className="gb-mobile-nav-label">
+            <img
+              src="/assets/suidex-handshake.png"
+              alt=""
+              className="gb-suidex-logo"
+            />
+            SuiDex
+          </span>
+          {treeUtilityLinks.map((link) => (
+            <a
+              key={link.href}
+              href={link.href}
+              className="gb-nav-link"
+              target="_blank"
+              rel="noreferrer"
+            >
+              {link.label}
+            </a>
+          ))}
+        </div>
       </nav>
     </header>
   );
