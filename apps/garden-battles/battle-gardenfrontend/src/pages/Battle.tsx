@@ -711,6 +711,7 @@ export default function Battle() {
   }
 `}</style>
       <div
+        className="gb-battle-page"
         style={{
           backgroundImage: "url(/assets/background4.jpg)",
           backgroundSize: "cover",
@@ -937,27 +938,31 @@ export default function Battle() {
           </div>
         )}
 
-        {/* Title Image with animation */}
-        <img
-          src="/assets/garden.png"
-          alt="The Garden Battles"
-          className="title-image"
-          style={{
-            width: "100%",
-            maxWidth: "680px",
-            height: "auto",
-            maxHeight: "300px",
-            margin: "25px auto 10px",
-            display: "block",
-            animation: "explodeAndShrink 2s ease-out forwards",
-          }}
-          data-testid="img-battle-title"
-        />
-        {/* How to Play */}
-        <HowToPlay />
+        <main className="gb-battle-main">
+          {/* Title Image with animation */}
+          <section className="gb-battle-hero" aria-label="Garden Battles arena">
+            <img
+              src="/assets/garden.png"
+              alt="The Garden Battles"
+              className="title-image"
+              style={{
+                width: "100%",
+                maxWidth: "680px",
+                height: "auto",
+                maxHeight: "300px",
+                margin: "0 auto",
+                display: "block",
+                animation: "explodeAndShrink 2s ease-out forwards",
+              }}
+              data-testid="img-battle-title"
+            />
+          </section>
+          {/* How to Play */}
+          <HowToPlay />
 
-        {/* Battle Area */}
-        <div className="battle-grid">
+          {/* Battle Area */}
+          <section className="gb-battle-arena" aria-label="Current battle arena">
+          <div className="battle-grid">
           {/* Player 1 NFT */}
           <div
             className="player-card"
@@ -1284,7 +1289,8 @@ export default function Battle() {
               {opponentGrowth} / {growthTarget}
             </p>
           </div>
-        </div>
+          </div>
+        </section>
 
         {/* Battle Options — Color-coded move cards */}
         {battleFinished && winner && (
@@ -1916,114 +1922,50 @@ export default function Battle() {
 
         {/* Join Battle Button - Show when connected and not in an active battle/queue */}
         {isConnected && (!battleState || battleFinished) && !isWaiting && (
-          <div style={{ margin: "20px auto", textAlign: "center" }}>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "center",
-                alignItems: "center",
-                gap: "14px",
-                flexWrap: "wrap",
-              }}
-            >
+          <section className="gb-mode-select" aria-label="Choose battle mode">
+            <article className="gb-mode-card gb-mode-card-bot">
+              <span className="gb-mode-icon" aria-hidden="true">BOT</span>
+              <h2>Garden Bot</h2>
+              <p>Practice match</p>
+              <button
+                onClick={handleStartBotBattle}
+                disabled={isJoining || isStartingBot}
+                className="gb-mode-action gb-mode-action-bot"
+                data-testid="button-start-bot-battle"
+              >
+                {isStartingBot ? "Starting..." : "Play Garden Bot"}
+              </button>
+            </article>
+
+            <article className="gb-mode-card gb-mode-card-pvp">
+              <span className="gb-mode-icon" aria-hidden="true">PVP</span>
+              <h2>PvP Battle</h2>
+              <p>Join the queue</p>
               <button
                 onClick={handleJoinBattle}
                 disabled={isJoining || isStartingBot}
-                style={{
-                  padding: "20px 34px",
-                  background: isJoining
-                    ? "rgba(100, 100, 100, 0.5)"
-                    : "linear-gradient(45deg, #00ff00, #00cc00)",
-                  color: isJoining ? "#666" : "#000",
-                  border: "3px solid #00ff00",
-                  borderRadius: "12px",
-                  fontSize: "clamp(15px, 3.6vw, 22px)",
-                  fontFamily: "Orbitron, sans-serif",
-                  fontWeight: "bold",
-                  cursor:
-                    isJoining || isStartingBot ? "not-allowed" : "pointer",
-                  textTransform: "uppercase",
-                  boxShadow: isJoining
-                    ? "none"
-                    : "0 0 30px rgba(0, 255, 0, 0.8)",
-                  opacity: isJoining || isStartingBot ? 0.5 : 1,
-                  transition: "all 0.3s ease",
-                  animation: isJoining
-                    ? "none"
-                    : "pulseGlow 2s infinite alternate",
-                }}
-                onMouseEnter={(e) => {
-                  if (!isJoining && !isStartingBot) {
-                    e.currentTarget.style.transform = "scale(1.05)";
-                    e.currentTarget.style.boxShadow =
-                      "0 0 40px rgba(0, 255, 0, 1)";
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = "scale(1)";
-                  e.currentTarget.style.boxShadow =
-                    "0 0 30px rgba(0, 255, 0, 0.8)";
-                }}
+                className="gb-mode-action gb-mode-action-pvp"
                 data-testid="button-join-battle"
               >
                 {isJoining
                   ? "Joining..."
                   : `Join Battle Queue (${entryFeeLabel})`}
               </button>
-              <button
-                onClick={handleStartBotBattle}
-                disabled={isJoining || isStartingBot}
-                style={{
-                  padding: "20px 34px",
-                  background: isStartingBot
-                    ? "rgba(100, 100, 100, 0.5)"
-                    : "linear-gradient(45deg, #00ccff, #00ffcc)",
-                  color: isStartingBot ? "#666" : "#001b1b",
-                  border: "3px solid #00ffcc",
-                  borderRadius: "12px",
-                  fontSize: "clamp(15px, 3.6vw, 22px)",
-                  fontFamily: "Orbitron, sans-serif",
-                  fontWeight: "bold",
-                  cursor:
-                    isJoining || isStartingBot ? "not-allowed" : "pointer",
-                  textTransform: "uppercase",
-                  boxShadow: isStartingBot
-                    ? "none"
-                    : "0 0 30px rgba(0, 255, 204, 0.75)",
-                  opacity: isJoining || isStartingBot ? 0.5 : 1,
-                  transition: "all 0.3s ease",
-                }}
-                onMouseEnter={(e) => {
-                  if (!isJoining && !isStartingBot) {
-                    e.currentTarget.style.transform = "scale(1.05)";
-                    e.currentTarget.style.boxShadow =
-                      "0 0 40px rgba(0, 255, 204, 1)";
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = "scale(1)";
-                  e.currentTarget.style.boxShadow =
-                    "0 0 30px rgba(0, 255, 204, 0.75)";
-                }}
-                data-testid="button-start-bot-battle"
-              >
-                {isStartingBot ? "Starting..." : "Play Garden Bot"}
-              </button>
-            </div>
+            </article>
+
+            <article className="gb-mode-card gb-mode-card-clash" aria-label="Canopy Clash coming soon">
+              <span className="gb-mode-icon" aria-hidden="true">CUP</span>
+              <h2>Canopy Clash</h2>
+              <p>Tournament mode being shaped</p>
+              <span className="gb-mode-placeholder">Coming Soon</span>
+            </article>
             <p
-              style={{
-                marginTop: "15px",
-                fontSize: "clamp(12px, 3vw, 16px)",
-                color: "#00ffcc",
-                maxWidth: "600px",
-                margin: "15px auto 0",
-                padding: "0 15px",
-              }}
+              className="gb-mode-select-note"
             >
               Join the paid player queue, or start a no-payout practice battle
               with Garden Bot.
             </p>
-          </div>
+          </section>
         )}
 
         {/* Battle Info */}
@@ -2051,6 +1993,7 @@ export default function Battle() {
         </p>
 
         <ArboretumComingSoonPromo />
+        </main>
         {/* Footer */}
         <footer
           style={{

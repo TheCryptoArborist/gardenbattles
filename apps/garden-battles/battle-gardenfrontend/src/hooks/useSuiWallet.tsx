@@ -77,6 +77,7 @@ const SuiWalletContext = createContext<SuiWalletContextType | null>(null);
 
 const ACTIVE_BATTLE_STORAGE_PREFIX = "battle_garden_active_battle:";
 const ACTIVE_BATTLE_CACHE_MAX_AGE_MS = 6 * 60 * 60 * 1000;
+const BOT_START_TIMEOUT_MS = 120_000;
 
 interface CachedBattleState {
   version: 1;
@@ -314,6 +315,30 @@ async function getBattleStateFromTransaction(
   }
 
   return null;
+}
+
+async function getBattleUpdateStateFromTransaction(
+  suiClient: any,
+  digest: string,
+  address: string,
+): Promise<BattleState | null> {
+  const tx = await suiClient.waitForTransaction({
+    digest,
+    timeout: 45_000,
+    pollInterval: 1_500,
+    options: {
+      showEvents: true,
+    },
+  });
+
+  return (
+    tx.events
+      ?.filter((event: any) => event.type === getBattleUpdateEvent())
+      .map((event: any) => parseBattleStateFromEvent(event.parsedJson))
+      .find((state: BattleState | null) =>
+        battleBelongsToAddress(state, address),
+      ) ?? null
+  );
 }
 
 export function SuiWalletProvider({ children }: { children: ReactNode }) {
@@ -855,34 +880,69 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
       tx.setSender(address);
 
       return new Promise<void>((resolve, reject) => {
-        signAndExecuteTransaction(
-          { transaction: tx, chain: SUI_CONFIG.CHAIN },
-          {
-            onSuccess: async (result) => {
-              try {
-                const newState = await getBattleStateFromTransaction(
-                  suiClient,
-                  result.digest,
-                  address,
-                );
+        let settled = false;
+        const finish = (callback: () => void) => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timeoutId);
+          callback();
+        };
+        const fail = (error: Error) => {
+          if (settled) return;
+          setIsWaiting(false);
+          finish(() => reject(error));
+        };
+        const timeoutId = setTimeout(() => {
+          fail(
+            new Error(
+              "Timed out waiting for the Garden Bot battle to start. Please try again.",
+            ),
+          );
+        }, BOT_START_TIMEOUT_MS);
 
-                if (newState) {
-                  await applyBattleState(newState, { verifyLive: true });
+        try {
+          signAndExecuteTransaction(
+            { transaction: tx, chain: SUI_CONFIG.CHAIN },
+            {
+              onSuccess: async (result) => {
+                try {
+                  const newState = await getBattleStateFromTransaction(
+                    suiClient,
+                    result.digest,
+                    address,
+                  );
+                  if (settled) return;
+
+                  if (!newState) {
+                    throw new Error(
+                      "Garden Bot battle started, but the new battle state could not be loaded.",
+                    );
+                  }
+
+                  await applyBattleState(newState);
+                  if (settled) return;
+                  finish(() => resolve());
+                } catch (err: any) {
+                  console.warn(
+                    "[battle] post-bot-start refresh failed:",
+                    err,
+                  );
+                  fail(
+                    new Error(
+                      err?.message ??
+                        "Garden Bot battle started, but the new battle state could not be loaded.",
+                    ),
+                  );
                 }
-              } catch (err) {
-                console.warn(
-                  "[battle] post-bot-start refresh will retry via polling:",
-                  err,
-                );
-              }
-              resolve();
+              },
+              onError: (err: any) => {
+                fail(new Error(err?.message ?? "Failed to start bot battle"));
+              },
             },
-            onError: (err: any) => {
-              setIsWaiting(false);
-              reject(new Error(err?.message ?? "Failed to start bot battle"));
-            },
-          },
-        );
+          );
+        } catch (err: any) {
+          fail(new Error(err?.message ?? "Failed to start bot battle"));
+        }
       });
     },
     [
@@ -967,9 +1027,27 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
           {
             onSuccess: async (result) => {
               try {
-                await suiClient.waitForTransaction({
-                  digest: result.digest,
-                });
+                const eventState = await getBattleUpdateStateFromTransaction(
+                  suiClient,
+                  result.digest,
+                  address,
+                );
+                if (eventState) {
+                  await applyBattleState({
+                    ...eventState,
+                    isBotBattle: activeState.isBotBattle,
+                  });
+                } else {
+                  const refreshed = await getLiveBattleState(suiClient, battleId);
+                  if (refreshed) {
+                    await applyBattleState({
+                      ...refreshed,
+                      isBotBattle: activeState.isBotBattle,
+                    });
+                  }
+                }
+              } catch (err) {
+                console.warn("[battle] post-move refresh will retry via polling:", err);
                 const refreshed = await getLiveBattleState(suiClient, battleId);
                 if (refreshed) {
                   await applyBattleState({
@@ -977,8 +1055,6 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
                     isBotBattle: activeState.isBotBattle,
                   });
                 }
-              } catch (err) {
-                console.warn("[battle] post-move refresh will retry via polling:", err);
               }
               resolve();
             },
@@ -1222,7 +1298,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
     const botResponseDetails =
       next.isBotBattle && actor === "you"
         ? [
-            "Garden Bot responded during this same wallet confirmation.",
+            "Round result after your move and the Garden Bot response.",
             `Your tree: ${playerPrevGrowth} -> ${playerNextGrowth} (${formatDelta(playerNextGrowth - playerPrevGrowth)})`,
             `Garden Bot: ${opponentPrevGrowth} -> ${opponentNextGrowth} (${formatDelta(opponentNextGrowth - opponentPrevGrowth)})`,
             playerNextGrowth === playerPrevGrowth &&
@@ -1233,10 +1309,19 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
             .filter(Boolean)
         : undefined;
 
+    const playerMoveDetails =
+      next.isBotBattle && actor === "you"
+        ? [
+            "Your move was submitted.",
+            "The Garden Bot response is included in the round result below.",
+          ]
+        : undefined;
+
     const entries = [
       createEntry(
         actor,
         actor === "you" ? lastMoveIdRef.current : 0,
+        actor === "you" ? playerMoveDetails : undefined,
       ),
     ];
 
