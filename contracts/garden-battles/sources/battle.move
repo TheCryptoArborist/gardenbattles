@@ -55,6 +55,12 @@ module battle_garden::battle {
         is_bot_battle: bool,
     }
 
+    public struct BotMoveResolved has copy, drop {
+        battle_id: ID,
+        bot_player: address,
+        move_id: u8,
+    }
+
     // ═══════════════════════════════════════════════════════════════════════════
     //  Core battle functions (unchanged)
     // ═══════════════════════════════════════════════════════════════════════════
@@ -123,6 +129,14 @@ module battle_garden::battle {
             is_bot_battle: arg0.is_bot_battle,
         };
         event::emit(update);
+    }
+
+    fun emit_bot_move_resolved(battle: &Battle, move_id: u8) {
+        event::emit(BotMoveResolved {
+            battle_id: object::uid_to_inner(&battle.id),
+            bot_player: battle.player2,
+            move_id,
+        });
     }
 
     fun finish_and_payout(arg0: &mut Battle, arg1: address, arg2: &mut TxContext) {
@@ -465,6 +479,7 @@ module battle_garden::battle {
                 finish_and_payout(battle, winner, ctx);
             } else if (battle.is_bot_battle) {
                 let bot_move = choose_bot_move(battle, rand, ctx);
+                emit_bot_move_resolved(battle, bot_move);
                 apply_player2_move(battle, bot_move, rand, ctx);
 
                 if (battle.p2_growth >= target_growth) {
@@ -596,6 +611,7 @@ module battle_garden::battle {
                 finish_and_payout(battle, winner, ctx);
             } else if (battle.is_bot_battle) {
                 let bot_move = choose_bot_move(battle, rand, ctx);
+                emit_bot_move_resolved(battle, bot_move);
                 apply_player2_move(battle, bot_move, rand, ctx);
 
                 if (battle.p2_growth >= base_target) {

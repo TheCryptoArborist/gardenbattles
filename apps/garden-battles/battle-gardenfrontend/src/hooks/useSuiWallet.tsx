@@ -24,7 +24,12 @@ import {
   useSuiClient,
 } from "@mysten/dapp-kit";
 import { Transaction } from "@mysten/sui/transactions";
-import { SUI_CONFIG, getBattleUpdateEvent } from "@/lib/sui-config";
+import {
+  MOVE_LABELS,
+  SUI_CONFIG,
+  getBattleUpdateEvent,
+  getBotMoveResolvedEvent,
+} from "@/lib/sui-config";
 import type { ActionEntry } from "@/components/BattleLog";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -83,6 +88,11 @@ interface CachedBattleState {
   version: 1;
   cachedAt: number;
   state: BattleState;
+}
+
+interface BattleUpdateTransactionResult {
+  state: BattleState | null;
+  botMoveId: number | null;
 }
 
 function battleStorageKey(address: string): string {
@@ -321,7 +331,7 @@ async function getBattleUpdateStateFromTransaction(
   suiClient: any,
   digest: string,
   address: string,
-): Promise<BattleState | null> {
+): Promise<BattleUpdateTransactionResult> {
   const tx = await suiClient.waitForTransaction({
     digest,
     timeout: 45_000,
@@ -331,14 +341,29 @@ async function getBattleUpdateStateFromTransaction(
     },
   });
 
-  return (
+  const state =
     tx.events
       ?.filter((event: any) => event.type === getBattleUpdateEvent())
       .map((event: any) => parseBattleStateFromEvent(event.parsedJson))
       .find((state: BattleState | null) =>
         battleBelongsToAddress(state, address),
-      ) ?? null
-  );
+      ) ?? null;
+
+  const botMoveEvent = tx.events
+    ?.filter((event: any) => event.type === getBotMoveResolvedEvent())
+    .map((event: any) => event.parsedJson)
+    .find((json: any) => {
+      if (!json || !state?.battleId) return false;
+      const eventBattleId = String(json.battle_id ?? "");
+      return eventBattleId === state.battleId;
+    });
+
+  const botMoveId = Number(botMoveEvent?.move_id);
+
+  return {
+    state,
+    botMoveId: Number.isFinite(botMoveId) && botMoveId > 0 ? botMoveId : null,
+  };
 }
 
 export function SuiWalletProvider({ children }: { children: ReactNode }) {
@@ -355,6 +380,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
   const [actionLog, setActionLog] = useState<ActionEntry[]>([]);
   const prevBattleStateRef = useRef<BattleState | null>(null);
   const lastMoveIdRef = useRef<number>(0);
+  const lastResolvedBotMoveIdRef = useRef<number | null>(null);
   const isWaitingRef = useRef(false);
 
   const address = currentAccount?.address ?? null;
@@ -1027,17 +1053,19 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
           {
             onSuccess: async (result) => {
               try {
-                const eventState = await getBattleUpdateStateFromTransaction(
+                const eventResult = await getBattleUpdateStateFromTransaction(
                   suiClient,
                   result.digest,
                   address,
                 );
-                if (eventState) {
+                if (eventResult.state) {
+                  lastResolvedBotMoveIdRef.current = eventResult.botMoveId;
                   await applyBattleState({
-                    ...eventState,
+                    ...eventResult.state,
                     isBotBattle: activeState.isBotBattle,
                   });
                 } else {
+                  lastResolvedBotMoveIdRef.current = null;
                   const refreshed = await getLiveBattleState(suiClient, battleId);
                   if (refreshed) {
                     await applyBattleState({
@@ -1048,6 +1076,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
                 }
               } catch (err) {
                 console.warn("[battle] post-move refresh will retry via polling:", err);
+                lastResolvedBotMoveIdRef.current = null;
                 const refreshed = await getLiveBattleState(suiClient, battleId);
                 if (refreshed) {
                   await applyBattleState({
@@ -1309,6 +1338,9 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
           ]
             .filter(Boolean)
         : undefined;
+    const resolvedBotMoveId = lastResolvedBotMoveIdRef.current;
+    const resolvedBotMoveLabel =
+      resolvedBotMoveId !== null ? MOVE_LABELS[resolvedBotMoveId] : undefined;
 
     const playerMoveDetails =
       next.isBotBattle && actor === "you"
@@ -1328,13 +1360,19 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
 
     if (next.isBotBattle && actor === "you") {
       entries.push(
-        createEntry("opponent", 0, ["Garden Bot response resolved."], "Garden Bot response"),
+        createEntry(
+          "opponent",
+          resolvedBotMoveId ?? 0,
+          ["Garden Bot response resolved."],
+          resolvedBotMoveLabel ?? "Garden Bot response",
+        ),
         createEntry("round", 0, roundResultDetails, "Round Result"),
       );
     }
 
     setActionLog((log) => [...log, ...entries]);
     lastMoveIdRef.current = 0;
+    lastResolvedBotMoveIdRef.current = null;
   }
 
   return (

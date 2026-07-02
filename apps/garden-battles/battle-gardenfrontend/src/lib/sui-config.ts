@@ -112,3 +112,7 @@ export function moveGrowsSelf(moveId: number): boolean {
 export function getBattleUpdateEvent() {
   return `${SUI_CONFIG.ORIGINAL_PACKAGE_ID}::${SUI_CONFIG.MODULE}::BattleUpdate`;
 }
+
+export function getBotMoveResolvedEvent() {
+  return `${SUI_CONFIG.ORIGINAL_PACKAGE_ID}::${SUI_CONFIG.MODULE}::BotMoveResolved`;
+}
