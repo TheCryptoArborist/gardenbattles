@@ -74,19 +74,70 @@ function ArboretumComingSoonPromo() {
   );
 }
 
-function getNFTImage(
-  growth: number,
-  nftImageUrl?: string,
-  growthTarget = 100,
-  revealNft = false,
-): string {
-  if (revealNft && nftImageUrl) return nftImageUrl;
+export type BattleRole =
+  | "player-1"
+  | "player-2"
+  | "player-3"
+  | "player-4"
+  | "garden-bot";
 
-  const progress = growthTarget > 0 ? growth / growthTarget : 0;
-  if (progress < 0.25) return "/assets/seed.jpg";
-  if (progress < 0.5) return "/assets/sapling.jpg";
-  if (progress < 1) return "/assets/sapling2.jpg";
-  return "/assets/full_tree.jpg";
+export type GrowthStage = 1 | 2 | 3 | 4;
+
+type GrowthStageVisual = {
+  role: BattleRole;
+  stage: GrowthStage;
+  imageUrl: string;
+  className: string;
+  alt: string;
+};
+
+const currentStageAssets: Record<GrowthStage, string> = {
+  1: "/assets/seed.jpg",
+  2: "/assets/sapling.jpg",
+  3: "/assets/sapling2.jpg",
+  4: "/assets/full_tree.jpg",
+};
+
+function resolveGrowthStage(growth: number, growthTarget = 100): GrowthStage {
+  const progress =
+    growthTarget > 0 ? Math.max(0, Math.min(1, growth / growthTarget)) : 0;
+
+  if (progress < 0.25) return 1;
+  if (progress < 0.5) return 2;
+  if (progress < 0.75) return 3;
+  return 4;
+}
+
+function resolveGrowthStageVisual({
+  role,
+  growth,
+  growthTarget = 100,
+  nftImageUrl,
+  revealNft = false,
+}: {
+  role: BattleRole;
+  growth: number;
+  growthTarget?: number;
+  nftImageUrl?: string;
+  revealNft?: boolean;
+}): GrowthStageVisual {
+  const stage = resolveGrowthStage(growth, growthTarget);
+  const isGardenBot = role === "garden-bot";
+  const imageUrl =
+    !isGardenBot && revealNft && nftImageUrl
+      ? nftImageUrl
+      : currentStageAssets[stage];
+  const roleLabel = isGardenBot
+    ? "Garden Bot"
+    : `Player ${role.replace("player-", "")}`;
+
+  return {
+    role,
+    stage,
+    imageUrl,
+    className: `growth-stage-art growth-stage-art-${role} growth-stage-${stage}`,
+    alt: `${roleLabel} growth stage ${stage}`,
+  };
 }
 
 export default function Battle() {
@@ -397,6 +448,12 @@ export default function Battle() {
       battleState.player1?.toLowerCase() === SUI_CONFIG.BOT_ADDRESS.toLowerCase() ||
       battleState.player2?.toLowerCase() === SUI_CONFIG.BOT_ADDRESS.toLowerCase());
   const growthTarget = isGardenBotBattle ? 50 : 100;
+  const playerRole: BattleRole = isPlayer1 ? "player-1" : "player-2";
+  const opponentRole: BattleRole = isGardenBotBattle
+    ? "garden-bot"
+    : isPlayer1
+      ? "player-2"
+      : "player-1";
   const playerMoves = battleState
     ? isPlayer1
       ? battleState.player1Moves
@@ -592,15 +649,23 @@ export default function Battle() {
       : isGardenBotBattle
         ? "Garden Bot Wins"
         : "Opponent Wins";
-  const winnerImage =
-    winner === "player"
-      ? getNFTImage(playerGrowth, playerNftImageUrl || undefined, growthTarget, true)
-      : getNFTImage(
-          opponentGrowth,
-          isGardenBotBattle ? undefined : opponentNftImageUrl || undefined,
-          growthTarget,
-          !isGardenBotBattle,
-        );
+  const playerStageVisual = resolveGrowthStageVisual({
+    role: playerRole,
+    growth: playerGrowth,
+    growthTarget,
+    nftImageUrl: playerNftImageUrl || undefined,
+    revealNft: winner === "player",
+  });
+  const opponentStageVisual = resolveGrowthStageVisual({
+    role: opponentRole,
+    growth: opponentGrowth,
+    growthTarget,
+    nftImageUrl: isGardenBotBattle ? undefined : opponentNftImageUrl || undefined,
+    revealNft: winner === "opponent" && !isGardenBotBattle,
+  });
+  const winnerStageVisual =
+    winner === "player" ? playerStageVisual : opponentStageVisual;
+  const winnerImage = winnerStageVisual.imageUrl;
   const shareText =
     winner === "player"
       ? `I just won a Garden Battles match on NFTree at ${playerGrowth}/${growthTarget} Growth.`
@@ -1026,13 +1091,9 @@ export default function Battle() {
               data-testid="nft-card-player"
             >
               <img
-                src={getNFTImage(
-                  playerGrowth,
-                  playerNftImageUrl || undefined,
-                  growthTarget,
-                  winner === "player",
-                )}
-                alt="Player 1 Sapling"
+                src={playerStageVisual.imageUrl}
+                alt={playerStageVisual.alt}
+                className={playerStageVisual.className}
                 style={{
                   maxWidth: "90%",
                   maxHeight: "90%",
@@ -1197,13 +1258,9 @@ export default function Battle() {
               data-testid="nft-card-opponent"
             >
               <img
-                src={getNFTImage(
-                  opponentGrowth,
-                  isGardenBotBattle ? undefined : opponentNftImageUrl || undefined,
-                  growthTarget,
-                  winner === "opponent" && !isGardenBotBattle,
-                )}
-                alt="Player 2 Sapling"
+                src={opponentStageVisual.imageUrl}
+                alt={opponentStageVisual.alt}
+                className={opponentStageVisual.className}
                 style={{
                   maxWidth: "90%",
                   maxHeight: "90%",
@@ -1328,7 +1385,7 @@ export default function Battle() {
             >
               <img
                 src={winnerImage}
-                alt="Winner NFTree"
+                alt={winnerStageVisual.alt}
                 style={{
                   width: "100%",
                   height: "100%",
