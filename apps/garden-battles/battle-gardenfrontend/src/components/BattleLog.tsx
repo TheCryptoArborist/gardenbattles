@@ -4,12 +4,13 @@ import { MOVE_LABELS, MOVE_META } from "@/lib/sui-config";
 export interface ActionEntry {
   id: string;
   timestamp: number;
-  actor: "you" | "opponent";
+  actor: "you" | "opponent" | "round";
   moveId: number;
   prevPlayerGrowth: number;
   nextPlayerGrowth: number;
   prevOpponentGrowth: number;
   nextOpponentGrowth: number;
+  label?: string;
   details?: string[];
 }
 
@@ -73,10 +74,20 @@ export default function BattleLog({
         const meta = MOVE_META[entry.moveId];
         const hasDetails = !!entry.details?.length;
         const label =
-          hasDetails && entry.moveId === 0
+          entry.label ??
+          (entry.actor === "round"
             ? "Round Result"
-            : MOVE_LABELS[entry.moveId] ||
-              (entry.actor === "you" ? "Your move" : `${opponentLabel} move`);
+            : hasDetails && entry.moveId === 0
+              ? "Round Result"
+              : MOVE_LABELS[entry.moveId] ||
+                (entry.actor === "you" ? "Your move" : `${opponentLabel} move`));
+
+        const actorLabel =
+          entry.actor === "round"
+            ? "ROUND RESULT"
+            : entry.actor === "you"
+              ? "YOU"
+              : opponentLabel.toUpperCase();
 
         const myPrev =
           entry.actor === "you"
@@ -98,9 +109,16 @@ export default function BattleLog({
         const selfDelta = myNext - myPrev;
         const oppDelta = oppNext - oppPrev;
 
-        const accentColor = entry.actor === "you" ? "#00ff00" : "#ff6600";
+        const accentColor =
+          entry.actor === "round"
+            ? "#00e5ff"
+            : entry.actor === "you"
+              ? "#00ff00"
+              : "#ff6600";
         const bgColor =
-          entry.actor === "you"
+          entry.actor === "round"
+            ? "rgba(0,70,95,0.3)"
+            : entry.actor === "you"
             ? "rgba(0,100,0,0.3)"
             : "rgba(120,30,0,0.3)";
 
@@ -136,7 +154,7 @@ export default function BattleLog({
                   letterSpacing: "0.5px",
                 }}
               >
-                {entry.actor === "you" ? "YOU" : opponentLabel.toUpperCase()}
+                {actorLabel}
               </span>
               <span
                 style={{

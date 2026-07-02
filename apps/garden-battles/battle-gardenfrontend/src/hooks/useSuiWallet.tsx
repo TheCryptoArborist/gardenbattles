@@ -1274,9 +1274,10 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
       (isP1 && p1Acted) || (!isP1 && !p1Acted) ? "you" : "opponent";
 
     const createEntry = (
-      entryActor: "you" | "opponent",
+      entryActor: "you" | "opponent" | "round",
       moveId: number,
       details?: string[],
+      label?: string,
     ): ActionEntry => ({
       id: `${Date.now()}-${Math.random()}`,
       timestamp: Date.now(),
@@ -1286,6 +1287,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
       nextPlayerGrowth: isP1 ? next.player1Growth : next.player2Growth,
       prevOpponentGrowth: isP1 ? prev.player2Growth : prev.player1Growth,
       nextOpponentGrowth: isP1 ? next.player2Growth : next.player1Growth,
+      label,
       details,
     });
 
@@ -1295,10 +1297,9 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
     const opponentNextGrowth = isP1 ? next.player2Growth : next.player1Growth;
     const formatDelta = (delta: number) =>
       delta > 0 ? `+${delta}` : delta < 0 ? `${delta}` : "no change";
-    const botResponseDetails =
+    const roundResultDetails =
       next.isBotBattle && actor === "you"
         ? [
-            "Round result after your move and the Garden Bot response.",
             `Your tree: ${playerPrevGrowth} -> ${playerNextGrowth} (${formatDelta(playerNextGrowth - playerPrevGrowth)})`,
             `Garden Bot: ${opponentPrevGrowth} -> ${opponentNextGrowth} (${formatDelta(opponentNextGrowth - opponentPrevGrowth)})`,
             playerNextGrowth === playerPrevGrowth &&
@@ -1326,7 +1327,10 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
     ];
 
     if (next.isBotBattle && actor === "you") {
-      entries.push(createEntry("opponent", 0, botResponseDetails));
+      entries.push(
+        createEntry("opponent", 0, ["Garden Bot response resolved."], "Garden Bot response"),
+        createEntry("round", 0, roundResultDetails, "Round Result"),
+      );
     }
 
     setActionLog((log) => [...log, ...entries]);
