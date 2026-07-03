@@ -4,9 +4,10 @@ export const SUI_CONFIG = {
   CHAIN: "sui:mainnet",
   RPC_URL: "https://fullnode.mainnet.sui.io:443",
   WS_URL: "wss://fullnode.mainnet.sui.io:443",
-  PACKAGE_ID: "0x6cae4020693bcfcac9523ce8bc3d0bef7f830900e48b743d002b5d6b676e5142",
+  PACKAGE_ID: "0x2677132e3a06d7e60441e24875ad5c1221a119c521e7bd5ea2b68e684252752a",
   ORIGINAL_PACKAGE_ID:
     "0x656ac984c39b952b40ccaaad4c26a3e074c4c99f56e2bac0862b811557de448b",
+  BOT_MOVE_RESOLVED_EVENT_PACKAGE_ID: "0x6cae4020693bcfcac9523ce8bc3d0bef7f830900e48b743d002b5d6b676e5142",
   MODULE: "battle",
   CONFIG_ID:
     "0x30addc978abe37f31d55cc60a395f30fd6cfdcbfb3cd4e319d2920b0e780a9bf",
@@ -113,5 +114,5 @@ export function getBattleUpdateEvent() {
 }
 
 export function getBotMoveResolvedEvent() {
-  return `${SUI_CONFIG.PACKAGE_ID}::${SUI_CONFIG.MODULE}::BotMoveResolved`;
+  return `${SUI_CONFIG.BOT_MOVE_RESOLVED_EVENT_PACKAGE_ID}::${SUI_CONFIG.MODULE}::BotMoveResolved`;
 }
