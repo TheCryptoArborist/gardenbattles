@@ -1808,7 +1808,7 @@ export default function Battle() {
                         textTransform: "uppercase",
                       }}
                     >
-                      {meta?.emoji} {badgeLabel}
+                      {badgeLabel}
                     </span>
                     {/* Name */}
                     <span
@@ -1820,7 +1820,7 @@ export default function Battle() {
                         lineHeight: "1.3",
                       }}
                     >
-                      {isPending ? "⏳ " : ""}
+                      {isPending ? "Pending: " : ""}
                       {MOVE_LABELS[moveId] || `Move ${moveId}`}
                     </span>
                     {/* Effect description */}
