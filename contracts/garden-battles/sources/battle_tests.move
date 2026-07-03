@@ -409,4 +409,25 @@ module battle_garden::battle_tests {
         };
         test_scenario::end(s);
     }
+
+    #[test]
+    fun test_bot_scores_growth_over_low_value_attack_at_zero_growth() {
+        let growth_score = battle::bot_move_score_for_testing(20, 0, 40);
+        let pollen_score = battle::bot_move_score_for_testing(12, 0, 40);
+        assert!(growth_score > pollen_score, 0);
+    }
+
+    #[test]
+    fun test_bot_scores_affecting_attack_over_dead_attack() {
+        let live_attack_score = battle::bot_move_score_for_testing(1, 20, 25);
+        let dead_attack_score = battle::bot_move_score_for_testing(1, 20, 0);
+        assert!(live_attack_score > dead_attack_score, 0);
+    }
+
+    #[test]
+    fun test_bot_scores_growth_cap_as_low_value() {
+        let capped_growth_score = battle::bot_move_score_for_testing(20, 100, 0);
+        let useful_growth_score = battle::bot_move_score_for_testing(20, 40, 0);
+        assert!(useful_growth_score > capped_growth_score, 0);
+    }
 }

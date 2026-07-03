@@ -410,13 +410,115 @@ module battle_garden::battle {
         else { 0 }
     }
 
+    fun expected_self_growth(move_id: u8): u64 {
+        if (move_id == 9) { 4 }
+        else if (move_id == 20) { 10 }
+        else if (move_id == 21) { 10 }
+        else if (move_id == 22) { 15 }
+        else if (move_id == 23) { 10 }
+        else if (move_id == 24) { 15 }
+        else if (move_id == 25) { 18 }
+        else if (move_id == 26) { 17 }
+        else if (move_id == 27) { 10 }
+        else if (move_id == 28) { 12 }
+        else if (move_id == 29) { 8 }
+        else if (move_id == 30) { 12 }
+        else { 0 }
+    }
+
+    fun expected_damage(move_id: u8): u64 {
+        if (move_id == 1) { 10 }
+        else if (move_id == 2) { 8 }
+        else if (move_id == 3) { 12 }
+        else if (move_id == 4) { 7 }
+        else if (move_id == 5) { 9 }
+        else if (move_id == 6) { 6 }
+        else if (move_id == 7) { 11 }
+        else if (move_id == 8) { 5 }
+        else if (move_id == 9) { 8 }
+        else if (move_id == 11) { 12 }
+        else if (move_id == 12) { 5 }
+        else if (move_id == 13) { 7 }
+        else { 0 }
+    }
+
+    fun adds_block(move_id: u8): bool {
+        move_id == 8 || move_id == 12 || move_id == 27 || move_id == 29
+    }
+
+    fun bot_move_score(move_id: u8, self_growth: u64, opp_growth: u64, self_status: &Status, opp_status: &Status): u64 {
+        let mut score = 0;
+        let growth = expected_self_growth(move_id);
+        if (growth > 0 && self_growth < 100) {
+            let missing_growth = 100 - self_growth;
+            let useful_growth = if (growth > missing_growth) { missing_growth } else { growth };
+            score = score + 100 + useful_growth;
+        };
+
+        let damage = expected_damage(move_id);
+        if (damage > 0 && opp_growth > 0) {
+            if (opp_status.block_turns > 0) {
+                score = score + 10;
+            } else {
+                let useful_damage = if (damage > opp_growth) { opp_growth } else { damage };
+                score = score + 40 + useful_damage;
+            };
+        };
+
+        if (move_id == 10 && opp_growth > 0 && opp_status.poison_ticks == 0) {
+            score = score + 35;
+        };
+        if (move_id == 13 && opp_growth > 0) {
+            score = score + 20;
+        };
+        if (adds_block(move_id)) {
+            score = score + if (self_status.block_turns == 0) { 12 } else { 2 };
+        };
+
+        if (score == 0) { 1 } else { score }
+    }
+
     fun choose_bot_move(battle: &Battle, rand: &Random, ctx: &mut TxContext): u8 {
         let moves_len = vector::length(&battle.p2_moves);
         assert!(moves_len > 0, errors::e_invalid_move());
 
+        let mut max_score = 0;
+        let mut i = 0;
+        while (i < moves_len) {
+            let move_id = *vector::borrow(&battle.p2_moves, i);
+            let score = bot_move_score(move_id, battle.p2_growth, battle.p1_growth, &battle.p2_status, &battle.p1_status);
+            if (score > max_score) {
+                max_score = score;
+            };
+            i = i + 1;
+        };
+
+        let mut candidate_count = 0;
+        i = 0;
+        while (i < moves_len) {
+            let move_id = *vector::borrow(&battle.p2_moves, i);
+            if (bot_move_score(move_id, battle.p2_growth, battle.p1_growth, &battle.p2_status, &battle.p1_status) == max_score) {
+                candidate_count = candidate_count + 1;
+            };
+            i = i + 1;
+        };
+
         let mut rng = random::new_generator(rand, ctx);
-        let idx = random::generate_u64(&mut rng) % moves_len;
-        *vector::borrow(&battle.p2_moves, idx)
+        let selected_candidate = random::generate_u64(&mut rng) % candidate_count;
+        let mut seen_candidates = 0;
+        i = 0;
+        while (i < moves_len) {
+            let move_id = *vector::borrow(&battle.p2_moves, i);
+            if (bot_move_score(move_id, battle.p2_growth, battle.p1_growth, &battle.p2_status, &battle.p1_status) == max_score) {
+                if (seen_candidates == selected_candidate) {
+                    return move_id
+                };
+                seen_candidates = seen_candidates + 1;
+            };
+            i = i + 1;
+        };
+
+        *vector::borrow(&battle.p2_moves, 0)
     }
 
     fun apply_player1_move(battle: &mut Battle, move_id: u8, rand: &Random, ctx: &mut TxContext) {
@@ -744,4 +846,20 @@ module battle_garden::battle {
     public fun player2(battle: &Battle): address { battle.player2 }
     #[test_only]
     public fun turn(battle: &Battle): u8 { battle.turn }
+    #[test_only]
+    public fun bot_move_score_for_testing(move_id: u8, self_growth: u64, opp_growth: u64): u64 {
+        let self_status = Status {
+            block_turns: 0,
+            next_turn_penalty: 0,
+            poison_ticks: 0,
+            poison_dpt: 0,
+        };
+        let opp_status = Status {
+            block_turns: 0,
+            next_turn_penalty: 0,
+            poison_ticks: 0,
+            poison_dpt: 0,
+        };
+        bot_move_score(move_id, self_growth, opp_growth, &self_status, &opp_status)
+    }
 }
