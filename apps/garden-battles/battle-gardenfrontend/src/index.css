@@ -514,6 +514,50 @@
     text-transform: uppercase;
   }
 
+  .gb-hud-buy-tree {
+    background:
+      linear-gradient(135deg, rgba(57, 255, 136, 0.13), rgba(0, 213, 199, 0.08)),
+      rgba(0, 20, 18, 0.74);
+    border: 1px solid rgba(57, 255, 136, 0.42);
+    border-radius: 8px;
+    box-shadow: inset 0 0 18px rgba(57, 255, 136, 0.08);
+    display: grid;
+    gap: 8px;
+    padding: 10px;
+  }
+
+  .gb-hud-buy-tree span {
+    color: var(--gb-text-muted);
+    font-size: 12px;
+    line-height: 1.35;
+  }
+
+  .gb-hud-buy-tree a {
+    align-items: center;
+    background: rgba(57, 255, 136, 0.16);
+    border: 1px solid rgba(57, 255, 136, 0.62);
+    border-radius: 8px;
+    color: var(--gb-tree-green);
+    display: inline-flex;
+    font-family: Orbitron, sans-serif;
+    font-size: 12px;
+    font-weight: 800;
+    justify-content: center;
+    min-height: 42px;
+    padding: 9px 12px;
+    text-align: center;
+    text-decoration: none;
+    text-transform: uppercase;
+  }
+
+  .gb-hud-buy-tree a:hover,
+  .gb-hud-buy-tree a:focus-visible {
+    border-color: var(--gb-cyan);
+    box-shadow: 0 0 18px rgba(0, 213, 199, 0.22);
+    color: var(--gb-text-main);
+    outline: none;
+  }
+
   .gb-hud-disabled-action {
     background: rgba(57, 255, 136, 0.08);
     border: 1px solid rgba(57, 255, 136, 0.28);

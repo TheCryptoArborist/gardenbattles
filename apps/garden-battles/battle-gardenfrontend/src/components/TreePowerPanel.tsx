@@ -23,6 +23,17 @@ export default function TreePowerPanel() {
         <span className="gb-hud-status">Coming Soon</span>
       </div>
 
+      <div className="gb-hud-buy-tree">
+        <span>Need TREE ready?</span>
+        <a
+          href="https://dex.suidex.org/swap?from=SUI&to=Tree"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Buy TREE
+        </a>
+      </div>
+
       <button className="gb-hud-disabled-action" type="button" disabled>
         Move Swap / Canopy Clash perks
       </button>
