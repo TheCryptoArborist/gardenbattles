@@ -357,6 +357,375 @@
     box-shadow: inset 0 0 18px rgba(0, 213, 199, 0.08);
   }
 
+  .gb-holder-rank-badge,
+  .gb-player-record-card {
+    border-radius: 8px;
+    font-family: Orbitron, sans-serif;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .gb-holder-rank-badge {
+    align-items: center;
+    background:
+      linear-gradient(135deg, rgba(0, 28, 18, 0.9), rgba(0, 10, 12, 0.86));
+    border: 1px solid rgba(57, 255, 136, 0.28);
+    box-shadow:
+      0 0 14px rgba(57, 255, 136, 0.12),
+      inset 0 0 18px rgba(57, 255, 136, 0.05);
+    color: #dffff1;
+    display: inline-grid;
+    gap: 2px;
+    min-width: 150px;
+    padding: 7px 12px;
+    text-align: left;
+    --rank-accent: #39ff88;
+    --rank-accent-2: #00d5c7;
+  }
+
+  .gb-holder-rank-badge::before,
+  .gb-player-record-card::before {
+    content: "";
+    inset: 0 auto 0 0;
+    opacity: 0.95;
+    position: absolute;
+    width: 3px;
+  }
+
+  .gb-holder-rank-kicker,
+  .gb-battle-rank-kicker {
+    color: rgba(220, 255, 238, 0.62);
+    display: block;
+    font-size: 8px;
+    font-weight: 800;
+    letter-spacing: 0.8px;
+    line-height: 1;
+    text-transform: uppercase;
+  }
+
+  .gb-rank-main,
+  .gb-battle-rank-badge {
+    align-items: center;
+  }
+
+  .gb-rank-main {
+    display: inline-flex;
+    gap: 9px;
+    min-width: 0;
+  }
+
+  .gb-rank-copy {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .gb-rank-crest {
+    align-items: center;
+    background:
+      radial-gradient(circle at 50% 38%, color-mix(in srgb, var(--rank-accent) 42%, transparent), transparent 54%),
+      linear-gradient(145deg, rgba(0, 18, 16, 0.96), rgba(0, 4, 5, 0.94));
+    border: 1px solid color-mix(in srgb, var(--rank-accent) 68%, transparent);
+    box-shadow:
+      0 0 12px color-mix(in srgb, var(--rank-accent) 24%, transparent),
+      inset 0 0 12px rgba(255, 255, 255, 0.04);
+    display: inline-flex;
+    flex: 0 0 auto;
+    height: 30px;
+    justify-content: center;
+    position: relative;
+    width: 30px;
+  }
+
+  .gb-rank-crest::before,
+  .gb-rank-crest::after {
+    content: "";
+    pointer-events: none;
+    position: absolute;
+  }
+
+  .gb-rank-crest-core {
+    background: linear-gradient(145deg, var(--rank-accent), var(--rank-accent-2));
+    box-shadow: 0 0 12px color-mix(in srgb, var(--rank-accent) 56%, transparent);
+    display: block;
+    height: 12px;
+    position: relative;
+    width: 12px;
+  }
+
+  .gb-holder-rank-crest {
+    border-radius: 50%;
+  }
+
+  .gb-holder-rank-crest::before {
+    border: 1px solid color-mix(in srgb, var(--rank-accent-2) 72%, transparent);
+    border-radius: 50%;
+    inset: 5px;
+  }
+
+  .gb-holder-rank-crest::after {
+    background: linear-gradient(180deg, var(--rank-accent), transparent);
+    bottom: 5px;
+    height: 13px;
+    left: 50%;
+    opacity: 0.72;
+    transform: translateX(-50%);
+    width: 2px;
+  }
+
+  .gb-holder-rank-crest .gb-rank-crest-core {
+    border-radius: 70% 0 70% 0;
+    transform: rotate(45deg);
+  }
+
+  .gb-battle-rank-crest {
+    border-radius: 9px 9px 12px 12px;
+    clip-path: polygon(50% 0, 91% 14%, 84% 74%, 50% 100%, 16% 74%, 9% 14%);
+    height: 28px;
+    width: 28px;
+  }
+
+  .gb-battle-rank-crest::before {
+    border: 1px solid rgba(234, 255, 246, 0.26);
+    clip-path: inherit;
+    inset: 5px;
+  }
+
+  .gb-battle-rank-crest::after {
+    background: linear-gradient(135deg, transparent 35%, color-mix(in srgb, var(--rank-accent-2) 78%, transparent) 36% 48%, transparent 49%);
+    inset: 6px;
+    opacity: 0.88;
+  }
+
+  .gb-battle-rank-crest .gb-rank-crest-core {
+    border-radius: 2px;
+    clip-path: polygon(50% 0, 100% 35%, 82% 100%, 18% 100%, 0 35%);
+    height: 10px;
+    width: 10px;
+  }
+
+  .gb-holder-rank-title {
+    font-size: 12px;
+    font-weight: 900;
+    letter-spacing: 0.4px;
+    line-height: 1.15;
+    text-transform: uppercase;
+  }
+
+  .gb-holder-rank-balance {
+    color: rgba(220, 255, 238, 0.7);
+    font-size: 10px;
+    line-height: 1.1;
+  }
+
+  .gb-holder-rank-forest-sprout {
+    border-color: rgba(111, 255, 150, 0.34);
+    --rank-accent: #6fff96;
+    --rank-accent-2: #a7ffbf;
+  }
+
+  .gb-holder-rank-forest-sprout::before {
+    background: #6fff96;
+  }
+
+  .gb-holder-rank-rooted-holder {
+    border-color: rgba(57, 255, 136, 0.48);
+    box-shadow: 0 0 16px rgba(57, 255, 136, 0.17);
+    --rank-accent: #39ff88;
+    --rank-accent-2: #67b96b;
+  }
+
+  .gb-holder-rank-rooted-holder::before {
+    background: #39ff88;
+  }
+
+  .gb-holder-rank-grove-builder {
+    border-color: rgba(0, 213, 199, 0.52);
+    box-shadow: 0 0 18px rgba(0, 213, 199, 0.2);
+    --rank-accent: #39ff88;
+    --rank-accent-2: #00d5c7;
+  }
+
+  .gb-holder-rank-grove-builder::before {
+    background: linear-gradient(180deg, #39ff88, #00d5c7);
+  }
+
+  .gb-holder-rank-canopy-holder {
+    border-color: rgba(167, 91, 255, 0.56);
+    box-shadow: 0 0 19px rgba(167, 91, 255, 0.2);
+    --rank-accent: #a75bff;
+    --rank-accent-2: #39ff88;
+  }
+
+  .gb-holder-rank-canopy-holder::before {
+    background: #a75bff;
+  }
+
+  .gb-holder-rank-ancient-grove {
+    background:
+      linear-gradient(135deg, rgba(16, 38, 14, 0.94), rgba(20, 13, 0, 0.88));
+    border-color: rgba(255, 203, 79, 0.62);
+    box-shadow:
+      0 0 20px rgba(255, 203, 79, 0.22),
+      inset 0 0 20px rgba(57, 255, 136, 0.08);
+    --rank-accent: #ffcb4f;
+    --rank-accent-2: #39ff88;
+  }
+
+  .gb-holder-rank-ancient-grove .gb-holder-rank-crest {
+    box-shadow:
+      0 0 16px rgba(255, 203, 79, 0.38),
+      0 0 20px rgba(57, 255, 136, 0.18),
+      inset 0 0 12px rgba(255, 203, 79, 0.1);
+  }
+
+  .gb-holder-rank-ancient-grove::before {
+    background: linear-gradient(180deg, #ffcb4f, #39ff88);
+  }
+
+  .gb-holder-rank-canopy-titan {
+    background:
+      linear-gradient(135deg, rgba(0, 44, 26, 0.94), rgba(48, 32, 0, 0.9));
+    border-color: rgba(255, 221, 99, 0.74);
+    box-shadow:
+      0 0 24px rgba(57, 255, 136, 0.26),
+      0 0 28px rgba(255, 203, 79, 0.2);
+    --rank-accent: #39ff88;
+    --rank-accent-2: #ffdd63;
+  }
+
+  .gb-holder-rank-canopy-titan::before {
+    background: linear-gradient(180deg, #39ff88, #ffdd63);
+  }
+
+  .gb-player-record-card {
+    background:
+      linear-gradient(135deg, rgba(20, 18, 10, 0.9), rgba(0, 13, 15, 0.88));
+    border: 1px solid rgba(0, 213, 199, 0.26);
+    box-shadow:
+      0 0 14px rgba(0, 213, 199, 0.12),
+      inset 0 0 18px rgba(255, 203, 79, 0.04);
+    color: #eafff6;
+    font-size: 11px;
+    gap: 4px;
+    min-width: 148px;
+    padding: 8px 12px 8px 14px;
+  }
+
+  .gb-battle-rank-badge {
+    border-radius: 999px;
+    color: #eafff6;
+    display: inline-flex;
+    flex-direction: row;
+    font-family: Orbitron, sans-serif;
+    font-weight: 900;
+    gap: 7px;
+    letter-spacing: 0.4px;
+    line-height: 1.1;
+    padding: 5px 10px 5px 6px;
+    text-transform: uppercase;
+    --rank-accent: #00d5c7;
+    --rank-accent-2: #39ff88;
+  }
+
+  .gb-battle-rank-title {
+    display: block;
+  }
+
+  .gb-battle-rank-table {
+    justify-content: center;
+    min-width: 156px;
+  }
+
+  .gb-cosmetic-placeholder {
+    background: rgba(0, 213, 199, 0.08);
+    border: 1px solid rgba(0, 213, 199, 0.24);
+    border-radius: 999px;
+    color: rgba(220, 255, 238, 0.78);
+    display: inline-flex;
+    font-size: 10px;
+    font-weight: 800;
+    justify-content: center;
+    min-width: 126px;
+    padding: 5px 8px;
+    text-transform: uppercase;
+  }
+
+  .gb-battle-rank-grove-recruit {
+    border-color: rgba(180, 198, 186, 0.42);
+    box-shadow: 0 0 12px rgba(180, 198, 186, 0.13);
+    --rank-accent: #b4c6ba;
+    --rank-accent-2: #7fa18c;
+  }
+
+  .gb-battle-rank-grove-recruit::before {
+    background: #b4c6ba;
+  }
+
+  .gb-battle-rank-rooted-fighter {
+    border-color: rgba(57, 255, 136, 0.42);
+    box-shadow: 0 0 13px rgba(57, 255, 136, 0.16);
+    --rank-accent: #39ff88;
+    --rank-accent-2: #67b96b;
+  }
+
+  .gb-battle-rank-rooted-fighter::before {
+    background: #39ff88;
+  }
+
+  .gb-battle-rank-thorn-challenger {
+    border-color: rgba(255, 138, 42, 0.52);
+    box-shadow: 0 0 15px rgba(255, 138, 42, 0.18);
+    --rank-accent: #ff8a2a;
+    --rank-accent-2: #ffcb4f;
+  }
+
+  .gb-battle-rank-thorn-challenger::before {
+    background: #ff8a2a;
+  }
+
+  .gb-battle-rank-grove-striker {
+    border-color: rgba(0, 213, 199, 0.56);
+    box-shadow: 0 0 16px rgba(0, 213, 199, 0.2);
+    --rank-accent: #00d5c7;
+    --rank-accent-2: #39ff88;
+  }
+
+  .gb-battle-rank-grove-striker::before {
+    background: linear-gradient(180deg, #00d5c7, #39ff88);
+  }
+
+  .gb-battle-rank-canopy-champion {
+    border-color: rgba(255, 203, 79, 0.58);
+    box-shadow: 0 0 18px rgba(255, 203, 79, 0.22);
+    --rank-accent: #ffcb4f;
+    --rank-accent-2: #39ff88;
+  }
+
+  .gb-battle-rank-canopy-champion::before {
+    background: #ffcb4f;
+  }
+
+  .gb-battle-rank-elderroot-titan {
+    border-color: rgba(255, 71, 87, 0.62);
+    box-shadow:
+      0 0 18px rgba(255, 71, 87, 0.2),
+      0 0 20px rgba(255, 203, 79, 0.12);
+    --rank-accent: #ff4757;
+    --rank-accent-2: #ffcb4f;
+  }
+
+  .gb-battle-rank-elderroot-titan .gb-battle-rank-crest {
+    box-shadow:
+      0 0 15px rgba(255, 71, 87, 0.34),
+      0 0 18px rgba(255, 203, 79, 0.2),
+      inset 0 0 12px rgba(255, 71, 87, 0.1);
+  }
+
+  .gb-battle-rank-elderroot-titan::before {
+    background: linear-gradient(180deg, #ff4757, #ffcb4f);
+  }
+
   .gb-battle-page {
     isolation: isolate;
     position: relative;
@@ -696,20 +1065,156 @@
     border-color: rgba(245, 197, 66, 0.5);
   }
 
-  .gb-mode-icon {
+  .gb-mode-crest {
     align-items: center;
     aspect-ratio: 1;
-    background: rgba(0, 213, 199, 0.1);
-    border: 1px solid rgba(0, 213, 199, 0.42);
+    background:
+      radial-gradient(circle at 50% 45%, rgba(57, 255, 136, 0.22), transparent 48%),
+      radial-gradient(circle at 50% 50%, rgba(0, 213, 199, 0.16), transparent 66%),
+      linear-gradient(145deg, rgba(0, 26, 22, 0.96), rgba(0, 5, 7, 0.94));
+    border: 2px solid rgba(57, 255, 136, 0.58);
     border-radius: 50%;
-    color: var(--gb-tree-green);
+    box-shadow:
+      0 0 18px rgba(57, 255, 136, 0.25),
+      0 0 28px rgba(0, 213, 199, 0.13),
+      inset 0 0 20px rgba(57, 255, 136, 0.08);
     display: inline-flex;
-    font-family: Orbitron, sans-serif;
-    font-size: 11px;
-    font-weight: 800;
     justify-content: center;
-    letter-spacing: 0.8px;
-    width: 56px;
+    overflow: hidden;
+    position: relative;
+    width: 76px;
+  }
+
+  .gb-mode-crest::before,
+  .gb-mode-crest::after {
+    border-radius: 50%;
+    content: "";
+    pointer-events: none;
+    position: absolute;
+  }
+
+  .gb-mode-crest::before {
+    border: 1px solid rgba(220, 255, 238, 0.18);
+    inset: 7px;
+  }
+
+  .gb-mode-crest::after {
+    background:
+      linear-gradient(110deg, transparent 0 28%, rgba(255, 255, 255, 0.18) 29% 38%, transparent 39%),
+      radial-gradient(circle at 50% 96%, rgba(57, 255, 136, 0.24), transparent 36%);
+    inset: 0;
+    opacity: 0.86;
+  }
+
+  .gb-mode-crest-image,
+  .gb-mode-crest-fallback {
+    border-radius: 50%;
+    display: block;
+    height: 100%;
+    inset: 0;
+    position: absolute;
+    width: 100%;
+    z-index: 1;
+  }
+
+  .gb-mode-crest-image {
+    object-fit: contain;
+    padding: 4px;
+  }
+
+  .gb-mode-crest-fallback {
+    align-items: center;
+    background:
+      radial-gradient(circle at 50% 44%, rgba(0, 8, 7, 0.42), rgba(0, 4, 5, 0.92) 62%),
+      radial-gradient(circle at 50% 50%, rgba(57, 255, 136, 0.16), transparent 68%);
+    display: inline-flex;
+    justify-content: center;
+  }
+
+  .gb-mode-crest-rim {
+    border: 4px solid color-mix(in srgb, var(--gb-mode-crest-primary, var(--gb-tree-green)) 74%, #001414);
+    border-radius: 50%;
+    box-shadow:
+      0 0 14px var(--gb-mode-crest-glow, rgba(57, 255, 136, 0.58)),
+      inset 0 0 16px rgba(0, 213, 199, 0.22);
+    inset: 5px;
+    position: absolute;
+  }
+
+  .gb-mode-crest-ring {
+    border: 1px solid rgba(0, 213, 199, 0.5);
+    border-radius: 50%;
+    inset: 4px;
+    position: absolute;
+  }
+
+  .gb-mode-crest-svg {
+    height: 54px;
+    overflow: visible;
+    position: relative;
+    width: 54px;
+    z-index: 2;
+  }
+
+  .gb-mode-crest-orbit {
+    fill: rgba(0, 10, 12, 0.72);
+    stroke: rgba(220, 255, 238, 0.18);
+    stroke-width: 1.4;
+  }
+
+  .gb-mode-crest-symbol {
+    fill: none;
+    stroke: var(--gb-mode-crest-primary, var(--gb-tree-green));
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 3.6;
+    filter: drop-shadow(0 0 4px var(--gb-mode-crest-glow, rgba(57, 255, 136, 0.7)));
+  }
+
+  .gb-mode-crest-fill {
+    fill: rgba(0, 16, 14, 0.92);
+    stroke: var(--gb-mode-crest-primary, var(--gb-tree-green));
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 3.2;
+    filter: drop-shadow(0 0 5px var(--gb-mode-crest-glow, rgba(57, 255, 136, 0.68)));
+  }
+
+  .gb-mode-crest-eye {
+    fill: var(--gb-mode-crest-secondary, var(--gb-cyan));
+    filter: drop-shadow(0 0 5px var(--gb-mode-crest-secondary, var(--gb-cyan)));
+  }
+
+  .gb-mode-crest-accent {
+    stroke: var(--gb-mode-crest-secondary, var(--gb-cyan));
+  }
+
+  .gb-mode-crest-garden-bot {
+    --gb-mode-crest-primary: var(--gb-tree-green);
+    --gb-mode-crest-secondary: var(--gb-orange);
+    --gb-mode-crest-glow: rgba(255, 138, 42, 0.64);
+    border-color: rgba(255, 138, 42, 0.58);
+    box-shadow:
+      0 0 18px rgba(255, 138, 42, 0.22),
+      0 0 24px rgba(57, 255, 136, 0.16),
+      inset 0 0 20px rgba(57, 255, 136, 0.08);
+  }
+
+  .gb-mode-crest-pvp-battle {
+    --gb-mode-crest-primary: var(--gb-cyan);
+    --gb-mode-crest-secondary: var(--gb-tree-green);
+    --gb-mode-crest-glow: rgba(0, 213, 199, 0.7);
+  }
+
+  .gb-mode-crest-canopy-clash {
+    --gb-mode-crest-primary: var(--gb-gold);
+    --gb-mode-crest-secondary: var(--gb-tree-green);
+    --gb-mode-crest-glow: rgba(255, 203, 79, 0.68);
+    border-color: rgba(255, 203, 79, 0.68);
+    box-shadow:
+      0 0 18px rgba(255, 203, 79, 0.28),
+      0 0 24px rgba(57, 255, 136, 0.16),
+      inset 0 0 20px rgba(255, 203, 79, 0.08);
   }
 
   .gb-mode-card h2 {
@@ -1741,9 +2246,14 @@
       text-align: left;
     }
 
-    .gb-mode-icon {
+    .gb-mode-crest {
       grid-row: span 2;
       width: 44px;
+    }
+
+    .gb-mode-crest-svg {
+      height: 34px;
+      width: 34px;
     }
 
     .gb-mode-card h2,

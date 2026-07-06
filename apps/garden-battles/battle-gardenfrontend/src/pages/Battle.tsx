@@ -21,6 +21,7 @@ import { appRoute } from "@/lib/routes";
 import TreePowerPanel from "@/components/TreePowerPanel";
 import PrizePayoutPanel from "@/components/PrizePayoutPanel";
 import BattleResultModal from "@/components/BattleResultModal";
+import ModeCrest from "@/components/ModeCrest";
 
 const ecosystemLinks = [
   { label: "Home", href: "https://tree-token.net/", testId: "home" },
@@ -742,13 +743,12 @@ export default function Battle() {
     SUI_CONFIG.ADMIN_ADDRESSES.some(
       (adminAddr) => adminAddr.toLowerCase() === address.toLowerCase(),
     );
+
   const modeSelect =
     isConnected && (!battleState || battleFinished) && !isWaiting ? (
       <section className="gb-mode-select" aria-label="Choose battle mode">
         <article className="gb-mode-card gb-mode-card-bot">
-          <span className="gb-mode-icon" aria-hidden="true">
-            BOT
-          </span>
+          <ModeCrest type="garden-bot" alt="Garden Bot robotic plant medallion" />
           <h2>Garden Bot</h2>
           <p>Practice match</p>
           <button
@@ -762,9 +762,7 @@ export default function Battle() {
         </article>
 
         <article className="gb-mode-card gb-mode-card-pvp">
-          <span className="gb-mode-icon" aria-hidden="true">
-            PVP
-          </span>
+          <ModeCrest type="pvp-battle" alt="PvP Battle duel medallion" />
           <h2>PvP Battle</h2>
           <p>Join the queue</p>
           <button
@@ -781,9 +779,7 @@ export default function Battle() {
           className="gb-mode-card gb-mode-card-clash"
           aria-label="Canopy Clash coming soon"
         >
-          <span className="gb-mode-icon" aria-hidden="true">
-            CUP
-          </span>
+          <ModeCrest type="canopy-clash" alt="Canopy Clash tournament medallion" />
           <h2>Canopy Clash</h2>
           <p>Tournament mode being shaped</p>
           <span className="gb-mode-placeholder">Coming Soon</span>

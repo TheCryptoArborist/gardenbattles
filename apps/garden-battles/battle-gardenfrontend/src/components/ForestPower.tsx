@@ -11,11 +11,12 @@ const TREE_COIN_TYPE =
 const FALLBACK_TREE_DECIMALS = 6;
 
 const TIERS = [
-  { min: 0, label: "Seedling", color: "#8B8B8B", leaves: 1 },
-  { min: 1_000_000, label: "Sapling", color: "#4CAF50", leaves: 2 },
-  { min: 10_000_000, label: "Thicket", color: "#2196F3", leaves: 3 },
-  { min: 100_000_000, label: "Forest", color: "#9C27B0", leaves: 4 },
-  { min: 1_000_000_000, label: "Ancient Grove", color: "#FF9800", leaves: 5 },
+  { min: 0, label: "Forest Sprout", className: "gb-holder-rank-forest-sprout" },
+  { min: 10_000, label: "Rooted Holder", className: "gb-holder-rank-rooted-holder" },
+  { min: 100_000, label: "Grove Builder", className: "gb-holder-rank-grove-builder" },
+  { min: 1_000_000, label: "Canopy Holder", className: "gb-holder-rank-canopy-holder" },
+  { min: 5_000_000, label: "Ancient Grove", className: "gb-holder-rank-ancient-grove" },
+  { min: 25_000_000, label: "Canopy Titan", className: "gb-holder-rank-canopy-titan" },
 ];
 
 function treeBalanceToNumber(balance: bigint, decimals: number): number {
@@ -80,24 +81,19 @@ export default function ForestPower({ address }: ForestPowerProps) {
 
   return (
     <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: "6px",
-        padding: "4px 10px",
-        background: "rgba(0,20,0,0.8)",
-        border: `1px solid ${tier.color}40`,
-        borderRadius: "6px",
-        fontFamily: "Orbitron, sans-serif",
-        fontSize: "10px",
-        color: tier.color,
-        whiteSpace: "nowrap",
-      }}
+      className={`gb-holder-rank-badge ${tier.className}`}
       title={`Liquid TREE: ${exactBalance} TREE. SuiDex V3: Not included in liquid balance.`}
     >
-      <span style={{ fontSize: "12px", fontWeight: 800 }}>TREE</span>
-      <span style={{ fontWeight: "bold" }}>{tier.label}</span>
-      <span style={{ opacity: 0.6, fontSize: "9px" }}>{compactBalance} TREE</span>
+      <span className="gb-rank-main">
+        <span className="gb-rank-crest gb-holder-rank-crest" aria-hidden="true">
+          <span className="gb-rank-crest-core" />
+        </span>
+        <span className="gb-rank-copy">
+          <span className="gb-holder-rank-kicker">TREE Status</span>
+          <span className="gb-holder-rank-title">{tier.label}</span>
+        </span>
+      </span>
+      <span className="gb-holder-rank-balance">{compactBalance} TREE</span>
     </div>
   );
 }

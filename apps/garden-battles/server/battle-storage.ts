@@ -41,7 +41,7 @@ db.exec(`
     last_battle_at INTEGER,
     total_bot_wins INTEGER DEFAULT 0,
     total_bot_losses INTEGER DEFAULT 0,
-    rank_title TEXT DEFAULT 'Seedling',
+    rank_title TEXT DEFAULT 'Grove Recruit',
     badges TEXT DEFAULT '[]',
     updated_at INTEGER DEFAULT 0
   );
@@ -65,13 +65,13 @@ db.exec(`
 `);
 
 // ─── Rank Titles ───────────────────────────────────────────────────────────────
-function getRankTitle(wins: number): string {
-  if (wins >= 100) return "Last Tree Standing";
-  if (wins >= 50) return "Canopy Elite";
-  if (wins >= 25) return "Grove Champion";
-  if (wins >= 10) return "Rooted Contender";
-  if (wins >= 5) return "Sapling Scrapper";
-  return "Seedling";
+function getRankTitle(wins: number, totalBattles: number): string {
+  if (totalBattles < 3) return "Grove Recruit";
+  if (wins >= 100) return "Elderroot Titan";
+  if (wins >= 50) return "Canopy Champion";
+  if (wins >= 25) return "Grove Striker";
+  if (wins >= 10) return "Thorn Challenger";
+  return "Rooted Fighter";
 }
 
 // ─── Achievement Badges ────────────────────────────────────────────────────────
@@ -262,7 +262,7 @@ export function trackBattle(input: TrackBattleInput): void {
           last_battle_at: null,
           total_bot_wins: 0,
           total_bot_losses: 0,
-          rank_title: "Seedling",
+          rank_title: "Grove Recruit",
           badges: "[]",
           win_rate: 0,
           updated_at: 0,
@@ -286,7 +286,7 @@ export function trackBattle(input: TrackBattleInput): void {
     stats.total_battles = stats.wins + stats.losses + stats.draws + stats.total_bot_wins + stats.total_bot_losses;
     stats.last_battle_at = now;
     stats.win_rate = stats.total_battles > 0 ? stats.wins / stats.total_battles : 0;
-    stats.rank_title = getRankTitle(stats.wins);
+    stats.rank_title = getRankTitle(stats.wins, stats.total_battles);
     stats.updated_at = now;
 
     // Recalculate badges
@@ -315,6 +315,7 @@ export function getPlayerStatsByAddress(address: string): PlayerStatsRow | null 
   const row = getPlayerStats.get(address.toLowerCase()) as PlayerStatsRow | undefined;
   if (!row) return null;
   row.win_rate = row.total_battles > 0 ? row.wins / row.total_battles : 0;
+  row.rank_title = getRankTitle(row.wins, row.total_battles);
   row.badges = JSON.stringify(calculateBadges(row));
   return row;
 }
@@ -430,7 +431,7 @@ export function getLeaderboard(
       last_battle_at: row.last_played,
       total_bot_wins: 0,
       total_bot_losses: 0,
-      rank_title: getRankTitle(row.wins),
+      rank_title: getRankTitle(row.wins, totalBattles),
       badges: "[]",
       win_rate: totalBattles > 0 ? row.wins / totalBattles : 0,
       updated_at: row.last_played ?? 0,

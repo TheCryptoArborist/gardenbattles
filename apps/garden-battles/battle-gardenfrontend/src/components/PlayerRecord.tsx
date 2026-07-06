@@ -32,14 +32,14 @@ const BADGE_CODES: Record<string, string> = {
   social_butterfly: "SOC",
 };
 
-const TITLE_COLORS: Record<string, string> = {
-  Seedling: "#8B8B8B",
-  "Sapling Scrapper": "#4CAF50",
-  "Rooted Contender": "#2196F3",
-  "Grove Champion": "#9C27B0",
-  "Canopy Elite": "#FF9800",
-  "Last Tree Standing": "#F44336",
-};
+function getBattleRankClass(rankTitle: string): string {
+  return `gb-battle-rank-${rankTitle.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`;
+}
+
+function getDisplayRankTitle(stats: PlayerStats): string {
+  if (stats.ranked === false || stats.total_battles < 3) return "Grove Recruit";
+  return stats.rank_title;
+}
 
 function getEmptyStats(address: string, mode: LeaderboardMode): PlayerStats {
   return {
@@ -49,7 +49,7 @@ function getEmptyStats(address: string, mode: LeaderboardMode): PlayerStats {
     total_battles: 0,
     current_streak: 0,
     max_win_streak: 0,
-    rank_title: "Seedling",
+    rank_title: "Grove Recruit",
     badges: [],
     win_rate: 0,
     total_bot_wins: 0,
@@ -116,13 +116,13 @@ export default function PlayerRecord({
     return null;
   }
 
-  const titleColor = TITLE_COLORS[stats.rank_title] || "#8B8B8B";
   const streakLabel =
     stats.current_streak > 0
       ? `+${stats.current_streak}W streak`
       : stats.current_streak < 0
         ? `${Math.abs(stats.current_streak)}L streak`
         : null;
+  const displayRankTitle = getDisplayRankTitle(stats);
 
   return (
     <Link
@@ -131,31 +131,21 @@ export default function PlayerRecord({
       style={{ display: "block", textDecoration: "none" }}
     >
     <div
+      className={`gb-player-record-card ${getBattleRankClass(displayRankTitle)}`}
       style={{
-        background: "rgba(0,20,0,0.8)",
-        border: "1px solid rgba(0,255,0,0.25)",
-        borderRadius: "8px",
         display: "flex",
         flexDirection: "column",
-        fontFamily: "Orbitron, sans-serif",
-        fontSize: "11px",
-        gap: "4px",
-        minWidth: "140px",
-        padding: "6px 12px",
       }}
       title="View full leaderboard"
     >
-      <div
-        style={{
-          color: titleColor,
-          fontSize: "12px",
-          fontWeight: "bold",
-          letterSpacing: "0.5px",
-          textShadow: `0 0 8px ${titleColor}40`,
-          textTransform: "uppercase",
-        }}
-      >
-        {stats.rank_title}
+      <div className={`gb-battle-rank-badge ${getBattleRankClass(displayRankTitle)}`}>
+        <span className="gb-rank-crest gb-battle-rank-crest" aria-hidden="true">
+          <span className="gb-rank-crest-core" />
+        </span>
+        <span className="gb-rank-copy">
+          <span className="gb-battle-rank-kicker">Battle Rank</span>
+          <span className="gb-battle-rank-title">{displayRankTitle}</span>
+        </span>
       </div>
 
       <div style={{ color: "#ccc", fontSize: "11px" }}>

@@ -13,12 +13,25 @@ import PlayerRecord from "@/components/PlayerRecord";
 import { appAsset } from "@/lib/assets";
 
 const TITLE_COLORS: Record<string, string> = {
-  Seedling: "#8B8B8B",
-  "Sapling Scrapper": "#4CAF50",
-  "Rooted Contender": "#2196F3",
-  "Grove Champion": "#9C27B0",
-  "Canopy Elite": "#FF9800",
-  "Last Tree Standing": "#F44336",
+  "Grove Recruit": "#8B8B8B",
+  "Rooted Fighter": "#4CAF50",
+  "Thorn Challenger": "#2196F3",
+  "Grove Striker": "#9C27B0",
+  "Canopy Champion": "#FF9800",
+  "Elderroot Titan": "#F44336",
+};
+
+function getBattleRankClass(rankTitle: string): string {
+  return `gb-battle-rank-${rankTitle.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`;
+}
+
+const COSMETIC_PLACEHOLDERS: Record<string, string> = {
+  "Grove Recruit": "Recruit badge",
+  "Rooted Fighter": "Root-frame border",
+  "Thorn Challenger": "Thorn trim",
+  "Grove Striker": "Leaf-slash accent",
+  "Canopy Champion": "Premium canopy glow",
+  "Elderroot Titan": "Final-boss aura",
 };
 
 const BADGE_LABELS: Record<string, string> = {
@@ -296,6 +309,11 @@ export default function Leaderboard() {
             <div style={{ display: "flex", flexWrap: "wrap", gap: "clamp(16px, 4vw, 32px)" }}>
               {[
                 ["Rank Title", myStats.rank_title, TITLE_COLORS[myStats.rank_title] || "#fff"],
+                [
+                  "Planned Cosmetic",
+                  COSMETIC_PLACEHOLDERS[myStats.rank_title] || "Cosmetic placeholder",
+                  "#00ffcc",
+                ],
                 ["Wins", myStats.wins, "#4CAF50"],
                 ["Losses", myStats.losses, "#F44336"],
                 ["Win Rate", `${Math.round(myStats.win_rate * 100)}%`, "#FF9800"],
@@ -372,6 +390,7 @@ export default function Leaderboard() {
                       "Player",
                       "Mode",
                       "Title",
+                      "Planned Cosmetic",
                       "Wins",
                       "Losses",
                       "Win%",
@@ -396,8 +415,6 @@ export default function Leaderboard() {
                 <tbody>
                   {leaderboard.map((entry) => {
                     const isMe = address && entry.address === address.toLowerCase();
-                    const titleColor = TITLE_COLORS[entry.rank_title] || "#8B8B8B";
-
                     return (
                       <tr
                         key={`${entry.mode}-${entry.address}`}
@@ -429,13 +446,20 @@ export default function Leaderboard() {
                         </td>
                         <td style={{ padding: "10px 8px", textAlign: "center" }}>
                           <span
+                            className={`gb-battle-rank-badge gb-battle-rank-table ${getBattleRankClass(entry.rank_title)}`}
                             style={{
-                              color: titleColor,
                               fontSize: "clamp(10px, 2vw, 11px)",
-                              fontWeight: "bold",
                             }}
                           >
-                            {entry.rank_title}
+                            <span className="gb-rank-crest gb-battle-rank-crest" aria-hidden="true">
+                              <span className="gb-rank-crest-core" />
+                            </span>
+                            <span className="gb-battle-rank-title">{entry.rank_title}</span>
+                          </span>
+                        </td>
+                        <td style={{ color: "#00ffcc", padding: "10px 8px", textAlign: "center" }}>
+                          <span className={`gb-cosmetic-placeholder ${getBattleRankClass(entry.rank_title)}`}>
+                            {COSMETIC_PLACEHOLDERS[entry.rank_title] || "Cosmetic placeholder"}
                           </span>
                         </td>
                         <td style={{ color: "#4CAF50", fontWeight: "bold", padding: "10px 8px", textAlign: "center" }}>
@@ -518,10 +542,15 @@ export default function Leaderboard() {
             dominate PvP rankings.
           </p>
           <p>UR means unranked until at least 3 battles are recorded in the selected mode.</p>
+          <p>
+            Battle-rank cosmetic labels are planned visual rewards only; no NFT metadata changes
+            are live.
+          </p>
           <p>NFTree rarity and VICTORY Locked badge slots are placeholders only.</p>
           <p>
-            Rank titles are earned through wins: Rooted Contender (10), Grove Champion (25),
-            Canopy Elite (50), Last Tree Standing (100).
+            Battle ranks are earned through wins: Thorn Challenger at 10, Grove Striker at 25,
+            Canopy Champion at 50, and Elderroot Titan at 100. Grove Recruit marks new or
+            unranked fighters.
           </p>
           <p style={{ marginTop: "8px" }}>
             <Link href="/battle" style={{ color: "#00ff88", fontSize: "13px", textDecoration: "underline" }}>
