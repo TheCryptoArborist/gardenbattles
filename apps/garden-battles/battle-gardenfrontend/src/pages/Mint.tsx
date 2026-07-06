@@ -3,6 +3,7 @@ import { Link } from "wouter";
 import { ConnectButton, useCurrentAccount, useSignAndExecuteTransaction, useSuiClient } from "@mysten/dapp-kit";
 import { Transaction } from "@mysten/sui/transactions";
 import { SUI_CONFIG } from "@/lib/sui-config";
+import { appAsset } from "@/lib/assets";
 
 function toBytes(input: string): number[] {
   return Array.from(new TextEncoder().encode(input));
@@ -123,7 +124,7 @@ export default function Mint() {
     <div
       style={{
         minHeight: "100vh",
-        backgroundImage: "url(/assets/background1.jpg)",
+        backgroundImage: `url(${appAsset("assets/background1.jpg")})`,
         backgroundSize: "cover",
         backgroundPosition: "center center",
         color: "#f7fafc",

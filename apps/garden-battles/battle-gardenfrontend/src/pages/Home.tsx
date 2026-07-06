@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'wouter';
+import { appAsset } from '@/lib/assets';
 
 export default function Home() {
   const [speechBubbleVisible, setSpeechBubbleVisible] = useState(false);
@@ -21,7 +22,7 @@ export default function Home() {
   return (
     <div
       style={{
-        backgroundImage: 'url(/assets/background1.jpg)',
+        backgroundImage: `url(${appAsset('assets/background1.jpg')})`,
         backgroundSize: 'cover',
         backgroundPosition: 'center center',
         backgroundAttachment: 'fixed',
@@ -61,7 +62,7 @@ export default function Home() {
           }}
         >
           <img
-            src="/assets/thick.png"
+            src={appAsset('assets/thick.png')}
             alt="THICKQUIDITY Logo"
             style={{
               height: 'clamp(3rem, 10vw, 5rem)',
@@ -243,7 +244,7 @@ export default function Home() {
       >
         <div style={{ maxWidth: '90%', width: '100%' }}>
           <img
-            src="/assets/thick.png"
+            src={appAsset('assets/thick.png')}
             alt="THICKQUIDITY $TREE Logo"
             style={{
               maxWidth: '100%',
@@ -631,7 +632,7 @@ export default function Home() {
           }}
         >
           <img
-            src="/assets/tree.jpg"
+            src={appAsset('assets/tree.jpg')}
             alt="$TREE NFT Preview"
             style={{
               maxWidth: '100%',
@@ -1086,7 +1087,7 @@ export default function Home() {
         }}
       >
         <img
-          src="/assets/hero.png"
+          src={appAsset('assets/hero.png')}
           alt="THICKQUIDITY Hero Character"
           style={{
             width: 'clamp(60px, 15vw, 100px)',

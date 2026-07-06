@@ -6,6 +6,7 @@ import { SUI_CONFIG } from "@/lib/sui-config";
 import { fetchLeaderboard, fetchPlayerStats, type LeaderboardEntry, type PlayerStats } from "@/lib/api";
 import ForestPower from "@/components/ForestPower";
 import PlayerRecord from "@/components/PlayerRecord";
+import { appAsset } from "@/lib/assets";
 
 const BADGE_EMOJIS: Record<string, string> = {
   first_blood: "🩸",
@@ -66,7 +67,7 @@ export default function Leaderboard() {
   return (
     <div
       style={{
-        backgroundImage: "url(/assets/background4.jpg)",
+        backgroundImage: `url(${appAsset("assets/background4.jpg")})`,
         backgroundSize: "cover",
         backgroundPosition: "center center",
         backgroundAttachment: "fixed",
@@ -95,7 +96,7 @@ export default function Leaderboard() {
       >
         <Link href="/">
           <img
-            src="/assets/thick.png"
+            src={appAsset("assets/thick.png")}
             alt="Thickquidity Logo"
             style={{
               width: "clamp(60px, 10vw, 80px)",

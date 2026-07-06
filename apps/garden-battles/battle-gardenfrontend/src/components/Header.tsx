@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link } from "wouter";
 import { Menu, X } from "lucide-react";
 import { useSuiWallet } from "@/hooks/useSuiWallet";
+import { appAsset } from "@/lib/assets";
 
 const ecosystemLinks = [
   { label: "Home", href: "https://tree-token.net" },
@@ -30,7 +31,7 @@ export default function Header() {
       <div className="flex items-center">
         <Link href="/">
           <img 
-            src="/assets/tree.jpg" 
+            src={appAsset("assets/tree.jpg")}
             alt="The Garden Battles" 
             className="w-16 md:w-20 cursor-pointer transition-all duration-300"
             style={{
@@ -70,7 +71,7 @@ export default function Header() {
         <div className="gb-nav-divider" aria-hidden="true" />
         <div className="gb-nav-group gb-nav-group-suidex" aria-label="SuiDex TREE utilities">
           <img
-            src="/assets/suidex-handshake.png"
+            src={appAsset("assets/suidex-handshake.png")}
             alt="SuiDex"
             className="gb-suidex-logo"
           />
@@ -123,7 +124,7 @@ export default function Header() {
         <div className="gb-mobile-nav-section" aria-label="SuiDex TREE utilities">
           <span className="gb-mobile-nav-label">
             <img
-              src="/assets/suidex-handshake.png"
+              src={appAsset("assets/suidex-handshake.png")}
               alt=""
               className="gb-suidex-logo"
             />

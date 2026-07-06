@@ -16,6 +16,7 @@ import HowToPlay from "@/components/HowToPlay";
 import BattleLog from "@/components/BattleLog";
 import PlayerRecord from "@/components/PlayerRecord";
 import ForestPower from "@/components/ForestPower";
+import { appAsset } from "@/lib/assets";
 
 const ecosystemLinks = [
   { label: "Home", href: "https://tree-token.net", testId: "home" },
@@ -50,7 +51,7 @@ function ArboretumComingSoonPromo() {
     <section className="gb-arboretum-promo" aria-label="Arboretum coming soon">
       <div className="gb-arboretum-promo-panel">
         <img
-          src="/assets/arboretum-promo.png"
+          src={appAsset("assets/arboretum-promo.png")}
           alt="COMING SOON!!! Arboretum. Plant your NFTrees and EARN SUI!!!"
           className="gb-arboretum-promo-image"
         />
@@ -92,10 +93,10 @@ type GrowthStageVisual = {
 };
 
 const currentStageAssets: Record<GrowthStage, string> = {
-  1: "/assets/seed.jpg",
-  2: "/assets/sapling.jpg",
-  3: "/assets/sapling2.jpg",
-  4: "/assets/full_tree.jpg",
+  1: appAsset("assets/seed.jpg"),
+  2: appAsset("assets/sapling.jpg"),
+  3: appAsset("assets/sapling2.jpg"),
+  4: appAsset("assets/full_tree.jpg"),
 };
 
 function resolveGrowthStage(growth: number, growthTarget = 100): GrowthStage {
@@ -447,7 +448,9 @@ export default function Battle() {
     (battleState.isBotBattle ||
       battleState.player1?.toLowerCase() === SUI_CONFIG.BOT_ADDRESS.toLowerCase() ||
       battleState.player2?.toLowerCase() === SUI_CONFIG.BOT_ADDRESS.toLowerCase());
-  const growthTarget = isGardenBotBattle ? 50 : 100;
+  const activeGrowthTarget = isGardenBotBattle ? 50 : 100;
+  const displayGrowthTarget = battleState ? activeGrowthTarget : 50;
+  const growthTarget = activeGrowthTarget;
   const playerRole: BattleRole = isPlayer1 ? "player-1" : "player-2";
   const opponentRole: BattleRole = isGardenBotBattle
     ? "garden-bot"
@@ -652,14 +655,14 @@ export default function Battle() {
   const playerStageVisual = resolveGrowthStageVisual({
     role: playerRole,
     growth: playerGrowth,
-    growthTarget,
+    growthTarget: displayGrowthTarget,
     nftImageUrl: playerNftImageUrl || undefined,
     revealNft: winner === "player",
   });
   const opponentStageVisual = resolveGrowthStageVisual({
     role: opponentRole,
     growth: opponentGrowth,
-    growthTarget,
+    growthTarget: displayGrowthTarget,
     nftImageUrl: isGardenBotBattle ? undefined : opponentNftImageUrl || undefined,
     revealNft: winner === "opponent" && !isGardenBotBattle,
   });
@@ -778,7 +781,7 @@ export default function Battle() {
       <div
         className="gb-battle-page"
         style={{
-          backgroundImage: "url(/assets/background4.jpg)",
+          backgroundImage: `url(${appAsset("assets/background4.jpg")})`,
           backgroundSize: "cover",
           backgroundPosition: "center center",
           backgroundAttachment: "fixed",
@@ -799,7 +802,7 @@ export default function Battle() {
         >
           <Link href="/">
             <img
-              src="/assets/thick.png"
+              src={appAsset("assets/thick.png")}
               alt="Thickquidity Logo"
               style={{
                 width: "clamp(60px, 10vw, 80px)",
@@ -837,7 +840,7 @@ export default function Battle() {
             <div className="gb-nav-divider" aria-hidden="true" />
             <div className="gb-nav-group gb-nav-group-suidex" aria-label="SuiDex TREE utilities">
               <img
-                src="/assets/suidex-handshake.png"
+                src={appAsset("assets/suidex-handshake.png")}
                 alt="SuiDex"
                 className="gb-suidex-logo"
               />
@@ -907,7 +910,7 @@ export default function Battle() {
             <div className="gb-mobile-nav-section" aria-label="SuiDex TREE utilities">
               <span className="gb-mobile-nav-label">
                 <img
-                  src="/assets/suidex-handshake.png"
+                  src={appAsset("assets/suidex-handshake.png")}
                   alt=""
                   className="gb-suidex-logo"
                 />
@@ -1007,7 +1010,7 @@ export default function Battle() {
           {/* Title Image with animation */}
           <section className="gb-battle-hero" aria-label="Garden Battles arena">
             <img
-              src="/assets/garden.png"
+              src={appAsset("assets/garden.png")}
               alt="The Garden Battles"
               className="title-image"
               style={{
@@ -1155,7 +1158,7 @@ export default function Battle() {
             >
               <div
                 style={{
-                  width: `${Math.min(100, (playerGrowth / growthTarget) * 100)}%`,
+                  width: `${Math.min(100, (playerGrowth / displayGrowthTarget) * 100)}%`,
                   height: "18px",
                   background: "linear-gradient(to right, #00ff00, #00cc00)",
                   borderRadius: "6px",
@@ -1173,7 +1176,7 @@ export default function Battle() {
               }}
               data-testid="text-growth-player"
             >
-              {playerGrowth} / {growthTarget}
+              {playerGrowth} / {displayGrowthTarget}
             </p>
           </div>
 
@@ -1325,7 +1328,7 @@ export default function Battle() {
             >
               <div
                 style={{
-                  width: `${Math.min(100, (opponentGrowth / growthTarget) * 100)}%`,
+                  width: `${Math.min(100, (opponentGrowth / displayGrowthTarget) * 100)}%`,
                   height: "18px",
                   background: "linear-gradient(to right, #00ff00, #00cc00)",
                   borderRadius: "6px",
@@ -1343,7 +1346,7 @@ export default function Battle() {
               }}
               data-testid="text-growth-opponent"
             >
-              {opponentGrowth} / {growthTarget}
+              {opponentGrowth} / {displayGrowthTarget}
             </p>
           </div>
           </div>
