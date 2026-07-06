@@ -1,3 +1,5 @@
+import { appAsset } from "@/lib/assets";
+
 export default function TreePowerPanel() {
   return (
     <aside className="gb-hud-panel gb-tree-power-panel" aria-label="Tree Power planned utilities">
@@ -24,12 +26,21 @@ export default function TreePowerPanel() {
       </div>
 
       <div className="gb-hud-buy-tree">
-        <span>Need TREE ready?</span>
+        <span>
+          <strong>Get TREE for Battle Utilities</strong>
+          Future TREE rerolls will use TREE during active battles.
+        </span>
         <a
           href="https://dex.suidex.org/swap?from=SUI&to=Tree"
           target="_blank"
           rel="noopener noreferrer"
         >
+          <img
+            src={appAsset("assets/suidex-handshake.png")}
+            alt=""
+            className="gb-hud-buy-tree-icon"
+            aria-hidden="true"
+          />
           Buy TREE
         </a>
       </div>
