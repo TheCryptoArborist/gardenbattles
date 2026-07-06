@@ -1,4 +1,46 @@
-const API_BASE = "";
+const API_UNAVAILABLE_MESSAGE =
+  "Leaderboard backend is not connected on this deployment yet.";
+
+const API_BASE = (import.meta.env.VITE_GARDEN_BATTLES_API_URL || "").replace(/\/$/, "");
+
+function apiUrl(path: string): string {
+  return `${API_BASE}${path.startsWith("/") ? path : `/${path}`}`;
+}
+
+async function fetchJson<T>(path: string, fallbackMessage: string): Promise<T> {
+  let res: Response;
+
+  try {
+    res = await fetch(apiUrl(path));
+  } catch {
+    throw new Error(fallbackMessage);
+  }
+
+  const contentType = res.headers.get("content-type") || "";
+  if (!contentType.toLowerCase().includes("application/json")) {
+    throw new Error(API_UNAVAILABLE_MESSAGE);
+  }
+
+  let data: unknown;
+  try {
+    data = await res.json();
+  } catch {
+    throw new Error(fallbackMessage);
+  }
+
+  if (!res.ok) {
+    const errorMessage =
+      data &&
+      typeof data === "object" &&
+      "error" in data &&
+      typeof data.error === "string"
+        ? data.error
+        : fallbackMessage;
+    throw new Error(errorMessage);
+  }
+
+  return data as T;
+}
 
 export type LeaderboardMode = "pvp" | "bot" | "overall";
 
@@ -49,11 +91,10 @@ export async function fetchPlayerStats(
   mode?: LeaderboardMode,
 ): Promise<PlayerStats> {
   const params = mode ? `?mode=${encodeURIComponent(mode)}` : "";
-  const res = await fetch(
-    `${API_BASE}/api/player/${address.toLowerCase()}/stats${params}`,
+  return fetchJson<PlayerStats>(
+    `/api/player/${address.toLowerCase()}/stats${params}`,
+    "Player stats are temporarily unavailable.",
   );
-  if (!res.ok) throw new Error("Failed to fetch player stats");
-  return res.json();
 }
 
 export async function fetchLeaderboard(
@@ -61,20 +102,18 @@ export async function fetchLeaderboard(
   offset = 0,
   mode: LeaderboardMode = "pvp",
 ): Promise<LeaderboardResponse> {
-  const res = await fetch(
-    `${API_BASE}/api/leaderboard?limit=${limit}&offset=${offset}&mode=${encodeURIComponent(mode)}`,
+  return fetchJson<LeaderboardResponse>(
+    `/api/leaderboard?limit=${limit}&offset=${offset}&mode=${encodeURIComponent(mode)}`,
+    "Leaderboard data is temporarily unavailable.",
   );
-  if (!res.ok) throw new Error("Failed to fetch leaderboard");
-  return res.json();
 }
 
 export async function fetchTopPlayers(
   limit = 100,
   mode: LeaderboardMode = "pvp",
 ): Promise<LeaderboardEntry[]> {
-  const res = await fetch(
-    `${API_BASE}/api/top-players?limit=${limit}&mode=${encodeURIComponent(mode)}`,
+  return fetchJson<LeaderboardEntry[]>(
+    `/api/top-players?limit=${limit}&mode=${encodeURIComponent(mode)}`,
+    "Leaderboard data is temporarily unavailable.",
   );
-  if (!res.ok) throw new Error("Failed to fetch top players");
-  return res.json();
 }

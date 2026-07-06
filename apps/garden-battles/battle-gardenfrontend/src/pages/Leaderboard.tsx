@@ -346,8 +346,11 @@ export default function Leaderboard() {
               Loading leaderboard...
             </div>
           ) : error ? (
-            <div style={{ color: "#F44336", padding: "40px", textAlign: "center" }}>
-              Failed to load leaderboard: {error}
+            <div style={{ color: "#9bd9bd", padding: "40px", textAlign: "center" }}>
+              <strong style={{ color: "#00ff88", display: "block", marginBottom: "10px" }}>
+                Leaderboard data unavailable
+              </strong>
+              {error}
             </div>
           ) : leaderboard.length === 0 ? (
             <div style={{ color: "#888", padding: "40px", textAlign: "center" }}>
