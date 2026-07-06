@@ -41,6 +41,26 @@ const TITLE_COLORS: Record<string, string> = {
   "Last Tree Standing": "#F44336",
 };
 
+function getEmptyStats(address: string, mode: LeaderboardMode): PlayerStats {
+  return {
+    address,
+    wins: 0,
+    losses: 0,
+    total_battles: 0,
+    current_streak: 0,
+    max_win_streak: 0,
+    rank_title: "Seedling",
+    badges: [],
+    win_rate: 0,
+    total_bot_wins: 0,
+    total_bot_losses: 0,
+    mode,
+    last_played: null,
+    recent_result: null,
+    ranked: false,
+  };
+}
+
 export default function PlayerRecord({
   address,
   mode = "overall",
@@ -67,12 +87,12 @@ export default function PlayerRecord({
         setStats(data);
       })
       .catch(() => {
-        setStats(null);
+        setStats(getEmptyStats(addr, mode));
       })
       .finally(() => setLoading(false));
   }, [address, mode]);
 
-  if (!address || (!loading && !stats)) return null;
+  if (!address) return null;
   if (loading && !stats) {
     return (
       <div
@@ -92,7 +112,9 @@ export default function PlayerRecord({
       </div>
     );
   }
-  if (!stats) return null;
+  if (!stats) {
+    return null;
+  }
 
   const titleColor = TITLE_COLORS[stats.rank_title] || "#8B8B8B";
   const streakLabel =
@@ -106,7 +128,7 @@ export default function PlayerRecord({
     <Link
       href={appRoute("leaderboard")}
       aria-label="View full leaderboard"
-      style={{ textDecoration: "none" }}
+      style={{ display: "block", textDecoration: "none" }}
     >
     <div
       style={{
