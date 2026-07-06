@@ -8,6 +8,7 @@ type BattleResultModalProps = {
   xShareUrl: string;
   buyNftreeUrl: string;
   battleUrl: string;
+  leaderboardUrl: string;
   canPlayAgain?: boolean;
   isPlayingAgain?: boolean;
   onShare: () => void;
@@ -26,6 +27,7 @@ export default function BattleResultModal({
   xShareUrl,
   buyNftreeUrl,
   battleUrl,
+  leaderboardUrl,
   canPlayAgain = false,
   isPlayingAgain = false,
   onShare,
@@ -90,6 +92,9 @@ export default function BattleResultModal({
             </button>
             <a href={xShareUrl} target="_blank" rel="noopener noreferrer">
               Share on X
+            </a>
+            <a href={leaderboardUrl}>
+              View Leaderboard
             </a>
             {canPlayAgain && onPlayAgain && (
               <button type="button" onClick={onPlayAgain} disabled={isPlayingAgain}>

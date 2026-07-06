@@ -10,10 +10,12 @@ import {
   trackBattle,
   getBattleByOnChainId,
   getPlayerStatsByAddress,
+  getPlayerLeaderboardStats,
   getLeaderboard,
   getTotalPlayers,
   getRecentBattlesByAddress,
   getGlobalRecentBattles,
+  type LeaderboardMode,
 } from "./battle-storage";
 
 // ─── Sui polling configuration ────────────────────────────────────────────────
@@ -32,6 +34,13 @@ const BATTLE_UPDATE_EVENT = `${EVENT_PACKAGE_ID}::${MODULE}::BattleUpdate`;
 const POLL_INTERVAL_MS = 2_000; // poll every 2 s
 const RANDOM_OBJECT_ID = process.env.SUI_RANDOM_OBJECT_ID || "0x8";
 const DISABLE_SUI_RELAY = process.env.DISABLE_SUI_RELAY === "true";
+const LEADERBOARD_MODES = new Set<LeaderboardMode>(["pvp", "bot", "overall"]);
+
+function getLeaderboardMode(value: unknown): LeaderboardMode {
+  return typeof value === "string" && LEADERBOARD_MODES.has(value as LeaderboardMode)
+    ? (value as LeaderboardMode)
+    : "pvp";
+}
 
 // ─── Bot configuration ───────────────────────────────────────────────────────
 const BOT_PRIVATE_KEY = process.env.BATTLE_BOT_PRIVATE_KEY;
@@ -332,6 +341,8 @@ async function pollSuiEvents() {
             player2: parsed.player2,
             winner: parsed.winner,
             isBotBattle: parsed.isBotBattle ?? false,
+            transactionDigest:
+              event.id?.txDigest ?? event.id?.tx_digest ?? event.txDigest ?? null,
             finishedAt: parsed.lastMoveMs ?? Date.now(),
           });
         }
@@ -484,12 +495,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/leaderboard", (req, res) => {
     const limit = Math.min(Number(req.query.limit) || 50, 100);
     const offset = Number(req.query.offset) || 0;
-    const entries = getLeaderboard(limit, offset);
+    const mode = getLeaderboardMode(req.query.mode);
+    const entries = getLeaderboard(limit, offset, mode);
     res.json({
       leaderboard: entries,
-      total: getTotalPlayers(),
+      total: getTotalPlayers(mode),
       limit,
       offset,
+      mode,
     });
   });
 
@@ -497,6 +510,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/player/:address/stats", (req, res) => {
     const address = req.params.address?.toLowerCase();
     if (!address) return res.status(400).json({ error: "Address required" });
+
+    const requestedMode = typeof req.query.mode === "string" ? req.query.mode : null;
+    if (requestedMode) {
+      const mode = getLeaderboardMode(requestedMode);
+      const modeStats = getPlayerLeaderboardStats(address, mode);
+      if (!modeStats) {
+        return res.json({
+          address,
+          wins: 0,
+          losses: 0,
+          total_battles: 0,
+          current_streak: 0,
+          max_win_streak: 0,
+          rank_title: "Seedling",
+          badges: [],
+          win_rate: 0,
+          total_bot_wins: 0,
+          total_bot_losses: 0,
+          mode,
+          last_played: null,
+          recent_result: null,
+          ranked: false,
+        });
+      }
+
+      return res.json({
+        address: modeStats.address,
+        wins: modeStats.wins,
+        losses: modeStats.losses,
+        total_battles: modeStats.total_battles,
+        current_streak: modeStats.current_streak,
+        max_win_streak: 0,
+        rank_title: modeStats.rank_title,
+        badges: modeStats.badges,
+        win_rate: modeStats.win_rate,
+        total_bot_wins: mode === "bot" ? modeStats.wins : 0,
+        total_bot_losses: mode === "bot" ? modeStats.losses : 0,
+        mode,
+        last_played: modeStats.last_played,
+        recent_result: modeStats.recent_result,
+        ranked: modeStats.ranked,
+      });
+    }
 
     const stats = getPlayerStatsByAddress(address);
     if (!stats) {
@@ -550,7 +606,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ── REST: Top players endpoint (aliased for leaderboard page) ─────────────────
   app.get("/api/top-players", (req, res) => {
     const limit = Math.min(Number(req.query.limit) || 100, 100);
-    const entries = getLeaderboard(limit, 0);
+    const mode = getLeaderboardMode(req.query.mode);
+    const entries = getLeaderboard(limit, 0, mode);
     res.json(entries);
   });
 

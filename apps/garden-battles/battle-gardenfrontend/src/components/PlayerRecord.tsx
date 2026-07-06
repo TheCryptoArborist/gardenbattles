@@ -1,8 +1,11 @@
-import { useEffect, useState, useRef } from "react";
-import { fetchPlayerStats, type PlayerStats } from "@/lib/api";
+import { useEffect, useRef, useState } from "react";
+import { Link } from "wouter";
+import { fetchPlayerStats, type LeaderboardMode, type PlayerStats } from "@/lib/api";
+import { appRoute } from "@/lib/routes";
 
 interface PlayerRecordProps {
   address: string | null;
+  mode?: LeaderboardMode;
 }
 
 const BADGE_LABELS: Record<string, string> = {
@@ -17,16 +20,16 @@ const BADGE_LABELS: Record<string, string> = {
   social_butterfly: "Social Butterfly",
 };
 
-const BADGE_EMOJIS: Record<string, string> = {
-  first_blood: "🩸",
-  hot_streak: "🔥",
-  undefeated: "🏆",
-  battle_hardened: "⚔️",
-  veteran: "🎖️",
-  legend: "👑",
-  sharp_pruner: "✂️",
-  never_give_up: "💪",
-  social_butterfly: "🦋",
+const BADGE_CODES: Record<string, string> = {
+  first_blood: "FB",
+  hot_streak: "HOT",
+  undefeated: "UNB",
+  battle_hardened: "B100",
+  veteran: "VET",
+  legend: "LEG",
+  sharp_pruner: "PRN",
+  never_give_up: "NGU",
+  social_butterfly: "SOC",
 };
 
 const TITLE_COLORS: Record<string, string> = {
@@ -38,47 +41,51 @@ const TITLE_COLORS: Record<string, string> = {
   "Last Tree Standing": "#F44336",
 };
 
-export default function PlayerRecord({ address }: PlayerRecordProps) {
+export default function PlayerRecord({
+  address,
+  mode = "overall",
+}: PlayerRecordProps) {
   const [stats, setStats] = useState<PlayerStats | null>(null);
   const [loading, setLoading] = useState(false);
-  const prevAddressRef = useRef<string | null>(null);
+  const prevRequestRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!address) {
       setStats(null);
+      prevRequestRef.current = null;
       return;
     }
 
     const addr = address.toLowerCase();
-    if (prevAddressRef.current === addr) return;
-    prevAddressRef.current = addr;
+    const requestKey = `${addr}:${mode}`;
+    if (prevRequestRef.current === requestKey) return;
+    prevRequestRef.current = requestKey;
 
     setLoading(true);
-    fetchPlayerStats(addr)
+    fetchPlayerStats(addr, mode)
       .then((data) => {
         setStats(data);
       })
       .catch(() => {
-        // Server might be down or no stats yet — silently handle
         setStats(null);
       })
       .finally(() => setLoading(false));
-  }, [address]);
+  }, [address, mode]);
 
   if (!address || (!loading && !stats)) return null;
   if (loading && !stats) {
     return (
       <div
         style={{
-          display: "flex",
           alignItems: "center",
-          gap: "6px",
-          padding: "4px 10px",
           background: "rgba(0,30,0,0.6)",
           border: "1px solid rgba(0,255,0,0.2)",
           borderRadius: "6px",
-          fontSize: "11px",
           color: "#888",
+          display: "flex",
+          fontSize: "11px",
+          gap: "6px",
+          padding: "4px 10px",
         }}
       >
         <span>Loading stats...</span>
@@ -90,44 +97,47 @@ export default function PlayerRecord({ address }: PlayerRecordProps) {
   const titleColor = TITLE_COLORS[stats.rank_title] || "#8B8B8B";
   const streakLabel =
     stats.current_streak > 0
-      ? `🔥 ${stats.current_streak}W streak`
+      ? `+${stats.current_streak}W streak`
       : stats.current_streak < 0
-        ? `💀 ${Math.abs(stats.current_streak)}L streak`
+        ? `${Math.abs(stats.current_streak)}L streak`
         : null;
 
   return (
+    <Link
+      href={appRoute("leaderboard")}
+      aria-label="View full leaderboard"
+      style={{ textDecoration: "none" }}
+    >
     <div
       style={{
-        display: "flex",
-        flexDirection: "column",
-        gap: "4px",
-        padding: "6px 12px",
         background: "rgba(0,20,0,0.8)",
         border: "1px solid rgba(0,255,0,0.25)",
         borderRadius: "8px",
+        display: "flex",
+        flexDirection: "column",
         fontFamily: "Orbitron, sans-serif",
         fontSize: "11px",
+        gap: "4px",
         minWidth: "140px",
+        padding: "6px 12px",
       }}
+      title="View full leaderboard"
     >
-      {/* Rank Title */}
       <div
         style={{
           color: titleColor,
-          fontWeight: "bold",
           fontSize: "12px",
-          textTransform: "uppercase",
+          fontWeight: "bold",
           letterSpacing: "0.5px",
           textShadow: `0 0 8px ${titleColor}40`,
+          textTransform: "uppercase",
         }}
       >
         {stats.rank_title}
       </div>
 
-      {/* W/L Record */}
       <div style={{ color: "#ccc", fontSize: "11px" }}>
-        <span style={{ color: "#4CAF50" }}>{stats.wins}W</span>
-        {" "}
+        <span style={{ color: "#4CAF50" }}>{stats.wins}W</span>{" "}
         <span style={{ color: "#F44336" }}>{stats.losses}L</span>
         {stats.total_battles > 0 && (
           <span style={{ color: "#888", marginLeft: "6px" }}>
@@ -136,19 +146,16 @@ export default function PlayerRecord({ address }: PlayerRecordProps) {
         )}
       </div>
 
-      {/* Streak */}
       {streakLabel && (
         <div style={{ color: "#FF9800", fontSize: "10px" }}>
           {streakLabel}
         </div>
       )}
 
-      {/* Total battles */}
       <div style={{ color: "#668", fontSize: "10px" }}>
         {stats.total_battles} battle{stats.total_battles !== 1 ? "s" : ""}
       </div>
 
-      {/* Badges */}
       {stats.badges.length > 0 && (
         <div
           style={{
@@ -163,16 +170,18 @@ export default function PlayerRecord({ address }: PlayerRecordProps) {
               key={badge}
               title={BADGE_LABELS[badge] || badge}
               style={{
-                fontSize: "14px",
+                color: "#9bd9bd",
                 cursor: "default",
-                filter: "drop-shadow(0 0 2px rgba(0,255,0,0.3))",
+                fontSize: "10px",
+                fontWeight: 800,
               }}
             >
-              {BADGE_EMOJIS[badge] || "🏅"}
+              {BADGE_CODES[badge] || "BDG"}
             </span>
           ))}
         </div>
       )}
     </div>
+    </Link>
   );
 }

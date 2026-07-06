@@ -782,6 +782,33 @@
     padding: 0 10px;
   }
 
+  .gb-mode-leaderboard-link {
+    align-items: center;
+    background: rgba(0, 213, 199, 0.1);
+    border: 1px solid rgba(0, 213, 199, 0.46);
+    border-radius: 8px;
+    box-shadow: 0 0 16px rgba(0, 213, 199, 0.18);
+    color: var(--gb-teal);
+    display: inline-flex;
+    font-family: Orbitron, sans-serif;
+    font-size: clamp(12px, 2.4vw, 14px);
+    font-weight: 800;
+    grid-column: 1 / -1;
+    justify-content: center;
+    justify-self: center;
+    min-height: 42px;
+    padding: 10px 18px;
+    text-decoration: none;
+    text-transform: uppercase;
+  }
+
+  .gb-mode-leaderboard-link:hover,
+  .gb-mode-leaderboard-link:focus-visible {
+    border-color: var(--gb-tree-green);
+    color: var(--gb-tree-green);
+    outline: none;
+  }
+
   .gb-nav-link,
   .gb-nav-placeholder,
   .gb-mobile-menu-toggle,

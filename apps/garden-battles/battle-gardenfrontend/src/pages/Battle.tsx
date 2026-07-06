@@ -17,12 +17,13 @@ import BattleLog from "@/components/BattleLog";
 import PlayerRecord from "@/components/PlayerRecord";
 import ForestPower from "@/components/ForestPower";
 import { appAsset } from "@/lib/assets";
+import { appRoute } from "@/lib/routes";
 import TreePowerPanel from "@/components/TreePowerPanel";
 import PrizePayoutPanel from "@/components/PrizePayoutPanel";
 import BattleResultModal from "@/components/BattleResultModal";
 
 const ecosystemLinks = [
-  { label: "Home", href: "https://tree-token.net", testId: "home" },
+  { label: "Home", href: "https://tree-token.net/", testId: "home" },
   { label: "NFTree.net", href: "https://nftree.net", testId: "nftree-net" },
   {
     label: "NFTree Reward Site",
@@ -71,7 +72,13 @@ function ArboretumComingSoonPromo() {
             A future TREE utility for planting, care, rewards, and garden
             progression.
           </p>
-          <Link href="/mint">Preview Sapling Mint</Link>
+          <a
+            href="https://nftree.net"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Buy NFTree
+          </a>
         </div>
       </details>
     </section>
@@ -651,6 +658,7 @@ export default function Battle() {
 
   const nftreeUrl = "https://nftree.net";
   const shareUrl = "https://nftree.net/battle";
+  const leaderboardRoute = appRoute("leaderboard");
   const winnerTitle =
     winner === "player"
       ? "You Win!"
@@ -784,6 +792,13 @@ export default function Battle() {
           Join the paid player queue, or start a no-payout practice battle with
           Garden Bot.
         </p>
+        <Link
+          href={leaderboardRoute}
+          className="gb-mode-leaderboard-link"
+          data-testid="link-view-leaderboard"
+        >
+          View Leaderboard
+        </Link>
       </section>
     ) : null;
 
@@ -916,6 +931,13 @@ export default function Battle() {
                   {link.label}
                 </a>
               ))}
+              <Link
+                href={leaderboardRoute}
+                className="gb-nav-link"
+                data-testid="link-leaderboard"
+              >
+                Leaderboard
+              </Link>
             </div>
             <div className="gb-nav-divider" aria-hidden="true" />
             <div className="gb-nav-group gb-nav-group-suidex" aria-label="SuiDex TREE utilities">
@@ -986,6 +1008,13 @@ export default function Battle() {
                   {link.label}
                 </a>
               ))}
+              <Link
+                href={leaderboardRoute}
+                className="gb-nav-link"
+                data-testid="mobile-link-leaderboard"
+              >
+                Leaderboard
+              </Link>
             </div>
             <div className="gb-mobile-nav-section" aria-label="SuiDex TREE utilities">
               <span className="gb-mobile-nav-label">
@@ -2158,6 +2187,7 @@ export default function Battle() {
           xShareUrl={`https://twitter.com/intent/tweet?text=${encodedShareText}&url=${encodedShareUrl}`}
           buyNftreeUrl={nftreeUrl}
           battleUrl={shareUrl}
+          leaderboardUrl={leaderboardRoute}
           canPlayAgain={isGardenBotBattle}
           isPlayingAgain={isStartingBot}
           onShare={handleNativeShareWin}
@@ -2215,8 +2245,10 @@ export default function Battle() {
               >
                 The Arboretum
               </h2>
-              <Link
-                href="/mint"
+              <a
+                href="https://nftree.net"
+                target="_blank"
+                rel="noopener noreferrer"
                 style={{
                   fontSize: "clamp(1.2rem, 3vw, 1.5rem)",
                   color: "#00ffcc",
@@ -2228,8 +2260,8 @@ export default function Battle() {
                 }}
                 onClick={() => setArboretumModalOpen(false)}
               >
-                Mint your Sapling NFT to Enter
-              </Link>
+                Buy NFTree
+              </a>
               <p
                 style={{
                   fontSize: "clamp(0.9rem, 2.2vw, 1rem)",
@@ -2239,9 +2271,8 @@ export default function Battle() {
                   fontFamily: "Orbitron, sans-serif",
                 }}
               >
-                The Arboretum is your gateway to explore, collect, and nurture
-                your NFT forest. Mint your unique Sapling now to unlock
-                exclusive features and community-driven growth!
+                The Arboretum is a future TREE ecosystem utility. Buy an NFTree
+                to join the ecosystem while details are still being shaped.
               </p>
               <button
                 onClick={() => setArboretumModalOpen(false)}

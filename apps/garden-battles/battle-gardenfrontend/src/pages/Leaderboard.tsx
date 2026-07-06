@@ -1,24 +1,16 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "wouter";
-import { ConnectButton } from "@mysten/dapp-kit";
-import { useCurrentAccount } from "@mysten/dapp-kit";
-import { SUI_CONFIG } from "@/lib/sui-config";
-import { fetchLeaderboard, fetchPlayerStats, type LeaderboardEntry, type PlayerStats } from "@/lib/api";
+import { ConnectButton, useCurrentAccount } from "@mysten/dapp-kit";
+import {
+  fetchLeaderboard,
+  fetchPlayerStats,
+  type LeaderboardEntry,
+  type LeaderboardMode,
+  type PlayerStats,
+} from "@/lib/api";
 import ForestPower from "@/components/ForestPower";
 import PlayerRecord from "@/components/PlayerRecord";
 import { appAsset } from "@/lib/assets";
-
-const BADGE_EMOJIS: Record<string, string> = {
-  first_blood: "🩸",
-  hot_streak: "🔥",
-  undefeated: "🏆",
-  battle_hardened: "⚔️",
-  veteran: "🎖️",
-  legend: "👑",
-  sharp_pruner: "✂️",
-  never_give_up: "💪",
-  social_butterfly: "🦋",
-};
 
 const TITLE_COLORS: Record<string, string> = {
   Seedling: "#8B8B8B",
@@ -29,14 +21,58 @@ const TITLE_COLORS: Record<string, string> = {
   "Last Tree Standing": "#F44336",
 };
 
+const BADGE_LABELS: Record<string, string> = {
+  first_blood: "FB",
+  hot_streak: "HOT",
+  undefeated: "UNB",
+  battle_hardened: "B100",
+  veteran: "VET",
+  legend: "LEG",
+  sharp_pruner: "PRN",
+  never_give_up: "NGU",
+  social_butterfly: "SOC",
+};
+
+const LEADERBOARD_MODES: Array<{
+  id: LeaderboardMode;
+  label: string;
+  note: string;
+}> = [
+  { id: "pvp", label: "PvP Battle", note: "Ranked player-vs-player results" },
+  { id: "bot", label: "Garden Bot", note: "Practice battles against Garden Bot" },
+  { id: "overall", label: "Overall", note: "PvP plus Garden Bot totals" },
+];
+
 function shortenAddress(addr: string): string {
   return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
+}
+
+function formatMode(mode: LeaderboardMode): string {
+  if (mode === "bot") return "Garden Bot";
+  if (mode === "overall") return "Overall";
+  return "PvP";
+}
+
+function formatLastPlayed(value: number | null | undefined): string {
+  if (!value) return "-";
+  return new Date(value).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+function statColor(value: number): string {
+  if (value > 0) return "#4CAF50";
+  if (value < 0) return "#F44336";
+  return "#888";
 }
 
 export default function Leaderboard() {
   const currentAccount = useCurrentAccount();
   const address = currentAccount?.address ?? null;
 
+  const [mode, setMode] = useState<LeaderboardMode>("pvp");
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [totalPlayers, setTotalPlayers] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -45,24 +81,27 @@ export default function Leaderboard() {
 
   useEffect(() => {
     setLoading(true);
-    fetchLeaderboard(100, 0)
+    setError(null);
+    fetchLeaderboard(100, 0, mode)
       .then((data) => {
         setLeaderboard(data.leaderboard);
         setTotalPlayers(data.total);
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
-  }, []);
+  }, [mode]);
 
   useEffect(() => {
     if (!address) {
       setMyStats(null);
       return;
     }
-    fetchPlayerStats(address)
+    fetchPlayerStats(address, mode)
       .then(setMyStats)
       .catch(() => setMyStats(null));
-  }, [address]);
+  }, [address, mode]);
+
+  const activeMode = LEADERBOARD_MODES.find((item) => item.id === mode);
 
   return (
     <div
@@ -76,22 +115,21 @@ export default function Leaderboard() {
         color: "white",
         fontFamily: "Orbitron, sans-serif",
         margin: 0,
-        padding: 0,
         minHeight: "100vh",
+        padding: 0,
       }}
     >
-      {/* Header */}
       <header
         style={{
-          display: "flex",
-          justifyContent: "space-between",
           alignItems: "center",
-          padding: "clamp(10px, 2vw, 15px) clamp(15px, 3vw, 30px)",
-          background: "rgba(0, 50, 0, 0.8)",
-          borderBottom: "2px solid #00ff00",
-          boxShadow: "0 0 15px #00ff00",
+          background: "rgba(0, 35, 24, 0.88)",
+          borderBottom: "2px solid #00ff88",
+          boxShadow: "0 0 15px rgba(0,255,136,0.55)",
+          display: "flex",
           flexWrap: "wrap",
           gap: "10px",
+          justifyContent: "space-between",
+          padding: "clamp(10px, 2vw, 15px) clamp(15px, 3vw, 30px)",
         }}
       >
         <Link href="/">
@@ -99,187 +137,260 @@ export default function Leaderboard() {
             src={appAsset("assets/thick.png")}
             alt="Thickquidity Logo"
             style={{
-              width: "clamp(60px, 10vw, 80px)",
               cursor: "pointer",
-              filter: "drop-shadow(0 0 15px #00ff00)",
+              filter: "drop-shadow(0 0 15px #00ff88)",
+              width: "clamp(60px, 10vw, 80px)",
             }}
             data-testid="logo-home"
           />
         </Link>
 
-        <nav style={{ display: "flex", gap: "clamp(8px, 2vw, 10px)", flexWrap: "wrap" }}>
-          <Link
-            href="/"
-            style={{ color: "#00ff00", margin: "0", textDecoration: "none", fontSize: "clamp(14px, 2.5vw, 16px)" }}
+        <nav style={{ display: "flex", flexWrap: "wrap", gap: "clamp(8px, 2vw, 10px)" }}>
+          <a
+            href="https://tree-token.net/"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              color: "#00ff88",
+              fontSize: "clamp(14px, 2.5vw, 16px)",
+              margin: 0,
+              textDecoration: "none",
+            }}
           >
             Home
-          </Link>
+          </a>
           <Link
             href="/battle"
-            style={{ color: "#00ff00", margin: "0", textDecoration: "none", fontSize: "clamp(14px, 2.5vw, 16px)" }}
+            style={{
+              color: "#00ff88",
+              fontSize: "clamp(14px, 2.5vw, 16px)",
+              margin: 0,
+              textDecoration: "none",
+            }}
           >
             Battle
           </Link>
-          <Link
-            href="/mint"
-            style={{ color: "#00ff00", margin: "0", textDecoration: "none", fontSize: "clamp(14px, 2.5vw, 16px)" }}
+          <a
+            href="https://nftree.net"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              color: "#00ff88",
+              fontSize: "clamp(14px, 2.5vw, 16px)",
+              margin: 0,
+              textDecoration: "none",
+            }}
           >
-            Arboretum
-          </Link>
+            Buy NFTree
+          </a>
         </nav>
 
-        <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+        <div style={{ alignItems: "center", display: "flex", flexWrap: "wrap", gap: "8px" }}>
           {address && <ForestPower address={address} />}
           {address && <PlayerRecord address={address} />}
           <ConnectButton connectText="Connect Wallet" />
         </div>
       </header>
 
-      {/* Main Content */}
-      <div style={{ maxWidth: "900px", margin: "0 auto", padding: "20px 15px" }}>
+      <main style={{ margin: "0 auto", maxWidth: "1120px", padding: "20px 15px" }}>
         <h1
           style={{
-            textAlign: "center",
-            color: "#00ff00",
-            fontSize: "clamp(24px, 5vw, 36px)",
-            textShadow: "0 0 20px #00ff00",
-            marginBottom: "8px",
+            color: "#00ff88",
             fontFamily: "FantasyBattles, sans-serif",
+            fontSize: "clamp(26px, 5vw, 42px)",
+            margin: "0 0 8px",
+            textAlign: "center",
+            textShadow: "0 0 20px rgba(0,255,136,0.72)",
           }}
         >
-          🌳 Garden Leaderboard
+          Garden Leaderboard
         </h1>
         <p
           style={{
-            textAlign: "center",
             color: "#00ffcc",
             fontSize: "clamp(12px, 2.5vw, 14px)",
-            marginBottom: "20px",
+            margin: "0 0 18px",
+            textAlign: "center",
           }}
         >
-          Ranked by PvP wins — tracked from on-chain battle results
+          {activeMode?.note} - tracked from verified battle records
         </p>
 
-        {/* My Stats Card */}
-        {address && myStats && myStats.total_battles > 0 && (
-          <div
+        <div
+          aria-label="Leaderboard mode"
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: "8px",
+            justifyContent: "center",
+            marginBottom: "18px",
+          }}
+        >
+          {LEADERBOARD_MODES.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => setMode(item.id)}
+              style={{
+                background:
+                  mode === item.id ? "rgba(0,255,136,0.22)" : "rgba(0,20,18,0.72)",
+                border: `1px solid ${
+                  mode === item.id ? "#00ff88" : "rgba(0,255,136,0.28)"
+                }`,
+                borderRadius: "8px",
+                color: mode === item.id ? "#eafff6" : "#9bd9bd",
+                cursor: "pointer",
+                fontFamily: "Orbitron, sans-serif",
+                fontSize: "12px",
+                fontWeight: 800,
+                minHeight: "40px",
+                padding: "9px 12px",
+                textTransform: "uppercase",
+              }}
+            >
+              {item.label}
+            </button>
+          ))}
+          <button
+            type="button"
+            disabled
             style={{
-              background: "rgba(0, 40, 0, 0.9)",
-              border: "2px solid #00ff00",
-              borderRadius: "12px",
-              padding: "16px 20px",
-              marginBottom: "20px",
-              boxShadow: "0 0 20px rgba(0,255,0,0.2)",
+              background: "rgba(255,203,79,0.08)",
+              border: "1px solid rgba(255,203,79,0.28)",
+              borderRadius: "8px",
+              color: "rgba(255,233,166,0.62)",
+              cursor: "not-allowed",
+              fontFamily: "Orbitron, sans-serif",
+              fontSize: "12px",
+              fontWeight: 800,
+              minHeight: "40px",
+              padding: "9px 12px",
+              textTransform: "uppercase",
             }}
           >
-            <h3 style={{ color: "#00ff00", fontSize: "14px", textTransform: "uppercase", marginBottom: "10px" }}>
-              Your Record
-            </h3>
-            <div style={{ display: "flex", gap: "clamp(16px, 4vw, 32px)", flexWrap: "wrap" }}>
-              <div>
-                <div style={{ color: "#888", fontSize: "11px", textTransform: "uppercase" }}>Rank Title</div>
-                <div style={{ color: TITLE_COLORS[myStats.rank_title] || "#fff", fontSize: "16px", fontWeight: "bold" }}>
-                  {myStats.rank_title}
-                </div>
-              </div>
-              <div>
-                <div style={{ color: "#888", fontSize: "11px", textTransform: "uppercase" }}>Wins</div>
-                <div style={{ color: "#4CAF50", fontSize: "16px", fontWeight: "bold" }}>{myStats.wins}</div>
-              </div>
-              <div>
-                <div style={{ color: "#888", fontSize: "11px", textTransform: "uppercase" }}>Losses</div>
-                <div style={{ color: "#F44336", fontSize: "16px", fontWeight: "bold" }}>{myStats.losses}</div>
-              </div>
-              <div>
-                <div style={{ color: "#888", fontSize: "11px", textTransform: "uppercase" }}>Win Rate</div>
-                <div style={{ color: "#FF9800", fontSize: "16px", fontWeight: "bold" }}>
-                  {Math.round(myStats.win_rate * 100)}%
-                </div>
-              </div>
-              <div>
-                <div style={{ color: "#888", fontSize: "11px", textTransform: "uppercase" }}>Streak</div>
-                <div
-                  style={{
-                    color: myStats.current_streak > 0 ? "#4CAF50" : myStats.current_streak < 0 ? "#F44336" : "#888",
-                    fontSize: "16px",
-                    fontWeight: "bold",
-                  }}
-                >
-                  {myStats.current_streak > 0
-                    ? `🔥 ${myStats.current_streak}W`
-                    : myStats.current_streak < 0
-                      ? `💀 ${Math.abs(myStats.current_streak)}L`
-                      : "—"}
-                </div>
-              </div>
-              <div>
-                <div style={{ color: "#888", fontSize: "11px", textTransform: "uppercase" }}>Total</div>
-                <div style={{ color: "#fff", fontSize: "16px", fontWeight: "bold" }}>{myStats.total_battles}</div>
-              </div>
-              {myStats.badges.length > 0 && (
-                <div>
-                  <div style={{ color: "#888", fontSize: "11px", textTransform: "uppercase" }}>Badges</div>
-                  <div style={{ display: "flex", gap: "4px", fontSize: "16px" }}>
-                    {myStats.badges.map((b) => (
-                      <span key={b} title={b}>
-                        {BADGE_EMOJIS[b] || "🏅"}
-                      </span>
-                    ))}
+            Canopy Clash - Coming Soon
+          </button>
+        </div>
+
+        {address && myStats && myStats.total_battles > 0 && (
+          <section
+            style={{
+              background: "rgba(0, 40, 24, 0.9)",
+              border: "2px solid #00ff88",
+              borderRadius: "12px",
+              boxShadow: "0 0 20px rgba(0,255,136,0.2)",
+              marginBottom: "20px",
+              padding: "16px 20px",
+            }}
+          >
+            <h2
+              style={{
+                color: "#00ff88",
+                fontSize: "14px",
+                margin: "0 0 10px",
+                textTransform: "uppercase",
+              }}
+            >
+              Your {formatMode(mode)} Record
+            </h2>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "clamp(16px, 4vw, 32px)" }}>
+              {[
+                ["Rank Title", myStats.rank_title, TITLE_COLORS[myStats.rank_title] || "#fff"],
+                ["Wins", myStats.wins, "#4CAF50"],
+                ["Losses", myStats.losses, "#F44336"],
+                ["Win Rate", `${Math.round(myStats.win_rate * 100)}%`, "#FF9800"],
+                ["Total", myStats.total_battles, "#fff"],
+                ["Recent", myStats.recent_result ?? "-", myStats.recent_result === "Win" ? "#4CAF50" : "#F44336"],
+              ].map(([label, value, color]) => (
+                <div key={label}>
+                  <div style={{ color: "#888", fontSize: "11px", textTransform: "uppercase" }}>
+                    {label}
+                  </div>
+                  <div style={{ color: String(color), fontSize: "16px", fontWeight: "bold" }}>
+                    {value}
                   </div>
                 </div>
-              )}
+              ))}
             </div>
-          </div>
+          </section>
         )}
 
-        {/* Leaderboard Table */}
-        <div
+        <section
           style={{
-            background: "rgba(0, 10, 0, 0.85)",
-            border: "2px solid rgba(0, 255, 0, 0.3)",
+            background: "rgba(0, 10, 8, 0.88)",
+            border: "2px solid rgba(0, 255, 136, 0.3)",
             borderRadius: "12px",
             overflow: "hidden",
           }}
         >
           {loading ? (
-            <div style={{ textAlign: "center", padding: "40px", color: "#888" }}>Loading leaderboard...</div>
+            <div style={{ color: "#888", padding: "40px", textAlign: "center" }}>
+              Loading leaderboard...
+            </div>
           ) : error ? (
-            <div style={{ textAlign: "center", padding: "40px", color: "#F44336" }}>
+            <div style={{ color: "#F44336", padding: "40px", textAlign: "center" }}>
               Failed to load leaderboard: {error}
             </div>
           ) : leaderboard.length === 0 ? (
-            <div style={{ textAlign: "center", padding: "40px", color: "#888" }}>
-              No battles recorded yet. Be the first to play!
+            <div style={{ color: "#888", padding: "40px", textAlign: "center" }}>
+              No {formatMode(mode)} battles recorded yet.
               <br />
               <Link
                 href="/battle"
-                style={{ color: "#00ff00", textDecoration: "underline", display: "inline-block", marginTop: "12px" }}
+                style={{
+                  color: "#00ff88",
+                  display: "inline-block",
+                  marginTop: "12px",
+                  textDecoration: "underline",
+                }}
               >
-                Join Battle →
+                Join Battle
               </Link>
             </div>
           ) : (
             <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "clamp(11px, 2.2vw, 13px)" }}>
+              <table
+                style={{
+                  borderCollapse: "collapse",
+                  fontSize: "clamp(11px, 2.2vw, 13px)",
+                  minWidth: "980px",
+                  width: "100%",
+                }}
+              >
                 <thead>
                   <tr
                     style={{
-                      borderBottom: "1px solid rgba(0,255,0,0.2)",
-                      color: "#00ff00",
-                      textTransform: "uppercase",
+                      borderBottom: "1px solid rgba(0,255,136,0.2)",
+                      color: "#00ff88",
                       fontSize: "clamp(10px, 2vw, 11px)",
                       letterSpacing: "0.5px",
+                      textTransform: "uppercase",
                     }}
                   >
-                    <th style={{ padding: "12px 8px", textAlign: "center" }}>#</th>
-                    <th style={{ padding: "12px 8px", textAlign: "left" }}>Player</th>
-                    <th style={{ padding: "12px 8px", textAlign: "center" }}>Title</th>
-                    <th style={{ padding: "12px 8px", textAlign: "center" }}>W</th>
-                    <th style={{ padding: "12px 8px", textAlign: "center" }}>L</th>
-                    <th style={{ padding: "12px 8px", textAlign: "center" }}>Win%</th>
-                    <th style={{ padding: "12px 8px", textAlign: "center" }}>Streak</th>
-                    <th style={{ padding: "12px 8px", textAlign: "center" }}>Total</th>
-                    <th style={{ padding: "12px 8px", textAlign: "center" }}>Badges</th>
+                    {[
+                      "#",
+                      "Player",
+                      "Mode",
+                      "Title",
+                      "Wins",
+                      "Losses",
+                      "Win%",
+                      "Streak",
+                      "Total",
+                      "Recent",
+                      "Last Played",
+                      "Badges",
+                    ].map((header) => (
+                      <th
+                        key={header}
+                        style={{
+                          padding: "12px 8px",
+                          textAlign: header === "Player" ? "left" : "center",
+                        }}
+                      >
+                        {header}
+                      </th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
@@ -289,78 +400,99 @@ export default function Leaderboard() {
 
                     return (
                       <tr
-                        key={entry.address}
+                        key={`${entry.mode}-${entry.address}`}
                         style={{
-                          borderBottom: "1px solid rgba(0,255,0,0.08)",
-                          background: isMe ? "rgba(0,255,0,0.06)" : "transparent",
-                          transition: "background 0.2s",
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.background = "rgba(0,255,0,0.1)";
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.background = isMe ? "rgba(0,255,0,0.06)" : "transparent";
+                          background: isMe ? "rgba(0,255,136,0.06)" : "transparent",
+                          borderBottom: "1px solid rgba(0,255,136,0.08)",
                         }}
                       >
-                        <td style={{ padding: "10px 8px", textAlign: "center", color: "#888" }}>
-                          {entry.rank <= 3 ? (
-                            <span style={{ fontSize: "18px" }}>
-                              {entry.rank === 1 ? "🥇" : entry.rank === 2 ? "🥈" : "🥉"}
-                            </span>
-                          ) : (
-                            entry.rank
-                          )}
+                        <td style={{ color: "#888", padding: "10px 8px", textAlign: "center" }}>
+                          {entry.ranked ? entry.rank : "UR"}
                         </td>
                         <td style={{ padding: "10px 8px", textAlign: "left" }}>
-                          <span style={{ color: isMe ? "#00ff00" : "#ccc", fontWeight: isMe ? "bold" : "normal" }}>
+                          <span
+                            style={{
+                              color: isMe ? "#00ff88" : "#ccc",
+                              fontWeight: isMe ? "bold" : "normal",
+                            }}
+                          >
                             {shortenAddress(entry.address)}
                             {isMe && (
-                              <span style={{ color: "#00ff00", marginLeft: "6px", fontSize: "10px" }}>
+                              <span style={{ color: "#00ff88", fontSize: "10px", marginLeft: "6px" }}>
                                 (you)
                               </span>
                             )}
                           </span>
                         </td>
+                        <td style={{ color: "#00ffcc", padding: "10px 8px", textAlign: "center" }}>
+                          {formatMode(entry.mode)}
+                        </td>
                         <td style={{ padding: "10px 8px", textAlign: "center" }}>
-                          <span style={{ color: titleColor, fontWeight: "bold", fontSize: "clamp(10px, 2vw, 11px)" }}>
+                          <span
+                            style={{
+                              color: titleColor,
+                              fontSize: "clamp(10px, 2vw, 11px)",
+                              fontWeight: "bold",
+                            }}
+                          >
                             {entry.rank_title}
                           </span>
                         </td>
-                        <td style={{ padding: "10px 8px", textAlign: "center", color: "#4CAF50", fontWeight: "bold" }}>
+                        <td style={{ color: "#4CAF50", fontWeight: "bold", padding: "10px 8px", textAlign: "center" }}>
                           {entry.wins}
                         </td>
-                        <td style={{ padding: "10px 8px", textAlign: "center", color: "#F44336" }}>
+                        <td style={{ color: "#F44336", padding: "10px 8px", textAlign: "center" }}>
                           {entry.losses}
                         </td>
-                        <td style={{ padding: "10px 8px", textAlign: "center", color: "#FF9800" }}>
+                        <td style={{ color: "#FF9800", padding: "10px 8px", textAlign: "center" }}>
                           {Math.round(entry.win_rate * 100)}%
                         </td>
                         <td
                           style={{
+                            color: statColor(entry.current_streak),
                             padding: "10px 8px",
                             textAlign: "center",
-                            color: entry.current_streak > 0 ? "#4CAF50" : entry.current_streak < 0 ? "#F44336" : "#888",
                           }}
                         >
                           {entry.current_streak > 0
-                            ? `🔥 ${entry.current_streak}`
+                            ? `+${entry.current_streak}W`
                             : entry.current_streak < 0
-                              ? `💀 ${Math.abs(entry.current_streak)}`
-                              : "—"}
+                              ? `${entry.current_streak}L`
+                              : "-"}
                         </td>
-                        <td style={{ padding: "10px 8px", textAlign: "center", color: "#aaa" }}>
+                        <td style={{ color: "#aaa", padding: "10px 8px", textAlign: "center" }}>
                           {entry.total_battles}
                         </td>
+                        <td
+                          style={{
+                            color:
+                              entry.recent_result === "Win"
+                                ? "#4CAF50"
+                                : entry.recent_result === "Loss"
+                                  ? "#F44336"
+                                  : "#888",
+                            padding: "10px 8px",
+                            textAlign: "center",
+                          }}
+                        >
+                          {entry.recent_result ?? "-"}
+                        </td>
+                        <td style={{ color: "#aaa", padding: "10px 8px", textAlign: "center" }}>
+                          {formatLastPlayed(entry.last_played)}
+                        </td>
                         <td style={{ padding: "10px 8px", textAlign: "center" }}>
-                          <div style={{ display: "flex", gap: "2px", justifyContent: "center" }}>
-                            {entry.badges.slice(0, 3).map((b) => (
-                              <span key={b} style={{ fontSize: "14px" }}>
-                                {BADGE_EMOJIS[b] || "🏅"}
+                          <div style={{ display: "flex", gap: "4px", justifyContent: "center" }}>
+                            {entry.badges.slice(0, 3).map((badge) => (
+                              <span key={badge} title={badge}>
+                                {BADGE_LABELS[badge] || "BDG"}
                               </span>
                             ))}
-                            {entry.badges.length > 3 && (
-                              <span style={{ color: "#888", fontSize: "10px" }}>+{entry.badges.length - 3}</span>
-                            )}
+                            <span style={{ color: "#777", fontSize: "10px" }} title="NFTree rarity slot pending">
+                              RAR
+                            </span>
+                            <span style={{ color: "#777", fontSize: "10px" }} title="VICTORY Locked status pending">
+                              VLK
+                            </span>
                           </div>
                         </td>
                       </tr>
@@ -370,30 +502,35 @@ export default function Leaderboard() {
               </table>
             </div>
           )}
-        </div>
+        </section>
 
-        {/* Footer Info */}
-        <div
+        <footer
           style={{
-            marginTop: "20px",
-            textAlign: "center",
-            color: "#555",
+            color: "#8aa898",
             fontSize: "clamp(10px, 2vw, 12px)",
+            marginTop: "20px",
             padding: "15px",
+            textAlign: "center",
           }}
         >
-          <p>Leaderboard tracks PvP battles only (bot battles excluded from rankings).</p>
-          <p>Rank titles earned through PvP wins: Rooted Contender (10), Grove Champion (25), Canopy Elite (50), Last Tree Standing (100).</p>
+          <p>
+            PvP, Garden Bot, and Overall rankings are separated so Garden Bot practice does not
+            dominate PvP rankings.
+          </p>
+          <p>UR means unranked until at least 3 battles are recorded in the selected mode.</p>
+          <p>NFTree rarity and VICTORY Locked badge slots are placeholders only.</p>
+          <p>
+            Rank titles are earned through wins: Rooted Contender (10), Grove Champion (25),
+            Canopy Elite (50), Last Tree Standing (100).
+          </p>
           <p style={{ marginTop: "8px" }}>
-            <Link
-              href="/battle"
-              style={{ color: "#00ff00", textDecoration: "underline", fontSize: "13px" }}
-            >
-              ← Back to Battle
+            <Link href="/battle" style={{ color: "#00ff88", fontSize: "13px", textDecoration: "underline" }}>
+              Back to Battle
             </Link>
           </p>
-        </div>
-      </div>
+          <p style={{ marginTop: "8px" }}>{totalPlayers} players in this view.</p>
+        </footer>
+      </main>
     </div>
   );
 }

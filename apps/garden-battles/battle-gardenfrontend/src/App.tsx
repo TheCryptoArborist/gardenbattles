@@ -23,8 +23,9 @@ function Router() {
     <Switch>
       <Route path="/" component={Home} />
       <Route path="/mint" component={Mint} />
-      <Route path="/battle" component={Battle} />
       <Route path="/leaderboard" component={Leaderboard} />
+      <Route path="/battle/leaderboard" component={Leaderboard} />
+      <Route path="/battle" component={Battle} />
       <Route component={NotFound} />
     </Switch>
   );

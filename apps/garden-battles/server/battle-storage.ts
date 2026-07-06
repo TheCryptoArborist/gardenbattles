@@ -10,6 +10,12 @@ const db = new Database(DB_PATH);
 db.pragma("journal_mode = WAL");
 db.pragma("foreign_keys = ON");
 
+function hasColumn(table: string, column: string): boolean {
+  return (db.pragma(`table_info(${table})`) as Array<{ name: string }>).some(
+    (row) => row.name === column,
+  );
+}
+
 // ─── Schema ────────────────────────────────────────────────────────────────────
 db.exec(`
   CREATE TABLE IF NOT EXISTS battle_records (
@@ -19,6 +25,7 @@ db.exec(`
     player2 TEXT NOT NULL,
     winner TEXT,
     is_bot_battle INTEGER DEFAULT 0,
+    transaction_digest TEXT,
     finished_at INTEGER NOT NULL,
     recorded_at INTEGER NOT NULL
   );
@@ -45,6 +52,16 @@ db.exec(`
     started_at INTEGER NOT NULL,
     ended_at INTEGER
   );
+`);
+
+if (!hasColumn("battle_records", "transaction_digest")) {
+  db.exec("ALTER TABLE battle_records ADD COLUMN transaction_digest TEXT");
+}
+
+db.exec(`
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_battle_records_transaction_digest
+  ON battle_records(transaction_digest)
+  WHERE transaction_digest IS NOT NULL;
 `);
 
 // ─── Rank Titles ───────────────────────────────────────────────────────────────
@@ -113,9 +130,12 @@ export interface BattleRecordRow {
   player2: string;
   winner: string | null;
   is_bot_battle: number;
+  transaction_digest: string | null;
   finished_at: number;
   recorded_at: number;
 }
+
+export type LeaderboardMode = "pvp" | "bot" | "overall";
 
 export interface LeaderboardEntry {
   rank: number;
@@ -127,12 +147,16 @@ export interface LeaderboardEntry {
   rank_title: string;
   badges: string[];
   total_battles: number;
+  mode: LeaderboardMode;
+  last_played: number | null;
+  recent_result: "Win" | "Loss" | null;
+  ranked: boolean;
 }
 
 // ─── Prepared statements ───────────────────────────────────────────────────────
 const upsertBattleRecord = db.prepare(`
-  INSERT OR IGNORE INTO battle_records (battle_id, player1, player2, winner, is_bot_battle, finished_at, recorded_at)
-  VALUES (?, ?, ?, ?, ?, ?, ?)
+  INSERT OR IGNORE INTO battle_records (battle_id, player1, player2, winner, is_bot_battle, transaction_digest, finished_at, recorded_at)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 `);
 
 const getPlayerStats = db.prepare(
@@ -187,6 +211,12 @@ const getBattleByBattleId = db.prepare(
   "SELECT * FROM battle_records WHERE battle_id = ?"
 );
 
+const getCompletedBattlesStmt = db.prepare(`
+  SELECT * FROM battle_records
+  WHERE winner IS NOT NULL
+  ORDER BY finished_at DESC, recorded_at DESC
+`);
+
 // ─── Public API ─────────────────────────────────────────────────────────────────
 
 export interface TrackBattleInput {
@@ -195,6 +225,7 @@ export interface TrackBattleInput {
   player2: string;
   winner: string | null;
   isBotBattle: boolean;
+  transactionDigest?: string | null;
   finishedAt: number;
 }
 
@@ -208,6 +239,7 @@ export function trackBattle(input: TrackBattleInput): void {
     input.player2,
     input.winner || null,
     input.isBotBattle ? 1 : 0,
+    input.transactionDigest || null,
     input.finishedAt,
     now,
   );
@@ -287,28 +319,156 @@ export function getPlayerStatsByAddress(address: string): PlayerStatsRow | null 
   return row;
 }
 
-export function getLeaderboard(limit = 50, offset = 0): LeaderboardEntry[] {
-  const rows = getLeaderboardQuery.all(limit, offset) as any[];
-  return rows.map((row, i) => {
-    const stats: PlayerStatsRow = { ...row, win_rate: row.total_battles > 0 ? row.wins / row.total_battles : 0, draws: 0, current_streak: row.current_streak ?? 0, max_win_streak: 0, last_battle_at: null, total_bot_wins: 0, total_bot_losses: 0, updated_at: 0, badges: row.badges ?? "[]" };
+interface DerivedLeaderboardStats {
+  address: string;
+  wins: number;
+  losses: number;
+  current_streak: number;
+  max_win_streak: number;
+  last_played: number | null;
+  last_win_at: number | null;
+  recent_result: "Win" | "Loss" | null;
+}
+
+function createDerivedStats(address: string): DerivedLeaderboardStats {
+  return {
+    address,
+    wins: 0,
+    losses: 0,
+    current_streak: 0,
+    max_win_streak: 0,
+    last_played: null,
+    last_win_at: null,
+    recent_result: null,
+  };
+}
+
+function includeBattleInMode(record: BattleRecordRow, mode: LeaderboardMode): boolean {
+  if (mode === "overall") return true;
+  if (mode === "bot") return record.is_bot_battle === 1;
+  return record.is_bot_battle === 0;
+}
+
+function addResult(
+  statsByAddress: Map<string, DerivedLeaderboardStats>,
+  address: string,
+  won: boolean,
+  finishedAt: number,
+) {
+  const normalized = address.toLowerCase();
+  const stats = statsByAddress.get(normalized) ?? createDerivedStats(normalized);
+  if (won) {
+    stats.wins += 1;
+    stats.current_streak = Math.max(0, stats.current_streak) + 1;
+    stats.max_win_streak = Math.max(stats.max_win_streak, stats.current_streak);
+    stats.last_win_at = Math.max(stats.last_win_at ?? 0, finishedAt);
+  } else {
+    stats.losses += 1;
+    stats.current_streak = Math.min(0, stats.current_streak) - 1;
+  }
+  if (!stats.last_played || finishedAt > stats.last_played) {
+    stats.last_played = finishedAt;
+    stats.recent_result = won ? "Win" : "Loss";
+  }
+  statsByAddress.set(normalized, stats);
+}
+
+function getDerivedLeaderboard(mode: LeaderboardMode): DerivedLeaderboardStats[] {
+  const records = getCompletedBattlesStmt.all() as BattleRecordRow[];
+  const statsByAddress = new Map<string, DerivedLeaderboardStats>();
+
+  for (const record of records) {
+    if (!record.winner || !includeBattleInMode(record, mode)) continue;
+    const winner = record.winner.toLowerCase();
+    const player1 = record.player1.toLowerCase();
+    const player2 = record.player2.toLowerCase();
+
+    if (record.is_bot_battle === 1) {
+      addResult(statsByAddress, player1, winner === player1, record.finished_at);
+      continue;
+    }
+
+    addResult(statsByAddress, player1, winner === player1, record.finished_at);
+    addResult(statsByAddress, player2, winner === player2, record.finished_at);
+  }
+
+  return Array.from(statsByAddress.values());
+}
+
+export function getLeaderboard(
+  limit = 50,
+  offset = 0,
+  mode: LeaderboardMode = "pvp",
+): LeaderboardEntry[] {
+  const rows = getDerivedLeaderboard(mode).sort((a, b) => {
+    const aTotal = a.wins + a.losses;
+    const bTotal = b.wins + b.losses;
+    const aRanked = aTotal >= 3 ? 1 : 0;
+    const bRanked = bTotal >= 3 ? 1 : 0;
+    const aRate = aTotal > 0 ? a.wins / aTotal : 0;
+    const bRate = bTotal > 0 ? b.wins / bTotal : 0;
+
+    return (
+      bRanked - aRanked ||
+      b.wins - a.wins ||
+      bRate - aRate ||
+      bTotal - aTotal ||
+      (b.last_win_at ?? 0) - (a.last_win_at ?? 0)
+    );
+  });
+
+  return rows.slice(offset, offset + limit).map((row, i) => {
+    const totalBattles = row.wins + row.losses;
+    const stats: PlayerStatsRow = {
+      address: row.address,
+      wins: row.wins,
+      losses: row.losses,
+      draws: 0,
+      total_battles: totalBattles,
+      current_streak: row.current_streak,
+      max_win_streak: row.max_win_streak,
+      last_battle_at: row.last_played,
+      total_bot_wins: 0,
+      total_bot_losses: 0,
+      rank_title: getRankTitle(row.wins),
+      badges: "[]",
+      win_rate: totalBattles > 0 ? row.wins / totalBattles : 0,
+      updated_at: row.last_played ?? 0,
+    };
     const badges = calculateBadges(stats);
+
     return {
       rank: offset + i + 1,
       address: row.address,
       wins: row.wins,
       losses: row.losses,
-      win_rate: row.total_battles > 0 ? +(row.wins / row.total_battles).toFixed(4) : 0,
-      current_streak: row.current_streak ?? 0,
-      rank_title: row.rank_title ?? "Seedling",
+      win_rate: totalBattles > 0 ? +(row.wins / totalBattles).toFixed(4) : 0,
+      current_streak: row.current_streak,
+      rank_title: stats.rank_title,
       badges,
-      total_battles: row.total_battles,
+      total_battles: totalBattles,
+      mode,
+      last_played: row.last_played,
+      recent_result: row.recent_result,
+      ranked: totalBattles >= 3,
     };
   });
 }
 
-export function getTotalPlayers(): number {
-  const row = getPlayerCount.get() as any;
-  return row?.cnt ?? 0;
+export function getTotalPlayers(mode: LeaderboardMode = "pvp"): number {
+  return getDerivedLeaderboard(mode).length;
+}
+
+export function getPlayerLeaderboardStats(
+  address: string,
+  mode: LeaderboardMode = "pvp",
+): LeaderboardEntry | null {
+  const normalized = address.toLowerCase();
+  return (
+    getLeaderboard(Number.MAX_SAFE_INTEGER, 0, mode).find(
+      (entry) => entry.address === normalized,
+    ) ?? null
+  );
 }
 
 export function getRecentBattlesByAddress(
