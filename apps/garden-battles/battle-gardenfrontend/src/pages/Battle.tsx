@@ -17,6 +17,8 @@ import BattleLog from "@/components/BattleLog";
 import PlayerRecord from "@/components/PlayerRecord";
 import ForestPower from "@/components/ForestPower";
 import { appAsset } from "@/lib/assets";
+import TreePowerPanel from "@/components/TreePowerPanel";
+import PrizePayoutPanel from "@/components/PrizePayoutPanel";
 
 const ecosystemLinks = [
   { label: "Home", href: "https://tree-token.net", testId: "home" },
@@ -1028,6 +1030,12 @@ export default function Battle() {
           {/* How to Play */}
           <HowToPlay />
 
+          <div
+            className={battleState ? "gb-battle-hud" : "gb-battle-hud gb-battle-hud-preview"}
+            aria-label="Garden Battles HUD"
+          >
+          {battleState && <TreePowerPanel />}
+          <div className="gb-battle-hud-center">
           {/* Battle Area */}
           <section className="gb-battle-arena" aria-label="Current battle arena">
           <div className="battle-grid">
@@ -1979,6 +1987,9 @@ export default function Battle() {
             </div>
           </div>
         )}
+          </div>
+          {battleState && <PrizePayoutPanel isGardenBotBattle={isGardenBotBattle} />}
+          </div>
 
         {/* Join Battle Button - Show when connected and not in an active battle/queue */}
         {isConnected && (!battleState || battleFinished) && !isWaiting && (
