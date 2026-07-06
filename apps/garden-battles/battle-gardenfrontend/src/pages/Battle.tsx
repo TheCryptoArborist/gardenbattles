@@ -19,6 +19,7 @@ import ForestPower from "@/components/ForestPower";
 import { appAsset } from "@/lib/assets";
 import TreePowerPanel from "@/components/TreePowerPanel";
 import PrizePayoutPanel from "@/components/PrizePayoutPanel";
+import BattleResultModal from "@/components/BattleResultModal";
 
 const ecosystemLinks = [
   { label: "Home", href: "https://tree-token.net", testId: "home" },
@@ -180,6 +181,7 @@ export default function Battle() {
   const [isForfeiting, setIsForfeiting] = useState(false);
   const [isAdminClosing, setIsAdminClosing] = useState(false);
   const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
+  const [dismissedResultBattleId, setDismissedResultBattleId] = useState<string | null>(null);
   const entryFeeLabel = `${(entryFeeMist / 1e9).toLocaleString(undefined, {
     maximumFractionDigits: 9,
   })} SUI`;
@@ -427,7 +429,10 @@ export default function Battle() {
 
   // Clear action log when a new battle starts
   useEffect(() => {
-    if (battleState?.battleId) clearActionLog();
+    if (battleState?.battleId) {
+      clearActionLog();
+      setDismissedResultBattleId(null);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [battleState?.battleId]);
 
@@ -644,10 +649,8 @@ export default function Battle() {
     battleStatus = "Battle ended.";
   }
 
-  const shareUrl =
-    typeof window !== "undefined"
-      ? `${window.location.origin}/battle`
-      : "https://nftree.net/battle";
+  const nftreeUrl = "https://nftree.net";
+  const shareUrl = "https://nftree.net/battle";
   const winnerTitle =
     winner === "player"
       ? "You Win!"
@@ -671,12 +674,35 @@ export default function Battle() {
   const winnerStageVisual =
     winner === "player" ? playerStageVisual : opponentStageVisual;
   const winnerImage = winnerStageVisual.imageUrl;
+  const opponentName = isGardenBotBattle ? "Garden Bot" : "my opponent";
+  const finalScoreText = `Final: ${playerGrowth}/${growthTarget} vs ${opponentGrowth}/${growthTarget}`;
   const shareText =
     winner === "player"
-      ? `I just won a Garden Battles match on NFTree at ${playerGrowth}/${growthTarget} Growth.`
-      : `Garden Battles match complete at ${Math.max(playerGrowth, opponentGrowth)}/${growthTarget} Growth.`;
-  const encodedShareText = encodeURIComponent(shareText);
+      ? `${opponentName === "Garden Bot" ? "Garden Bot got rooted." : "My opponent got rooted."}\n\nI just took the W in Garden Battles.\n${finalScoreText}\n\nThink your NFTree can do better?\nBuy an NFTree at ${nftreeUrl} and join the fight:\n${shareUrl}`
+      : `${opponentName === "Garden Bot" ? "The Garden Bot clipped my branches this round." : "My opponent clipped my branches this round."}\n\n${finalScoreText}\n\nI'm running it back.\nBuy an NFTree at ${nftreeUrl} and join the fight:\n${shareUrl}`;
+  const xShareText =
+    winner === "player"
+      ? `Garden Bot got rooted. I just took the W in Garden Battles. ${finalScoreText}. Think your NFTree can do better? Join the fight:`
+      : `The Garden Bot clipped my branches this round. ${finalScoreText}. I'm running it back. Join the fight:`;
+  const encodedShareText = encodeURIComponent(xShareText);
   const encodedShareUrl = encodeURIComponent(shareUrl);
+  const resultModalBattleId =
+    battleState?.battleId || `${winner || "result"}-${playerGrowth}-${opponentGrowth}`;
+  const resultScore = `${playerGrowth}/${growthTarget} vs ${opponentGrowth}/${growthTarget}`;
+  const resultSummary = winnerNeedsChainFinalization
+    ? "The Garden Bot target was reached. The interface is stopping this match here while the contract target bug is queued for upgrade."
+    : `${Math.max(playerGrowth, opponentGrowth)} / ${growthTarget} Growth reached.`;
+  const resultModalOpen =
+    !!winner &&
+    battleFinished &&
+    dismissedResultBattleId !== resultModalBattleId;
+  const handleCloseResultModal = () => {
+    setDismissedResultBattleId(resultModalBattleId);
+  };
+  const handlePlayAgainFromResult = () => {
+    setDismissedResultBattleId(resultModalBattleId);
+    handleStartBotBattle();
+  };
 
   const handleNativeShareWin = async () => {
     try {
@@ -687,9 +713,9 @@ export default function Battle() {
           url: shareUrl,
         });
       } else {
-        await navigator.clipboard.writeText(`${shareText} ${shareUrl}`);
+        await navigator.clipboard.writeText(shareText);
         setDialogOpen(true);
-        setDialogMessage("Win share text copied.");
+        setDialogMessage("Result share text copied.");
       }
     } catch {
       // User cancelled the native share sheet.
@@ -697,9 +723,9 @@ export default function Battle() {
   };
 
   const handleCopyWin = async () => {
-    await navigator.clipboard.writeText(`${shareText} ${shareUrl}`);
+    await navigator.clipboard.writeText(shareText);
     setDialogOpen(true);
-    setDialogMessage("Win share text copied.");
+    setDialogMessage("Result share text copied.");
   };
 
   // Check if user is admin to show admin panel
@@ -708,6 +734,58 @@ export default function Battle() {
     SUI_CONFIG.ADMIN_ADDRESSES.some(
       (adminAddr) => adminAddr.toLowerCase() === address.toLowerCase(),
     );
+  const modeSelect =
+    isConnected && (!battleState || battleFinished) && !isWaiting ? (
+      <section className="gb-mode-select" aria-label="Choose battle mode">
+        <article className="gb-mode-card gb-mode-card-bot">
+          <span className="gb-mode-icon" aria-hidden="true">
+            BOT
+          </span>
+          <h2>Garden Bot</h2>
+          <p>Practice match</p>
+          <button
+            onClick={handleStartBotBattle}
+            disabled={isJoining || isStartingBot}
+            className="gb-mode-action gb-mode-action-bot"
+            data-testid="button-start-bot-battle"
+          >
+            {isStartingBot ? "Starting..." : "Play Garden Bot"}
+          </button>
+        </article>
+
+        <article className="gb-mode-card gb-mode-card-pvp">
+          <span className="gb-mode-icon" aria-hidden="true">
+            PVP
+          </span>
+          <h2>PvP Battle</h2>
+          <p>Join the queue</p>
+          <button
+            onClick={handleJoinBattle}
+            disabled={isJoining || isStartingBot}
+            className="gb-mode-action gb-mode-action-pvp"
+            data-testid="button-join-battle"
+          >
+            {isJoining ? "Joining..." : `Join Battle Queue (${entryFeeLabel})`}
+          </button>
+        </article>
+
+        <article
+          className="gb-mode-card gb-mode-card-clash"
+          aria-label="Canopy Clash coming soon"
+        >
+          <span className="gb-mode-icon" aria-hidden="true">
+            CUP
+          </span>
+          <h2>Canopy Clash</h2>
+          <p>Tournament mode being shaped</p>
+          <span className="gb-mode-placeholder">Coming Soon</span>
+        </article>
+        <p className="gb-mode-select-note">
+          Join the paid player queue, or start a no-payout practice battle with
+          Garden Bot.
+        </p>
+      </section>
+    ) : null;
 
   return (
     <>
@@ -1027,6 +1105,7 @@ export default function Battle() {
               data-testid="img-battle-title"
             />
           </section>
+          {modeSelect}
           {/* How to Play */}
           <HowToPlay />
 
@@ -1360,8 +1439,8 @@ export default function Battle() {
           </div>
         </section>
 
-        {/* Battle Options — Color-coded move cards */}
-        {battleFinished && winner && (
+        {/* Battle Options - Color-coded move cards */}
+        {false && battleFinished && winner && (
           <section
             style={{
               width: "min(760px, calc(100% - 24px))",
@@ -1991,54 +2070,6 @@ export default function Battle() {
           {battleState && <PrizePayoutPanel isGardenBotBattle={isGardenBotBattle} />}
           </div>
 
-        {/* Join Battle Button - Show when connected and not in an active battle/queue */}
-        {isConnected && (!battleState || battleFinished) && !isWaiting && (
-          <section className="gb-mode-select" aria-label="Choose battle mode">
-            <article className="gb-mode-card gb-mode-card-bot">
-              <span className="gb-mode-icon" aria-hidden="true">BOT</span>
-              <h2>Garden Bot</h2>
-              <p>Practice match</p>
-              <button
-                onClick={handleStartBotBattle}
-                disabled={isJoining || isStartingBot}
-                className="gb-mode-action gb-mode-action-bot"
-                data-testid="button-start-bot-battle"
-              >
-                {isStartingBot ? "Starting..." : "Play Garden Bot"}
-              </button>
-            </article>
-
-            <article className="gb-mode-card gb-mode-card-pvp">
-              <span className="gb-mode-icon" aria-hidden="true">PVP</span>
-              <h2>PvP Battle</h2>
-              <p>Join the queue</p>
-              <button
-                onClick={handleJoinBattle}
-                disabled={isJoining || isStartingBot}
-                className="gb-mode-action gb-mode-action-pvp"
-                data-testid="button-join-battle"
-              >
-                {isJoining
-                  ? "Joining..."
-                  : `Join Battle Queue (${entryFeeLabel})`}
-              </button>
-            </article>
-
-            <article className="gb-mode-card gb-mode-card-clash" aria-label="Canopy Clash coming soon">
-              <span className="gb-mode-icon" aria-hidden="true">CUP</span>
-              <h2>Canopy Clash</h2>
-              <p>Tournament mode being shaped</p>
-              <span className="gb-mode-placeholder">Coming Soon</span>
-            </article>
-            <p
-              className="gb-mode-select-note"
-            >
-              Join the paid player queue, or start a no-payout practice battle
-              with Garden Bot.
-            </p>
-          </section>
-        )}
-
         {/* Battle Info */}
         <p
           style={{
@@ -2116,6 +2147,23 @@ export default function Battle() {
           message={dialogMessage}
           onClose={() => setDialogOpen(false)}
           canClose={!isQueueWaitingDialog}
+        />
+        <BattleResultModal
+          open={resultModalOpen}
+          title={winnerTitle}
+          score={`Final score: ${resultScore}`}
+          summary={resultSummary}
+          imageUrl={winnerImage}
+          imageAlt={winnerStageVisual.alt}
+          xShareUrl={`https://twitter.com/intent/tweet?text=${encodedShareText}&url=${encodedShareUrl}`}
+          buyNftreeUrl={nftreeUrl}
+          battleUrl={shareUrl}
+          canPlayAgain={isGardenBotBattle}
+          isPlayingAgain={isStartingBot}
+          onShare={handleNativeShareWin}
+          onCopy={handleCopyWin}
+          onClose={handleCloseResultModal}
+          onPlayAgain={handlePlayAgainFromResult}
         />
         <WaitingOverlay isWaiting={isWaiting} onLeaveQueue={cancelQueue} />
 
