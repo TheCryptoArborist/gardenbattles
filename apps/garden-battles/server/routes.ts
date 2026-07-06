@@ -461,9 +461,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/health", (_req, res) => {
     res.json({
       ok: true,
-      battles: battles.size,
-      players: playerToBattle.size,
-      bot: { enabled: !!botKeypair, address: BOT_ADDRESS },
+      service: "garden-battles-api",
     });
   });
 
