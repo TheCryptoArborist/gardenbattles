@@ -116,6 +116,6 @@ app.use((req, res, next) => {
     process.env.HOST || (app.get("env") === "production" ? "0.0.0.0" : "localhost");
 
   server.listen(port, host, () => {
-    log(`serving on http://${host}:${port}`);
+    console.log(`[server] listening on ${host}:${port}`);
   });
 })();

@@ -33,8 +33,13 @@ const MODULE = process.env.BATTLE_MODULE || "battle";
 const BATTLE_UPDATE_EVENT = `${EVENT_PACKAGE_ID}::${MODULE}::BattleUpdate`;
 const POLL_INTERVAL_MS = 2_000; // poll every 2 s
 const RANDOM_OBJECT_ID = process.env.SUI_RANDOM_OBJECT_ID || "0x8";
-const DISABLE_SUI_RELAY = process.env.DISABLE_SUI_RELAY === "true";
 const LEADERBOARD_MODES = new Set<LeaderboardMode>(["pvp", "bot", "overall"]);
+
+function isEnvEnabled(value: string | undefined): boolean {
+  return ["true", "1", "yes", "on"].includes((value ?? "").trim().toLowerCase());
+}
+
+const DISABLE_SUI_RELAY = isEnvEnabled(process.env.DISABLE_SUI_RELAY);
 
 function getLeaderboardMode(value: unknown): LeaderboardMode {
   return typeof value === "string" && LEADERBOARD_MODES.has(value as LeaderboardMode)
@@ -45,8 +50,8 @@ function getLeaderboardMode(value: unknown): LeaderboardMode {
 // ─── Bot configuration ───────────────────────────────────────────────────────
 const BOT_PRIVATE_KEY = process.env.BATTLE_BOT_PRIVATE_KEY;
 const BOT_MOVE_DELAY_MS = Number(process.env.BATTLE_BOT_MOVE_DELAY_MS ?? 1_500);
-const botClient = new SuiClient({ url: SUI_RPC_URL });
-const botKeypair = BOT_PRIVATE_KEY
+const botClient = DISABLE_SUI_RELAY ? null : new SuiClient({ url: SUI_RPC_URL });
+const botKeypair = !DISABLE_SUI_RELAY && BOT_PRIVATE_KEY
   ? (() => {
       const parsed = decodeSuiPrivateKey(BOT_PRIVATE_KEY);
       if (parsed.schema !== "ED25519") {
@@ -160,6 +165,8 @@ function parseBattleEvent(parsedJson: any): BattleState | null {
 async function hydrateBattleState(
   eventState: BattleState,
 ): Promise<BattleState> {
+  if (!botClient) return eventState;
+
   try {
     const object = await botClient.getObject({
       id: eventState.battleId,
@@ -240,7 +247,7 @@ function chooseBotMove(state: BattleState, botIsPlayer1: boolean): number | null
 }
 
 async function maybeRunBotTurn(state: BattleState) {
-  if (!botKeypair || !BOT_ADDRESS || state.winner) return;
+  if (DISABLE_SUI_RELAY || !botClient || !botKeypair || !BOT_ADDRESS || state.winner) return;
 
   const botIsPlayer1 = state.player1 === BOT_ADDRESS;
   const botIsPlayer2 = state.player2 === BOT_ADDRESS;
@@ -611,7 +618,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ── Start Sui polling loop ──────────────────────────────────────────────────
   if (DISABLE_SUI_RELAY) {
-    console.log("[relay] Sui event polling disabled by DISABLE_SUI_RELAY=true");
+    console.log("[relay] disabled by DISABLE_SUI_RELAY=true");
   } else {
     console.log(
       `[relay] starting Sui event polling every ${POLL_INTERVAL_MS / 1000}s`,
