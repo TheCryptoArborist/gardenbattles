@@ -895,10 +895,27 @@
     padding: 10px;
   }
 
-  .gb-hud-buy-tree span {
+  .gb-hud-buy-tree-copy {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+  }
+
+  .gb-hud-buy-tree-copy strong {
+    color: var(--gb-text-main);
+    display: block;
+    font-family: Orbitron, sans-serif;
+    font-size: 11px;
+    font-weight: 900;
+    line-height: 1.25;
+    text-transform: uppercase;
+  }
+
+  .gb-hud-buy-tree-copy span {
     color: var(--gb-text-muted);
+    display: block;
     font-size: 12px;
-    line-height: 1.35;
+    line-height: 1.4;
   }
 
   .gb-hud-buy-tree a {
@@ -935,6 +952,100 @@
     box-shadow: 0 0 18px rgba(0, 213, 199, 0.22);
     color: var(--gb-text-main);
     outline: none;
+  }
+
+  .gb-ecosystem-status {
+    background:
+      linear-gradient(180deg, rgba(0, 213, 199, 0.08), rgba(57, 255, 136, 0.05)),
+      rgba(0, 20, 18, 0.72);
+    border: 1px solid rgba(0, 213, 199, 0.26);
+    border-radius: 8px;
+    box-shadow: inset 0 0 20px rgba(0, 213, 199, 0.06);
+    display: grid;
+    gap: 7px;
+    min-width: 0;
+    padding: 9px;
+  }
+
+  .gb-ecosystem-status-head {
+    align-items: center;
+    display: flex;
+    gap: 8px;
+    justify-content: space-between;
+    min-width: 0;
+  }
+
+  .gb-ecosystem-status-head strong {
+    color: var(--gb-tree-green);
+    font-family: Orbitron, sans-serif;
+    font-size: 11px;
+    font-weight: 900;
+    letter-spacing: 0.7px;
+    text-transform: uppercase;
+  }
+
+  .gb-ecosystem-status-head span {
+    border: 1px solid rgba(0, 213, 199, 0.38);
+    border-radius: 999px;
+    color: var(--gb-cyan);
+    flex: 0 0 auto;
+    font-family: Orbitron, sans-serif;
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: 0.6px;
+    padding: 4px 7px;
+    text-transform: uppercase;
+  }
+
+  .gb-ecosystem-status-row {
+    align-items: start;
+    border-top: 1px solid rgba(192, 255, 221, 0.1);
+    display: grid;
+    gap: 5px;
+    grid-template-columns: minmax(0, 1fr);
+    min-width: 0;
+    padding-top: 7px;
+  }
+
+  .gb-ecosystem-status-row strong {
+    color: var(--gb-text-main);
+    display: block;
+    font-size: 11px;
+    font-weight: 800;
+    line-height: 1.2;
+    text-transform: uppercase;
+  }
+
+  .gb-ecosystem-status-row small {
+    color: rgba(192, 255, 221, 0.66);
+    display: block;
+    font-size: 10px;
+    line-height: 1.35;
+    margin-top: 2px;
+  }
+
+  .gb-ecosystem-status-row > span {
+    background: rgba(255, 203, 79, 0.08);
+    border: 1px solid rgba(255, 203, 79, 0.22);
+    border-radius: 999px;
+    color: var(--gb-gold);
+    font-family: Orbitron, sans-serif;
+    font-size: 9px;
+    font-weight: 800;
+    line-height: 1.25;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    padding: 4px 7px;
+    text-align: left;
+    text-transform: uppercase;
+    width: fit-content;
+  }
+
+  .gb-ecosystem-note {
+    color: rgba(192, 255, 221, 0.72);
+    font-size: 10px;
+    line-height: 1.35;
+    margin: 0;
   }
 
   .gb-hud-disabled-action {

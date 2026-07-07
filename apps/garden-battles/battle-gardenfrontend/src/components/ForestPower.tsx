@@ -5,10 +5,10 @@ interface ForestPowerProps {
   address: string | null;
 }
 
-const TREE_COIN_TYPE =
+export const TREE_COIN_TYPE =
   "0x6c5a609f6d0288523ce4a6ed87d19ae127f62073ab75fd9b0b1c9b455d4895cf::tree::TREE";
 
-const FALLBACK_TREE_DECIMALS = 6;
+export const FALLBACK_TREE_DECIMALS = 6;
 
 const TIERS = [
   { min: 0, label: "Forest Sprout", className: "gb-holder-rank-forest-sprout" },
@@ -19,11 +19,11 @@ const TIERS = [
   { min: 25_000_000, label: "Canopy Titan", className: "gb-holder-rank-canopy-titan" },
 ];
 
-function treeBalanceToNumber(balance: bigint, decimals: number): number {
+export function treeBalanceToNumber(balance: bigint, decimals: number): number {
   return Number(balance) / 10 ** decimals;
 }
 
-function formatCompactTREE(amount: number): string {
+export function formatCompactTREE(amount: number): string {
   if (amount >= 1_000_000) return `${(amount / 1_000_000).toFixed(1)}M`;
   if (amount >= 1_000) return `${(amount / 1_000).toFixed(1)}K`;
   if (amount >= 1) return amount.toFixed(1);
