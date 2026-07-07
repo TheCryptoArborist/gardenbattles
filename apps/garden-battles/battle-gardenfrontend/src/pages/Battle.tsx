@@ -115,7 +115,7 @@ const DISMISSED_RESULT_STORAGE_KEY = "garden-battles:dismissed-results";
 const MAX_DISMISSED_RESULTS = 20;
 const RESULT_MODAL_ARM_MS = 5 * 60 * 1000;
 const RESULT_PLAY_AGAIN_TIMEOUT_MS = 90 * 1000;
-const BOT_START_PENDING_NOTE = "Approve or reject the request in your wallet.";
+const BOT_START_PENDING_NOTE = "Reject to cancel.";
 
 function readDismissedResultKeys(): string[] {
   if (typeof window === "undefined") return [];
@@ -305,7 +305,7 @@ export default function Battle() {
 
       if (nftData) {
         setDialogMessage(
-          "NFT found!\nWaiting for wallet approval to start Garden Bot practice battle...",
+          "NFTree found!\n\nApprove in your wallet to start Garden Bot.",
         );
         setPlayerNftImageUrl(nftData.imageUrl || null);
         await startBotBattle(nftData);
