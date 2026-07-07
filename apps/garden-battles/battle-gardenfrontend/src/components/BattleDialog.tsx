@@ -3,6 +3,7 @@ interface BattleDialogProps {
   message: string;
   onClose: () => void;
   canClose?: boolean;
+  pendingNote?: string;
 }
 
 export default function BattleDialog({
@@ -10,6 +11,7 @@ export default function BattleDialog({
   message,
   onClose,
   canClose = true,
+  pendingNote,
 }: BattleDialogProps) {
   if (!isOpen) return null;
 
@@ -33,9 +35,22 @@ export default function BattleDialog({
         onClick={(e) => e.stopPropagation()}
         data-testid="dialog-content"
       >
-        <p className="text-white text-lg md:text-xl mb-6 font-sans" data-testid="dialog-message">
+        <p
+          className="text-white text-lg md:text-xl mb-6 font-sans"
+          style={{ whiteSpace: "pre-line" }}
+          data-testid="dialog-message"
+        >
           {message}
         </p>
+        {!canClose && pendingNote && (
+          <p
+            className="text-sm md:text-base font-sans text-center"
+            style={{ color: "#baffee", marginTop: "-0.75rem", marginBottom: "0.25rem" }}
+            data-testid="dialog-pending-note"
+          >
+            {pendingNote}
+          </p>
+        )}
         {canClose && (
           <div className="flex justify-center">
             <button

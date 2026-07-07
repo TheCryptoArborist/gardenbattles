@@ -115,6 +115,7 @@ const DISMISSED_RESULT_STORAGE_KEY = "garden-battles:dismissed-results";
 const MAX_DISMISSED_RESULTS = 20;
 const RESULT_MODAL_ARM_MS = 5 * 60 * 1000;
 const RESULT_PLAY_AGAIN_TIMEOUT_MS = 90 * 1000;
+const BOT_START_PENDING_NOTE = "Approve or reject the request in your wallet.";
 
 function readDismissedResultKeys(): string[] {
   if (typeof window === "undefined") return [];
@@ -303,20 +304,33 @@ export default function Battle() {
       const nftData = await getFirstValidSaplingNft(address!);
 
       if (nftData) {
-        setDialogMessage("NFT found! Starting Garden Bot practice battle...");
+        setDialogMessage(
+          "NFT found!\nWaiting for wallet approval to start Garden Bot practice battle...",
+        );
         setPlayerNftImageUrl(nftData.imageUrl || null);
         await startBotBattle(nftData);
-        setDialogMessage(
-          "Garden Bot battle started! Waiting for chain update...",
-        );
+        setDialogOpen(false);
+        setDialogMessage("");
       } else {
         setDialogMessage(
           "No whitelisted NFT found. Contact admin to whitelist your collection.",
         );
       }
     } catch (error: any) {
+      setIsStartingBot(false);
+      const message = error?.message || "";
+      const lowerMessage = message.toLowerCase();
+      const friendlyMessage =
+        lowerMessage.includes("timed out waiting")
+          ? "Timed out waiting for the Garden Bot battle to start. Please try again."
+          : lowerMessage.includes("reject") ||
+              lowerMessage.includes("cancel") ||
+              lowerMessage.includes("denied") ||
+              lowerMessage.includes("declined")
+            ? "Start cancelled."
+            : "Could not start Garden Bot battle. Try again.";
       setDialogOpen(true);
-      setDialogMessage(error.message || "Failed to start bot battle");
+      setDialogMessage(friendlyMessage);
     } finally {
       setIsStartingBot(false);
     }
@@ -583,6 +597,16 @@ export default function Battle() {
   const isQueueWaitingMessage =
     /waiting for (opponent|chain update)|joined queue/i.test(dialogMessage);
   const isQueueWaitingDialog = isWaiting && isQueueWaitingMessage;
+  const isBotStartPendingDialog =
+    isStartingBot &&
+    /scanning for nfts|waiting for wallet approval/i.test(dialogMessage);
+  const canCloseBattleDialog = !isQueueWaitingDialog && !isBotStartPendingDialog;
+  const handleCloseBattleDialog = () => {
+    if (!canCloseBattleDialog) return;
+    setDialogOpen(false);
+    setIsStartingBot(false);
+    setIsResultPlayAgainStarting(false);
+  };
 
   useEffect(() => {
     if (hasOpponent && dialogOpen && isQueueWaitingMessage) {
@@ -2298,8 +2322,9 @@ export default function Battle() {
         <BattleDialog
           isOpen={dialogOpen}
           message={dialogMessage}
-          onClose={() => setDialogOpen(false)}
-          canClose={!isQueueWaitingDialog}
+          onClose={handleCloseBattleDialog}
+          canClose={canCloseBattleDialog}
+          pendingNote={isBotStartPendingDialog ? BOT_START_PENDING_NOTE : undefined}
         />
         <BattleResultModal
           open={resultModalOpen}
