@@ -382,6 +382,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
   const prevBattleStateRef = useRef<BattleState | null>(null);
   const lastMoveIdRef = useRef<number>(0);
   const lastResolvedBotMoveIdRef = useRef<number | null>(null);
+  const recentBattleDigestRef = useRef<string | null>(null);
   const submittedBattleDigestsRef = useRef<Set<string>>(new Set());
   const isWaitingRef = useRef(false);
 
@@ -401,16 +402,40 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
 
   const clearActionLog = useCallback(() => setActionLog([]), []);
 
-  const submitCompletedBattleRecord = useCallback(
-    (digest: string, state: BattleState | null | undefined) => {
-      if (!state?.winner || submittedBattleDigestsRef.current.has(digest)) return;
-      submittedBattleDigestsRef.current.add(digest);
+  const submitFinishedBattleDigest = useCallback((digest: string | null, reason: string) => {
+    if (!digest) {
+      console.log(`[leaderboard] submission skipped: no digest for ${reason}`);
+      return;
+    }
 
-      submitBattleRecord(digest).catch((err) => {
-        console.warn("[leaderboard] result submission failed:", err);
+    if (submittedBattleDigestsRef.current.has(digest)) {
+      console.log(`[leaderboard] submission skipped: duplicate digest for ${reason}`);
+      return;
+    }
+
+    console.log(`[leaderboard] submitting battle digest ${digest} (${reason})`);
+    submittedBattleDigestsRef.current.add(digest);
+
+    submitBattleRecord(digest)
+      .then((result) => {
+        console.log("[leaderboard] submit result", result);
+      })
+      .catch((err) => {
+        console.warn("[leaderboard] battle record submission failed:", err);
       });
+  }, []);
+
+  const submitCompletedBattleRecord = useCallback(
+    (digest: string, state: BattleState | null | undefined, reason: string) => {
+      if (!state?.winner) {
+        console.log(`[leaderboard] submission skipped: battle not finished for ${reason}`);
+        return;
+      }
+
+      recentBattleDigestRef.current = digest;
+      submitFinishedBattleDigest(digest, reason);
     },
-    [],
+    [submitFinishedBattleDigest],
   );
 
   useEffect(() => {
@@ -485,9 +510,15 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
         prevBattleStateRef.current = state;
         return state;
       });
+      if (stateHasWinner) {
+        submitFinishedBattleDigest(
+          recentBattleDigestRef.current,
+          "finished state applied",
+        );
+      }
       setIsWaiting(stateIsActive && isZeroAddress(state.player2));
     },
-    [address, clearBattleState, suiClient],
+    [address, clearBattleState, suiClient, submitFinishedBattleDigest],
   );
 
   useEffect(() => {
@@ -1066,6 +1097,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
           { transaction: tx, chain: SUI_CONFIG.CHAIN },
           {
             onSuccess: async (result) => {
+              recentBattleDigestRef.current = result.digest;
               let completedState: BattleState | null = null;
               try {
                 const eventResult = await getBattleUpdateStateFromTransaction(
@@ -1103,7 +1135,11 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
                   await applyBattleState(completedState);
                 }
               }
-              submitCompletedBattleRecord(result.digest, completedState);
+              submitCompletedBattleRecord(
+                result.digest,
+                completedState,
+                "post-move confirmed state",
+              );
               resolve();
             },
             onError: (err: any) =>
@@ -1142,6 +1178,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
         { transaction: tx, chain: SUI_CONFIG.CHAIN },
         {
           onSuccess: async (result) => {
+            recentBattleDigestRef.current = result.digest;
             const liveState = await getLiveBattleState(suiClient, battleId);
             if (liveState) {
               const completedState = {
@@ -1149,7 +1186,11 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
                 isBotBattle: battleState.isBotBattle,
               };
               await applyBattleState(completedState);
-              submitCompletedBattleRecord(result.digest, completedState);
+              submitCompletedBattleRecord(
+                result.digest,
+                completedState,
+                "timeout win confirmed state",
+              );
             }
             resolve();
           },
@@ -1178,6 +1219,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
         { transaction: tx, chain: SUI_CONFIG.CHAIN },
         {
           onSuccess: async (result) => {
+            recentBattleDigestRef.current = result.digest;
             const liveState = await getLiveBattleState(suiClient, battleId);
             if (liveState) {
               const completedState = {
@@ -1185,7 +1227,11 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
                 isBotBattle: battleState.isBotBattle,
               };
               await applyBattleState(completedState);
-              submitCompletedBattleRecord(result.digest, completedState);
+              submitCompletedBattleRecord(
+                result.digest,
+                completedState,
+                "forfeit confirmed state",
+              );
             }
             resolve();
           },
@@ -1226,6 +1272,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
           { transaction: tx, chain: SUI_CONFIG.CHAIN },
           {
             onSuccess: async (result) => {
+              recentBattleDigestRef.current = result.digest;
               const liveState = await getLiveBattleState(suiClient, battleId);
               if (liveState) {
                 const completedState = {
@@ -1233,7 +1280,11 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
                   isBotBattle: battleState.isBotBattle,
                 };
                 await applyBattleState(completedState);
-                submitCompletedBattleRecord(result.digest, completedState);
+                submitCompletedBattleRecord(
+                  result.digest,
+                  completedState,
+                  "admin close confirmed state",
+                );
               }
               resolve();
             },
