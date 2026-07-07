@@ -19,6 +19,7 @@ import ForestPower from "@/components/ForestPower";
 import { appAsset } from "@/lib/assets";
 import { appRoute } from "@/lib/routes";
 import TreePowerPanel from "@/components/TreePowerPanel";
+import TreeEcosystemStatus from "@/components/TreeEcosystemStatus";
 import PrizePayoutPanel from "@/components/PrizePayoutPanel";
 import BattleResultModal from "@/components/BattleResultModal";
 import ModeCrest from "@/components/ModeCrest";
@@ -110,6 +111,37 @@ const currentStageAssets: Record<GrowthStage, string> = {
   4: appAsset("assets/full_tree.jpg"),
 };
 
+const DISMISSED_RESULT_STORAGE_KEY = "garden-battles:dismissed-results";
+const MAX_DISMISSED_RESULTS = 20;
+const RESULT_MODAL_ARM_MS = 5 * 60 * 1000;
+
+function readDismissedResultKeys(): string[] {
+  if (typeof window === "undefined") return [];
+
+  try {
+    const stored = window.localStorage.getItem(DISMISSED_RESULT_STORAGE_KEY);
+    const parsed = stored ? JSON.parse(stored) : [];
+    return Array.isArray(parsed)
+      ? parsed.filter((key): key is string => typeof key === "string")
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeDismissedResultKeys(keys: string[]) {
+  if (typeof window === "undefined") return;
+
+  try {
+    window.localStorage.setItem(
+      DISMISSED_RESULT_STORAGE_KEY,
+      JSON.stringify(keys.slice(-MAX_DISMISSED_RESULTS)),
+    );
+  } catch {
+    // localStorage can be unavailable in strict privacy contexts.
+  }
+}
+
 function resolveGrowthStage(growth: number, growthTarget = 100): GrowthStage {
   const progress =
     growthTarget > 0 ? Math.max(0, Math.min(1, growth / growthTarget)) : 0;
@@ -189,7 +221,10 @@ export default function Battle() {
   const [isForfeiting, setIsForfeiting] = useState(false);
   const [isAdminClosing, setIsAdminClosing] = useState(false);
   const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
-  const [dismissedResultBattleId, setDismissedResultBattleId] = useState<string | null>(null);
+  const [dismissedResultKeys, setDismissedResultKeys] = useState<string[]>(
+    () => readDismissedResultKeys(),
+  );
+  const [liveResultKey, setLiveResultKey] = useState<string | null>(null);
   const entryFeeLabel = `${(entryFeeMist / 1e9).toLocaleString(undefined, {
     maximumFractionDigits: 9,
   })} SUI`;
@@ -205,6 +240,10 @@ export default function Battle() {
 
   const playerAnimationTimer = useRef<NodeJS.Timeout | null>(null);
   const opponentAnimationTimer = useRef<NodeJS.Timeout | null>(null);
+  const resultModalArmedRef = useRef(false);
+  const resultModalArmedBattleIdRef = useRef<string | null>(null);
+  const resultModalArmedUntilRef = useRef(0);
+  const liveResultKeysShownRef = useRef<Set<string>>(new Set());
 
   const showInlineError = (message: string) => {
     if (inlineErrorTimer.current) clearTimeout(inlineErrorTimer.current);
@@ -250,6 +289,10 @@ export default function Battle() {
     }
 
     setIsStartingBot(true);
+    setLiveResultKey(null);
+    resultModalArmedRef.current = false;
+    resultModalArmedBattleIdRef.current = null;
+    resultModalArmedUntilRef.current = 0;
     try {
       setDialogOpen(true);
       setDialogMessage("Scanning for NFTs...");
@@ -406,10 +449,14 @@ export default function Battle() {
 
     setPendingMoveId(abilityId);
     setInlineError(null);
+    resultModalArmedRef.current = true;
+    resultModalArmedBattleIdRef.current = battleState.battleId || null;
+    resultModalArmedUntilRef.current = Date.now() + RESULT_MODAL_ARM_MS;
     if (inlineErrorTimer.current) clearTimeout(inlineErrorTimer.current);
     try {
       await useAbility(abilityId);
     } catch (error: any) {
+      resultModalArmedRef.current = false;
       const msg: string = error.message || "Failed to use ability";
       // Friendly messages for common contract errors
       const lowerMsg = msg.toLowerCase();
@@ -439,7 +486,10 @@ export default function Battle() {
   useEffect(() => {
     if (battleState?.battleId) {
       clearActionLog();
-      setDismissedResultBattleId(null);
+      setLiveResultKey(null);
+      resultModalArmedRef.current = false;
+      resultModalArmedBattleIdRef.current = null;
+      resultModalArmedUntilRef.current = 0;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [battleState?.battleId]);
@@ -695,8 +745,10 @@ export default function Battle() {
       : `The Garden Bot clipped my branches this round. ${finalScoreText}. I'm running it back. Join the fight:`;
   const encodedShareText = encodeURIComponent(xShareText);
   const encodedShareUrl = encodeURIComponent(shareUrl);
-  const resultModalBattleId =
-    battleState?.battleId || `${winner || "result"}-${playerGrowth}-${opponentGrowth}`;
+  const resultModalKey =
+    battleState && winner
+      ? `battleResult:${battleState.battleId || "unknown"}:${winner}:${playerGrowth}:${opponentGrowth}`
+      : null;
   const resultScore = `${playerGrowth}/${growthTarget} vs ${opponentGrowth}/${growthTarget}`;
   const resultSummary = winnerNeedsChainFinalization
     ? "The Garden Bot target was reached. The interface is stopping this match here while the contract target bug is queued for upgrade."
@@ -704,12 +756,54 @@ export default function Battle() {
   const resultModalOpen =
     !!winner &&
     battleFinished &&
-    dismissedResultBattleId !== resultModalBattleId;
+    !!resultModalKey &&
+    liveResultKey === resultModalKey &&
+    !dismissedResultKeys.includes(resultModalKey);
+  const markResultDismissed = () => {
+    if (!resultModalKey) return;
+    setLiveResultKey(null);
+    setDismissedResultKeys((currentKeys) => {
+      const nextKeys = currentKeys.includes(resultModalKey)
+        ? currentKeys
+        : [...currentKeys, resultModalKey].slice(-MAX_DISMISSED_RESULTS);
+      writeDismissedResultKeys(nextKeys);
+      return nextKeys;
+    });
+  };
+
+  useEffect(() => {
+    const battleId = battleState?.battleId || null;
+
+    if (!battleId || !battleFinished) {
+      setLiveResultKey(null);
+      return;
+    }
+
+    const resultWasReachedFromCurrentMove =
+      resultModalArmedRef.current &&
+      resultModalArmedBattleIdRef.current === battleId &&
+      Date.now() <= resultModalArmedUntilRef.current;
+
+    if (
+      resultModalKey &&
+      winner &&
+      resultWasReachedFromCurrentMove &&
+      !dismissedResultKeys.includes(resultModalKey) &&
+      !liveResultKeysShownRef.current.has(resultModalKey)
+    ) {
+      liveResultKeysShownRef.current.add(resultModalKey);
+      resultModalArmedRef.current = false;
+      resultModalArmedBattleIdRef.current = null;
+      resultModalArmedUntilRef.current = 0;
+      setLiveResultKey(resultModalKey);
+    }
+  }, [battleState?.battleId, battleFinished, dismissedResultKeys, resultModalKey, winner]);
+
   const handleCloseResultModal = () => {
-    setDismissedResultBattleId(resultModalBattleId);
+    markResultDismissed();
   };
   const handlePlayAgainFromResult = () => {
-    setDismissedResultBattleId(resultModalBattleId);
+    markResultDismissed();
     handleStartBotBattle();
   };
 
@@ -1133,6 +1227,7 @@ export default function Battle() {
           {modeSelect}
           {/* How to Play */}
           <HowToPlay />
+          {battleState && <TreeEcosystemStatus />}
 
           <div
             className={battleState ? "gb-battle-hud" : "gb-battle-hud gb-battle-hud-preview"}

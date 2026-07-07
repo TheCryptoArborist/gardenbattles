@@ -93,7 +93,7 @@ export default function BattleResultModal({
             <a href={xShareUrl} target="_blank" rel="noopener noreferrer">
               Share on X
             </a>
-            <a href={leaderboardUrl}>
+            <a href={leaderboardUrl} onClick={onClose}>
               View Leaderboard
             </a>
             {canPlayAgain && onPlayAgain && (

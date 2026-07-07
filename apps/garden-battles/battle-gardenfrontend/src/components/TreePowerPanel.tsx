@@ -1,52 +1,6 @@
-import { useEffect, useState } from "react";
-import { useCurrentAccount, useSuiClient } from "@mysten/dapp-kit";
 import { appAsset } from "@/lib/assets";
-import {
-  FALLBACK_TREE_DECIMALS,
-  TREE_COIN_TYPE,
-  formatCompactTREE,
-  treeBalanceToNumber,
-} from "@/components/ForestPower";
 
 export default function TreePowerPanel() {
-  const account = useCurrentAccount();
-  const suiClient = useSuiClient();
-  const [liquidTreeLabel, setLiquidTreeLabel] = useState("Connect wallet");
-
-  useEffect(() => {
-    if (!account?.address) {
-      setLiquidTreeLabel("Connect wallet");
-      return;
-    }
-
-    let isMounted = true;
-    setLiquidTreeLabel("Loading");
-
-    Promise.all([
-      suiClient.getBalance({
-        owner: account.address,
-        coinType: TREE_COIN_TYPE,
-      }),
-      suiClient.getCoinMetadata({
-        coinType: TREE_COIN_TYPE,
-      }),
-    ])
-      .then(([balance, metadata]) => {
-        if (!isMounted) return;
-        const decimals = metadata?.decimals ?? FALLBACK_TREE_DECIMALS;
-        const liquidTree = treeBalanceToNumber(BigInt(balance.totalBalance), decimals);
-        setLiquidTreeLabel(`${formatCompactTREE(liquidTree)} TREE`);
-      })
-      .catch(() => {
-        if (!isMounted) return;
-        setLiquidTreeLabel("Unavailable");
-      });
-
-    return () => {
-      isMounted = false;
-    };
-  }, [account?.address, suiClient]);
-
   return (
     <aside className="gb-hud-panel gb-tree-power-panel" aria-label="Tree Power planned utilities">
       <div className="gb-hud-panel-kicker">Planned Utility</div>
@@ -90,55 +44,6 @@ export default function TreePowerPanel() {
           Buy TREE
         </a>
       </div>
-
-      <section className="gb-ecosystem-status" aria-label="TREE Ecosystem Status">
-        <div className="gb-ecosystem-status-head">
-          <strong>TREE Ecosystem Status</strong>
-          <span>Read-only</span>
-        </div>
-
-        <div className="gb-ecosystem-status-row">
-          <div>
-            <strong>Liquid TREE</strong>
-            <small>Spendable wallet TREE.</small>
-          </div>
-          <span>{liquidTreeLabel}</span>
-        </div>
-
-        <div className="gb-ecosystem-status-row">
-          <div>
-            <strong>SuiDex V2 Position</strong>
-            <small>LP/staked exposure.</small>
-          </div>
-          <span>Detection coming soon</span>
-        </div>
-
-        <div className="gb-ecosystem-status-row">
-          <div>
-            <strong>SuiDex V3 Position</strong>
-            <small>Concentrated LP exposure.</small>
-          </div>
-          <span>Detection coming soon</span>
-        </div>
-
-        <div className="gb-ecosystem-status-row">
-          <div>
-            <strong>VICTORY Lock</strong>
-            <small>SuiDex supporter status.</small>
-          </div>
-          <span>Detection coming soon</span>
-        </div>
-
-        <div className="gb-ecosystem-status-row">
-          <div>
-            <strong>NFTree Status</strong>
-            <small>Holder identity/access layer.</small>
-          </div>
-          <span>Detection coming soon</span>
-        </div>
-
-        <p className="gb-ecosystem-note">LP exposure is separate from liquid TREE.</p>
-      </section>
 
       <button className="gb-hud-disabled-action" type="button" disabled>
         Move Swap / Canopy Clash perks

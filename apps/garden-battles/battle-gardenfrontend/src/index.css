@@ -954,7 +954,7 @@
     outline: none;
   }
 
-  .gb-ecosystem-status {
+  .gb-ecosystem-status-card {
     background:
       linear-gradient(180deg, rgba(0, 213, 199, 0.08), rgba(57, 255, 136, 0.05)),
       rgba(0, 20, 18, 0.72);
@@ -962,9 +962,11 @@
     border-radius: 8px;
     box-shadow: inset 0 0 20px rgba(0, 213, 199, 0.06);
     display: grid;
-    gap: 7px;
+    gap: 10px;
+    margin: 12px auto 14px;
+    max-width: 1040px;
     min-width: 0;
-    padding: 9px;
+    padding: clamp(10px, 1.8vw, 14px);
   }
 
   .gb-ecosystem-status-head {
@@ -975,7 +977,13 @@
     min-width: 0;
   }
 
-  .gb-ecosystem-status-head strong {
+  .gb-ecosystem-status-head div {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+  }
+
+  .gb-ecosystem-status-head span {
     color: var(--gb-tree-green);
     font-family: Orbitron, sans-serif;
     font-size: 11px;
@@ -984,27 +992,44 @@
     text-transform: uppercase;
   }
 
-  .gb-ecosystem-status-head span {
+  .gb-ecosystem-status-head strong {
+    color: var(--gb-text-main);
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1.3;
+  }
+
+  .gb-ecosystem-status-head em {
     border: 1px solid rgba(0, 213, 199, 0.38);
     border-radius: 999px;
     color: var(--gb-cyan);
     flex: 0 0 auto;
     font-family: Orbitron, sans-serif;
     font-size: 9px;
+    font-style: normal;
     font-weight: 800;
     letter-spacing: 0.6px;
     padding: 4px 7px;
     text-transform: uppercase;
   }
 
+  .gb-ecosystem-status-grid {
+    display: grid;
+    gap: 8px;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    min-width: 0;
+  }
+
   .gb-ecosystem-status-row {
     align-items: start;
-    border-top: 1px solid rgba(192, 255, 221, 0.1);
+    background: rgba(0, 20, 18, 0.58);
+    border: 1px solid rgba(192, 255, 221, 0.12);
+    border-radius: 8px;
     display: grid;
     gap: 5px;
     grid-template-columns: minmax(0, 1fr);
     min-width: 0;
-    padding-top: 7px;
+    padding: 8px;
   }
 
   .gb-ecosystem-status-row strong {
@@ -2354,6 +2379,10 @@
       min-height: 0;
     }
 
+    .gb-ecosystem-status-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
     .gb-arboretum-promo-panel {
       grid-template-columns: minmax(0, 1fr) auto;
     }
@@ -2428,6 +2457,15 @@
     .gb-result-modal-actions a {
       flex-basis: auto;
       width: 100%;
+    }
+
+    .gb-ecosystem-status-head {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+
+    .gb-ecosystem-status-grid {
+      grid-template-columns: 1fr;
     }
 
     .gb-header-actions {
