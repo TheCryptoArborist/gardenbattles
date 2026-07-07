@@ -30,6 +30,7 @@ import {
   getBattleUpdateEvent,
   getBotMoveResolvedEvent,
 } from "@/lib/sui-config";
+import { submitBattleRecord } from "@/lib/api";
 import type { ActionEntry } from "@/components/BattleLog";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -381,6 +382,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
   const prevBattleStateRef = useRef<BattleState | null>(null);
   const lastMoveIdRef = useRef<number>(0);
   const lastResolvedBotMoveIdRef = useRef<number | null>(null);
+  const submittedBattleDigestsRef = useRef<Set<string>>(new Set());
   const isWaitingRef = useRef(false);
 
   const address = currentAccount?.address ?? null;
@@ -398,6 +400,18 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
         battleState.turn === 1));
 
   const clearActionLog = useCallback(() => setActionLog([]), []);
+
+  const submitCompletedBattleRecord = useCallback(
+    (digest: string, state: BattleState | null | undefined) => {
+      if (!state?.winner || submittedBattleDigestsRef.current.has(digest)) return;
+      submittedBattleDigestsRef.current.add(digest);
+
+      submitBattleRecord(digest).catch((err) => {
+        console.warn("[leaderboard] result submission failed:", err);
+      });
+    },
+    [],
+  );
 
   useEffect(() => {
     isWaitingRef.current = isWaiting;
@@ -1052,6 +1066,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
           { transaction: tx, chain: SUI_CONFIG.CHAIN },
           {
             onSuccess: async (result) => {
+              let completedState: BattleState | null = null;
               try {
                 const eventResult = await getBattleUpdateStateFromTransaction(
                   suiClient,
@@ -1060,18 +1075,20 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
                 );
                 if (eventResult.state) {
                   lastResolvedBotMoveIdRef.current = eventResult.botMoveId;
-                  await applyBattleState({
+                  completedState = {
                     ...eventResult.state,
                     isBotBattle: activeState.isBotBattle,
-                  });
+                  };
+                  await applyBattleState(completedState);
                 } else {
                   lastResolvedBotMoveIdRef.current = null;
                   const refreshed = await getLiveBattleState(suiClient, battleId);
                   if (refreshed) {
-                    await applyBattleState({
+                    completedState = {
                       ...refreshed,
                       isBotBattle: activeState.isBotBattle,
-                    });
+                    };
+                    await applyBattleState(completedState);
                   }
                 }
               } catch (err) {
@@ -1079,12 +1096,14 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
                 lastResolvedBotMoveIdRef.current = null;
                 const refreshed = await getLiveBattleState(suiClient, battleId);
                 if (refreshed) {
-                  await applyBattleState({
+                  completedState = {
                     ...refreshed,
                     isBotBattle: activeState.isBotBattle,
-                  });
+                  };
+                  await applyBattleState(completedState);
                 }
               }
+              submitCompletedBattleRecord(result.digest, completedState);
               resolve();
             },
             onError: (err: any) =>
@@ -1101,6 +1120,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
       applyBattleState,
       clearBattleState,
       signAndExecuteTransaction,
+      submitCompletedBattleRecord,
     ],
   );
 
@@ -1121,13 +1141,15 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
       signAndExecuteTransaction(
         { transaction: tx, chain: SUI_CONFIG.CHAIN },
         {
-          onSuccess: async () => {
+          onSuccess: async (result) => {
             const liveState = await getLiveBattleState(suiClient, battleId);
             if (liveState) {
-              await applyBattleState({
+              const completedState = {
                 ...liveState,
                 isBotBattle: battleState.isBotBattle,
-              });
+              };
+              await applyBattleState(completedState);
+              submitCompletedBattleRecord(result.digest, completedState);
             }
             resolve();
           },
@@ -1136,7 +1158,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
         },
       );
     });
-  }, [address, battleState, signAndExecuteTransaction, suiClient, applyBattleState]);
+  }, [address, battleState, signAndExecuteTransaction, suiClient, applyBattleState, submitCompletedBattleRecord]);
 
   const forfeitBattle = useCallback(async () => {
     if (!address || !battleState?.battleId) {
@@ -1155,13 +1177,15 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
       signAndExecuteTransaction(
         { transaction: tx, chain: SUI_CONFIG.CHAIN },
         {
-          onSuccess: async () => {
+          onSuccess: async (result) => {
             const liveState = await getLiveBattleState(suiClient, battleId);
             if (liveState) {
-              await applyBattleState({
+              const completedState = {
                 ...liveState,
                 isBotBattle: battleState.isBotBattle,
-              });
+              };
+              await applyBattleState(completedState);
+              submitCompletedBattleRecord(result.digest, completedState);
             }
             resolve();
           },
@@ -1170,7 +1194,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
         },
       );
     });
-  }, [address, battleState, signAndExecuteTransaction, suiClient, applyBattleState]);
+  }, [address, battleState, signAndExecuteTransaction, suiClient, applyBattleState, submitCompletedBattleRecord]);
 
   const adminForceClose = useCallback(
     async (winner?: string) => {
@@ -1201,13 +1225,15 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
         signAndExecuteTransaction(
           { transaction: tx, chain: SUI_CONFIG.CHAIN },
           {
-            onSuccess: async () => {
+            onSuccess: async (result) => {
               const liveState = await getLiveBattleState(suiClient, battleId);
               if (liveState) {
-                await applyBattleState({
+                const completedState = {
                   ...liveState,
                   isBotBattle: battleState.isBotBattle,
-                });
+                };
+                await applyBattleState(completedState);
+                submitCompletedBattleRecord(result.digest, completedState);
               }
               resolve();
             },
@@ -1217,7 +1243,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
         );
       });
     },
-    [address, battleState, signAndExecuteTransaction, suiClient, applyBattleState],
+    [address, battleState, signAndExecuteTransaction, suiClient, applyBattleState, submitCompletedBattleRecord],
   );
 
   // ── 6. Cancel queue / emergency refund ───────────────────────────────────

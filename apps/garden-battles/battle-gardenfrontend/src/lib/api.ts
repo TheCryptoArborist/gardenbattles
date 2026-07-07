@@ -42,6 +42,49 @@ async function fetchJson<T>(path: string, fallbackMessage: string): Promise<T> {
   return data as T;
 }
 
+async function postJson<T>(
+  path: string,
+  body: Record<string, unknown>,
+  fallbackMessage: string,
+): Promise<T> {
+  let res: Response;
+
+  try {
+    res = await fetch(apiUrl(path), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  } catch {
+    throw new Error(fallbackMessage);
+  }
+
+  const contentType = res.headers.get("content-type") || "";
+  if (!contentType.toLowerCase().includes("application/json")) {
+    throw new Error(API_UNAVAILABLE_MESSAGE);
+  }
+
+  let data: unknown;
+  try {
+    data = await res.json();
+  } catch {
+    throw new Error(fallbackMessage);
+  }
+
+  if (!res.ok) {
+    const errorMessage =
+      data &&
+      typeof data === "object" &&
+      "reason" in data &&
+      typeof data.reason === "string"
+        ? data.reason
+        : fallbackMessage;
+    throw new Error(errorMessage);
+  }
+
+  return data as T;
+}
+
 export type LeaderboardMode = "pvp" | "bot" | "overall";
 
 export interface PlayerStats {
@@ -86,6 +129,12 @@ interface LeaderboardResponse {
   mode: LeaderboardMode;
 }
 
+interface BattleRecordSubmitResponse {
+  ok: boolean;
+  recorded: boolean;
+  reason?: string;
+}
+
 export async function fetchPlayerStats(
   address: string,
   mode?: LeaderboardMode,
@@ -115,5 +164,15 @@ export async function fetchTopPlayers(
   return fetchJson<LeaderboardEntry[]>(
     `/api/top-players?limit=${limit}&mode=${encodeURIComponent(mode)}`,
     "Leaderboard data is temporarily unavailable.",
+  );
+}
+
+export async function submitBattleRecord(
+  transactionDigest: string,
+): Promise<BattleRecordSubmitResponse> {
+  return postJson<BattleRecordSubmitResponse>(
+    "/api/battle-records/submit",
+    { transaction_digest: transactionDigest },
+    "Battle result could not be submitted to the leaderboard.",
   );
 }

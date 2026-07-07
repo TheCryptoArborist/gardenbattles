@@ -9,6 +9,7 @@ import { storage } from "./storage";
 import {
   trackBattle,
   getBattleByOnChainId,
+  getBattleByTransactionDigest,
   getPlayerStatsByAddress,
   getPlayerLeaderboardStats,
   getLeaderboard,
@@ -65,6 +66,14 @@ const BOT_ADDRESS =
   botKeypair?.getPublicKey().toSuiAddress().toLowerCase() ||
   null;
 const processedBotTurns = new Set<string>();
+let suiVerificationClient: SuiClient | null = null;
+
+function getSuiVerificationClient(): SuiClient {
+  if (!suiVerificationClient) {
+    suiVerificationClient = new SuiClient({ url: SUI_RPC_URL });
+  }
+  return suiVerificationClient;
+}
 
 // ─── In-memory battle state ────────────────────────────────────────────────────
 interface BattleState {
@@ -160,6 +169,35 @@ function parseBattleEvent(parsedJson: any): BattleState | null {
   } catch {
     return null;
   }
+}
+
+async function getVerifiedBattleStateFromTransaction(
+  digest: string,
+): Promise<BattleState | null> {
+  const tx = await getSuiVerificationClient().getTransactionBlock({
+    digest,
+    options: {
+      showEffects: true,
+      showEvents: true,
+    },
+  });
+
+  const status = tx.effects?.status?.status;
+  if (status && status !== "success") {
+    return null;
+  }
+
+  const states =
+    tx.events
+      ?.filter((event: any) => event.type === BATTLE_UPDATE_EVENT)
+      .map((event: any) => parseBattleEvent(event.parsedJson))
+      .filter((state: BattleState | null): state is BattleState => !!state) ?? [];
+
+  return (
+    states.find((state) => !!state.winner) ??
+    states[states.length - 1] ??
+    null
+  );
 }
 
 async function hydrateBattleState(
@@ -470,6 +508,82 @@ export async function registerRoutes(app: Express): Promise<Server> {
       ok: true,
       service: "garden-battles-api",
     });
+  });
+
+  // ── REST: verified battle record submission for leaderboard ingestion ─────
+  app.post("/api/battle-records/submit", async (req, res) => {
+    const transactionDigest =
+      typeof req.body?.transaction_digest === "string"
+        ? req.body.transaction_digest.trim()
+        : "";
+
+    if (!transactionDigest) {
+      return res.status(400).json({
+        ok: false,
+        recorded: false,
+        reason: "transaction_digest_required",
+      });
+    }
+
+    if (getBattleByTransactionDigest(transactionDigest)) {
+      return res.json({
+        ok: true,
+        recorded: false,
+        reason: "already_recorded",
+      });
+    }
+
+    try {
+      const verifiedState =
+        await getVerifiedBattleStateFromTransaction(transactionDigest);
+
+      if (!verifiedState) {
+        return res.status(400).json({
+          ok: false,
+          recorded: false,
+          reason: "no_valid_battle_update",
+        });
+      }
+
+      if (!verifiedState.winner) {
+        return res.status(400).json({
+          ok: false,
+          recorded: false,
+          reason: "battle_not_finished",
+        });
+      }
+
+      if (getBattleByOnChainId(verifiedState.battleId)) {
+        return res.json({
+          ok: true,
+          recorded: false,
+          reason: "already_recorded",
+        });
+      }
+
+      trackBattle({
+        battleId: verifiedState.battleId,
+        player1: verifiedState.player1,
+        player2: verifiedState.player2,
+        winner: verifiedState.winner,
+        isBotBattle: verifiedState.isBotBattle ?? false,
+        transactionDigest,
+        finishedAt: verifiedState.lastMoveMs || Date.now(),
+      });
+
+      return res.json({
+        ok: true,
+        recorded: true,
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.warn(`[leaderboard] battle record submission failed: ${message}`);
+      return res.status(400).json({
+        ok: false,
+        recorded: false,
+        reason: "transaction_verification_failed",
+      });
+    }
   });
 
   // ── REST: expose bot address so the client can create practice battles ─────

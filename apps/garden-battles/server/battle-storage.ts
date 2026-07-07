@@ -218,6 +218,10 @@ const getBattleByBattleId = db.prepare(
   "SELECT * FROM battle_records WHERE battle_id = ?"
 );
 
+const getBattleByTransactionDigestStmt = db.prepare(
+  "SELECT * FROM battle_records WHERE transaction_digest = ?"
+);
+
 const getCompletedBattlesStmt = db.prepare(`
   SELECT * FROM battle_records
   WHERE winner IS NOT NULL
@@ -492,4 +496,13 @@ export function getGlobalRecentBattles(limit = 20): BattleRecordRow[] {
 
 export function getBattleByOnChainId(battleId: string): BattleRecordRow | null {
   return (getBattleByBattleId.get(battleId) as BattleRecordRow) ?? null;
+}
+
+export function getBattleByTransactionDigest(
+  transactionDigest: string,
+): BattleRecordRow | null {
+  return (
+    (getBattleByTransactionDigestStmt.get(transactionDigest) as BattleRecordRow) ??
+    null
+  );
 }
