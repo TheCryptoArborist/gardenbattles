@@ -26,6 +26,7 @@ import {
 import { Transaction } from "@mysten/sui/transactions";
 import {
   MOVE_LABELS,
+  MOVE_META,
   SUI_CONFIG,
   getBattleUpdateEvent,
   getBotMoveResolvedEvent,
@@ -1401,19 +1402,119 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
     const playerNextGrowth = isP1 ? next.player1Growth : next.player2Growth;
     const opponentPrevGrowth = isP1 ? prev.player2Growth : prev.player1Growth;
     const opponentNextGrowth = isP1 ? next.player2Growth : next.player1Growth;
+    const playerGrowthDelta = playerNextGrowth - playerPrevGrowth;
+    const opponentGrowthDelta = opponentNextGrowth - opponentPrevGrowth;
+    const targetGrowth = next.isBotBattle ? 50 : 100;
     const formatDelta = (delta: number) =>
       delta > 0 ? `+${delta}` : delta < 0 ? `${delta}` : "no change";
+    const describeNoVisibleEffect = (moveId: number, targetLabel: string, targetGrowth: number) => {
+      const meta = MOVE_META[moveId];
+      const effect = meta?.effect.toLowerCase() ?? "";
+
+      if (meta?.type === "attack" || effect.includes("drain") || effect.includes("poison")) {
+        if (targetGrowth <= 0) return `${targetLabel} had no growth to reduce.`;
+        if (effect.includes("hit chance")) return "The move may have missed or had no visible effect this turn.";
+        if (effect.includes("50/50") || effect.includes("block")) {
+          return "No growth was reduced; this move can resolve as a block effect.";
+        }
+        return "No visible growth was reduced this turn.";
+      }
+
+      if (meta?.type === "growth" || effect.includes("grow")) {
+        if (effect.includes("success rate") || effect.includes("chance")) {
+          return "The growth effect may not have triggered this turn.";
+        }
+        return "No visible growth was gained this turn.";
+      }
+
+      if (effect.includes("block")) {
+        return "No visible growth changed; this move may have affected block.";
+      }
+
+      return "The move had no visible effect this turn.";
+    };
+    const buildPlayerMoveDetails = (moveId: number): string[] => {
+      const details: string[] = [];
+      const meta = MOVE_META[moveId];
+
+      if (meta?.effect) details.push(meta.effect);
+
+      if (playerGrowthDelta > 0) {
+        details.push(`Your tree gained +${playerGrowthDelta} growth.`);
+      } else if (playerGrowthDelta < 0) {
+        details.push(`After the full turn, your tree lost ${Math.abs(playerGrowthDelta)} growth.`);
+      }
+
+      if (opponentGrowthDelta < 0) {
+        details.push(`Garden Bot growth was reduced by ${Math.abs(opponentGrowthDelta)}.`);
+      } else if (opponentGrowthDelta > 0 && meta?.type === "attack") {
+        details.push(`Garden Bot still gained +${opponentGrowthDelta} growth after the full turn.`);
+      }
+
+      if (details.length === (meta?.effect ? 1 : 0)) {
+        details.push(describeNoVisibleEffect(moveId, "Garden Bot", opponentPrevGrowth));
+      }
+
+      return details;
+    };
+    const buildBotResponseDetails = (moveId: number | null): string[] => {
+      const details: string[] = [];
+      const meta = moveId ? MOVE_META[moveId] : undefined;
+
+      if (!moveId) {
+        details.push("Garden Bot responded.");
+      } else if (meta?.effect) {
+        details.push(meta.effect);
+      }
+
+      if (playerGrowthDelta < 0) {
+        details.push(`Your growth was reduced by ${Math.abs(playerGrowthDelta)}.`);
+      } else if (playerGrowthDelta > 0 && meta?.type === "attack") {
+        details.push(`Your tree still gained +${playerGrowthDelta} growth after the full turn.`);
+      }
+
+      if (opponentGrowthDelta > 0) {
+        details.push(`Garden Bot gained +${opponentGrowthDelta} growth.`);
+      } else if (opponentGrowthDelta < 0) {
+        details.push(`Garden Bot lost ${Math.abs(opponentGrowthDelta)} growth after the full turn.`);
+      }
+
+      if (details.length === (moveId && meta?.effect ? 1 : !moveId ? 1 : 0)) {
+        details.push(
+          moveId
+            ? describeNoVisibleEffect(moveId, "Your tree", playerPrevGrowth)
+            : "No visible growth changed from the Garden Bot response.",
+        );
+      }
+
+      return details;
+    };
+    const buildRoundResultDetails = (): string[] => {
+      const details = [
+        `Round result: You ${playerNextGrowth} / ${targetGrowth} - Garden Bot ${opponentNextGrowth} / ${targetGrowth}`,
+      ];
+
+      if (next.winner) {
+        details.push(
+          next.winner.toLowerCase() === myAddress.toLowerCase()
+            ? "You reached the target growth first."
+            : "Garden Bot reached the target growth first.",
+        );
+      }
+
+      if (playerGrowthDelta === 0 && opponentGrowthDelta === 0) {
+        details.push("No visible growth changed this round.");
+      }
+
+      return details;
+    };
     const roundResultDetails =
       next.isBotBattle && actor === "you"
         ? [
-            `Your tree: ${playerPrevGrowth} -> ${playerNextGrowth} (${formatDelta(playerNextGrowth - playerPrevGrowth)})`,
-            `Garden Bot: ${opponentPrevGrowth} -> ${opponentNextGrowth} (${formatDelta(opponentNextGrowth - opponentPrevGrowth)})`,
-            playerNextGrowth === playerPrevGrowth &&
-            opponentNextGrowth === opponentPrevGrowth
-              ? "No visible Growth changed this round; the bot may have missed, blocked, or used a status move."
-              : "",
+            ...buildRoundResultDetails(),
+            `Your tree: ${playerPrevGrowth} -> ${playerNextGrowth} (${formatDelta(playerGrowthDelta)})`,
+            `Garden Bot: ${opponentPrevGrowth} -> ${opponentNextGrowth} (${formatDelta(opponentGrowthDelta)})`,
           ]
-            .filter(Boolean)
         : undefined;
     const resolvedBotMoveId = lastResolvedBotMoveIdRef.current;
     const resolvedBotMoveLabel =
@@ -1421,10 +1522,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
 
     const playerMoveDetails =
       next.isBotBattle && actor === "you"
-        ? [
-            "Your move was submitted.",
-            "The Garden Bot response is included in the round result below.",
-          ]
+        ? buildPlayerMoveDetails(lastMoveIdRef.current)
         : undefined;
 
     const entries = [
@@ -1440,7 +1538,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
         createEntry(
           "opponent",
           resolvedBotMoveId ?? 0,
-          ["Garden Bot response resolved."],
+          buildBotResponseDetails(resolvedBotMoveId),
           resolvedBotMoveLabel ?? "Garden Bot response",
         ),
         createEntry("round", 0, roundResultDetails, "Round Result"),
