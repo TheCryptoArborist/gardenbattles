@@ -81,6 +81,30 @@ function statColor(value: number): string {
   return "#888";
 }
 
+function formatStreak(value: number): string {
+  if (value > 0) return `+${value}W`;
+  if (value < 0) return `${value}L`;
+  return "-";
+}
+
+function renderBadgeSlots(badges: string[]) {
+  return (
+    <>
+      {badges.slice(0, 3).map((badge) => (
+        <span key={badge} title={badge}>
+          {BADGE_LABELS[badge] || "BDG"}
+        </span>
+      ))}
+      <span style={{ color: "#777", fontSize: "10px" }} title="NFTree rarity slot pending">
+        RAR
+      </span>
+      <span style={{ color: "#777", fontSize: "10px" }} title="VICTORY Locked status pending">
+        VLK
+      </span>
+    </>
+  );
+}
+
 export default function Leaderboard() {
   const currentAccount = useCurrentAccount();
   const address = currentAccount?.address ?? null;
@@ -369,7 +393,8 @@ export default function Leaderboard() {
               </Link>
             </div>
           ) : (
-            <div style={{ overflowX: "auto" }}>
+            <>
+            <div className="gb-leaderboard-table-wrap" style={{ overflowX: "auto" }}>
               <table
                 style={{
                   borderCollapse: "collapse",
@@ -481,11 +506,7 @@ export default function Leaderboard() {
                             textAlign: "center",
                           }}
                         >
-                          {entry.current_streak > 0
-                            ? `+${entry.current_streak}W`
-                            : entry.current_streak < 0
-                              ? `${entry.current_streak}L`
-                              : "-"}
+                          {formatStreak(entry.current_streak)}
                         </td>
                         <td style={{ color: "#aaa", padding: "10px 8px", textAlign: "center" }}>
                           {entry.total_battles}
@@ -509,17 +530,7 @@ export default function Leaderboard() {
                         </td>
                         <td style={{ padding: "10px 8px", textAlign: "center" }}>
                           <div style={{ display: "flex", gap: "4px", justifyContent: "center" }}>
-                            {entry.badges.slice(0, 3).map((badge) => (
-                              <span key={badge} title={badge}>
-                                {BADGE_LABELS[badge] || "BDG"}
-                              </span>
-                            ))}
-                            <span style={{ color: "#777", fontSize: "10px" }} title="NFTree rarity slot pending">
-                              RAR
-                            </span>
-                            <span style={{ color: "#777", fontSize: "10px" }} title="VICTORY Locked status pending">
-                              VLK
-                            </span>
+                            {renderBadgeSlots(entry.badges)}
                           </div>
                         </td>
                       </tr>
@@ -528,6 +539,94 @@ export default function Leaderboard() {
                 </tbody>
               </table>
             </div>
+            <div className="gb-leaderboard-mobile-cards" aria-label="Mobile leaderboard entries">
+              {leaderboard.map((entry) => {
+                const isMe = address && entry.address === address.toLowerCase();
+                return (
+                  <article
+                    key={`mobile-${entry.mode}-${entry.address}`}
+                    className={`gb-leaderboard-mobile-card ${isMe ? "gb-leaderboard-mobile-card-current" : ""}`}
+                  >
+                    <div className="gb-leaderboard-mobile-card-head">
+                      <div>
+                        <span className="gb-leaderboard-mobile-rank">
+                          {entry.ranked ? `#${entry.rank}` : "UR"}
+                        </span>
+                        <span className="gb-leaderboard-mobile-mode">
+                          {formatMode(entry.mode)}
+                        </span>
+                      </div>
+                      <strong>
+                        {shortenAddress(entry.address)}
+                        {isMe && <span> You</span>}
+                      </strong>
+                    </div>
+
+                    <div className="gb-leaderboard-mobile-rank-row">
+                      <span
+                        className={`gb-battle-rank-badge gb-battle-rank-table ${getBattleRankClass(entry.rank_title)}`}
+                      >
+                        <span className="gb-rank-crest gb-battle-rank-crest" aria-hidden="true">
+                          <span className="gb-rank-crest-core" />
+                        </span>
+                        <span className="gb-battle-rank-title">{entry.rank_title}</span>
+                      </span>
+                      <span className={`gb-cosmetic-placeholder ${getBattleRankClass(entry.rank_title)}`}>
+                        {COSMETIC_PLACEHOLDERS[entry.rank_title] || "Cosmetic placeholder"}
+                      </span>
+                    </div>
+
+                    <dl className="gb-leaderboard-mobile-stats">
+                      <div>
+                        <dt>Wins</dt>
+                        <dd className="gb-stat-win">{entry.wins}</dd>
+                      </div>
+                      <div>
+                        <dt>Losses</dt>
+                        <dd className="gb-stat-loss">{entry.losses}</dd>
+                      </div>
+                      <div>
+                        <dt>Win Rate</dt>
+                        <dd className="gb-stat-rate">{Math.round(entry.win_rate * 100)}%</dd>
+                      </div>
+                      <div>
+                        <dt>Streak</dt>
+                        <dd style={{ color: statColor(entry.current_streak) }}>
+                          {formatStreak(entry.current_streak)}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Total</dt>
+                        <dd>{entry.total_battles}</dd>
+                      </div>
+                      <div>
+                        <dt>Recent</dt>
+                        <dd
+                          className={
+                            entry.recent_result === "Win"
+                              ? "gb-stat-win"
+                              : entry.recent_result === "Loss"
+                                ? "gb-stat-loss"
+                                : undefined
+                          }
+                        >
+                          {entry.recent_result ?? "-"}
+                        </dd>
+                      </div>
+                      <div className="gb-leaderboard-mobile-span">
+                        <dt>Last Played</dt>
+                        <dd>{formatLastPlayed(entry.last_played)}</dd>
+                      </div>
+                    </dl>
+
+                    <div className="gb-leaderboard-mobile-badges" aria-label="Badge placeholders">
+                      {renderBadgeSlots(entry.badges)}
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+            </>
           )}
         </section>
 
