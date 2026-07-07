@@ -115,7 +115,12 @@ const DISMISSED_RESULT_STORAGE_KEY = "garden-battles:dismissed-results";
 const MAX_DISMISSED_RESULTS = 20;
 const RESULT_MODAL_ARM_MS = 5 * 60 * 1000;
 const RESULT_PLAY_AGAIN_TIMEOUT_MS = 90 * 1000;
-const BOT_START_PENDING_NOTE = "Reject to cancel.";
+type BattleDialogKind =
+  | "info"
+  | "start-pending"
+  | "start-timeout"
+  | "start-error"
+  | "start-cancelled";
 
 function readDismissedResultKeys(): string[] {
   if (typeof window === "undefined") return [];
@@ -208,6 +213,7 @@ export default function Battle() {
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogMessage, setDialogMessage] = useState("");
+  const [dialogKind, setDialogKind] = useState<BattleDialogKind>("info");
   const [hasScanned, setHasScanned] = useState(false);
   const [playerAnimation, setPlayerAnimation] = useState("");
   const [opponentAnimation, setOpponentAnimation] = useState("");
@@ -264,6 +270,7 @@ export default function Battle() {
     setIsJoining(true);
     try {
       setDialogOpen(true);
+      setDialogKind("info");
       setDialogMessage("Scanning for NFTs...");
 
       const nftData = await getFirstValidSaplingNft(address!);
@@ -304,14 +311,17 @@ export default function Battle() {
       const nftData = await getFirstValidSaplingNft(address!);
 
       if (nftData) {
+        setDialogKind("start-pending");
         setDialogMessage(
-          "NFTree found!\n\nApprove in your wallet to start Garden Bot.",
+          "NFTree found!\n\nApprove in your wallet to start Garden Bot.\n\nReject to cancel.",
         );
         setPlayerNftImageUrl(nftData.imageUrl || null);
         await startBotBattle(nftData);
         setDialogOpen(false);
         setDialogMessage("");
+        setDialogKind("info");
       } else {
+        setDialogKind("info");
         setDialogMessage(
           "No whitelisted NFT found. Contact admin to whitelist your collection.",
         );
@@ -329,6 +339,16 @@ export default function Battle() {
               lowerMessage.includes("declined")
             ? "Start cancelled."
             : "Could not start Garden Bot battle. Try again.";
+      setDialogKind(
+        lowerMessage.includes("timed out waiting")
+          ? "start-timeout"
+          : lowerMessage.includes("reject") ||
+              lowerMessage.includes("cancel") ||
+              lowerMessage.includes("denied") ||
+              lowerMessage.includes("declined")
+            ? "start-cancelled"
+            : "start-error",
+      );
       setDialogOpen(true);
       setDialogMessage(friendlyMessage);
     } finally {
@@ -597,13 +617,12 @@ export default function Battle() {
   const isQueueWaitingMessage =
     /waiting for (opponent|chain update)|joined queue/i.test(dialogMessage);
   const isQueueWaitingDialog = isWaiting && isQueueWaitingMessage;
-  const isBotStartPendingDialog =
-    isStartingBot &&
-    /scanning for nfts|waiting for wallet approval/i.test(dialogMessage);
+  const isBotStartPendingDialog = dialogKind === "start-pending";
   const canCloseBattleDialog = !isQueueWaitingDialog && !isBotStartPendingDialog;
   const handleCloseBattleDialog = () => {
     if (!canCloseBattleDialog) return;
     setDialogOpen(false);
+    setDialogKind("info");
     setIsStartingBot(false);
     setIsResultPlayAgainStarting(false);
   };
@@ -2324,7 +2343,6 @@ export default function Battle() {
           message={dialogMessage}
           onClose={handleCloseBattleDialog}
           canClose={canCloseBattleDialog}
-          pendingNote={isBotStartPendingDialog ? BOT_START_PENDING_NOTE : undefined}
         />
         <BattleResultModal
           open={resultModalOpen}
