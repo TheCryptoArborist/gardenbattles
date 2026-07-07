@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "wouter";
-import { ConnectButton, useCurrentAccount } from "@mysten/dapp-kit";
+import { ConnectButton, useCurrentAccount, useSuiClient } from "@mysten/dapp-kit";
 import {
   fetchLeaderboard,
   fetchPlayerStats,
@@ -46,6 +46,16 @@ const BADGE_LABELS: Record<string, string> = {
   social_butterfly: "SOC",
 };
 
+const SUINS_CACHE_PREFIX = "garden-battles:suins:";
+const suinsNameCache = new Map<string, string | null>();
+
+type SuiNameResolver = {
+  resolveNameServiceNames?: (input: {
+    address: string;
+    limit?: number;
+  }) => Promise<{ data: string[] }>;
+};
+
 const LEADERBOARD_MODES: Array<{
   id: LeaderboardMode;
   label: string;
@@ -58,6 +68,55 @@ const LEADERBOARD_MODES: Array<{
 
 function shortenAddress(addr: string): string {
   return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
+}
+
+function readCachedSuiName(address: string): string | null | undefined {
+  const normalizedAddress = address.toLowerCase();
+  if (suinsNameCache.has(normalizedAddress)) {
+    return suinsNameCache.get(normalizedAddress) ?? null;
+  }
+
+  try {
+    const stored = window.sessionStorage.getItem(`${SUINS_CACHE_PREFIX}${normalizedAddress}`);
+    if (stored === null) return undefined;
+    const value = stored || null;
+    suinsNameCache.set(normalizedAddress, value);
+    return value;
+  } catch {
+    return undefined;
+  }
+}
+
+function writeCachedSuiName(address: string, name: string | null) {
+  const normalizedAddress = address.toLowerCase();
+  suinsNameCache.set(normalizedAddress, name);
+
+  try {
+    window.sessionStorage.setItem(`${SUINS_CACHE_PREFIX}${normalizedAddress}`, name ?? "");
+  } catch {
+    // sessionStorage can be unavailable in strict privacy contexts.
+  }
+}
+
+async function resolveSuiNameForAddress(
+  suiClient: SuiNameResolver,
+  address: string,
+): Promise<string | null> {
+  const cached = readCachedSuiName(address);
+  if (cached !== undefined) return cached;
+
+  try {
+    const response = await suiClient.resolveNameServiceNames?.({
+      address,
+      limit: 1,
+    });
+    const name = response?.data?.[0] || null;
+    writeCachedSuiName(address, name);
+    return name;
+  } catch {
+    writeCachedSuiName(address, null);
+    return null;
+  }
 }
 
 function formatMode(mode: LeaderboardMode): string {
@@ -87,6 +146,30 @@ function formatStreak(value: number): string {
   return "-";
 }
 
+function PlayerIdentity({
+  address,
+  isMe,
+  suinsName,
+}: {
+  address: string;
+  isMe: boolean | null;
+  suinsName: string | null | undefined;
+}) {
+  const shortAddress = shortenAddress(address);
+
+  return (
+    <span className="gb-leaderboard-player-identity">
+      <span className="gb-leaderboard-player-primary">
+        {suinsName || shortAddress}
+        {isMe && <span className="gb-leaderboard-player-you">You</span>}
+      </span>
+      {suinsName && (
+        <span className="gb-leaderboard-player-secondary">{shortAddress}</span>
+      )}
+    </span>
+  );
+}
+
 function renderBadgeSlots(badges: string[]) {
   return (
     <>
@@ -107,6 +190,7 @@ function renderBadgeSlots(badges: string[]) {
 
 export default function Leaderboard() {
   const currentAccount = useCurrentAccount();
+  const suiClient = useSuiClient();
   const address = currentAccount?.address ?? null;
 
   const [mode, setMode] = useState<LeaderboardMode>("pvp");
@@ -115,6 +199,7 @@ export default function Leaderboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [myStats, setMyStats] = useState<PlayerStats | null>(null);
+  const [suinsNames, setSuinsNames] = useState<Record<string, string | null>>({});
 
   useEffect(() => {
     setLoading(true);
@@ -137,6 +222,56 @@ export default function Leaderboard() {
       .then(setMyStats)
       .catch(() => setMyStats(null));
   }, [address, mode]);
+
+  useEffect(() => {
+    if (leaderboard.length === 0) return;
+
+    let cancelled = false;
+    const resolver = suiClient as SuiNameResolver;
+    const uniqueAddresses = Array.from(
+      new Set(leaderboard.map((entry) => entry.address.toLowerCase())),
+    );
+    const unresolved = uniqueAddresses.filter((entryAddress) => {
+      const cached = readCachedSuiName(entryAddress);
+      return cached === undefined;
+    });
+
+    const cachedNames = uniqueAddresses.reduce<Record<string, string | null>>((next, entryAddress) => {
+      const cached = readCachedSuiName(entryAddress);
+      if (cached !== undefined) next[entryAddress] = cached;
+      return next;
+    }, {});
+
+    if (Object.keys(cachedNames).length > 0) {
+      setSuinsNames((current) => ({ ...current, ...cachedNames }));
+    }
+
+    if (unresolved.length === 0) {
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    Promise.all(
+      unresolved.map(async (entryAddress) => {
+        const name = await resolveSuiNameForAddress(resolver, entryAddress);
+        return [entryAddress, name] as const;
+      }),
+    ).then((resolvedNames) => {
+      if (cancelled) return;
+      setSuinsNames((current) => {
+        const next = { ...current };
+        for (const [entryAddress, name] of resolvedNames) {
+          next[entryAddress] = name;
+        }
+        return next;
+      });
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [leaderboard, suiClient]);
 
   const activeMode = LEADERBOARD_MODES.find((item) => item.id === mode);
 
@@ -461,12 +596,11 @@ export default function Leaderboard() {
                               fontWeight: isMe ? "bold" : "normal",
                             }}
                           >
-                            {shortenAddress(entry.address)}
-                            {isMe && (
-                              <span style={{ color: "#00ff88", fontSize: "10px", marginLeft: "6px" }}>
-                                (you)
-                              </span>
-                            )}
+                            <PlayerIdentity
+                              address={entry.address}
+                              isMe={!!isMe}
+                              suinsName={suinsNames[entry.address.toLowerCase()]}
+                            />
                           </span>
                         </td>
                         <td style={{ color: "#00ffcc", padding: "10px 8px", textAlign: "center" }}>
@@ -556,10 +690,11 @@ export default function Leaderboard() {
                           {formatMode(entry.mode)}
                         </span>
                       </div>
-                      <strong>
-                        {shortenAddress(entry.address)}
-                        {isMe && <span> You</span>}
-                      </strong>
+                      <PlayerIdentity
+                        address={entry.address}
+                        isMe={!!isMe}
+                        suinsName={suinsNames[entry.address.toLowerCase()]}
+                      />
                     </div>
 
                     <div className="gb-leaderboard-mobile-rank-row">
