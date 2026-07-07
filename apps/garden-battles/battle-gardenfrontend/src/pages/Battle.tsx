@@ -114,6 +114,7 @@ const currentStageAssets: Record<GrowthStage, string> = {
 const DISMISSED_RESULT_STORAGE_KEY = "garden-battles:dismissed-results";
 const MAX_DISMISSED_RESULTS = 20;
 const RESULT_MODAL_ARM_MS = 5 * 60 * 1000;
+const RESULT_PLAY_AGAIN_TIMEOUT_MS = 90 * 1000;
 
 function readDismissedResultKeys(): string[] {
   if (typeof window === "undefined") return [];
@@ -225,6 +226,7 @@ export default function Battle() {
     () => readDismissedResultKeys(),
   );
   const [liveResultKey, setLiveResultKey] = useState<string | null>(null);
+  const [isResultPlayAgainStarting, setIsResultPlayAgainStarting] = useState(false);
   const entryFeeLabel = `${(entryFeeMist / 1e9).toLocaleString(undefined, {
     maximumFractionDigits: 9,
   })} SUI`;
@@ -244,6 +246,7 @@ export default function Battle() {
   const resultModalArmedBattleIdRef = useRef<string | null>(null);
   const resultModalArmedUntilRef = useRef(0);
   const liveResultKeysShownRef = useRef<Set<string>>(new Set());
+  const resultPlayAgainTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const showInlineError = (message: string) => {
     if (inlineErrorTimer.current) clearTimeout(inlineErrorTimer.current);
@@ -680,6 +683,9 @@ export default function Battle() {
       if (inlineErrorTimer.current) {
         clearTimeout(inlineErrorTimer.current);
       }
+      if (resultPlayAgainTimerRef.current) {
+        clearTimeout(resultPlayAgainTimerRef.current);
+      }
     };
   }, []);
 
@@ -802,9 +808,36 @@ export default function Battle() {
   const handleCloseResultModal = () => {
     markResultDismissed();
   };
-  const handlePlayAgainFromResult = () => {
+  const handlePlayAgainFromResult = async () => {
+    if (isResultPlayAgainStarting) return;
+
     markResultDismissed();
-    handleStartBotBattle();
+    setIsResultPlayAgainStarting(true);
+
+    if (resultPlayAgainTimerRef.current) {
+      clearTimeout(resultPlayAgainTimerRef.current);
+    }
+
+    const timeout = new Promise<never>((_, reject) => {
+      resultPlayAgainTimerRef.current = setTimeout(() => {
+        reject(new Error("New Bot Hand timed out. Please try again."));
+      }, RESULT_PLAY_AGAIN_TIMEOUT_MS);
+    });
+
+    try {
+      await Promise.race([handleStartBotBattle(), timeout]);
+    } catch (error: any) {
+      console.warn("[battle-result] New Bot Hand failed", error);
+      setDialogOpen(true);
+      setDialogMessage(error?.message || "New Bot Hand did not start. Please try again.");
+    } finally {
+      if (resultPlayAgainTimerRef.current) {
+        clearTimeout(resultPlayAgainTimerRef.current);
+        resultPlayAgainTimerRef.current = null;
+      }
+      setIsResultPlayAgainStarting(false);
+      setIsStartingBot(false);
+    }
   };
 
   const handleNativeShareWin = async () => {
@@ -2280,7 +2313,7 @@ export default function Battle() {
           battleUrl={shareUrl}
           leaderboardUrl={leaderboardRoute}
           canPlayAgain={isGardenBotBattle}
-          isPlayingAgain={isStartingBot}
+          isPlayingAgain={isResultPlayAgainStarting}
           onShare={handleNativeShareWin}
           onCopy={handleCopyWin}
           onClose={handleCloseResultModal}
