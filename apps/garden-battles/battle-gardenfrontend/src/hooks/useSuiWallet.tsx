@@ -242,6 +242,45 @@ function normalizeMoveList(value: any): number[] {
   return Array.isArray(value) ? value.map((move) => Number(move)) : [];
 }
 
+function getLatestAddedMoveId(previousMoves: number[], nextMoves: number[]): number | null {
+  const previous = previousMoves.filter((moveId) => Number.isFinite(moveId) && moveId > 0);
+  const next = nextMoves.filter((moveId) => Number.isFinite(moveId) && moveId > 0);
+
+  if (next.length > previous.length) {
+    for (let index = previousMoves.length; index < nextMoves.length; index += 1) {
+      const moveId = Number(nextMoves[index]);
+      if (Number.isFinite(moveId) && moveId > 0) return moveId;
+    }
+  }
+
+  for (let index = 0; index < Math.max(previousMoves.length, nextMoves.length); index += 1) {
+    const previousMove = Number(previousMoves[index] ?? 0);
+    const nextMove = Number(nextMoves[index] ?? 0);
+    if (nextMove > 0 && previousMove !== nextMove) return nextMove;
+  }
+
+  const removedMoves = previous.filter((moveId) => !next.includes(moveId));
+  return removedMoves.length === 1 ? removedMoves[0] : null;
+}
+
+function getBotMoves(state: BattleState): number[] {
+  return isGardenBotAddress(state.player1) ? state.player1Moves : state.player2Moves;
+}
+
+function resolveBotMoveId(
+  previousState: BattleState,
+  nextState: BattleState,
+  explicitBotMoveId: number | null,
+): number | null {
+  if (explicitBotMoveId && MOVE_LABELS[explicitBotMoveId]) return explicitBotMoveId;
+
+  const derivedMoveId = getLatestAddedMoveId(
+    getBotMoves(previousState),
+    getBotMoves(nextState),
+  );
+  return derivedMoveId && MOVE_LABELS[derivedMoveId] ? derivedMoveId : null;
+}
+
 function parseBattleStateFromObjectFields(
   battleId: string,
   fields: any,
@@ -383,6 +422,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
   const prevBattleStateRef = useRef<BattleState | null>(null);
   const lastMoveIdRef = useRef<number>(0);
   const lastResolvedBotMoveIdRef = useRef<number | null>(null);
+  const lastLoggedActionKeyRef = useRef<string | null>(null);
   const recentBattleDigestRef = useRef<string | null>(null);
   const submittedBattleDigestsRef = useRef<Set<string>>(new Set());
   const isWaitingRef = useRef(false);
@@ -1405,8 +1445,52 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
     const playerGrowthDelta = playerNextGrowth - playerPrevGrowth;
     const opponentGrowthDelta = opponentNextGrowth - opponentPrevGrowth;
     const targetGrowth = next.isBotBattle ? 50 : 100;
+    const resolvedBotMoveId = next.isBotBattle
+      ? resolveBotMoveId(prev, next, lastResolvedBotMoveIdRef.current)
+      : null;
+    const transitionKey = [
+      next.battleId,
+      prev.lastMoveMs,
+      next.lastMoveMs,
+      actor,
+      lastMoveIdRef.current,
+      resolvedBotMoveId ?? 0,
+      playerPrevGrowth,
+      playerNextGrowth,
+      opponentPrevGrowth,
+      opponentNextGrowth,
+    ].join(":");
+    if (lastLoggedActionKeyRef.current === transitionKey) {
+      lastMoveIdRef.current = 0;
+      lastResolvedBotMoveIdRef.current = null;
+      return;
+    }
+
     const formatDelta = (delta: number) =>
       delta > 0 ? `+${delta}` : delta < 0 ? `${delta}` : "no change";
+    const formatMoveDescriptionForActor = (
+      moveId: number,
+      moveActor: "you" | "garden-bot",
+    ): string | null => {
+      const meta = MOVE_META[moveId];
+      if (!meta?.effect) return null;
+      if (moveActor === "you") {
+        return meta.effect.replace(/\bYOUR\b/g, "your");
+      }
+
+      const effect = meta.effect.toLowerCase();
+      const canGrow = meta.type === "growth" || effect.includes("grow");
+      const canDrain = meta.type === "attack" || effect.includes("drain") || effect.includes("poison");
+      const canBlock = effect.includes("block");
+      const parts: string[] = [];
+
+      if (canDrain) parts.push("reduce your growth");
+      if (canGrow) parts.push("gain growth");
+      if (canBlock) parts.push("block or prepare a block");
+
+      if (parts.length === 0) return "Garden Bot used a utility move.";
+      return `Garden Bot can ${parts.join(" and ")} with this move.`;
+    };
     const describeNoVisibleEffect = (moveId: number, targetLabel: string, targetGrowth: number) => {
       const meta = MOVE_META[moveId];
       const effect = meta?.effect.toLowerCase() ?? "";
@@ -1436,8 +1520,9 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
     const buildPlayerMoveDetails = (moveId: number): string[] => {
       const details: string[] = [];
       const meta = MOVE_META[moveId];
+      const moveDescription = formatMoveDescriptionForActor(moveId, "you");
 
-      if (meta?.effect) details.push(meta.effect);
+      if (moveDescription) details.push(moveDescription);
 
       if (playerGrowthDelta > 0) {
         details.push(`Your tree gained +${playerGrowthDelta} growth.`);
@@ -1460,11 +1545,14 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
     const buildBotResponseDetails = (moveId: number | null): string[] => {
       const details: string[] = [];
       const meta = moveId ? MOVE_META[moveId] : undefined;
+      const moveDescription = moveId
+        ? formatMoveDescriptionForActor(moveId, "garden-bot")
+        : null;
 
       if (!moveId) {
         details.push("Garden Bot responded.");
-      } else if (meta?.effect) {
-        details.push(meta.effect);
+      } else if (moveDescription) {
+        details.push(moveDescription);
       }
 
       if (playerGrowthDelta < 0) {
@@ -1516,7 +1604,6 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
             `Garden Bot: ${opponentPrevGrowth} -> ${opponentNextGrowth} (${formatDelta(opponentGrowthDelta)})`,
           ]
         : undefined;
-    const resolvedBotMoveId = lastResolvedBotMoveIdRef.current;
     const resolvedBotMoveLabel =
       resolvedBotMoveId !== null ? MOVE_LABELS[resolvedBotMoveId] : undefined;
 
@@ -1539,13 +1626,14 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
           "opponent",
           resolvedBotMoveId ?? 0,
           buildBotResponseDetails(resolvedBotMoveId),
-          resolvedBotMoveLabel ?? "Garden Bot response",
+          resolvedBotMoveLabel ?? "Garden Bot responded",
         ),
         createEntry("round", 0, roundResultDetails, "Round Result"),
       );
     }
 
     setActionLog((log) => [...log, ...entries]);
+    lastLoggedActionKeyRef.current = transitionKey;
     lastMoveIdRef.current = 0;
     lastResolvedBotMoveIdRef.current = null;
   }
