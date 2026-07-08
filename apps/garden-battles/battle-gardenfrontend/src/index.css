@@ -1009,26 +1009,6 @@
     line-height: 1.1;
   }
 
-  .gb-player-record-badges {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
-    margin-top: 1px;
-  }
-
-  .gb-player-record-badge-chip {
-    background: rgba(57, 255, 136, 0.08);
-    border: 1px solid rgba(57, 255, 136, 0.28);
-    border-radius: 999px;
-    color: #9bd9bd;
-    cursor: default;
-    font-size: 9px;
-    font-weight: 900;
-    line-height: 1;
-    padding: 3px 6px;
-    text-transform: uppercase;
-  }
-
   .gb-battle-rank-table {
     justify-content: center;
     min-width: 156px;

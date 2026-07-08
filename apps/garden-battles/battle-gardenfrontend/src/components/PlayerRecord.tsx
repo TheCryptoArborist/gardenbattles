@@ -9,28 +9,8 @@ interface PlayerRecordProps {
   mode?: LeaderboardMode;
 }
 
-const BADGE_LABELS: Record<string, string> = {
-  first_blood: "First Blood",
-  hot_streak: "Hot Streak",
-  undefeated: "Undefeated",
-  battle_hardened: "Battle Hardened",
-  veteran: "Veteran",
-  legend: "Legend",
-  sharp_pruner: "Sharp Pruner",
-  never_give_up: "Never Give Up",
-  social_butterfly: "Social Butterfly",
-};
-
 function getBattleRankClass(rankTitle: string): string {
   return `gb-battle-rank-${rankTitle.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`;
-}
-
-function formatBadgeLabel(badge: string): string {
-  return BADGE_LABELS[badge] || badge
-    .split("_")
-    .filter(Boolean)
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(" ");
 }
 
 function getDisplayRankTitle(stats: PlayerStats): string {
@@ -161,25 +141,6 @@ export default function PlayerRecord({
       <div className="gb-player-record-total">
         {stats.total_battles} battle{stats.total_battles !== 1 ? "s" : ""}
       </div>
-
-      {stats.badges.length > 0 && (
-        <div className="gb-player-record-badges" aria-label="Battle badges">
-          {stats.badges.map((badge) => {
-            const label = formatBadgeLabel(badge);
-
-            return (
-              <span
-                key={badge}
-                className="gb-player-record-badge-chip"
-                title={label}
-                aria-label={label}
-              >
-                {label}
-              </span>
-            );
-          })}
-        </div>
-      )}
     </div>
     </Link>
   );
