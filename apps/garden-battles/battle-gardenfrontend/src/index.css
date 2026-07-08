@@ -504,6 +504,128 @@
     width: 10px;
   }
 
+  .gb-tree-badge-crest {
+    background:
+      radial-gradient(circle at 50% 44%, rgba(234, 255, 246, 0.18), transparent 32%),
+      radial-gradient(circle at 50% 50%, rgba(0, 10, 8, 0.82), rgba(0, 24, 22, 0.9) 62%, rgba(0, 0, 0, 0.96));
+    border: 1px solid color-mix(in srgb, var(--rank-accent) 72%, rgba(234, 255, 246, 0.2));
+    box-shadow:
+      0 0 14px color-mix(in srgb, var(--rank-accent) 34%, transparent),
+      inset 0 0 10px rgba(255, 255, 255, 0.08),
+      inset 0 -6px 12px rgba(0, 0, 0, 0.42);
+    overflow: hidden;
+  }
+
+  .gb-tree-badge-crest::before {
+    background:
+      radial-gradient(circle at 50% 50%, transparent 48%, color-mix(in srgb, var(--rank-accent-2) 55%, transparent) 49% 52%, transparent 53%),
+      conic-gradient(from 20deg, color-mix(in srgb, var(--rank-accent) 72%, transparent), transparent 22%, color-mix(in srgb, var(--rank-accent-2) 66%, transparent), transparent 58%, color-mix(in srgb, var(--rank-accent) 72%, transparent));
+    inset: 2px;
+    opacity: 0.76;
+  }
+
+  .gb-tree-badge-crest::after {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.34), transparent 36%);
+    inset: 3px 5px auto 5px;
+    height: 12px;
+    opacity: 0.3;
+  }
+
+  .gb-tree-badge-crest-tree-status {
+    border-radius: 50%;
+  }
+
+  .gb-tree-badge-crest-battle-rank {
+    border-radius: 9px 9px 13px 13px;
+    clip-path: polygon(50% 0, 92% 14%, 86% 74%, 50% 100%, 14% 74%, 8% 14%);
+  }
+
+  .gb-tree-badge-crest-sm {
+    height: 24px;
+    width: 24px;
+  }
+
+  .gb-tree-badge-crest-md {
+    height: 30px;
+    width: 30px;
+  }
+
+  .gb-tree-badge-crest-lg {
+    height: 36px;
+    width: 36px;
+  }
+
+  .gb-tree-badge-svg {
+    height: 82%;
+    overflow: visible;
+    position: relative;
+    width: 82%;
+    z-index: 2;
+  }
+
+  .gb-tree-badge-ring-line,
+  .gb-tree-badge-shield {
+    fill: rgba(0, 0, 0, 0.18);
+    stroke: color-mix(in srgb, var(--rank-accent-2) 82%, white 12%);
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 3.2;
+  }
+
+  .gb-tree-badge-ring-line-inner {
+    stroke: color-mix(in srgb, var(--rank-accent) 86%, white 12%);
+    stroke-width: 2;
+  }
+
+  .gb-tree-badge-trunk,
+  .gb-tree-badge-branch,
+  .gb-tree-badge-root,
+  .gb-tree-badge-thorn {
+    fill: none;
+    stroke: color-mix(in srgb, var(--rank-accent) 82%, white 12%);
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 4;
+  }
+
+  .gb-tree-badge-branch,
+  .gb-tree-badge-root {
+    stroke: color-mix(in srgb, var(--rank-accent-2) 78%, white 8%);
+    stroke-width: 3;
+  }
+
+  .gb-tree-badge-thorn {
+    fill: color-mix(in srgb, var(--rank-accent) 78%, transparent);
+    stroke-width: 2.2;
+  }
+
+  .gb-tree-badge-leaf {
+    fill: color-mix(in srgb, var(--rank-accent) 78%, rgba(234, 255, 246, 0.12));
+    stroke: color-mix(in srgb, var(--rank-accent-2) 82%, white 10%);
+    stroke-linejoin: round;
+    stroke-width: 2.4;
+  }
+
+  .gb-tree-badge-crest-grove-recruit .gb-tree-badge-svg,
+  .gb-tree-badge-crest-forest-sprout .gb-tree-badge-svg {
+    filter: drop-shadow(0 0 4px rgba(180, 255, 195, 0.42));
+  }
+
+  .gb-tree-badge-crest-thorn-challenger .gb-tree-badge-thorn,
+  .gb-tree-badge-crest-elderroot-titan .gb-tree-badge-thorn {
+    stroke: #ffcb4f;
+  }
+
+  .gb-tree-badge-crest-ancient-grove .gb-tree-badge-ring-line,
+  .gb-tree-badge-crest-canopy-titan .gb-tree-badge-ring-line {
+    stroke-width: 4;
+  }
+
+  .gb-tree-badge-crest-canopy-champion .gb-tree-badge-shield,
+  .gb-tree-badge-crest-elderroot-titan .gb-tree-badge-shield {
+    filter: drop-shadow(0 0 5px color-mix(in srgb, var(--rank-accent) 58%, transparent));
+  }
+
   .gb-holder-rank-title {
     font-size: 12px;
     font-weight: 900;

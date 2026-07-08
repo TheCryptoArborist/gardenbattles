@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "wouter";
 import { fetchPlayerStats, type LeaderboardMode, type PlayerStats } from "@/lib/api";
 import { appRoute } from "@/lib/routes";
+import TreeBadgeCrest from "@/components/TreeBadgeCrest";
 
 interface PlayerRecordProps {
   address: string | null;
@@ -139,9 +140,7 @@ export default function PlayerRecord({
       title="View full leaderboard"
     >
       <div className={`gb-battle-rank-badge ${getBattleRankClass(displayRankTitle)}`}>
-        <span className="gb-rank-crest gb-battle-rank-crest" aria-hidden="true">
-          <span className="gb-rank-crest-core" />
-        </span>
+        <TreeBadgeCrest family="battle-rank" rankName={displayRankTitle} />
         <span className="gb-rank-copy">
           <span className="gb-battle-rank-kicker">Battle Rank</span>
           <span className="gb-battle-rank-title">{displayRankTitle}</span>

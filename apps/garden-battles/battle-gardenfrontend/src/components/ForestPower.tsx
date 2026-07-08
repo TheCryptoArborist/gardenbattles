@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useSuiClient } from "@mysten/dapp-kit";
+import TreeBadgeCrest from "@/components/TreeBadgeCrest";
 
 interface ForestPowerProps {
   address: string | null;
@@ -85,9 +86,7 @@ export default function ForestPower({ address }: ForestPowerProps) {
       title={`Liquid TREE: ${exactBalance} TREE. SuiDex V3: Not included in liquid balance.`}
     >
       <span className="gb-rank-main">
-        <span className="gb-rank-crest gb-holder-rank-crest" aria-hidden="true">
-          <span className="gb-rank-crest-core" />
-        </span>
+        <TreeBadgeCrest family="tree-status" rankName={tier.label} />
         <span className="gb-rank-copy">
           <span className="gb-holder-rank-kicker">TREE Status</span>
           <span className="gb-holder-rank-title">{tier.label}</span>

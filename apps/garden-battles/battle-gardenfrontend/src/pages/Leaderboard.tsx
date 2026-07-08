@@ -10,6 +10,7 @@ import {
 } from "@/lib/api";
 import ForestPower from "@/components/ForestPower";
 import PlayerRecord from "@/components/PlayerRecord";
+import TreeBadgeCrest from "@/components/TreeBadgeCrest";
 import { appAsset } from "@/lib/assets";
 
 const TITLE_COLORS: Record<string, string> = {
@@ -613,9 +614,7 @@ export default function Leaderboard() {
                               fontSize: "clamp(10px, 2vw, 11px)",
                             }}
                           >
-                            <span className="gb-rank-crest gb-battle-rank-crest" aria-hidden="true">
-                              <span className="gb-rank-crest-core" />
-                            </span>
+                            <TreeBadgeCrest family="battle-rank" rankName={entry.rank_title} size="sm" />
                             <span className="gb-battle-rank-title">{entry.rank_title}</span>
                           </span>
                         </td>
@@ -701,9 +700,7 @@ export default function Leaderboard() {
                       <span
                         className={`gb-battle-rank-badge gb-battle-rank-table ${getBattleRankClass(entry.rank_title)}`}
                       >
-                        <span className="gb-rank-crest gb-battle-rank-crest" aria-hidden="true">
-                          <span className="gb-rank-crest-core" />
-                        </span>
+                        <TreeBadgeCrest family="battle-rank" rankName={entry.rank_title} size="sm" />
                         <span className="gb-battle-rank-title">{entry.rank_title}</span>
                       </span>
                       <span className={`gb-cosmetic-placeholder ${getBattleRankClass(entry.rank_title)}`}>
