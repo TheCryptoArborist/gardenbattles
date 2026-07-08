@@ -11,6 +11,7 @@ import Battle from "@/pages/Battle";
 import Mint from "@/pages/Mint";
 import Leaderboard from "@/pages/Leaderboard";
 import NotFound from "@/pages/not-found";
+import BadgeGalleryPreview from "@/components/BadgeGalleryPreview";
 import '@mysten/dapp-kit/dist/index.css';
 
 // Use exact SUI MAIN PUBLIC FULL NODE ENDPOINTS
@@ -25,6 +26,12 @@ function Router() {
       <Route path="/mint" component={Mint} />
       <Route path="/leaderboard" component={Leaderboard} />
       <Route path="/battle/leaderboard" component={Leaderboard} />
+      {import.meta.env.DEV && (
+        <>
+          <Route path="/badge-gallery" component={BadgeGalleryPreview} />
+          <Route path="/battle/badge-gallery" component={BadgeGalleryPreview} />
+        </>
+      )}
       <Route path="/battle" component={Battle} />
       <Route component={NotFound} />
     </Switch>

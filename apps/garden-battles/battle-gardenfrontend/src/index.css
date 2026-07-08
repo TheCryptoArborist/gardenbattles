@@ -563,6 +563,17 @@
     z-index: 2;
   }
 
+  .gb-tree-badge-image {
+    display: block;
+    height: 88%;
+    object-fit: contain;
+    pointer-events: none;
+    position: relative;
+    user-select: none;
+    width: 88%;
+    z-index: 2;
+  }
+
   .gb-tree-badge-ring-line,
   .gb-tree-badge-shield {
     fill: rgba(0, 0, 0, 0.18);
@@ -624,6 +635,199 @@
   .gb-tree-badge-crest-canopy-champion .gb-tree-badge-shield,
   .gb-tree-badge-crest-elderroot-titan .gb-tree-badge-shield {
     filter: drop-shadow(0 0 5px color-mix(in srgb, var(--rank-accent) 58%, transparent));
+  }
+
+  .gb-badge-gallery-page {
+    background:
+      radial-gradient(circle at 50% 8%, rgba(57, 255, 136, 0.16), transparent 30%),
+      radial-gradient(circle at 12% 38%, rgba(0, 213, 199, 0.14), transparent 26%),
+      linear-gradient(180deg, #00130f 0%, #000806 100%);
+    color: #eafff6;
+    min-height: 100vh;
+    overflow-x: hidden;
+    padding: clamp(18px, 4vw, 38px);
+  }
+
+  .gb-badge-gallery-hero {
+    margin: 0 auto clamp(22px, 4vw, 34px);
+    max-width: 980px;
+    text-align: center;
+  }
+
+  .gb-badge-gallery-kicker {
+    color: #00d5c7;
+    font-family: Orbitron, sans-serif;
+    font-size: 12px;
+    font-weight: 900;
+    letter-spacing: 1.1px;
+    margin: 0 0 8px;
+    text-transform: uppercase;
+  }
+
+  .gb-badge-gallery-hero h1 {
+    color: #39ff88;
+    font-family: Orbitron, sans-serif;
+    font-size: clamp(28px, 5vw, 54px);
+    line-height: 1;
+    margin: 0;
+    text-shadow: 0 0 20px rgba(57, 255, 136, 0.24);
+    text-transform: uppercase;
+  }
+
+  .gb-badge-gallery-hero p:last-child {
+    color: rgba(232, 255, 244, 0.72);
+    font-size: 14px;
+    line-height: 1.55;
+    margin: 12px auto 0;
+    max-width: 760px;
+  }
+
+  .gb-badge-gallery-section {
+    margin: 0 auto clamp(24px, 5vw, 44px);
+    max-width: 1180px;
+  }
+
+  .gb-badge-gallery-section-title {
+    align-items: end;
+    border-bottom: 1px solid rgba(57, 255, 136, 0.22);
+    display: flex;
+    gap: 12px;
+    justify-content: space-between;
+    margin-bottom: 14px;
+    padding-bottom: 8px;
+  }
+
+  .gb-badge-gallery-section-title p {
+    color: #f3fff8;
+    font-family: Orbitron, sans-serif;
+    font-size: clamp(17px, 3vw, 24px);
+    font-weight: 900;
+    letter-spacing: 0.6px;
+    margin: 0;
+    text-transform: uppercase;
+  }
+
+  .gb-badge-gallery-section-title span {
+    color: rgba(0, 213, 199, 0.76);
+    font-family: Orbitron, sans-serif;
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+  }
+
+  .gb-badge-gallery-grid {
+    display: grid;
+    gap: 14px;
+    grid-template-columns: repeat(auto-fit, minmax(245px, 1fr));
+  }
+
+  .gb-badge-gallery-card {
+    background:
+      linear-gradient(180deg, rgba(2, 31, 25, 0.9), rgba(0, 10, 14, 0.9)),
+      radial-gradient(circle at 50% 0%, rgba(57, 255, 136, 0.12), transparent 58%);
+    border: 1px solid rgba(57, 255, 136, 0.24);
+    border-radius: 8px;
+    box-shadow:
+      0 0 18px rgba(0, 213, 199, 0.12),
+      inset 0 0 18px rgba(57, 255, 136, 0.04);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-width: 0;
+    padding: 14px;
+  }
+
+  .gb-badge-gallery-card-head {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+  }
+
+  .gb-badge-gallery-family {
+    color: rgba(0, 213, 199, 0.76);
+    font-family: Orbitron, sans-serif;
+    font-size: 9px;
+    font-weight: 900;
+    letter-spacing: 0.9px;
+    text-transform: uppercase;
+  }
+
+  .gb-badge-gallery-label {
+    color: #f3fff8;
+    font-family: Orbitron, sans-serif;
+    font-size: 16px;
+    font-weight: 900;
+    line-height: 1.15;
+    text-transform: uppercase;
+  }
+
+  .gb-badge-gallery-asset-status {
+    align-self: flex-start;
+    border: 1px solid rgba(234, 255, 246, 0.16);
+    border-radius: 999px;
+    color: rgba(232, 255, 244, 0.72);
+    font-family: Orbitron, sans-serif;
+    font-size: 9px;
+    font-weight: 900;
+    letter-spacing: 0.5px;
+    line-height: 1;
+    padding: 5px 7px;
+    text-transform: uppercase;
+  }
+
+  .gb-badge-gallery-asset-ready {
+    background: rgba(57, 255, 136, 0.1);
+    border-color: rgba(57, 255, 136, 0.36);
+    color: #39ff88;
+  }
+
+  .gb-badge-gallery-asset-fallback {
+    background: rgba(255, 203, 79, 0.08);
+    border-color: rgba(255, 203, 79, 0.28);
+    color: #ffcb4f;
+  }
+
+  .gb-badge-gallery-asset-path {
+    color: rgba(232, 255, 244, 0.46);
+    font-family: Consolas, "Courier New", monospace;
+    font-size: 10px;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+  }
+
+  .gb-badge-gallery-size-row {
+    align-items: center;
+    display: grid;
+    gap: 8px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .gb-badge-gallery-size {
+    align-items: center;
+    background: rgba(0, 0, 0, 0.18);
+    border: 1px solid rgba(234, 255, 246, 0.1);
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    justify-content: center;
+    min-width: 0;
+    padding: 10px 6px;
+  }
+
+  .gb-badge-gallery-size span {
+    color: rgba(232, 255, 244, 0.62);
+    font-family: Orbitron, sans-serif;
+    font-size: 9px;
+    font-weight: 800;
+    text-transform: uppercase;
+  }
+
+  .gb-badge-gallery-card .gb-holder-rank-badge,
+  .gb-badge-gallery-card .gb-battle-rank-badge {
+    justify-content: flex-start;
+    max-width: 100%;
   }
 
   .gb-holder-rank-title {

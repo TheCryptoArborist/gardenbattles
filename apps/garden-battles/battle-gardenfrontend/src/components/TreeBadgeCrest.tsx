@@ -1,3 +1,6 @@
+import { useEffect, useState } from "react";
+import { appAsset } from "@/lib/assets";
+
 type TreeBadgeCrestFamily = "tree-status" | "battle-rank";
 type TreeBadgeCrestSize = "sm" | "md" | "lg";
 
@@ -9,6 +12,30 @@ interface TreeBadgeCrestProps {
 
 function rankSlug(rankName: string) {
   return rankName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+}
+
+const BADGE_ASSET_PATHS: Record<TreeBadgeCrestFamily, Record<string, string>> = {
+  "tree-status": {
+    "Forest Sprout": "assets/badges/tree-status/forest-sprout.webp",
+    "Rooted Holder": "assets/badges/tree-status/rooted-holder.webp",
+    "Grove Builder": "assets/badges/tree-status/grove-builder.webp",
+    "Canopy Holder": "assets/badges/tree-status/canopy-holder.webp",
+    "Ancient Grove": "assets/badges/tree-status/ancient-grove.webp",
+    "Canopy Titan": "assets/badges/tree-status/canopy-titan.webp",
+  },
+  "battle-rank": {
+    "Grove Recruit": "assets/badges/battle-rank/grove-recruit.webp",
+    "Rooted Fighter": "assets/badges/battle-rank/rooted-fighter.webp",
+    "Thorn Challenger": "assets/badges/battle-rank/thorn-challenger.webp",
+    "Grove Striker": "assets/badges/battle-rank/grove-striker.webp",
+    "Canopy Champion": "assets/badges/battle-rank/canopy-champion.webp",
+    "Elderroot Titan": "assets/badges/battle-rank/elderroot-titan.webp",
+  },
+};
+
+export function getTreeBadgeAssetPath(family: TreeBadgeCrestFamily, rankName: string) {
+  const assetPath = BADGE_ASSET_PATHS[family][rankName];
+  return assetPath ? appAsset(assetPath) : null;
 }
 
 function TreeStatusSymbol() {
@@ -49,12 +76,18 @@ export default function TreeBadgeCrest({
   size = "md",
 }: TreeBadgeCrestProps) {
   const slug = rankSlug(rankName);
+  const assetPath = getTreeBadgeAssetPath(family, rankName);
+  const [assetFailed, setAssetFailed] = useState(false);
   const familyClass =
     family === "tree-status" ? "gb-holder-rank-crest" : "gb-battle-rank-crest";
   const label =
     family === "tree-status"
       ? `${rankName} TREE Status crest`
       : `${rankName} Battle Rank crest`;
+
+  useEffect(() => {
+    setAssetFailed(false);
+  }, [assetPath]);
 
   return (
     <span
@@ -70,7 +103,20 @@ export default function TreeBadgeCrest({
       aria-label={label}
       title={label}
     >
-      {family === "tree-status" ? <TreeStatusSymbol /> : <BattleRankSymbol />}
+      {assetPath && !assetFailed ? (
+        <img
+          className="gb-tree-badge-image"
+          src={assetPath}
+          alt=""
+          aria-hidden="true"
+          draggable={false}
+          onError={() => setAssetFailed(true)}
+        />
+      ) : family === "tree-status" ? (
+        <TreeStatusSymbol />
+      ) : (
+        <BattleRankSymbol />
+      )}
     </span>
   );
 }
