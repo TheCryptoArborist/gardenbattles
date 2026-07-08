@@ -1710,9 +1710,9 @@
   .gb-mode-select {
     display: grid;
     gap: clamp(12px, 2vw, 16px);
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     margin: clamp(18px, 3vw, 28px) auto;
-    max-width: 940px;
+    max-width: 1180px;
     padding: 0 clamp(2px, 1vw, 8px);
     text-align: center;
   }
@@ -1738,6 +1738,13 @@
     box-shadow:
       0 0 18px rgba(255, 138, 42, 0.18),
       inset 0 0 20px rgba(57, 255, 136, 0.07);
+  }
+
+  .gb-mode-card-arcade {
+    border-color: rgba(0, 213, 199, 0.54);
+    box-shadow:
+      0 0 18px rgba(0, 213, 199, 0.18),
+      inset 0 0 20px rgba(57, 255, 136, 0.08);
   }
 
   .gb-mode-card-clash {
@@ -1958,6 +1965,13 @@
     border: 1px solid rgba(57, 255, 136, 0.95);
     box-shadow: 0 0 18px rgba(0, 213, 199, 0.34);
     color: #001414;
+  }
+
+  .gb-mode-action-arcade {
+    background: rgba(0, 213, 199, 0.12);
+    border: 1px solid rgba(0, 213, 199, 0.44);
+    box-shadow: inset 0 0 16px rgba(57, 255, 136, 0.08);
+    color: var(--gb-teal);
   }
 
   .gb-mode-placeholder {
@@ -2933,6 +2947,13 @@
     .gb-hud-panel {
       position: relative;
       top: auto;
+    }
+  }
+
+  @media (max-width: 1100px) {
+    .gb-mode-select {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      max-width: 720px;
     }
   }
 

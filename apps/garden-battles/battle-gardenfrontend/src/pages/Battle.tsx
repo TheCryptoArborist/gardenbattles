@@ -917,10 +917,27 @@ export default function Battle() {
   const modeSelect =
     isConnected && (!battleState || battleFinished) && !isWaiting ? (
       <section className="gb-mode-select" aria-label="Choose battle mode">
+        <article
+          className="gb-mode-card gb-mode-card-arcade"
+          aria-label="Garden Bot Arcade coming soon"
+        >
+          <ModeCrest type="garden-bot" alt="Garden Bot Arcade robotic plant medallion" />
+          <h2>Garden Bot Arcade</h2>
+          <p>Fast practice. No wallet prompts per move. Practice only, no rewards.</p>
+          <button
+            type="button"
+            disabled
+            className="gb-mode-action gb-mode-action-arcade"
+            data-testid="button-start-arcade-battle"
+          >
+            Arcade Coming Soon
+          </button>
+        </article>
+
         <article className="gb-mode-card gb-mode-card-bot">
           <ModeCrest type="garden-bot" alt="Garden Bot robotic plant medallion" />
-          <h2>Garden Bot</h2>
-          <p>Practice match</p>
+          <h2>Garden Bot Verified</h2>
+          <p>On-chain ranked. Wallet approval required per move. Leaderboard eligible.</p>
           <button
             onClick={handleStartBotBattle}
             disabled={isJoining || isStartingBot}
@@ -955,8 +972,8 @@ export default function Battle() {
           <span className="gb-mode-placeholder">Coming Soon</span>
         </article>
         <p className="gb-mode-select-note">
-          Join the paid player queue, or start a no-payout practice battle with
-          Garden Bot.
+          Arcade is for practice only. Verified battles are used for ranked
+          leaderboard records.
         </p>
         <Link
           href={leaderboardRoute}
