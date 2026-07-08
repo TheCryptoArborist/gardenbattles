@@ -97,6 +97,29 @@ interface BattleUpdateTransactionResult {
   botMoveId: number | null;
 }
 
+const DEBUG_TX_TIMING = import.meta.env.VITE_DEBUG_TX_TIMING === "true";
+
+function txTimingNow() {
+  return typeof performance !== "undefined" ? performance.now() : Date.now();
+}
+
+function txTimingLog(label: string, details: Record<string, unknown>) {
+  if (DEBUG_TX_TIMING) {
+    console.info("[tx-timing]", label, details);
+  }
+}
+
+function logTxTiming(
+  label: string,
+  startedAt: number,
+  details: Record<string, unknown> = {},
+) {
+  txTimingLog(label, {
+    elapsedMs: Math.round(txTimingNow() - startedAt),
+    ...details,
+  });
+}
+
 function battleStorageKey(address: string): string {
   return `${ACTIVE_BATTLE_STORAGE_PREFIX}${address.toLowerCase()}`;
 }
@@ -267,18 +290,33 @@ function getBotMoves(state: BattleState): number[] {
   return isGardenBotAddress(state.player1) ? state.player1Moves : state.player2Moves;
 }
 
+function parsePositiveMoveId(value: unknown): number | null {
+  const moveId =
+    typeof value === "number"
+      ? value
+      : typeof value === "string" && value.trim()
+        ? Number(value)
+        : NaN;
+
+  return Number.isFinite(moveId) && moveId > 0 ? moveId : null;
+}
+
 function resolveBotMoveId(
   previousState: BattleState,
   nextState: BattleState,
   explicitBotMoveId: number | null,
 ): number | null {
-  if (explicitBotMoveId && MOVE_LABELS[explicitBotMoveId]) return explicitBotMoveId;
+  if (explicitBotMoveId && Number.isFinite(explicitBotMoveId) && explicitBotMoveId > 0) {
+    return explicitBotMoveId;
+  }
 
   const derivedMoveId = getLatestAddedMoveId(
     getBotMoves(previousState),
     getBotMoves(nextState),
   );
-  return derivedMoveId && MOVE_LABELS[derivedMoveId] ? derivedMoveId : null;
+  return derivedMoveId && Number.isFinite(derivedMoveId) && derivedMoveId > 0
+    ? derivedMoveId
+    : null;
 }
 
 function parseBattleStateFromObjectFields(
@@ -372,7 +410,13 @@ async function getBattleUpdateStateFromTransaction(
   suiClient: any,
   digest: string,
   address: string,
+  expectedBattleId?: string | null,
+  timingStartedAt?: number,
 ): Promise<BattleUpdateTransactionResult> {
+  const waitStartedAt = txTimingNow();
+  if (timingStartedAt !== undefined) {
+    logTxTiming("waitForTransaction start", timingStartedAt, { digest });
+  }
   const tx = await suiClient.waitForTransaction({
     digest,
     timeout: 45_000,
@@ -381,7 +425,14 @@ async function getBattleUpdateStateFromTransaction(
       showEvents: true,
     },
   });
+  if (timingStartedAt !== undefined) {
+    logTxTiming("waitForTransaction complete", timingStartedAt, {
+      digest,
+      waitMs: Math.round(txTimingNow() - waitStartedAt),
+    });
+  }
 
+  const parseStartedAt = txTimingNow();
   const state =
     tx.events
       ?.filter((event: any) => event.type === getBattleUpdateEvent())
@@ -390,20 +441,35 @@ async function getBattleUpdateStateFromTransaction(
         battleBelongsToAddress(state, address),
       ) ?? null;
 
+  const targetBattleId = String(state?.battleId ?? expectedBattleId ?? "").toLowerCase();
   const botMoveEvent = tx.events
     ?.filter((event: any) => event.type === getBotMoveResolvedEvent())
     .map((event: any) => event.parsedJson)
     .find((json: any) => {
-      if (!json || !state?.battleId) return false;
-      const eventBattleId = String(json.battle_id ?? "");
-      return eventBattleId === state.battleId;
+      if (!json || !targetBattleId) return false;
+      const eventBattleId = String(json.battle_id ?? "").toLowerCase();
+      return eventBattleId === targetBattleId;
     });
 
-  const botMoveId = Number(botMoveEvent?.move_id);
+  const botMoveId = parsePositiveMoveId(botMoveEvent?.move_id);
+  if (botMoveId !== null) {
+    console.log("[battle-log] BotMoveResolved parsed", {
+      battleId: String(botMoveEvent?.battle_id ?? state?.battleId ?? expectedBattleId ?? ""),
+      moveId: botMoveId,
+    });
+  }
+  if (timingStartedAt !== undefined) {
+    logTxTiming("event parsing complete", timingStartedAt, {
+      digest,
+      parseMs: Math.round(txTimingNow() - parseStartedAt),
+      hasBattleUpdate: !!state,
+      botMoveId,
+    });
+  }
 
   return {
     state,
-    botMoveId: Number.isFinite(botMoveId) && botMoveId > 0 ? botMoveId : null,
+    botMoveId,
   };
 }
 
@@ -456,13 +522,23 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
 
     console.log(`[leaderboard] submitting battle digest ${digest} (${reason})`);
     submittedBattleDigestsRef.current.add(digest);
+    const submitStartedAt = txTimingNow();
+    logTxTiming("leaderboard submit queued", submitStartedAt, { digest, reason });
 
     submitBattleRecord(digest)
       .then((result) => {
         console.log("[leaderboard] submit result", result);
+        logTxTiming("leaderboard submit complete", submitStartedAt, {
+          digest,
+          recorded: result?.recorded,
+        });
       })
       .catch((err) => {
         console.warn("[leaderboard] battle record submission failed:", err);
+        logTxTiming("leaderboard submit complete", submitStartedAt, {
+          digest,
+          failed: true,
+        });
       });
   }, []);
 
@@ -506,7 +582,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
   const applyBattleState = useCallback(
     async (
       nextState: BattleState | null,
-      options: { verifyLive?: boolean } = {},
+      options: { verifyLive?: boolean; botMoveId?: number | null } = {},
     ) => {
       if (!address || !battleBelongsToAddress(nextState, address)) return;
 
@@ -547,7 +623,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
         ) {
           return prev;
         }
-        buildActionLogEntry(prev, state, address);
+        buildActionLogEntry(prev, state, address, options.botMoveId ?? null);
         prevBattleStateRef.current = state;
         return state;
       });
@@ -1132,12 +1208,20 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
         ],
       });
       tx.setSender(address);
+      const txTimingStartedAt = txTimingNow();
+      logTxTiming("move submitted", txTimingStartedAt, {
+        battleId,
+        abilityId,
+      });
 
       return new Promise<void>((resolve, reject) => {
         signAndExecuteTransaction(
           { transaction: tx, chain: SUI_CONFIG.CHAIN },
           {
             onSuccess: async (result) => {
+              logTxTiming("wallet approved / digest received", txTimingStartedAt, {
+                digest: result.digest,
+              });
               recentBattleDigestRef.current = result.digest;
               let completedState: BattleState | null = null;
               try {
@@ -1145,6 +1229,8 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
                   suiClient,
                   result.digest,
                   address,
+                  battleId,
+                  txTimingStartedAt,
                 );
                 if (eventResult.state) {
                   lastResolvedBotMoveIdRef.current = eventResult.botMoveId;
@@ -1152,16 +1238,29 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
                     ...eventResult.state,
                     isBotBattle: activeState.isBotBattle,
                   };
-                  await applyBattleState(completedState);
+                  await applyBattleState(completedState, {
+                    botMoveId: eventResult.botMoveId,
+                  });
+                  logTxTiming("applyBattleState complete", txTimingStartedAt, {
+                    battleId: completedState.battleId,
+                    source: "BattleUpdate event",
+                  });
                 } else {
-                  lastResolvedBotMoveIdRef.current = null;
+                  lastResolvedBotMoveIdRef.current = eventResult.botMoveId;
+                  console.log("[battle] BattleUpdate event missing; refreshing live battle state.");
                   const refreshed = await getLiveBattleState(suiClient, battleId);
                   if (refreshed) {
                     completedState = {
                       ...refreshed,
                       isBotBattle: activeState.isBotBattle,
                     };
-                    await applyBattleState(completedState);
+                    await applyBattleState(completedState, {
+                      botMoveId: eventResult.botMoveId,
+                    });
+                    logTxTiming("applyBattleState complete", txTimingStartedAt, {
+                      battleId: completedState.battleId,
+                      source: "live refresh fallback",
+                    });
                   }
                 }
               } catch (err) {
@@ -1174,6 +1273,10 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
                     isBotBattle: activeState.isBotBattle,
                   };
                   await applyBattleState(completedState);
+                  logTxTiming("applyBattleState complete", txTimingStartedAt, {
+                    battleId: completedState.battleId,
+                    source: "error live refresh fallback",
+                  });
                 }
               }
               submitCompletedBattleRecord(
@@ -1404,6 +1507,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
     prev: BattleState | null,
     next: BattleState,
     myAddress: string | null,
+    explicitBotMoveId: number | null = null,
   ) {
     if (!prev || !myAddress) return;
     if (!next.battleId || next.battleId !== prev.battleId) return;
@@ -1445,9 +1549,24 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
     const playerGrowthDelta = playerNextGrowth - playerPrevGrowth;
     const opponentGrowthDelta = opponentNextGrowth - opponentPrevGrowth;
     const targetGrowth = next.isBotBattle ? 50 : 100;
+    const botMoveEventId =
+      explicitBotMoveId && Number.isFinite(explicitBotMoveId) && explicitBotMoveId > 0
+        ? explicitBotMoveId
+        : lastResolvedBotMoveIdRef.current;
     const resolvedBotMoveId = next.isBotBattle
-      ? resolveBotMoveId(prev, next, lastResolvedBotMoveIdRef.current)
+      ? resolveBotMoveId(prev, next, botMoveEventId)
       : null;
+    const usedExplicitBotMove = !!(
+      botMoveEventId &&
+      Number.isFinite(botMoveEventId) &&
+      botMoveEventId > 0 &&
+      resolvedBotMoveId === botMoveEventId
+    );
+    if (next.isBotBattle && actor === "you" && !usedExplicitBotMove && resolvedBotMoveId !== null) {
+      console.log("[battle-log] falling back to derived bot move", {
+        moveId: resolvedBotMoveId,
+      });
+    }
     const transitionKey = [
       next.battleId,
       prev.lastMoveMs,
@@ -1605,7 +1724,21 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
           ]
         : undefined;
     const resolvedBotMoveLabel =
-      resolvedBotMoveId !== null ? MOVE_LABELS[resolvedBotMoveId] : undefined;
+      resolvedBotMoveId !== null
+        ? MOVE_LABELS[resolvedBotMoveId] ?? `Garden Bot Move #${resolvedBotMoveId}`
+        : undefined;
+    if (next.isBotBattle && actor === "you" && usedExplicitBotMove && resolvedBotMoveId !== null) {
+      if (MOVE_LABELS[resolvedBotMoveId]) {
+        console.log("[battle-log] exact bot move applied", {
+          moveId: resolvedBotMoveId,
+          label: resolvedBotMoveLabel,
+        });
+      } else {
+        console.log("[battle-log] BotMoveResolved label missing", {
+          moveId: resolvedBotMoveId,
+        });
+      }
+    }
 
     const playerMoveDetails =
       next.isBotBattle && actor === "you"
