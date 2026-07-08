@@ -86,7 +86,7 @@ export default function ForestPower({ address }: ForestPowerProps) {
       title={`Liquid TREE: ${exactBalance} TREE. SuiDex V3: Not included in liquid balance.`}
     >
       <span className="gb-rank-main">
-        <TreeBadgeCrest family="tree-status" rankName={tier.label} />
+        <TreeBadgeCrest family="tree-status" rankName={tier.label} size="lg" />
         <span className="gb-rank-copy">
           <span className="gb-holder-rank-kicker">TREE Status</span>
           <span className="gb-holder-rank-title">{tier.label}</span>

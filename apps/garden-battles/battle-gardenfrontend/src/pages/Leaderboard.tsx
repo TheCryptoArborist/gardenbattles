@@ -36,15 +36,15 @@ const COSMETIC_PLACEHOLDERS: Record<string, string> = {
 };
 
 const BADGE_LABELS: Record<string, string> = {
-  first_blood: "FB",
-  hot_streak: "HOT",
-  undefeated: "UNB",
-  battle_hardened: "B100",
-  veteran: "VET",
-  legend: "LEG",
-  sharp_pruner: "PRN",
-  never_give_up: "NGU",
-  social_butterfly: "SOC",
+  first_blood: "First Blood",
+  hot_streak: "Hot Streak",
+  undefeated: "Undefeated",
+  battle_hardened: "Battle Hardened",
+  veteran: "Veteran",
+  legend: "Legend",
+  sharp_pruner: "Sharp Pruner",
+  never_give_up: "Never Give Up",
+  social_butterfly: "Social Butterfly",
 };
 
 const SUINS_CACHE_PREFIX = "garden-battles:suins:";
@@ -175,7 +175,7 @@ function renderBadgeSlots(badges: string[]) {
   return (
     <>
       {badges.slice(0, 3).map((badge) => (
-        <span key={badge} title={badge}>
+        <span key={badge} title={BADGE_LABELS[badge] || badge}>
           {BADGE_LABELS[badge] || "BDG"}
         </span>
       ))}

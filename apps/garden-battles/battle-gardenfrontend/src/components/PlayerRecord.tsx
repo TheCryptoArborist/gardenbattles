@@ -21,20 +21,16 @@ const BADGE_LABELS: Record<string, string> = {
   social_butterfly: "Social Butterfly",
 };
 
-const BADGE_CODES: Record<string, string> = {
-  first_blood: "FB",
-  hot_streak: "HOT",
-  undefeated: "UNB",
-  battle_hardened: "B100",
-  veteran: "VET",
-  legend: "LEG",
-  sharp_pruner: "PRN",
-  never_give_up: "NGU",
-  social_butterfly: "SOC",
-};
-
 function getBattleRankClass(rankTitle: string): string {
   return `gb-battle-rank-${rankTitle.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`;
+}
+
+function formatBadgeLabel(badge: string): string {
+  return BADGE_LABELS[badge] || badge
+    .split("_")
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
 }
 
 function getDisplayRankTitle(stats: PlayerStats): string {
@@ -133,63 +129,55 @@ export default function PlayerRecord({
     >
     <div
       className={`gb-player-record-card ${getBattleRankClass(displayRankTitle)}`}
-      style={{
-        display: "flex",
-        flexDirection: "column",
-      }}
       title="View full leaderboard"
     >
       <div className={`gb-battle-rank-badge ${getBattleRankClass(displayRankTitle)}`}>
-        <TreeBadgeCrest family="battle-rank" rankName={displayRankTitle} />
+        <TreeBadgeCrest family="battle-rank" rankName={displayRankTitle} size="lg" />
         <span className="gb-rank-copy">
           <span className="gb-battle-rank-kicker">Battle Rank</span>
           <span className="gb-battle-rank-title">{displayRankTitle}</span>
         </span>
       </div>
 
-      <div style={{ color: "#ccc", fontSize: "11px" }}>
-        <span style={{ color: "#4CAF50" }}>{stats.wins}W</span>{" "}
-        <span style={{ color: "#F44336" }}>{stats.losses}L</span>
+      <div
+        className="gb-player-record-stats"
+        aria-label={`${stats.wins} wins, ${stats.losses} losses`}
+      >
+        <span className="gb-player-record-wins">{stats.wins}W</span>
+        <span className="gb-player-record-losses">{stats.losses}L</span>
         {stats.total_battles > 0 && (
-          <span style={{ color: "#888", marginLeft: "6px" }}>
+          <span className="gb-player-record-win-rate">
             ({Math.round(stats.win_rate * 100)}%)
           </span>
         )}
       </div>
 
       {streakLabel && (
-        <div style={{ color: "#FF9800", fontSize: "10px" }}>
+        <div className="gb-player-record-streak">
           {streakLabel}
         </div>
       )}
 
-      <div style={{ color: "#668", fontSize: "10px" }}>
+      <div className="gb-player-record-total">
         {stats.total_battles} battle{stats.total_battles !== 1 ? "s" : ""}
       </div>
 
       {stats.badges.length > 0 && (
-        <div
-          style={{
-            display: "flex",
-            flexWrap: "wrap",
-            gap: "3px",
-            marginTop: "2px",
-          }}
-        >
-          {stats.badges.map((badge) => (
-            <span
-              key={badge}
-              title={BADGE_LABELS[badge] || badge}
-              style={{
-                color: "#9bd9bd",
-                cursor: "default",
-                fontSize: "10px",
-                fontWeight: 800,
-              }}
-            >
-              {BADGE_CODES[badge] || "BDG"}
-            </span>
-          ))}
+        <div className="gb-player-record-badges" aria-label="Battle badges">
+          {stats.badges.map((badge) => {
+            const label = formatBadgeLabel(badge);
+
+            return (
+              <span
+                key={badge}
+                className="gb-player-record-badge-chip"
+                title={label}
+                aria-label={label}
+              >
+                {label}
+              </span>
+            );
+          })}
         </div>
       )}
     </div>

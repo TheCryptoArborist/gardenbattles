@@ -359,8 +359,10 @@
 
   .gb-holder-rank-badge,
   .gb-player-record-card {
-    border-radius: 8px;
+    border-radius: 10px;
+    box-sizing: border-box;
     font-family: Orbitron, sans-serif;
+    min-height: 76px;
     overflow: hidden;
     position: relative;
   }
@@ -374,10 +376,11 @@
       0 0 14px rgba(57, 255, 136, 0.12),
       inset 0 0 18px rgba(57, 255, 136, 0.05);
     color: #dffff1;
-    display: inline-grid;
-    gap: 2px;
-    min-width: 150px;
-    padding: 7px 12px;
+    display: inline-flex;
+    gap: 12px;
+    justify-content: space-between;
+    min-width: 218px;
+    padding: 10px 13px 10px 12px;
     text-align: left;
     --rank-accent: #39ff88;
     --rank-accent-2: #00d5c7;
@@ -410,7 +413,7 @@
 
   .gb-rank-main {
     display: inline-flex;
-    gap: 9px;
+    gap: 11px;
     min-width: 0;
   }
 
@@ -551,8 +554,8 @@
   }
 
   .gb-tree-badge-crest-lg {
-    height: 36px;
-    width: 36px;
+    height: 44px;
+    width: 44px;
   }
 
   .gb-tree-badge-svg {
@@ -565,12 +568,12 @@
 
   .gb-tree-badge-image {
     display: block;
-    height: 88%;
+    height: 92%;
     object-fit: contain;
     pointer-events: none;
     position: relative;
     user-select: none;
-    width: 88%;
+    width: 92%;
     z-index: 2;
   }
 
@@ -831,7 +834,7 @@
   }
 
   .gb-holder-rank-title {
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 900;
     letter-spacing: 0.4px;
     line-height: 1.15;
@@ -839,9 +842,15 @@
   }
 
   .gb-holder-rank-balance {
-    color: rgba(220, 255, 238, 0.7);
-    font-size: 10px;
+    align-self: center;
+    border-left: 1px solid rgba(234, 255, 246, 0.13);
+    color: rgba(220, 255, 238, 0.78);
+    flex: 0 0 auto;
+    font-size: 11px;
+    font-weight: 900;
     line-height: 1.1;
+    padding-left: 10px;
+    white-space: nowrap;
   }
 
   .gb-holder-rank-forest-sprout {
@@ -932,10 +941,13 @@
       0 0 14px rgba(0, 213, 199, 0.12),
       inset 0 0 18px rgba(255, 203, 79, 0.04);
     color: #eafff6;
+    display: flex;
+    flex-direction: column;
     font-size: 11px;
-    gap: 4px;
-    min-width: 148px;
-    padding: 8px 12px 8px 14px;
+    gap: 5px;
+    justify-content: center;
+    min-width: 218px;
+    padding: 10px 13px 10px 14px;
   }
 
   .gb-battle-rank-badge {
@@ -945,10 +957,10 @@
     flex-direction: row;
     font-family: Orbitron, sans-serif;
     font-weight: 900;
-    gap: 7px;
+    gap: 11px;
     letter-spacing: 0.4px;
     line-height: 1.1;
-    padding: 5px 10px 5px 6px;
+    padding: 0;
     text-transform: uppercase;
     --rank-accent: #00d5c7;
     --rank-accent-2: #39ff88;
@@ -956,6 +968,65 @@
 
   .gb-battle-rank-title {
     display: block;
+    font-size: 13px;
+    line-height: 1.12;
+  }
+
+  .gb-player-record-stats {
+    align-items: center;
+    color: rgba(234, 255, 246, 0.82);
+    display: flex;
+    flex-wrap: wrap;
+    font-size: 11px;
+    font-weight: 900;
+    gap: 6px;
+    line-height: 1.1;
+  }
+
+  .gb-player-record-wins {
+    color: #4caf50;
+  }
+
+  .gb-player-record-losses {
+    color: #f44336;
+  }
+
+  .gb-player-record-win-rate {
+    color: rgba(234, 255, 246, 0.48);
+  }
+
+  .gb-player-record-streak {
+    color: #ffcb4f;
+    font-size: 10px;
+    font-weight: 800;
+    line-height: 1.1;
+  }
+
+  .gb-player-record-total {
+    color: rgba(166, 207, 185, 0.64);
+    font-size: 10px;
+    font-weight: 800;
+    line-height: 1.1;
+  }
+
+  .gb-player-record-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 1px;
+  }
+
+  .gb-player-record-badge-chip {
+    background: rgba(57, 255, 136, 0.08);
+    border: 1px solid rgba(57, 255, 136, 0.28);
+    border-radius: 999px;
+    color: #9bd9bd;
+    cursor: default;
+    font-size: 9px;
+    font-weight: 900;
+    line-height: 1;
+    padding: 3px 6px;
+    text-transform: uppercase;
   }
 
   .gb-battle-rank-table {
