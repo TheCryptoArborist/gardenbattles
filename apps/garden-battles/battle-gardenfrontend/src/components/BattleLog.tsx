@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { MOVE_LABELS, MOVE_META } from "@/lib/sui-config";
+import { MOVE_LABELS } from "@/lib/sui-config";
 
 export interface ActionEntry {
   id: string;
@@ -26,6 +26,27 @@ function formatDelta(prev: number, next: number): string {
   return diff > 0 ? `+${diff}` : `${diff}`;
 }
 
+function getDetailLabel(entry: ActionEntry, detail: string, index: number) {
+  const normalized = detail.toLowerCase();
+  if (entry.actor === "round") {
+    if (normalized.includes("->") || normalized.includes("/")) return "SCORE";
+    return "RESULT";
+  }
+
+  if (index === 0) return "EFFECT";
+  if (
+    normalized.includes("gained") ||
+    normalized.includes("lost") ||
+    normalized.includes("reduced") ||
+    normalized.includes("growth") ||
+    normalized.includes("no visible")
+  ) {
+    return "SCORE CHANGE";
+  }
+
+  return "EFFECT";
+}
+
 export default function BattleLog({
   entries,
   isPlayer1,
@@ -42,36 +63,15 @@ export default function BattleLog({
 
   if (entries.length === 0) {
     return (
-      <div
-        style={{
-          padding: "20px",
-          textAlign: "center",
-          color: "rgba(0,255,204,0.4)",
-          fontFamily: "Orbitron, sans-serif",
-          fontSize: "13px",
-          fontStyle: "italic",
-        }}
-      >
+      <div className="gb-battle-log-empty">
         Battle log will appear here once moves are played...
       </div>
     );
   }
 
   return (
-    <div
-      ref={logRef}
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        gap: "6px",
-        maxHeight: "220px",
-        overflowY: "auto",
-        overscrollBehavior: "contain",
-        padding: "8px 4px",
-      }}
-    >
+    <div ref={logRef} className="gb-battle-log">
       {entries.map((entry) => {
-        const meta = MOVE_META[entry.moveId];
         const hasDetails = !!entry.details?.length;
         const label =
           entry.label ??
@@ -109,60 +109,20 @@ export default function BattleLog({
         const selfDelta = myNext - myPrev;
         const oppDelta = oppNext - oppPrev;
 
-        const accentColor =
+        const entryClass =
           entry.actor === "round"
-            ? "#00e5ff"
+            ? "gb-battle-log-entry-round"
             : entry.actor === "you"
-              ? "#00ff00"
-              : "#ff6600";
-        const bgColor =
-          entry.actor === "round"
-            ? "rgba(0,70,95,0.3)"
-            : entry.actor === "you"
-            ? "rgba(0,100,0,0.3)"
-            : "rgba(120,30,0,0.3)";
+              ? "gb-battle-log-entry-you"
+              : "gb-battle-log-entry-opponent";
 
         return (
-          <div
-            key={entry.id}
-            style={{
-              background: bgColor,
-              border: `1px solid ${accentColor}`,
-              borderRadius: "8px",
-              padding: "8px 12px",
-              display: "flex",
-              flexDirection: "column",
-              gap: "3px",
-              animation: "slideInLog 0.3s ease-out",
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: "8px",
-              }}
-            >
-              <span
-                style={{
-                  fontFamily: "Orbitron, sans-serif",
-                  fontSize: "11px",
-                  fontWeight: "bold",
-                  color: accentColor,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.5px",
-                }}
-              >
+          <div key={entry.id} className={`gb-battle-log-entry ${entryClass}`}>
+            <div className="gb-battle-log-header">
+              <span className="gb-battle-log-actor">
                 {actorLabel}
               </span>
-              <span
-                style={{
-                  fontFamily: "Orbitron, sans-serif",
-                  fontSize: "10px",
-                  color: "rgba(255,255,255,0.4)",
-                }}
-              >
+              <span className="gb-battle-log-time">
                 {new Date(entry.timestamp).toLocaleTimeString([], {
                   hour: "2-digit",
                   minute: "2-digit",
@@ -170,47 +130,29 @@ export default function BattleLog({
                 })}
               </span>
             </div>
-            <span
-              style={{
-                fontFamily: "Orbitron, sans-serif",
-                fontSize: "12px",
-                color: "#fff",
-              }}
-            >
-              {label}
-            </span>
-            <div
-              style={{
-                display: "flex",
-                flexDirection: hasDetails ? "column" : "row",
-                gap: hasDetails ? "4px" : "10px",
-                flexWrap: "wrap",
-                marginTop: "2px",
-              }}
-            >
+
+            <div className="gb-battle-log-row gb-battle-log-row-move">
+              <span className="gb-battle-log-kicker">MOVE</span>
+              <span className="gb-battle-log-move-name">{label}</span>
+            </div>
+
+            <div className="gb-battle-log-body">
               {hasDetails ? (
-                entry.details!.map((detail) => (
-                  <span
-                    key={detail}
-                    style={{
-                      fontSize: "11px",
-                      color: "rgba(255,255,255,0.72)",
-                      fontFamily: "Orbitron, sans-serif",
-                      lineHeight: "1.45",
-                    }}
-                  >
-                    {detail}
-                  </span>
+                entry.details!.map((detail, index) => (
+                  <div key={`${detail}-${index}`} className="gb-battle-log-row">
+                    <span className="gb-battle-log-kicker">
+                      {getDetailLabel(entry, detail, index)}
+                    </span>
+                    <span className="gb-battle-log-detail">{detail}</span>
+                  </div>
                 ))
               ) : (
-                <>
+                <div className="gb-battle-log-score-grid">
                   {selfDelta !== 0 && (
                     <span
-                      style={{
-                        fontSize: "11px",
-                        color: selfDelta > 0 ? "#00ff88" : "#ff4444",
-                        fontFamily: "Orbitron, sans-serif",
-                      }}
+                      className={`gb-battle-log-score ${
+                        selfDelta > 0 ? "gb-battle-log-score-positive" : "gb-battle-log-score-negative"
+                      }`}
                     >
                       {entry.actor === "you" ? "Your tree" : "Their tree"}:{" "}
                       {myPrev} {"->"} {myNext} ({formatDelta(myPrev, myNext)})
@@ -218,28 +160,20 @@ export default function BattleLog({
                   )}
                   {oppDelta !== 0 && (
                     <span
-                      style={{
-                        fontSize: "11px",
-                        color: oppDelta < 0 ? "#ff4444" : "#00ff88",
-                        fontFamily: "Orbitron, sans-serif",
-                      }}
+                      className={`gb-battle-log-score ${
+                        oppDelta < 0 ? "gb-battle-log-score-negative" : "gb-battle-log-score-positive"
+                      }`}
                     >
                       {entry.actor === "you" ? "Their tree" : "Your tree"}:{" "}
                       {oppPrev} {"->"} {oppNext} ({formatDelta(oppPrev, oppNext)})
                     </span>
                   )}
                   {selfDelta === 0 && oppDelta === 0 && (
-                    <span
-                      style={{
-                        fontSize: "11px",
-                        color: "rgba(255,255,255,0.5)",
-                        fontFamily: "Orbitron, sans-serif",
-                      }}
-                    >
+                    <span className="gb-battle-log-score gb-battle-log-score-muted">
                       (Blocked or no effect)
                     </span>
                   )}
-                </>
+                </div>
               )}
             </div>
           </div>
