@@ -28,7 +28,7 @@ function formatDelta(prev: number, next: number): string {
 
 function getDetailLabel(entry: ActionEntry, detail: string, index: number) {
   const normalized = detail.toLowerCase();
-  if (entry.actor === "round") {
+  if (isRoundResultEntry(entry)) {
     if (normalized.includes("->") || normalized.includes("/")) return "SCORE";
     return "RESULT";
   }
@@ -45,6 +45,16 @@ function getDetailLabel(entry: ActionEntry, detail: string, index: number) {
   }
 
   return "EFFECT";
+}
+
+function isRoundResultEntry(entry: ActionEntry) {
+  return (
+    entry.actor === "round" ||
+    (entry.moveId === 0 && entry.label === "Round Result") ||
+    !!entry.details?.some((detail) =>
+      detail.toLowerCase().startsWith("round result:"),
+    )
+  );
 }
 
 export default function BattleLog({
@@ -73,17 +83,23 @@ export default function BattleLog({
     <div ref={logRef} className="gb-battle-log">
       {entries.map((entry) => {
         const hasDetails = !!entry.details?.length;
+        const isRoundEntry = isRoundResultEntry(entry);
+        if (entry.actor === "you" && entry.moveId === 0 && !entry.label && !isRoundEntry) {
+          return null;
+        }
+
         const label =
-          entry.label ??
-          (entry.actor === "round"
+          isRoundEntry
             ? "Round Result"
-            : hasDetails && entry.moveId === 0
-              ? "Round Result"
+            : entry.label && entry.label !== "Round Result"
+              ? entry.label
               : MOVE_LABELS[entry.moveId] ||
-                (entry.actor === "you" ? "Your move" : `${opponentLabel} move`));
+                (entry.actor === "you"
+                  ? "Your move"
+                  : `${opponentLabel} move unavailable`);
 
         const actorLabel =
-          entry.actor === "round"
+          isRoundEntry
             ? "ROUND RESULT"
             : entry.actor === "you"
               ? "YOU"
@@ -110,7 +126,7 @@ export default function BattleLog({
         const oppDelta = oppNext - oppPrev;
 
         const entryClass =
-          entry.actor === "round"
+          isRoundEntry
             ? "gb-battle-log-entry-round"
             : entry.actor === "you"
               ? "gb-battle-log-entry-you"

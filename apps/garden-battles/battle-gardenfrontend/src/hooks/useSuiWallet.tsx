@@ -1802,13 +1802,18 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
         ? buildPlayerMoveDetails(lastMoveIdRef.current)
         : undefined;
 
-    const entries = [
-      createEntry(
-        actor,
-        actor === "you" ? lastMoveIdRef.current : 0,
-        actor === "you" ? playerMoveDetails : undefined,
-      ),
-    ];
+    const entries: ActionEntry[] = [];
+    const playerMoveId = actor === "you" ? lastMoveIdRef.current : 0;
+
+    if (actor !== "you" || playerMoveId > 0) {
+      entries.push(
+        createEntry(
+          actor,
+          playerMoveId,
+          actor === "you" ? playerMoveDetails : undefined,
+        ),
+      );
+    }
 
     if (next.isBotBattle && actor === "you") {
       entries.push(
