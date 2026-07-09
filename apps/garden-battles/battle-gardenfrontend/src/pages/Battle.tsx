@@ -970,8 +970,8 @@ export default function Battle() {
               <span>Leaderboard eligible</span>
             </div>
             <p className="gb-practice-mode-note">
-              Practice Mode coming soon - fast no-wallet practice. No rewards.
-              No leaderboard credit.
+              Practice Mode coming soon &mdash; fast no-wallet practice. No
+              rewards. No leaderboard credit.
             </p>
           </div>
         </article>
