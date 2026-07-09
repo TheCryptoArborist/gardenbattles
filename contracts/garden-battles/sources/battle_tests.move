@@ -430,4 +430,116 @@ module battle_garden::battle_tests {
         let useful_growth_score = battle::bot_move_score_for_testing(20, 40, 0);
         assert!(useful_growth_score > capped_growth_score, 0);
     }
+
+    #[test]
+    fun test_bot_diversity_avoids_last_move_when_alternatives_exist_v1() {
+        let admin = @0xA;
+        let player = @0xB;
+        let bot = @0xC;
+        let mut s = test_scenario::begin(admin);
+
+        test_scenario::next_tx(&mut s, admin);
+        {
+            config::create_config_for_testing(test_scenario::ctx(&mut s));
+            config::create_tree_config_for_testing(test_scenario::ctx(&mut s));
+        };
+
+        test_scenario::next_tx(&mut s, @0x0);
+        random::create_for_testing(test_scenario::ctx(&mut s));
+
+        test_scenario::next_tx(&mut s, admin);
+        {
+            let mut c = test_scenario::take_shared<Config>(&s);
+            config::whitelist_collection<TestNFT>(&mut c, test_scenario::ctx(&mut s));
+            test_scenario::return_shared(c);
+        };
+
+        test_scenario::next_tx(&mut s, player);
+        {
+            let c = test_scenario::take_shared<Config>(&s);
+            let r = test_scenario::take_shared<Random>(&s);
+            let nft = TestNFT { id: object::new(test_scenario::ctx(&mut s)) };
+            battle::create_bot_battle<TestNFT>(&c, &nft, bot, &r, test_scenario::ctx(&mut s));
+            let TestNFT { id } = nft;
+            object::delete(id);
+            test_scenario::return_shared(r);
+            test_scenario::return_shared(c);
+        };
+
+        test_scenario::next_tx(&mut s, player);
+        {
+            let mut b = test_scenario::take_shared<battle::Battle>(&s);
+            let r = test_scenario::take_shared<Random>(&s);
+            battle::set_p2_moves_for_testing(&mut b, vector[20, 21, 22, 30]);
+
+            let player_move = *vector::borrow(battle::p1_moves(&b), 0);
+            battle::use_ability_id(&mut b, player_move, &r, test_scenario::ctx(&mut s));
+
+            let bot_moves = battle::p2_moves(&b);
+            let last_bot_move = *vector::borrow(bot_moves, vector::length(bot_moves) - 1);
+            assert!(last_bot_move != 30, 0);
+
+            test_scenario::return_shared(r);
+            test_scenario::return_shared(b);
+        };
+        test_scenario::end(s);
+    }
+
+    #[test]
+    fun test_bot_diversity_allows_repeat_when_only_option_v2() {
+        let admin = @0xA;
+        let player = @0xB;
+        let bot = @0xC;
+        let mut s = test_scenario::begin(admin);
+
+        test_scenario::next_tx(&mut s, admin);
+        {
+            config::create_config_for_testing(test_scenario::ctx(&mut s));
+            config::create_tree_config_for_testing(test_scenario::ctx(&mut s));
+        };
+
+        test_scenario::next_tx(&mut s, @0x0);
+        random::create_for_testing(test_scenario::ctx(&mut s));
+
+        test_scenario::next_tx(&mut s, admin);
+        {
+            let mut c = test_scenario::take_shared<Config>(&s);
+            config::whitelist_collection<TestNFT>(&mut c, test_scenario::ctx(&mut s));
+            test_scenario::return_shared(c);
+        };
+
+        test_scenario::next_tx(&mut s, player);
+        {
+            let c = test_scenario::take_shared<Config>(&s);
+            let r = test_scenario::take_shared<Random>(&s);
+            let nft = TestNFT { id: object::new(test_scenario::ctx(&mut s)) };
+            battle::create_bot_battle<TestNFT>(&c, &nft, bot, &r, test_scenario::ctx(&mut s));
+            let TestNFT { id } = nft;
+            object::delete(id);
+            test_scenario::return_shared(r);
+            test_scenario::return_shared(c);
+        };
+
+        test_scenario::next_tx(&mut s, player);
+        {
+            let mut b = test_scenario::take_shared<battle::Battle>(&s);
+            let c = test_scenario::take_shared<Config>(&s);
+            let tc = test_scenario::take_shared<TreeConfig>(&s);
+            let r = test_scenario::take_shared<Random>(&s);
+            battle::set_p2_moves_for_testing(&mut b, vector[30]);
+
+            let player_move = *vector::borrow(battle::p1_moves(&b), 0);
+            battle::use_ability_id_v2(&mut b, player_move, &c, &tc, &r, test_scenario::ctx(&mut s));
+
+            let bot_moves = battle::p2_moves(&b);
+            assert!(vector::length(bot_moves) == 1, 0);
+            assert!(*vector::borrow(bot_moves, 0) == 30, 0);
+
+            test_scenario::return_shared(r);
+            test_scenario::return_shared(tc);
+            test_scenario::return_shared(c);
+            test_scenario::return_shared(b);
+        };
+        test_scenario::end(s);
+    }
 }

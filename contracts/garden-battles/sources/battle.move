@@ -478,9 +478,14 @@ module battle_garden::battle {
         if (score == 0) { 1 } else { score }
     }
 
+    fun bot_score_is_viable(score: u64, max_score: u64): bool {
+        score == max_score || max_score - score <= 20
+    }
+
     fun choose_bot_move(battle: &Battle, rand: &Random, ctx: &mut TxContext): u8 {
         let moves_len = vector::length(&battle.p2_moves);
         assert!(moves_len > 0, errors::e_invalid_move());
+        let recent_move = *vector::borrow(&battle.p2_moves, moves_len - 1);
 
         let mut max_score = 0;
         let mut i = 0;
@@ -494,22 +499,30 @@ module battle_garden::battle {
         };
 
         let mut candidate_count = 0;
+        let mut alternate_candidate_count = 0;
         i = 0;
         while (i < moves_len) {
             let move_id = *vector::borrow(&battle.p2_moves, i);
-            if (bot_move_score(move_id, battle.p2_growth, battle.p1_growth, &battle.p2_status, &battle.p1_status) == max_score) {
+            let score = bot_move_score(move_id, battle.p2_growth, battle.p1_growth, &battle.p2_status, &battle.p1_status);
+            if (bot_score_is_viable(score, max_score)) {
                 candidate_count = candidate_count + 1;
+                if (move_id != recent_move) {
+                    alternate_candidate_count = alternate_candidate_count + 1;
+                };
             };
             i = i + 1;
         };
 
+        let avoid_recent = alternate_candidate_count > 0;
+        let selection_count = if (avoid_recent) { alternate_candidate_count } else { candidate_count };
         let mut rng = random::new_generator(rand, ctx);
-        let selected_candidate = random::generate_u64(&mut rng) % candidate_count;
+        let selected_candidate = random::generate_u64(&mut rng) % selection_count;
         let mut seen_candidates = 0;
         i = 0;
         while (i < moves_len) {
             let move_id = *vector::borrow(&battle.p2_moves, i);
-            if (bot_move_score(move_id, battle.p2_growth, battle.p1_growth, &battle.p2_status, &battle.p1_status) == max_score) {
+            let score = bot_move_score(move_id, battle.p2_growth, battle.p1_growth, &battle.p2_status, &battle.p1_status);
+            if (bot_score_is_viable(score, max_score) && (!avoid_recent || move_id != recent_move)) {
                 if (seen_candidates == selected_candidate) {
                     return move_id
                 };
@@ -519,6 +532,19 @@ module battle_garden::battle {
         };
 
         *vector::borrow(&battle.p2_moves, 0)
+    }
+
+    fun rotate_bot_move_to_end(battle: &mut Battle, move_id: u8) {
+        let moves_len = vector::length(&battle.p2_moves);
+        let mut i = 0;
+        while (i < moves_len) {
+            if (*vector::borrow(&battle.p2_moves, i) == move_id) {
+                let selected = vector::remove(&mut battle.p2_moves, i);
+                vector::push_back(&mut battle.p2_moves, selected);
+                return
+            };
+            i = i + 1;
+        };
     }
 
     fun apply_player1_move(battle: &mut Battle, move_id: u8, rand: &Random, ctx: &mut TxContext) {
@@ -582,6 +608,7 @@ module battle_garden::battle {
             } else if (battle.is_bot_battle) {
                 let bot_move = choose_bot_move(battle, rand, ctx);
                 emit_bot_move_resolved(battle, bot_move);
+                rotate_bot_move_to_end(battle, bot_move);
                 apply_player2_move(battle, bot_move, rand, ctx);
 
                 if (battle.p2_growth >= target_growth) {
@@ -714,6 +741,7 @@ module battle_garden::battle {
             } else if (battle.is_bot_battle) {
                 let bot_move = choose_bot_move(battle, rand, ctx);
                 emit_bot_move_resolved(battle, bot_move);
+                rotate_bot_move_to_end(battle, bot_move);
                 apply_player2_move(battle, bot_move, rand, ctx);
 
                 if (battle.p2_growth >= base_target) {
@@ -833,6 +861,10 @@ module battle_garden::battle {
     #[test_only]
     public fun p2_moves(battle: &Battle): &vector<u8> { &battle.p2_moves }
     #[test_only]
+    public fun set_p2_moves_for_testing(battle: &mut Battle, moves: vector<u8>) {
+        battle.p2_moves = moves;
+    }
+    #[test_only]
     public fun p1_growth(battle: &Battle): u64 { battle.p1_growth }
     #[test_only]
     public fun p2_growth(battle: &Battle): u64 { battle.p2_growth }
@@ -861,5 +893,9 @@ module battle_garden::battle {
             poison_dpt: 0,
         };
         bot_move_score(move_id, self_growth, opp_growth, &self_status, &opp_status)
+    }
+    #[test_only]
+    public fun bot_score_is_viable_for_testing(score: u64, max_score: u64): bool {
+        bot_score_is_viable(score, max_score)
     }
 }
