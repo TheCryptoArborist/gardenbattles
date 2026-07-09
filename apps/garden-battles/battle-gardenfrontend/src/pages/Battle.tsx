@@ -3,12 +3,14 @@ import { Link } from "wouter";
 import { Menu, Trophy, X } from "lucide-react";
 import { ConnectButton } from "@mysten/dapp-kit";
 import { useSuiWallet } from "@/hooks/useSuiWallet";
+import { usePracticeBattle } from "@/hooks/usePracticeBattle";
 import {
   MOVE_LABELS,
   MOVE_META,
   SUI_CONFIG,
   moveGrowsSelf,
 } from "@/lib/sui-config";
+import { PRACTICE_PLAYER_ADDRESS } from "@/lib/practiceBattle";
 import BattleDialog from "@/components/BattleDialog";
 import WaitingOverlay from "@/components/WaitingOverlay";
 import AdminPanel from "@/components/AdminPanel";
@@ -115,6 +117,8 @@ const DISMISSED_RESULT_STORAGE_KEY = "garden-battles:dismissed-results";
 const MAX_DISMISSED_RESULTS = 20;
 const RESULT_MODAL_ARM_MS = 5 * 60 * 1000;
 const RESULT_PLAY_AGAIN_TIMEOUT_MS = 90 * 1000;
+const PVP_WINNER_PAYOUT_MIST = 5_000_000_000;
+const PVP_TREE_SUPPORT_MIST = 1_000_000_000;
 type BattleDialogKind =
   | "info"
   | "start-pending"
@@ -159,6 +163,12 @@ function resolveGrowthStage(growth: number, growthTarget = 100): GrowthStage {
   return 4;
 }
 
+function formatSuiAmount(mist: number) {
+  return `${(mist / 1e9).toLocaleString(undefined, {
+    maximumFractionDigits: 9,
+  })} SUI`;
+}
+
 function resolveGrowthStageVisual({
   role,
   growth,
@@ -195,10 +205,10 @@ export default function Battle() {
   const {
     isConnected,
     address,
-    battleState,
+    battleState: verifiedBattleState,
     isWaiting,
     entryFeeMist,
-    isMyTurn,
+    isMyTurn: isVerifiedTurn,
     actionLog,
     clearActionLog,
     joinBattle,
@@ -210,6 +220,20 @@ export default function Battle() {
     cancelQueue,
     getFirstValidSaplingNft,
   } = useSuiWallet();
+  const {
+    battleState: practiceBattleState,
+    actionLog: practiceActionLog,
+    isPracticeActive,
+    startPracticeBattle,
+    usePracticeMove,
+    clearPracticeBattle,
+  } = usePracticeBattle();
+  const battleState = practiceBattleState ?? verifiedBattleState;
+  const effectiveActionLog = isPracticeActive ? practiceActionLog : actionLog;
+  const effectiveAddress = isPracticeActive ? PRACTICE_PLAYER_ADDRESS : address;
+  const isMyTurn = isPracticeActive
+    ? !!practiceBattleState && !practiceBattleState.finished && !practiceBattleState.winner
+    : isVerifiedTurn;
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogMessage, setDialogMessage] = useState("");
@@ -234,9 +258,9 @@ export default function Battle() {
   );
   const [liveResultKey, setLiveResultKey] = useState<string | null>(null);
   const [isResultPlayAgainStarting, setIsResultPlayAgainStarting] = useState(false);
-  const entryFeeLabel = `${(entryFeeMist / 1e9).toLocaleString(undefined, {
-    maximumFractionDigits: 9,
-  })} SUI`;
+  const entryFeeLabel = formatSuiAmount(entryFeeMist);
+  const pvpWinnerPayoutLabel = formatSuiAmount(PVP_WINNER_PAYOUT_MIST);
+  const pvpTreeSupportLabel = formatSuiAmount(PVP_TREE_SUPPORT_MIST);
   const [playerNftImageUrl, setPlayerNftImageUrl] = useState<string | null>(
     null,
   );
@@ -515,7 +539,11 @@ export default function Battle() {
     if (inlineErrorTimer.current) clearTimeout(inlineErrorTimer.current);
 
     try {
-      await useAbility(abilityId);
+      if (isPracticeActive) {
+        usePracticeMove(abilityId);
+      } else {
+        await useAbility(abilityId);
+      }
     } catch (error: any) {
       resultModalArmedRef.current = false;
       const msg: string = error.message || "Failed to use ability";
@@ -545,7 +573,7 @@ export default function Battle() {
 
   // Clear action log when a new battle starts
   useEffect(() => {
-    if (battleState?.battleId) {
+    if (verifiedBattleState?.battleId) {
       clearActionLog();
       setLiveResultKey(null);
       resultModalArmedRef.current = false;
@@ -553,12 +581,12 @@ export default function Battle() {
       resultModalArmedUntilRef.current = 0;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [battleState?.battleId]);
+  }, [verifiedBattleState?.battleId]);
 
   const isPlayer1 =
     battleState &&
-    address &&
-    battleState.player1?.toLowerCase() === address.toLowerCase();
+    effectiveAddress &&
+    battleState.player1?.toLowerCase() === effectiveAddress.toLowerCase();
   const playerGrowth = battleState
     ? isPlayer1
       ? battleState.player1Growth
@@ -614,7 +642,7 @@ export default function Battle() {
       : null;
   const winner =
     battleState?.winner
-      ? battleState.winner.toLowerCase() === address?.toLowerCase()
+      ? battleState.winner.toLowerCase() === effectiveAddress?.toLowerCase()
         ? "player"
         : "opponent"
       : thresholdWinner;
@@ -705,6 +733,7 @@ export default function Battle() {
   // Fetch opponent's NFT image when battle starts
   useEffect(() => {
     if (battleState && isConnected && address) {
+      if (isPracticeActive) return;
       if (!playerNftImageUrl) {
         getFirstValidSaplingNft(address).then((nft) => {
           if (nft?.imageUrl) {
@@ -732,6 +761,7 @@ export default function Battle() {
     battleState,
     isConnected,
     address,
+    isPracticeActive,
     isPlayer1,
     playerNftImageUrl,
     opponentNftImageUrl,
@@ -762,7 +792,9 @@ export default function Battle() {
   } else if (isConnected && !battleState) {
     battleStatus = "Ready to join! Click the button below.";
   } else if (battleState && !battleFinished) {
-    battleStatus = canClaimTimeout
+    battleStatus = isPracticeActive
+      ? "Practice Mode active - choose a move."
+      : canClaimTimeout
       ? "Opponent has been idle for too long — you may claim timeout victory."
       : isMyTurn
         ? "Your turn! Choose a move."
@@ -809,11 +841,15 @@ export default function Battle() {
   const opponentName = isGardenBotBattle ? "Garden Bot" : "my opponent";
   const finalScoreText = `Final: ${playerGrowth}/${growthTarget} vs ${opponentGrowth}/${growthTarget}`;
   const shareText =
-    winner === "player"
+    isPracticeActive
+      ? `I just finished a Garden Battles Practice Mode run.\n${finalScoreText}\n\nPractice Mode has no rewards or verified leaderboard credit.\nJoin the fight:\n${shareUrl}`
+      : winner === "player"
       ? `${opponentName === "Garden Bot" ? "Garden Bot got rooted." : "My opponent got rooted."}\n\nI just took the W in Garden Battles.\n${finalScoreText}\n\nThink your NFTree can do better?\nBuy an NFTree at ${nftreeUrl} and join the fight:\n${shareUrl}`
       : `${opponentName === "Garden Bot" ? "The Garden Bot clipped my branches this round." : "My opponent clipped my branches this round."}\n\n${finalScoreText}\n\nI'm running it back.\nBuy an NFTree at ${nftreeUrl} and join the fight:\n${shareUrl}`;
   const xShareText =
-    winner === "player"
+    isPracticeActive
+      ? `I just finished a Garden Battles Practice Mode run. ${finalScoreText}. No rewards or verified leaderboard credit.`
+      : winner === "player"
       ? `Garden Bot got rooted. I just took the W in Garden Battles. ${finalScoreText}. Think your NFTree can do better? Join the fight:`
       : `The Garden Bot clipped my branches this round. ${finalScoreText}. I'm running it back. Join the fight:`;
   const encodedShareText = encodeURIComponent(xShareText);
@@ -825,9 +861,13 @@ export default function Battle() {
   const resultScore = `${playerGrowth}/${growthTarget} vs ${opponentGrowth}/${growthTarget}`;
   const resultSummary = winnerNeedsChainFinalization
     ? "The Garden Bot target was reached. The interface is stopping this match here while the contract target bug is queued for upgrade."
+    : isPracticeActive
+      ? "Practice Mode result. No rewards or verified leaderboard credit."
     : `${Math.max(playerGrowth, opponentGrowth)} / ${growthTarget} Growth reached.`;
   const battleInfoText =
-    battleState && isGardenBotBattle
+    battleState && isPracticeActive
+      ? "Practice Mode - No rewards - No leaderboard credit"
+      : battleState && isGardenBotBattle
       ? "Single Player Garden Bot - Leaderboard eligible - Wallet approval required"
       : battleState && !isGardenBotBattle
         ? `${entryFeeLabel} per Battle`
@@ -948,8 +988,17 @@ export default function Battle() {
       (adminAddr) => adminAddr.toLowerCase() === address.toLowerCase(),
     );
 
+  const handleStartPracticeBattle = () => {
+    startPracticeBattle();
+    setLiveResultKey(null);
+    resultModalArmedRef.current = false;
+    resultModalArmedBattleIdRef.current = null;
+    resultModalArmedUntilRef.current = 0;
+    setInlineError(null);
+  };
+
   const modeSelect =
-    isConnected && (!battleState || battleFinished) && !isWaiting ? (
+    (!battleState || battleFinished) && !isWaiting ? (
       <section className="gb-mode-select" aria-label="Choose battle mode">
         <article className="gb-mode-card gb-mode-card-bot gb-mode-card-garden-bot">
           <ModeCrest type="garden-bot" alt="Garden Bot robotic plant medallion" />
@@ -962,7 +1011,7 @@ export default function Battle() {
             </div>
             <button
               onClick={handleStartBotBattle}
-              disabled={isJoining || isStartingBot}
+              disabled={!isConnected || isJoining || isStartingBot}
               className="gb-mode-action gb-mode-action-bot"
               data-testid="button-start-bot-battle"
             >
@@ -977,13 +1026,15 @@ export default function Battle() {
           <p>Player-vs-player queue</p>
           <div className="gb-mode-card-details">
             <div className="gb-mode-card-chips" aria-label="PvP Battle details">
-              <span>{entryFeeLabel} entry</span>
+              <span>Entry: {entryFeeLabel}</span>
+              <span>Winner receives {pvpWinnerPayoutLabel}</span>
+              <span>{pvpTreeSupportLabel} supports TREE buybacks</span>
               <span>Wallet approval required</span>
-              <span>Payout preview before approval</span>
+              <span>Leaderboard eligible</span>
             </div>
             <button
               onClick={handleJoinBattle}
-              disabled={isJoining || isStartingBot}
+              disabled={!isConnected || isJoining || isStartingBot}
               className="gb-mode-action gb-mode-action-pvp"
               data-testid="button-join-battle"
             >
@@ -1002,22 +1053,43 @@ export default function Battle() {
           <div className="gb-mode-card-details">
             <div className="gb-mode-card-chips" aria-label="Canopy Clash details">
               <span>Prize structure coming soon</span>
+              <span>Leaderboard mode coming soon</span>
               <span>Not live yet</span>
             </div>
             <span className="gb-mode-placeholder">Coming Soon</span>
           </div>
         </article>
+        <aside className="gb-practice-mode-strip" aria-label="Practice Mode">
+          <div className="gb-practice-mode-strip-copy">
+            <strong>Practice Mode</strong>
+            <span>
+              Try Garden Battles instantly. No wallet needed. No rewards. No
+              leaderboard credit.
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={handleStartPracticeBattle}
+            className="gb-mode-action gb-mode-action-practice"
+            data-testid="button-start-practice-battle"
+          >
+            Play Practice
+          </button>
+        </aside>
         <p className="gb-mode-select-note">
-          Practice Mode coming soon: fast no-wallet practice. No rewards. No
-          leaderboard credit. Single Player and PvP are ranked modes.
+          Single Player and PvP feed ranked leaderboard records. Practice Mode
+          is for learning only.
         </p>
-        <Link
-          href={leaderboardRoute}
-          className="gb-mode-leaderboard-link"
-          data-testid="link-view-leaderboard"
-        >
-          View Leaderboard
-        </Link>
+        <div className="gb-mode-leaderboard-cta">
+          <p>Compare Single Player, PvP, and Overall records.</p>
+          <Link
+            href={leaderboardRoute}
+            className="gb-mode-leaderboard-link"
+            data-testid="link-view-leaderboard"
+          >
+            View Leaderboard
+          </Link>
+        </div>
       </section>
     ) : null;
 
@@ -1361,7 +1433,10 @@ export default function Battle() {
               <div className="gb-disconnected-onboarding-copy">
                 <p className="gb-disconnected-kicker">First step</p>
                 <h1>Connect Wallet to Start</h1>
-                <p>Connect your Sui wallet to play Garden Battles.</p>
+                <p>
+                  Connect your Sui wallet for ranked modes, or play Practice
+                  Mode without wallet prompts.
+                </p>
               </div>
               <div className="gb-disconnected-mode-notes">
                 <article>
@@ -1378,7 +1453,7 @@ export default function Battle() {
                 <article>
                   <h2>Practice Mode</h2>
                   <p>
-                    Coming soon. No rewards. No leaderboard credit.
+                    Fast no-wallet practice. No rewards. No leaderboard credit.
                   </p>
                 </article>
               </div>
@@ -1409,7 +1484,7 @@ export default function Battle() {
           >
           {!isConnected && !battleState && (
             <div className="gb-disconnected-arena-overlay">
-              Connect your wallet to choose a mode.
+              Connect for ranked modes, or start Practice Mode above.
             </div>
           )}
           <div className="battle-grid">
@@ -1963,6 +2038,8 @@ export default function Battle() {
             >
               {winner
                 ? "Battle Over!"
+                : isPracticeActive
+                  ? "Practice Mode - choose a move. No wallet prompt."
                 : pendingMoveId !== null
                   ? `Waiting for transaction... (${MOVE_LABELS[pendingMoveId] || "Move"})`
                   : !isMyTurn
@@ -1989,8 +2066,8 @@ export default function Battle() {
               </div>
             )}
 
-            {actionLog.length > 0 && (() => {
-              const latest = actionLog[actionLog.length - 1];
+            {effectiveActionLog.length > 0 && (() => {
+              const latest = effectiveActionLog[effectiveActionLog.length - 1];
               const playerDelta =
                 latest.nextPlayerGrowth - latest.prevPlayerGrowth;
               const opponentDelta =
@@ -2034,7 +2111,7 @@ export default function Battle() {
               );
             })()}
 
-            {(attacksAreStalled || handNeedsReroll) && !battleFinished && (
+            {(attacksAreStalled || handNeedsReroll) && !battleFinished && !isPracticeActive && (
               <div
                 role="status"
                 style={{
@@ -2236,10 +2313,46 @@ export default function Battle() {
                   marginTop: "18px",
                 }}
               >
-                <button
-                  onClick={handleForfeitBattle}
-                  disabled={isForfeiting}
-                  style={{
+                {isPracticeActive ? (
+                  <>
+                    <button
+                      onClick={handleStartPracticeBattle}
+                      style={{
+                        padding: "14px 18px",
+                        borderRadius: "10px",
+                        border: "2px solid #00ffaa",
+                        background: "linear-gradient(45deg, #00e5ff, #00ffaa)",
+                        color: "#001414",
+                        cursor: "pointer",
+                        fontWeight: "bold",
+                        textTransform: "uppercase",
+                        boxShadow: "0 0 18px rgba(0, 229, 255, 0.45)",
+                      }}
+                    >
+                      New Practice Battle
+                    </button>
+                    <button
+                      onClick={clearPracticeBattle}
+                      style={{
+                        padding: "14px 18px",
+                        borderRadius: "10px",
+                        border: "2px solid rgba(255,255,255,0.35)",
+                        background: "rgba(0, 0, 0, 0.35)",
+                        color: "#d8fff2",
+                        cursor: "pointer",
+                        fontWeight: "bold",
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      End Practice
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      onClick={handleForfeitBattle}
+                      disabled={isForfeiting}
+                      style={{
                     padding: "14px 18px",
                     borderRadius: "10px",
                     border: "2px solid #ff4444",
@@ -2254,14 +2367,14 @@ export default function Battle() {
                       ? "none"
                       : "0 0 18px rgba(255, 68, 68, 0.45)",
                   }}
-                >
-                  {isForfeiting ? "Forfeiting..." : "Forfeit Battle"}
-                </button>
-                {isGardenBotBattle && (
-                  <button
-                    onClick={handleStartBotBattle}
-                    disabled={isStartingBot}
-                    style={{
+                    >
+                      {isForfeiting ? "Forfeiting..." : "Forfeit Battle"}
+                    </button>
+                    {isGardenBotBattle && (
+                      <button
+                        onClick={handleStartBotBattle}
+                        disabled={isStartingBot}
+                        style={{
                       minHeight: "48px",
                       padding: "14px 18px",
                       borderRadius: "10px",
@@ -2276,16 +2389,16 @@ export default function Battle() {
                       boxShadow: isStartingBot
                         ? "none"
                         : "0 0 18px rgba(0, 229, 255, 0.45)",
-                    }}
-                  >
-                    {isStartingBot ? "Starting..." : "New Bot Hand"}
-                  </button>
-                )}
-                {canClaimTimeout && (
-                  <button
-                    onClick={handleClaimTimeout}
-                    disabled={isClaimingTimeout}
-                    style={{
+                        }}
+                      >
+                        {isStartingBot ? "Starting..." : "New Bot Hand"}
+                      </button>
+                    )}
+                    {canClaimTimeout && (
+                      <button
+                        onClick={handleClaimTimeout}
+                        disabled={isClaimingTimeout}
+                        style={{
                       padding: "14px 18px",
                       borderRadius: "10px",
                       border: "2px solid #ffcc00",
@@ -2299,16 +2412,16 @@ export default function Battle() {
                       boxShadow: isClaimingTimeout
                         ? "none"
                         : "0 0 18px rgba(255, 204, 0, 0.55)",
-                    }}
-                  >
-                    {isClaimingTimeout ? "Claiming..." : "Claim Timeout Win"}
-                  </button>
-                )}
-                {isAdmin && (
-                  <button
-                    onClick={handleAdminForceClose}
-                    disabled={isAdminClosing}
-                    style={{
+                        }}
+                      >
+                        {isClaimingTimeout ? "Claiming..." : "Claim Timeout Win"}
+                      </button>
+                    )}
+                    {isAdmin && (
+                      <button
+                        onClick={handleAdminForceClose}
+                        disabled={isAdminClosing}
+                        style={{
                       padding: "14px 18px",
                       borderRadius: "10px",
                       border: "2px solid #00ccff",
@@ -2322,10 +2435,12 @@ export default function Battle() {
                       boxShadow: isAdminClosing
                         ? "none"
                         : "0 0 18px rgba(0, 204, 255, 0.45)",
-                    }}
-                  >
-                    {isAdminClosing ? "Closing..." : "Admin Force Close"}
-                  </button>
+                        }}
+                      >
+                        {isAdminClosing ? "Closing..." : "Admin Force Close"}
+                      </button>
+                    )}
+                  </>
                 )}
               </div>
             )}
@@ -2354,7 +2469,7 @@ export default function Battle() {
                 📜 Battle Log
               </div>
               <BattleLog
-                entries={actionLog}
+                entries={effectiveActionLog}
                 isPlayer1={!!isPlayer1}
                 opponentLabel={isGardenBotBattle ? "Garden Bot" : "Opponent"}
               />
@@ -2454,7 +2569,7 @@ export default function Battle() {
           buyNftreeUrl={nftreeUrl}
           battleUrl={shareUrl}
           leaderboardUrl={leaderboardRoute}
-          canPlayAgain={isGardenBotBattle}
+          canPlayAgain={isGardenBotBattle && !isPracticeActive}
           isPlayingAgain={isResultPlayAgainStarting}
           onShare={handleNativeShareWin}
           onCopy={handleCopyWin}
