@@ -1672,6 +1672,25 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
 
       return "The move had no visible effect this turn.";
     };
+    const classifyBotEffectFallback = (): string => {
+      if (playerGrowthDelta < 0 && opponentGrowthDelta > 0) {
+        return "Garden Bot used a mixed move.";
+      }
+
+      if (playerGrowthDelta < 0) {
+        return "Garden Bot used a drain move.";
+      }
+
+      if (opponentGrowthDelta > 0) {
+        return "Garden Bot used a growth move.";
+      }
+
+      if (playerGrowthDelta !== 0 || opponentGrowthDelta !== 0) {
+        return "Garden Bot used a mixed move.";
+      }
+
+      return "Garden Bot made a move with no visible effect.";
+    };
     const buildPlayerMoveDetails = (moveId: number): string[] => {
       const details: string[] = [];
       const meta = MOVE_META[moveId];
@@ -1704,9 +1723,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
         ? formatMoveDescriptionForActor(moveId, "garden-bot")
         : null;
 
-      if (!moveId) {
-        details.push("Garden Bot responded.");
-      } else if (moveDescription) {
+      if (moveDescription) {
         details.push(moveDescription);
       }
 
@@ -1722,11 +1739,11 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
         details.push(`Garden Bot lost ${Math.abs(opponentGrowthDelta)} growth after the full turn.`);
       }
 
-      if (details.length === (moveId && meta?.effect ? 1 : !moveId ? 1 : 0)) {
+      if (details.length === (moveId && meta?.effect ? 1 : 0)) {
         details.push(
           moveId
             ? describeNoVisibleEffect(moveId, "Your tree", playerPrevGrowth)
-            : "No visible growth changed from the Garden Bot response.",
+            : "No visible growth changed from the Garden Bot move.",
         );
       }
 
@@ -1763,6 +1780,10 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
       resolvedBotMoveId !== null
         ? MOVE_LABELS[resolvedBotMoveId] ?? `Garden Bot Move #${resolvedBotMoveId}`
         : undefined;
+    const botFallbackLabel =
+      next.isBotBattle && actor === "you" && resolvedBotMoveId === null
+        ? classifyBotEffectFallback()
+        : undefined;
     if (next.isBotBattle && actor === "you" && usedExplicitBotMove && resolvedBotMoveId !== null) {
       if (MOVE_LABELS[resolvedBotMoveId]) {
         battleLogDebug("exact bot move applied", {
@@ -1795,7 +1816,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
           "opponent",
           resolvedBotMoveId ?? 0,
           buildBotResponseDetails(resolvedBotMoveId),
-          resolvedBotMoveLabel ?? "Garden Bot responded",
+          resolvedBotMoveLabel ?? botFallbackLabel,
         ),
         createEntry("round", 0, roundResultDetails, "Round Result"),
       );
