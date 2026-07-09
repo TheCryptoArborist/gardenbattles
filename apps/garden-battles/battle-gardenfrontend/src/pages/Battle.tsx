@@ -944,32 +944,25 @@ export default function Battle() {
         <article className="gb-mode-card gb-mode-card-bot gb-mode-card-garden-bot">
           <ModeCrest type="garden-bot" alt="Garden Bot robotic plant medallion" />
           <h2>Garden Bot</h2>
-          <p>Practice against the bot or play verified on-chain.</p>
-          <div className="gb-garden-bot-options">
-            <section className="gb-garden-bot-option gb-garden-bot-option-arcade">
-              <h3>Arcade Practice</h3>
-              <p>Fast practice. No wallet prompts per move. Practice only, no rewards.</p>
-              <button
-                type="button"
-                disabled
-                className="gb-mode-action gb-mode-action-arcade"
-                data-testid="button-start-arcade-battle"
-              >
-                Arcade Coming Soon
-              </button>
-            </section>
-            <section className="gb-garden-bot-option gb-garden-bot-option-verified">
-              <h3>Verified Battle</h3>
-              <p>On-chain ranked. Wallet approval required per move. Leaderboard eligible.</p>
-              <button
-                onClick={handleStartBotBattle}
-                disabled={isJoining || isStartingBot}
-                className="gb-mode-action gb-mode-action-bot"
-                data-testid="button-start-bot-battle"
-              >
-                {isStartingBot ? "Starting..." : "Play Verified"}
-              </button>
-            </section>
+          <p>Play ranked Single Player against Garden Bot.</p>
+          <div className="gb-garden-bot-primary">
+            <button
+              onClick={handleStartBotBattle}
+              disabled={isJoining || isStartingBot}
+              className="gb-mode-action gb-mode-action-bot"
+              data-testid="button-start-bot-battle"
+            >
+              {isStartingBot ? "Starting..." : "Play Single Player"}
+            </button>
+            <div className="gb-garden-bot-chips" aria-label="Single Player details">
+              <span>On-chain battle</span>
+              <span>Wallet approval required</span>
+              <span>Leaderboard eligible</span>
+            </div>
+            <p className="gb-practice-mode-note">
+              Practice Mode coming soon - fast no-wallet practice. No rewards.
+              No leaderboard credit.
+            </p>
           </div>
         </article>
 
@@ -997,8 +990,8 @@ export default function Battle() {
           <span className="gb-mode-placeholder">Coming Soon</span>
         </article>
         <p className="gb-mode-select-note">
-          Arcade is for practice only. Verified battles are used for ranked
-          leaderboard records.
+          Single Player battles count for ranked leaderboard records. Practice
+          Mode is coming soon and will not count for rewards or rankings.
         </p>
         <Link
           href={leaderboardRoute}
@@ -2318,7 +2311,9 @@ export default function Battle() {
           }}
           data-testid="text-entry-fee"
         >
-          {entryFeeLabel} per Battle
+          {battleState && isGardenBotBattle
+            ? "Single Player Garden Bot - Leaderboard eligible - Wallet approval required"
+            : `${entryFeeLabel} per Battle`}
         </p>
         <p
           style={{
