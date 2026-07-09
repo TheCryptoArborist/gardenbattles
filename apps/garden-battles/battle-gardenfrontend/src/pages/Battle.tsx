@@ -954,8 +954,12 @@ export default function Battle() {
         <article className="gb-mode-card gb-mode-card-bot gb-mode-card-garden-bot">
           <ModeCrest type="garden-bot" alt="Garden Bot robotic plant medallion" />
           <h2>Garden Bot</h2>
-          <p>Play ranked Single Player against Garden Bot.</p>
-          <div className="gb-garden-bot-primary">
+          <p>Single Player battle</p>
+          <div className="gb-mode-card-details">
+            <div className="gb-mode-card-chips" aria-label="Single Player details">
+              <span>Leaderboard eligible</span>
+              <span>Wallet approval required</span>
+            </div>
             <button
               onClick={handleStartBotBattle}
               disabled={isJoining || isStartingBot}
@@ -964,30 +968,28 @@ export default function Battle() {
             >
               {isStartingBot ? "Starting..." : "Play Single Player"}
             </button>
-            <div className="gb-garden-bot-chips" aria-label="Single Player details">
-              <span>On-chain battle</span>
-              <span>Wallet approval required</span>
-              <span>Leaderboard eligible</span>
-            </div>
-            <p className="gb-practice-mode-note">
-              Practice Mode coming soon &mdash; fast no-wallet practice. No
-              rewards. No leaderboard credit.
-            </p>
           </div>
         </article>
 
         <article className="gb-mode-card gb-mode-card-pvp">
           <ModeCrest type="pvp-battle" alt="PvP Battle duel medallion" />
           <h2>PvP Battle</h2>
-          <p>Join the queue</p>
-          <button
-            onClick={handleJoinBattle}
-            disabled={isJoining || isStartingBot}
-            className="gb-mode-action gb-mode-action-pvp"
-            data-testid="button-join-battle"
-          >
-            {isJoining ? "Joining..." : `Join Battle Queue (${entryFeeLabel})`}
-          </button>
+          <p>Player-vs-player queue</p>
+          <div className="gb-mode-card-details">
+            <div className="gb-mode-card-chips" aria-label="PvP Battle details">
+              <span>{entryFeeLabel} entry</span>
+              <span>Wallet approval required</span>
+              <span>Payout preview before approval</span>
+            </div>
+            <button
+              onClick={handleJoinBattle}
+              disabled={isJoining || isStartingBot}
+              className="gb-mode-action gb-mode-action-pvp"
+              data-testid="button-join-battle"
+            >
+              {isJoining ? "Joining..." : `Join Battle Queue (${entryFeeLabel})`}
+            </button>
+          </div>
         </article>
 
         <article
@@ -996,12 +998,18 @@ export default function Battle() {
         >
           <ModeCrest type="canopy-clash" alt="Canopy Clash tournament medallion" />
           <h2>Canopy Clash</h2>
-          <p>Tournament mode being shaped</p>
-          <span className="gb-mode-placeholder">Coming Soon</span>
+          <p>Tournament mode</p>
+          <div className="gb-mode-card-details">
+            <div className="gb-mode-card-chips" aria-label="Canopy Clash details">
+              <span>Prize structure coming soon</span>
+              <span>Not live yet</span>
+            </div>
+            <span className="gb-mode-placeholder">Coming Soon</span>
+          </div>
         </article>
         <p className="gb-mode-select-note">
-          Single Player battles count for ranked leaderboard records. Practice
-          Mode is coming soon and will not count for rewards or rankings.
+          Practice Mode coming soon: fast no-wallet practice. No rewards. No
+          leaderboard credit. Single Player and PvP are ranked modes.
         </p>
         <Link
           href={leaderboardRoute}
