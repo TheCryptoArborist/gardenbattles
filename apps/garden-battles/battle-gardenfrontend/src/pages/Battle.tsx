@@ -253,6 +253,8 @@ export default function Battle() {
   const [isForfeiting, setIsForfeiting] = useState(false);
   const [isAdminClosing, setIsAdminClosing] = useState(false);
   const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
+  const [modeCardsExpanded, setModeCardsExpanded] = useState(false);
+  const [ecosystemExpanded, setEcosystemExpanded] = useState(false);
   const [dismissedResultKeys, setDismissedResultKeys] = useState<string[]>(
     () => readDismissedResultKeys(),
   );
@@ -271,6 +273,7 @@ export default function Battle() {
   const [inlineError, setInlineError] = useState<string | null>(null);
   const inlineErrorTimer = useRef<NodeJS.Timeout | null>(null);
 
+  const battleFocusRef = useRef<HTMLElement | null>(null);
   const playerAnimationTimer = useRef<NodeJS.Timeout | null>(null);
   const opponentAnimationTimer = useRef<NodeJS.Timeout | null>(null);
   const resultModalArmedRef = useRef(false);
@@ -304,6 +307,9 @@ export default function Battle() {
         setPlayerNftImageUrl(nftData.imageUrl || null);
         await joinBattle(nftData);
         setDialogMessage("Joined queue! Waiting for opponent...");
+        setModeCardsExpanded(false);
+        setEcosystemExpanded(false);
+        scrollToBattleFocus();
       } else {
         setDialogMessage(
           "No whitelisted NFT found. Contact admin to whitelist your collection.",
@@ -363,6 +369,9 @@ export default function Battle() {
         setDialogOpen(false);
         setDialogMessage("");
         setDialogKind("info");
+        setModeCardsExpanded(false);
+        setEcosystemExpanded(false);
+        scrollToBattleFocus();
       } else {
         setDialogKind("info");
         setDialogMessage(
@@ -401,6 +410,15 @@ export default function Battle() {
     } finally {
       setIsStartingBot(false);
     }
+  };
+
+  const scrollToBattleFocus = () => {
+    window.setTimeout(() => {
+      battleFocusRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }, 120);
   };
 
   const handleForceRefund = async () => {
@@ -987,18 +1005,38 @@ export default function Battle() {
     SUI_CONFIG.ADMIN_ADDRESSES.some(
       (adminAddr) => adminAddr.toLowerCase() === address.toLowerCase(),
     );
+  const hasActiveSession = isWaiting || (!!battleState && !battleFinished);
+  const showFullModeSelect = !hasActiveSession || modeCardsExpanded;
+  const modeActionsDisabled = hasActiveSession || isJoining || isStartingBot;
+  const activeModeTitle = isPracticeActive
+    ? "Practice Mode"
+    : isWaiting
+      ? "PvP Battle Queue"
+      : isGardenBotBattle
+        ? "Single Player Garden Bot"
+        : "PvP Battle";
+  const activeModeDetails = isPracticeActive
+    ? "No wallet needed - No rewards - No leaderboard credit"
+    : isWaiting
+      ? `${entryFeeLabel} entry - Winner receives ${pvpWinnerPayoutLabel}`
+      : isGardenBotBattle
+        ? "Leaderboard eligible - Wallet approval required"
+        : `${entryFeeLabel} entry - Leaderboard eligible`;
 
   const handleStartPracticeBattle = () => {
     startPracticeBattle();
+    setModeCardsExpanded(false);
+    setEcosystemExpanded(false);
     setLiveResultKey(null);
     resultModalArmedRef.current = false;
     resultModalArmedBattleIdRef.current = null;
     resultModalArmedUntilRef.current = 0;
     setInlineError(null);
+    scrollToBattleFocus();
   };
 
   const modeSelect =
-    (!battleState || battleFinished) && !isWaiting ? (
+    showFullModeSelect ? (
       <section className="gb-mode-select" aria-label="Choose battle mode">
         <article className="gb-mode-card gb-mode-card-bot gb-mode-card-garden-bot">
           <ModeCrest type="garden-bot" alt="Garden Bot robotic plant medallion" />
@@ -1011,7 +1049,7 @@ export default function Battle() {
             </div>
             <button
               onClick={handleStartBotBattle}
-              disabled={!isConnected || isJoining || isStartingBot}
+              disabled={!isConnected || modeActionsDisabled}
               className="gb-mode-action gb-mode-action-bot"
               data-testid="button-start-bot-battle"
             >
@@ -1034,7 +1072,7 @@ export default function Battle() {
             </div>
             <button
               onClick={handleJoinBattle}
-              disabled={!isConnected || isJoining || isStartingBot}
+              disabled={!isConnected || modeActionsDisabled}
               className="gb-mode-action gb-mode-action-pvp"
               data-testid="button-join-battle"
             >
@@ -1059,23 +1097,25 @@ export default function Battle() {
             <span className="gb-mode-placeholder">Coming Soon</span>
           </div>
         </article>
-        <aside className="gb-practice-mode-strip" aria-label="Practice Mode">
-          <div className="gb-practice-mode-strip-copy">
-            <strong>Practice Mode</strong>
-            <span>
-              Try Garden Battles instantly. No wallet needed. No rewards. No
-              leaderboard credit.
-            </span>
-          </div>
-          <button
-            type="button"
-            onClick={handleStartPracticeBattle}
-            className="gb-mode-action gb-mode-action-practice"
-            data-testid="button-start-practice-battle"
-          >
-            Play Practice
-          </button>
-        </aside>
+        {!hasActiveSession && (
+          <aside className="gb-practice-mode-strip" aria-label="Practice Mode">
+            <div className="gb-practice-mode-strip-copy">
+              <strong>Practice Mode</strong>
+              <span>
+                Try Garden Battles instantly. No wallet needed. No rewards. No
+                leaderboard credit.
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={handleStartPracticeBattle}
+              className="gb-mode-action gb-mode-action-practice"
+              data-testid="button-start-practice-battle"
+            >
+              Play Practice
+            </button>
+          </aside>
+        )}
         <p className="gb-mode-select-note">
           Single Player and PvP feed ranked leaderboard records. Practice Mode
           is for learning only.
@@ -1092,6 +1132,33 @@ export default function Battle() {
         </div>
       </section>
     ) : null;
+
+  const activeModeBar = hasActiveSession ? (
+    <section
+      ref={battleFocusRef}
+      className="gb-active-mode-bar"
+      aria-label="Active battle mode"
+    >
+      <div className="gb-active-mode-copy">
+        <strong>{activeModeTitle}</strong>
+        <span>{activeModeDetails}</span>
+      </div>
+      <div className="gb-active-mode-actions">
+        {!isPracticeActive && (
+          <Link href={leaderboardRoute} className="gb-active-mode-button">
+            View Leaderboard
+          </Link>
+        )}
+        <button
+          type="button"
+          className="gb-active-mode-button gb-active-mode-button-secondary"
+          onClick={() => setModeCardsExpanded((expanded) => !expanded)}
+        >
+          {modeCardsExpanded ? "Hide Modes" : "Change Mode"}
+        </button>
+      </div>
+    </section>
+  ) : null;
 
   return (
     <>
@@ -1462,10 +1529,25 @@ export default function Battle() {
               </div>
             </section>
           )}
+          {activeModeBar}
           {modeSelect}
           {/* How to Play */}
           <HowToPlay />
-          {battleState && <TreeEcosystemStatus />}
+          {battleState && (
+            <section className="gb-ecosystem-compact" aria-label="TREE Ecosystem Status">
+              <div>
+                <strong>TREE Ecosystem Status</strong>
+                <span>Liquid TREE / perks / detection coming soon</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEcosystemExpanded((expanded) => !expanded)}
+              >
+                {ecosystemExpanded ? "Collapse" : "Expand"}
+              </button>
+            </section>
+          )}
+          {battleState && ecosystemExpanded && <TreeEcosystemStatus />}
 
           <div
             className={battleState ? "gb-battle-hud" : "gb-battle-hud gb-battle-hud-preview"}
