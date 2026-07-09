@@ -60,6 +60,15 @@ export interface NftData {
   imageUrl?: string;
 }
 
+type BotStartStatus =
+  | "wallet-request-opened"
+  | "transaction-digest-received"
+  | "battle-state-loaded";
+
+interface StartBotBattleOptions {
+  onStatus?: (status: BotStartStatus, details?: { digest?: string }) => void;
+}
+
 interface SuiWalletContextType {
   address: string | null;
   isConnected: boolean;
@@ -70,7 +79,10 @@ interface SuiWalletContextType {
   actionLog: ActionEntry[];
   clearActionLog: () => void;
   joinBattle: (nftData: NftData) => Promise<void>;
-  startBotBattle: (nftData: NftData) => Promise<void>;
+  startBotBattle: (
+    nftData: NftData,
+    options?: StartBotBattleOptions,
+  ) => Promise<void>;
   useAbility: (abilityId: number) => Promise<void>;
   claimTimeoutWin: () => Promise<void>;
   forfeitBattle: () => Promise<void>;
@@ -1023,7 +1035,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
 
   // ── 5. Start a no-payout bot practice battle ─────────────────────────────
   const startBotBattle = useCallback(
-    async (nftData: NftData) => {
+    async (nftData: NftData, options?: StartBotBattleOptions) => {
       if (!address || !randomObjectId) {
         throw new Error(
           "Wallet not connected or random object not initialised",
@@ -1081,6 +1093,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
           finish(() => reject(error));
         };
         const timeoutId = setTimeout(() => {
+          console.warn("[bot-start] timeout");
           fail(
             new Error(
               "Timed out waiting for the Garden Bot battle to start. Please try again.",
@@ -1089,11 +1102,19 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
         }, BOT_START_TIMEOUT_MS);
 
         try {
+          console.info("[bot-start] wallet request opened");
+          options?.onStatus?.("wallet-request-opened");
           signAndExecuteTransaction(
             { transaction: tx, chain: SUI_CONFIG.CHAIN },
             {
               onSuccess: async (result) => {
                 try {
+                  console.info("[bot-start] transaction digest received", {
+                    digest: result.digest,
+                  });
+                  options?.onStatus?.("transaction-digest-received", {
+                    digest: result.digest,
+                  });
                   const newState = await getBattleStateFromTransaction(
                     suiClient,
                     result.digest,
@@ -1103,32 +1124,45 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
 
                   if (!newState) {
                     throw new Error(
-                      "Garden Bot battle started, but the new battle state could not be loaded.",
+                      "Battle transaction confirmed, but the game did not refresh. Try Refresh Battle.",
                     );
                   }
 
                   await applyBattleState(newState);
                   if (settled) return;
+                  console.info("[bot-start] battle state loaded", {
+                    battleId: newState.battleId,
+                  });
+                  options?.onStatus?.("battle-state-loaded", {
+                    digest: result.digest,
+                  });
                   finish(() => resolve());
                 } catch (err: any) {
                   console.warn(
-                    "[battle] post-bot-start refresh failed:",
+                    "[bot-start] failed",
                     err,
                   );
                   fail(
                     new Error(
                       err?.message ??
-                        "Garden Bot battle started, but the new battle state could not be loaded.",
+                        "Battle transaction confirmed, but the game did not refresh. Try Refresh Battle.",
                     ),
                   );
                 }
               },
               onError: (err: any) => {
+                const message = err?.message ?? "Failed to start bot battle";
+                if (/reject|cancel|denied|declined/i.test(message)) {
+                  console.info("[bot-start] cancelled");
+                } else {
+                  console.warn("[bot-start] failed", err);
+                }
                 fail(new Error(err?.message ?? "Failed to start bot battle"));
               },
             },
           );
         } catch (err: any) {
+          console.warn("[bot-start] failed", err);
           fail(new Error(err?.message ?? "Failed to start bot battle"));
         }
       });

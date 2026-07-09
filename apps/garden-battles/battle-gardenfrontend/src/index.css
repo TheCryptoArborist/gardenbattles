@@ -1710,9 +1710,9 @@
   .gb-mode-select {
     display: grid;
     gap: clamp(12px, 2vw, 16px);
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     margin: clamp(18px, 3vw, 28px) auto;
-    max-width: 1180px;
+    max-width: 1080px;
     padding: 0 clamp(2px, 1vw, 8px);
     text-align: center;
   }
@@ -1740,15 +1740,52 @@
       inset 0 0 20px rgba(57, 255, 136, 0.07);
   }
 
-  .gb-mode-card-arcade {
-    border-color: rgba(0, 213, 199, 0.54);
-    box-shadow:
-      0 0 18px rgba(0, 213, 199, 0.18),
-      inset 0 0 20px rgba(57, 255, 136, 0.08);
-  }
-
   .gb-mode-card-clash {
     border-color: rgba(245, 197, 66, 0.5);
+  }
+
+  .gb-garden-bot-options {
+    display: grid;
+    gap: 10px;
+    margin-top: auto;
+    width: 100%;
+  }
+
+  .gb-garden-bot-option {
+    background: rgba(0, 0, 0, 0.18);
+    border: 1px solid rgba(220, 255, 238, 0.13);
+    border-radius: 8px;
+    display: grid;
+    gap: 6px;
+    padding: 10px;
+    text-align: left;
+  }
+
+  .gb-garden-bot-option h3 {
+    color: var(--gb-tree-green);
+    font-size: 12px;
+    font-weight: 900;
+    letter-spacing: 0.6px;
+    line-height: 1.15;
+    margin: 0;
+    text-transform: uppercase;
+  }
+
+  .gb-garden-bot-option p {
+    color: rgba(243, 255, 247, 0.78);
+    font-size: 11px;
+    line-height: 1.35;
+    margin: 0;
+  }
+
+  .gb-garden-bot-option-arcade {
+    border-color: rgba(0, 213, 199, 0.35);
+    box-shadow: inset 0 0 14px rgba(0, 213, 199, 0.06);
+  }
+
+  .gb-garden-bot-option-verified {
+    border-color: rgba(255, 138, 42, 0.35);
+    box-shadow: inset 0 0 14px rgba(255, 138, 42, 0.06);
   }
 
   .gb-mode-crest {
@@ -1927,7 +1964,6 @@
     font-size: clamp(12px, 2.2vw, 14px);
     font-weight: 800;
     justify-content: center;
-    margin-top: auto;
     min-height: 48px;
     padding: 10px 14px;
     text-transform: uppercase;
@@ -1968,10 +2004,12 @@
   }
 
   .gb-mode-action-arcade {
-    background: rgba(0, 213, 199, 0.12);
-    border: 1px solid rgba(0, 213, 199, 0.44);
-    box-shadow: inset 0 0 16px rgba(57, 255, 136, 0.08);
-    color: var(--gb-teal);
+    background: linear-gradient(45deg, rgba(0, 213, 199, 0.95), rgba(57, 255, 136, 0.9));
+    border: 1px solid rgba(0, 213, 199, 0.76);
+    box-shadow:
+      0 0 18px rgba(0, 213, 199, 0.28),
+      inset 0 0 16px rgba(57, 255, 136, 0.08);
+    color: #001414;
   }
 
   .gb-mode-placeholder {
@@ -2674,6 +2712,119 @@
     padding: 4px 7px;
   }
 
+  .gb-leaderboard-info-panel {
+    background:
+      radial-gradient(circle at 12% 0%, rgba(57, 255, 136, 0.12), transparent 42%),
+      linear-gradient(145deg, rgba(0, 28, 24, 0.94), rgba(0, 8, 12, 0.96));
+    border: 1px solid rgba(57, 255, 136, 0.32);
+    border-radius: 8px;
+    box-shadow:
+      0 0 22px rgba(0, 213, 199, 0.16),
+      inset 0 0 20px rgba(57, 255, 136, 0.05);
+    color: var(--gb-text);
+    display: grid;
+    gap: 12px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    line-height: 1.55;
+    margin: 24px auto 0;
+    max-width: 1100px;
+    padding: clamp(14px, 2.5vw, 20px);
+    text-align: left;
+  }
+
+  .gb-leaderboard-info-card {
+    background: rgba(0, 0, 0, 0.22);
+    border: 1px solid rgba(0, 213, 199, 0.2);
+    border-radius: 8px;
+    min-width: 0;
+    padding: 14px;
+  }
+
+  .gb-leaderboard-info-card-wide,
+  .gb-leaderboard-info-actions {
+    grid-column: 1 / -1;
+  }
+
+  .gb-leaderboard-info-card h2 {
+    color: var(--gb-tree-green);
+    font-family: Orbitron, sans-serif;
+    font-size: clamp(14px, 2.5vw, 17px);
+    font-weight: 900;
+    letter-spacing: 0.6px;
+    line-height: 1.25;
+    margin: 0 0 10px;
+    text-transform: uppercase;
+  }
+
+  .gb-leaderboard-info-card ul,
+  .gb-rank-progression-list {
+    margin: 0;
+  }
+
+  .gb-leaderboard-info-card ul {
+    color: rgba(234, 255, 246, 0.88);
+    display: grid;
+    font-size: clamp(13px, 2.3vw, 15px);
+    gap: 8px;
+    padding-left: 18px;
+  }
+
+  .gb-rank-progression-list {
+    display: grid;
+    gap: 8px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .gb-rank-progression-list div {
+    background: rgba(0, 213, 199, 0.08);
+    border: 1px solid rgba(57, 255, 136, 0.16);
+    border-radius: 6px;
+    min-width: 0;
+    padding: 9px 10px;
+  }
+
+  .gb-rank-progression-list dt {
+    color: var(--gb-gold);
+    font-family: Orbitron, sans-serif;
+    font-size: clamp(12px, 2.1vw, 13px);
+    font-weight: 900;
+    line-height: 1.25;
+    margin: 0 0 3px;
+    text-transform: uppercase;
+  }
+
+  .gb-rank-progression-list dd {
+    color: rgba(234, 255, 246, 0.82);
+    font-size: clamp(12px, 2.2vw, 14px);
+    line-height: 1.35;
+    margin: 0;
+  }
+
+  .gb-leaderboard-info-actions {
+    align-items: center;
+    color: rgba(234, 255, 246, 0.72);
+    display: flex;
+    flex-wrap: wrap;
+    font-size: clamp(12px, 2.3vw, 14px);
+    gap: 10px;
+    justify-content: space-between;
+  }
+
+  .gb-leaderboard-info-actions a {
+    align-items: center;
+    background: rgba(57, 255, 136, 0.1);
+    border: 1px solid rgba(57, 255, 136, 0.42);
+    border-radius: 8px;
+    color: var(--gb-tree-green);
+    display: inline-flex;
+    font-family: Orbitron, sans-serif;
+    font-weight: 900;
+    min-height: 40px;
+    padding: 8px 13px;
+    text-decoration: none;
+    text-transform: uppercase;
+  }
+
   .gb-result-modal-backdrop {
     align-items: center;
     background: rgba(0, 8, 8, 0.78);
@@ -2952,8 +3103,8 @@
 
   @media (max-width: 1100px) {
     .gb-mode-select {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      max-width: 720px;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      max-width: 1080px;
     }
   }
 
@@ -2997,6 +3148,21 @@
       display: grid;
       gap: 12px;
       padding: 10px;
+    }
+
+    .gb-leaderboard-info-panel,
+    .gb-rank-progression-list {
+      grid-template-columns: 1fr;
+    }
+
+    .gb-leaderboard-info-actions {
+      align-items: stretch;
+      flex-direction: column;
+    }
+
+    .gb-leaderboard-info-actions a {
+      justify-content: center;
+      width: 100%;
     }
   }
 
@@ -3164,6 +3330,10 @@
     .gb-mode-placeholder {
       grid-column: 1 / -1;
       min-height: 44px;
+    }
+
+    .gb-garden-bot-options {
+      grid-column: 1 / -1;
     }
 
     .gb-how-to-play-trigger-wrap {

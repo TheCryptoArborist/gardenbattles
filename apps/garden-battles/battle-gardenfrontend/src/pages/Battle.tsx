@@ -316,7 +316,26 @@ export default function Battle() {
           "NFTree found!\n\nApprove in your wallet to start Garden Bot.\n\nReject to cancel.",
         );
         setPlayerNftImageUrl(nftData.imageUrl || null);
-        await startBotBattle(nftData);
+        await startBotBattle(nftData, {
+          onStatus: (status) => {
+            if (status === "wallet-request-opened") {
+              setDialogKind("start-pending");
+              setDialogMessage(
+                "NFTree found!\n\nApprove in your wallet to start Garden Bot.\n\nReject to cancel.",
+              );
+            }
+            if (status === "transaction-digest-received") {
+              setDialogKind("start-pending");
+              setDialogMessage(
+                "Transaction confirmed.\n\nCreating verified Garden Bot battle...",
+              );
+            }
+            if (status === "battle-state-loaded") {
+              setDialogKind("start-pending");
+              setDialogMessage("Battle ready.");
+            }
+          },
+        });
         setDialogOpen(false);
         setDialogMessage("");
         setDialogKind("info");
@@ -333,15 +352,19 @@ export default function Battle() {
       const friendlyMessage =
         lowerMessage.includes("timed out waiting")
           ? "Timed out waiting for the Garden Bot battle to start. Please try again."
+          : lowerMessage.includes("did not refresh")
+            ? "Battle transaction confirmed, but the game did not refresh. Try Refresh Battle."
           : lowerMessage.includes("reject") ||
               lowerMessage.includes("cancel") ||
               lowerMessage.includes("denied") ||
               lowerMessage.includes("declined")
-            ? "Start cancelled."
+            ? "Start cancelled in wallet."
             : "Could not start Garden Bot battle. Try again.";
       setDialogKind(
         lowerMessage.includes("timed out waiting")
           ? "start-timeout"
+          : lowerMessage.includes("did not refresh")
+            ? "start-error"
           : lowerMessage.includes("reject") ||
               lowerMessage.includes("cancel") ||
               lowerMessage.includes("denied") ||
@@ -490,6 +513,7 @@ export default function Battle() {
     resultModalArmedBattleIdRef.current = battleState.battleId || null;
     resultModalArmedUntilRef.current = Date.now() + RESULT_MODAL_ARM_MS;
     if (inlineErrorTimer.current) clearTimeout(inlineErrorTimer.current);
+
     try {
       await useAbility(abilityId);
     } catch (error: any) {
@@ -917,35 +941,36 @@ export default function Battle() {
   const modeSelect =
     isConnected && (!battleState || battleFinished) && !isWaiting ? (
       <section className="gb-mode-select" aria-label="Choose battle mode">
-        <article
-          className="gb-mode-card gb-mode-card-arcade"
-          aria-label="Garden Bot Arcade coming soon"
-        >
-          <ModeCrest type="garden-bot" alt="Garden Bot Arcade robotic plant medallion" />
-          <h2>Garden Bot Arcade</h2>
-          <p>Fast practice. No wallet prompts per move. Practice only, no rewards.</p>
-          <button
-            type="button"
-            disabled
-            className="gb-mode-action gb-mode-action-arcade"
-            data-testid="button-start-arcade-battle"
-          >
-            Arcade Coming Soon
-          </button>
-        </article>
-
-        <article className="gb-mode-card gb-mode-card-bot">
+        <article className="gb-mode-card gb-mode-card-bot gb-mode-card-garden-bot">
           <ModeCrest type="garden-bot" alt="Garden Bot robotic plant medallion" />
-          <h2>Garden Bot Verified</h2>
-          <p>On-chain ranked. Wallet approval required per move. Leaderboard eligible.</p>
-          <button
-            onClick={handleStartBotBattle}
-            disabled={isJoining || isStartingBot}
-            className="gb-mode-action gb-mode-action-bot"
-            data-testid="button-start-bot-battle"
-          >
-            {isStartingBot ? "Starting..." : "Play Garden Bot"}
-          </button>
+          <h2>Garden Bot</h2>
+          <p>Practice against the bot or play verified on-chain.</p>
+          <div className="gb-garden-bot-options">
+            <section className="gb-garden-bot-option gb-garden-bot-option-arcade">
+              <h3>Arcade Practice</h3>
+              <p>Fast practice. No wallet prompts per move. Practice only, no rewards.</p>
+              <button
+                type="button"
+                disabled
+                className="gb-mode-action gb-mode-action-arcade"
+                data-testid="button-start-arcade-battle"
+              >
+                Arcade Coming Soon
+              </button>
+            </section>
+            <section className="gb-garden-bot-option gb-garden-bot-option-verified">
+              <h3>Verified Battle</h3>
+              <p>On-chain ranked. Wallet approval required per move. Leaderboard eligible.</p>
+              <button
+                onClick={handleStartBotBattle}
+                disabled={isJoining || isStartingBot}
+                className="gb-mode-action gb-mode-action-bot"
+                data-testid="button-start-bot-battle"
+              >
+                {isStartingBot ? "Starting..." : "Play Verified"}
+              </button>
+            </section>
+          </div>
         </article>
 
         <article className="gb-mode-card gb-mode-card-pvp">
@@ -1880,12 +1905,12 @@ export default function Battle() {
               }}
             >
               {winner
-                ? `🏆 Battle Over!`
+                ? "Battle Over!"
                 : pendingMoveId !== null
-                  ? `⏳ Waiting for transaction... (${MOVE_LABELS[pendingMoveId] || "Move"})`
+                  ? `Waiting for transaction... (${MOVE_LABELS[pendingMoveId] || "Move"})`
                   : !isMyTurn
-                    ? `⏳ Waiting for your opponent...`
-                    : `⏳ Choose your move — each turn = 1 wallet confirmation`}
+                    ? "Waiting for your opponent..."
+                    : "Choose your move - each turn = 1 wallet confirmation"}
             </div>
 
             {isGardenBotBattle && playerMoves.length > 0 && (

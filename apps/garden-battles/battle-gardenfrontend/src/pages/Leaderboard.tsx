@@ -762,36 +762,59 @@ export default function Leaderboard() {
           )}
         </section>
 
-        <footer
-          style={{
-            color: "#8aa898",
-            fontSize: "clamp(10px, 2vw, 12px)",
-            marginTop: "20px",
-            padding: "15px",
-            textAlign: "center",
-          }}
-        >
-          <p>
-            PvP, Garden Bot, and Overall rankings are separated so Garden Bot practice does not
-            dominate PvP rankings.
-          </p>
-          <p>UR means unranked until at least 3 battles are recorded in the selected mode.</p>
-          <p>
-            Battle-rank cosmetic labels are planned visual rewards only; no NFT metadata changes
-            are live.
-          </p>
-          <p>NFTree rarity and VICTORY Locked badge slots are placeholders only.</p>
-          <p>
-            Battle ranks are earned through wins: Thorn Challenger at 10, Grove Striker at 25,
-            Canopy Champion at 50, and Elderroot Titan at 100. Grove Recruit marks new or
-            unranked fighters.
-          </p>
-          <p style={{ marginTop: "8px" }}>
-            <Link href="/battle" style={{ color: "#00ff88", fontSize: "13px", textDecoration: "underline" }}>
-              Back to Battle
-            </Link>
-          </p>
-          <p style={{ marginTop: "8px" }}>{totalPlayers} players in this view.</p>
+        <footer className="gb-leaderboard-info-panel">
+          <section className="gb-leaderboard-info-card">
+            <h2>Ranking Notes</h2>
+            <ul>
+              <li>PvP, Garden Bot, and Overall are tracked separately.</li>
+              <li>Garden Bot practice does not dominate PvP rankings.</li>
+              <li>UR means unranked until at least 3 battles are recorded.</li>
+            </ul>
+          </section>
+
+          <section className="gb-leaderboard-info-card">
+            <h2>Cosmetic Notes</h2>
+            <ul>
+              <li>Battle-rank cosmetics are planned visual rewards only.</li>
+              <li>No NFT metadata changes are live.</li>
+              <li>NFTree rarity and VICTORY Locked badge slots are placeholders.</li>
+            </ul>
+          </section>
+
+          <section className="gb-leaderboard-info-card gb-leaderboard-info-card-wide">
+            <h2>Rank Progression</h2>
+            <dl className="gb-rank-progression-list">
+              <div>
+                <dt>Grove Recruit</dt>
+                <dd>New or unranked fighters.</dd>
+              </div>
+              <div>
+                <dt>Rooted Fighter</dt>
+                <dd>Early battle record.</dd>
+              </div>
+              <div>
+                <dt>Thorn Challenger</dt>
+                <dd>Stronger record.</dd>
+              </div>
+              <div>
+                <dt>Grove Striker</dt>
+                <dd>Advanced record.</dd>
+              </div>
+              <div>
+                <dt>Canopy Champion</dt>
+                <dd>Elite record.</dd>
+              </div>
+              <div>
+                <dt>Elderroot Titan</dt>
+                <dd>Top-tier record.</dd>
+              </div>
+            </dl>
+          </section>
+
+          <div className="gb-leaderboard-info-actions">
+            <Link href="/battle">Back to Battle</Link>
+            <span>{totalPlayers} players in this view.</span>
+          </div>
         </footer>
       </main>
     </div>
