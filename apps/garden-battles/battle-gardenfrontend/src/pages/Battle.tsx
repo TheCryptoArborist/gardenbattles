@@ -826,6 +826,16 @@ export default function Battle() {
   const resultSummary = winnerNeedsChainFinalization
     ? "The Garden Bot target was reached. The interface is stopping this match here while the contract target bug is queued for upgrade."
     : `${Math.max(playerGrowth, opponentGrowth)} / ${growthTarget} Growth reached.`;
+  const battleInfoText =
+    battleState && isGardenBotBattle
+      ? "Single Player Garden Bot - Leaderboard eligible - Wallet approval required"
+      : battleState && !isGardenBotBattle
+        ? `${entryFeeLabel} per Battle`
+        : isWaiting
+          ? `PvP Battle - ${entryFeeLabel} entry paid. Waiting for opponent.`
+          : isConnected
+            ? "Choose Single Player or PvP to begin"
+            : "Connect wallet to choose a mode";
   const resultModalOpen =
     !!winner &&
     battleFinished &&
@@ -1335,6 +1345,40 @@ export default function Battle() {
               data-testid="img-battle-title"
             />
           </section>
+          {!isConnected && (
+            <section
+              className="gb-disconnected-onboarding"
+              aria-label="Connect wallet to start Garden Battles"
+            >
+              <div className="gb-disconnected-onboarding-copy">
+                <p className="gb-disconnected-kicker">First step</p>
+                <h1>Connect Wallet to Start</h1>
+                <p>Connect your Sui wallet to play Garden Battles.</p>
+              </div>
+              <div className="gb-disconnected-mode-notes">
+                <article>
+                  <h2>Single Player</h2>
+                  <p>
+                    Leaderboard eligible Garden Bot battle. Wallet approval
+                    required.
+                  </p>
+                </article>
+                <article>
+                  <h2>PvP Battle</h2>
+                  <p>{entryFeeLabel} entry per battle.</p>
+                </article>
+                <article>
+                  <h2>Practice Mode</h2>
+                  <p>
+                    Coming soon. No rewards. No leaderboard credit.
+                  </p>
+                </article>
+              </div>
+              <div className="gb-disconnected-wallet-cta">
+                <ConnectButton connectText="Connect Wallet" />
+              </div>
+            </section>
+          )}
           {modeSelect}
           {/* How to Play */}
           <HowToPlay />
@@ -1347,7 +1391,19 @@ export default function Battle() {
           {battleState && <TreePowerPanel />}
           <div className="gb-battle-hud-center">
           {/* Battle Area */}
-          <section className="gb-battle-arena" aria-label="Current battle arena">
+          <section
+            className={
+              !isConnected && !battleState
+                ? "gb-battle-arena gb-battle-arena-disconnected"
+                : "gb-battle-arena"
+            }
+            aria-label="Current battle arena"
+          >
+          {!isConnected && !battleState && (
+            <div className="gb-disconnected-arena-overlay">
+              Connect your wallet to choose a mode.
+            </div>
+          )}
           <div className="battle-grid">
           {/* Player 1 NFT */}
           <div
@@ -2311,9 +2367,7 @@ export default function Battle() {
           }}
           data-testid="text-entry-fee"
         >
-          {battleState && isGardenBotBattle
-            ? "Single Player Garden Bot - Leaderboard eligible - Wallet approval required"
-            : `${entryFeeLabel} per Battle`}
+          {battleInfoText}
         </p>
         <p
           style={{

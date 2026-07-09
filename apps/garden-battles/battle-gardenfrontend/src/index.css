@@ -1744,6 +1744,128 @@
     border-color: rgba(245, 197, 66, 0.5);
   }
 
+  .gb-disconnected-onboarding {
+    background:
+      radial-gradient(circle at 12% 0%, rgba(57, 255, 136, 0.16), transparent 45%),
+      linear-gradient(145deg, rgba(0, 32, 28, 0.94), rgba(0, 10, 15, 0.96));
+    border: 1px solid rgba(57, 255, 136, 0.44);
+    border-radius: 8px;
+    box-shadow:
+      0 0 24px rgba(57, 255, 136, 0.22),
+      inset 0 0 22px rgba(0, 213, 199, 0.06);
+    display: grid;
+    gap: 16px;
+    margin: clamp(14px, 3vw, 24px) auto;
+    max-width: 980px;
+    padding: clamp(16px, 3vw, 24px);
+    position: relative;
+    text-align: left;
+  }
+
+  .gb-disconnected-onboarding-copy {
+    text-align: center;
+  }
+
+  .gb-disconnected-kicker {
+    color: var(--gb-teal);
+    font-family: Orbitron, sans-serif;
+    font-size: clamp(11px, 2.4vw, 13px);
+    font-weight: 900;
+    letter-spacing: 0.8px;
+    margin: 0 0 6px;
+    text-transform: uppercase;
+  }
+
+  .gb-disconnected-onboarding h1 {
+    color: var(--gb-tree-green);
+    font-family: Orbitron, sans-serif;
+    font-size: clamp(24px, 5vw, 38px);
+    line-height: 1.05;
+    margin: 0;
+    text-align: center;
+    text-shadow: 0 0 18px rgba(57, 255, 136, 0.42);
+  }
+
+  .gb-disconnected-onboarding-copy > p:last-child {
+    color: rgba(234, 255, 246, 0.88);
+    font-size: clamp(14px, 2.6vw, 18px);
+    line-height: 1.45;
+    margin: 10px auto 0;
+    max-width: 620px;
+  }
+
+  .gb-disconnected-mode-notes {
+    display: grid;
+    gap: 10px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .gb-disconnected-mode-notes article {
+    background: rgba(0, 0, 0, 0.24);
+    border: 1px solid rgba(0, 213, 199, 0.22);
+    border-radius: 8px;
+    min-width: 0;
+    padding: 12px;
+  }
+
+  .gb-disconnected-mode-notes h2 {
+    color: var(--gb-gold);
+    font-family: Orbitron, sans-serif;
+    font-size: clamp(13px, 2.4vw, 16px);
+    font-weight: 900;
+    line-height: 1.2;
+    margin: 0 0 6px;
+    text-transform: uppercase;
+  }
+
+  .gb-disconnected-mode-notes p {
+    color: rgba(234, 255, 246, 0.82);
+    font-size: clamp(12px, 2.4vw, 14px);
+    line-height: 1.42;
+    margin: 0;
+  }
+
+  .gb-disconnected-wallet-cta {
+    display: flex;
+    justify-content: center;
+  }
+
+  .gb-disconnected-wallet-cta [data-dapp-kit] button,
+  .gb-disconnected-wallet-cta button {
+    min-height: 48px;
+  }
+
+  .gb-battle-arena-disconnected {
+    opacity: 0.72;
+    position: relative;
+  }
+
+  .gb-battle-arena-disconnected .battle-grid {
+    filter: saturate(0.65) brightness(0.74);
+  }
+
+  .gb-disconnected-arena-overlay {
+    background: rgba(0, 10, 12, 0.82);
+    border: 1px solid rgba(57, 255, 136, 0.42);
+    border-radius: 999px;
+    box-shadow: 0 0 18px rgba(57, 255, 136, 0.18);
+    color: var(--gb-tree-green);
+    font-family: Orbitron, sans-serif;
+    font-size: clamp(12px, 2.5vw, 15px);
+    font-weight: 900;
+    left: 50%;
+    line-height: 1.3;
+    max-width: min(520px, calc(100% - 24px));
+    padding: 10px 14px;
+    position: absolute;
+    text-align: center;
+    text-transform: uppercase;
+    top: 12px;
+    transform: translateX(-50%);
+    width: max-content;
+    z-index: 4;
+  }
+
   .gb-garden-bot-primary {
     display: grid;
     gap: 10px;
@@ -3107,6 +3229,10 @@
     .gb-mode-select {
       grid-template-columns: 1fr;
       max-width: 560px;
+    }
+
+    .gb-disconnected-mode-notes {
+      grid-template-columns: 1fr;
     }
 
     .gb-mode-card {
