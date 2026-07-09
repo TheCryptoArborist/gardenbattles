@@ -110,6 +110,7 @@ interface BattleUpdateTransactionResult {
 }
 
 const DEBUG_TX_TIMING = import.meta.env.VITE_DEBUG_TX_TIMING === "true";
+const DEBUG_BATTLE_LOG = import.meta.env.VITE_DEBUG_BATTLE_LOG === "true";
 
 function txTimingNow() {
   return typeof performance !== "undefined" ? performance.now() : Date.now();
@@ -130,6 +131,12 @@ function logTxTiming(
     elapsedMs: Math.round(txTimingNow() - startedAt),
     ...details,
   });
+}
+
+function battleLogDebug(label: string, details: Record<string, unknown>) {
+  if (DEBUG_BATTLE_LOG) {
+    console.info("[battle-log]", label, details);
+  }
 }
 
 function battleStorageKey(address: string): string {
@@ -465,7 +472,7 @@ async function getBattleUpdateStateFromTransaction(
 
   const botMoveId = parsePositiveMoveId(botMoveEvent?.move_id);
   if (botMoveId !== null) {
-    console.log("[battle-log] BotMoveResolved parsed", {
+    battleLogDebug("BotMoveResolved parsed", {
       battleId: String(botMoveEvent?.battle_id ?? state?.battleId ?? expectedBattleId ?? ""),
       moveId: botMoveId,
     });
@@ -499,7 +506,6 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
   const [actionLog, setActionLog] = useState<ActionEntry[]>([]);
   const prevBattleStateRef = useRef<BattleState | null>(null);
   const lastMoveIdRef = useRef<number>(0);
-  const lastResolvedBotMoveIdRef = useRef<number | null>(null);
   const lastLoggedActionKeyRef = useRef<string | null>(null);
   const recentBattleDigestRef = useRef<string | null>(null);
   const submittedBattleDigestsRef = useRef<Set<string>>(new Set());
@@ -1267,7 +1273,6 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
                   txTimingStartedAt,
                 );
                 if (eventResult.state) {
-                  lastResolvedBotMoveIdRef.current = eventResult.botMoveId;
                   completedState = {
                     ...eventResult.state,
                     isBotBattle: activeState.isBotBattle,
@@ -1280,7 +1285,6 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
                     source: "BattleUpdate event",
                   });
                 } else {
-                  lastResolvedBotMoveIdRef.current = eventResult.botMoveId;
                   console.log("[battle] BattleUpdate event missing; refreshing live battle state.");
                   const refreshed = await getLiveBattleState(suiClient, battleId);
                   if (refreshed) {
@@ -1299,7 +1303,6 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
                 }
               } catch (err) {
                 console.warn("[battle] post-move refresh will retry via polling:", err);
-                lastResolvedBotMoveIdRef.current = null;
                 const refreshed = await getLiveBattleState(suiClient, battleId);
                 if (refreshed) {
                   completedState = {
@@ -1586,7 +1589,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
     const botMoveEventId =
       explicitBotMoveId && Number.isFinite(explicitBotMoveId) && explicitBotMoveId > 0
         ? explicitBotMoveId
-        : lastResolvedBotMoveIdRef.current;
+        : null;
     const resolvedBotMoveId = next.isBotBattle
       ? resolveBotMoveId(prev, next, botMoveEventId)
       : null;
@@ -1597,7 +1600,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
       resolvedBotMoveId === botMoveEventId
     );
     if (next.isBotBattle && actor === "you" && !usedExplicitBotMove && resolvedBotMoveId !== null) {
-      console.log("[battle-log] falling back to derived bot move", {
+      battleLogDebug("falling back to derived bot move", {
         moveId: resolvedBotMoveId,
       });
     }
@@ -1615,7 +1618,6 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
     ].join(":");
     if (lastLoggedActionKeyRef.current === transitionKey) {
       lastMoveIdRef.current = 0;
-      lastResolvedBotMoveIdRef.current = null;
       return;
     }
 
@@ -1763,12 +1765,12 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
         : undefined;
     if (next.isBotBattle && actor === "you" && usedExplicitBotMove && resolvedBotMoveId !== null) {
       if (MOVE_LABELS[resolvedBotMoveId]) {
-        console.log("[battle-log] exact bot move applied", {
+        battleLogDebug("exact bot move applied", {
           moveId: resolvedBotMoveId,
           label: resolvedBotMoveLabel,
         });
       } else {
-        console.log("[battle-log] BotMoveResolved label missing", {
+        battleLogDebug("BotMoveResolved label missing", {
           moveId: resolvedBotMoveId,
         });
       }
@@ -1802,7 +1804,6 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
     setActionLog((log) => [...log, ...entries]);
     lastLoggedActionKeyRef.current = transitionKey;
     lastMoveIdRef.current = 0;
-    lastResolvedBotMoveIdRef.current = null;
   }
 
   return (
