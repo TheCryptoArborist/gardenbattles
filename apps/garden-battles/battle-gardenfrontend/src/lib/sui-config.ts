@@ -4,7 +4,7 @@ export const SUI_CONFIG = {
   CHAIN: "sui:mainnet",
   RPC_URL: "https://fullnode.mainnet.sui.io:443",
   WS_URL: "wss://fullnode.mainnet.sui.io:443",
-  PACKAGE_ID: "0x2677132e3a06d7e60441e24875ad5c1221a119c521e7bd5ea2b68e684252752a",
+  PACKAGE_ID: "0x71a3b321d9db461746b2f9a2427f381e2e3105a80a648bc08c2e5f7c45eed5ef",
   ORIGINAL_PACKAGE_ID:
     "0x656ac984c39b952b40ccaaad4c26a3e074c4c99f56e2bac0862b811557de448b",
   BOT_MOVE_RESOLVED_EVENT_PACKAGE_ID: "0x6cae4020693bcfcac9523ce8bc3d0bef7f830900e48b743d002b5d6b676e5142",
