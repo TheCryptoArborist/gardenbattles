@@ -1791,6 +1791,86 @@
     color: var(--gb-teal);
   }
 
+  .gb-pvp-queue-panel {
+    align-items: center;
+    background:
+      radial-gradient(circle at 15% 0%, rgba(255, 174, 57, 0.18), transparent 42%),
+      linear-gradient(135deg, rgba(43, 22, 0, 0.94), rgba(0, 16, 20, 0.92));
+    border: 1px solid rgba(255, 178, 71, 0.62);
+    border-radius: 8px;
+    box-shadow:
+      0 0 24px rgba(255, 153, 51, 0.22),
+      inset 0 0 20px rgba(57, 255, 136, 0.06);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px 18px;
+    justify-content: space-between;
+    margin: clamp(12px, 2vw, 18px) auto;
+    max-width: 1080px;
+    padding: clamp(14px, 2.5vw, 20px);
+    scroll-margin-top: 16px;
+  }
+
+  .gb-pvp-queue-copy {
+    display: grid;
+    gap: 7px;
+    min-width: min(100%, 360px);
+    text-align: left;
+  }
+
+  .gb-pvp-queue-kicker {
+    color: #ffbd6a;
+    font-family: Orbitron, sans-serif;
+    font-size: 11px;
+    font-weight: 900;
+    letter-spacing: 0.9px;
+    line-height: 1;
+    margin: 0;
+    text-transform: uppercase;
+  }
+
+  .gb-pvp-queue-copy h2 {
+    color: #fff4dd;
+    font-family: Orbitron, sans-serif;
+    font-size: clamp(18px, 3vw, 26px);
+    font-weight: 900;
+    line-height: 1.1;
+    margin: 0;
+    text-shadow: 0 0 16px rgba(255, 178, 71, 0.34);
+    text-transform: uppercase;
+  }
+
+  .gb-pvp-queue-facts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+  }
+
+  .gb-pvp-queue-facts span {
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid rgba(255, 209, 132, 0.34);
+    border-radius: 999px;
+    color: rgba(255, 247, 229, 0.9);
+    font-family: Orbitron, sans-serif;
+    font-size: clamp(10px, 2vw, 12px);
+    font-weight: 800;
+    line-height: 1.25;
+    padding: 6px 9px;
+  }
+
+  .gb-pvp-queue-actions {
+    display: flex;
+    flex: 1 1 260px;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: flex-end;
+  }
+
+  .gb-pvp-queue-refund-button {
+    min-height: 42px;
+    padding: 0 14px;
+  }
+
   .gb-mode-card {
     align-items: center;
     background:
@@ -1966,7 +2046,17 @@
     filter: saturate(0.65) brightness(0.74);
   }
 
-  .gb-disconnected-arena-overlay {
+  .gb-battle-arena-queue {
+    opacity: 0.78;
+    position: relative;
+  }
+
+  .gb-battle-arena-queue .battle-grid {
+    filter: saturate(0.7) brightness(0.68);
+  }
+
+  .gb-disconnected-arena-overlay,
+  .gb-queue-arena-overlay {
     background: rgba(0, 10, 12, 0.82);
     border: 1px solid rgba(57, 255, 136, 0.42);
     border-radius: 999px;
@@ -1986,6 +2076,12 @@
     transform: translateX(-50%);
     width: max-content;
     z-index: 4;
+  }
+
+  .gb-queue-arena-overlay {
+    border-color: rgba(255, 178, 71, 0.58);
+    box-shadow: 0 0 18px rgba(255, 153, 51, 0.24);
+    color: #ffda9e;
   }
 
   .gb-mode-card-details {

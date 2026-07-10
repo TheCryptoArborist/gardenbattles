@@ -12,7 +12,6 @@ import {
 } from "@/lib/sui-config";
 import { PRACTICE_PLAYER_ADDRESS } from "@/lib/practiceBattle";
 import BattleDialog from "@/components/BattleDialog";
-import WaitingOverlay from "@/components/WaitingOverlay";
 import AdminPanel from "@/components/AdminPanel";
 import HowToPlay from "@/components/HowToPlay";
 import BattleLog from "@/components/BattleLog";
@@ -124,7 +123,14 @@ type BattleDialogKind =
   | "start-pending"
   | "start-timeout"
   | "start-error"
-  | "start-cancelled";
+  | "start-cancelled"
+  | "pvp-join-pending"
+  | "pvp-join-cancelled"
+  | "pvp-join-error"
+  | "pvp-refund-pending"
+  | "pvp-refund-cancelled"
+  | "pvp-refund-success"
+  | "pvp-refund-error";
 
 function readDismissedResultKeys(): string[] {
   if (typeof window === "undefined") return [];
@@ -167,6 +173,16 @@ function formatSuiAmount(mist: number) {
   return `${(mist / 1e9).toLocaleString(undefined, {
     maximumFractionDigits: 9,
   })} SUI`;
+}
+
+function isWalletCancelMessage(message: string) {
+  const lowerMessage = message.toLowerCase();
+  return (
+    lowerMessage.includes("reject") ||
+    lowerMessage.includes("cancel") ||
+    lowerMessage.includes("denied") ||
+    lowerMessage.includes("declined")
+  );
 }
 
 function resolveGrowthStageVisual({
@@ -303,21 +319,34 @@ export default function Battle() {
       const nftData = await getFirstValidSaplingNft(address!);
 
       if (nftData) {
-        setDialogMessage("NFT found! Joining queue...");
+        setDialogKind("pvp-join-pending");
+        setDialogMessage(
+          "Joining PvP queue\n\nWaiting for wallet approval.\n\nApprove or reject the request in your wallet.",
+        );
         setPlayerNftImageUrl(nftData.imageUrl || null);
         await joinBattle(nftData);
-        setDialogMessage("Joined queue! Waiting for opponent...");
+        setDialogOpen(false);
+        setDialogMessage("");
+        setDialogKind("info");
         setModeCardsExpanded(false);
         setEcosystemExpanded(false);
         scrollToBattleFocus();
       } else {
+        setDialogKind("info");
         setDialogMessage(
           "No whitelisted NFT found. Contact admin to whitelist your collection.",
         );
       }
     } catch (error: any) {
+      const message = error?.message || "";
+      const isCancelled = isWalletCancelMessage(message);
       setDialogOpen(true);
-      setDialogMessage(error.message || "Failed to join battle");
+      setDialogKind(isCancelled ? "pvp-join-cancelled" : "pvp-join-error");
+      setDialogMessage(
+        isCancelled
+          ? "Queue join cancelled in wallet."
+          : "Could not join the PvP queue. Try again.",
+      );
     } finally {
       setIsJoining(false);
     }
@@ -429,14 +458,27 @@ export default function Battle() {
 
     setIsRefunding(true);
     try {
+      setDialogOpen(true);
+      setDialogKind("pvp-refund-pending");
+      setDialogMessage(
+        `Refund requested\n\nWaiting for wallet approval to refund your ${entryFeeLabel}.\n\nApprove or reject the request in your wallet.`,
+      );
       await cancelQueue();
       setDialogOpen(true);
+      setDialogKind("pvp-refund-success");
       setDialogMessage(
-        `Refund successful! Your ${entryFeeLabel} has been returned.`,
+        `Refund successful.\n\nYour ${entryFeeLabel} has been returned.`,
       );
     } catch (error: any) {
+      const message = error?.message || "";
+      const isCancelled = isWalletCancelMessage(message);
       setDialogOpen(true);
-      setDialogMessage(`Refund failed: ${error.message}`);
+      setDialogKind(isCancelled ? "pvp-refund-cancelled" : "pvp-refund-error");
+      setDialogMessage(
+        isCancelled
+          ? "Refund cancelled in wallet."
+          : "Could not refund your queue deposit. Try again.",
+      );
     } finally {
       setIsRefunding(false);
     }
@@ -684,16 +726,23 @@ export default function Battle() {
     !!battleState.player2 &&
     battleState.player1 !== "0x0" &&
     battleState.player2 !== "0x0";
+  const hasRefundablePvpQueue =
+    isConnected && isWaiting && !battleState && !isPracticeActive;
   const isQueueWaitingMessage =
     /waiting for (opponent|chain update)|joined queue/i.test(dialogMessage);
   const isQueueWaitingDialog = isWaiting && isQueueWaitingMessage;
-  const isBotStartPendingDialog = dialogKind === "start-pending";
-  const canCloseBattleDialog = !isQueueWaitingDialog && !isBotStartPendingDialog;
+  const isWalletPendingDialog =
+    dialogKind === "start-pending" ||
+    dialogKind === "pvp-join-pending" ||
+    dialogKind === "pvp-refund-pending";
+  const canCloseBattleDialog = !isQueueWaitingDialog && !isWalletPendingDialog;
   const handleCloseBattleDialog = () => {
     if (!canCloseBattleDialog) return;
     setDialogOpen(false);
     setDialogKind("info");
     setIsStartingBot(false);
+    setIsJoining(false);
+    setIsRefunding(false);
     setIsResultPlayAgainStarting(false);
   };
 
@@ -1018,7 +1067,7 @@ export default function Battle() {
   const activeModeDetails = isPracticeActive
     ? "No wallet needed - No rewards - No leaderboard credit"
     : isWaiting
-      ? `${entryFeeLabel} entry - Winner receives ${pvpWinnerPayoutLabel}`
+      ? `${entryFeeLabel} deposited - Waiting for opponent`
       : isGardenBotBattle
         ? "Leaderboard eligible - Wallet approval required"
         : `${entryFeeLabel} entry - Leaderboard eligible`;
@@ -1143,12 +1192,49 @@ export default function Battle() {
         <strong>{activeModeTitle}</strong>
         <span>{activeModeDetails}</span>
       </div>
-      <div className="gb-active-mode-actions">
-        {!isPracticeActive && (
-          <Link href={leaderboardRoute} className="gb-active-mode-button">
-            View Leaderboard
-          </Link>
-        )}
+      {!hasRefundablePvpQueue && (
+        <div className="gb-active-mode-actions">
+          {!isPracticeActive && (
+            <Link href={leaderboardRoute} className="gb-active-mode-button">
+              View Leaderboard
+            </Link>
+          )}
+          <button
+            type="button"
+            className="gb-active-mode-button gb-active-mode-button-secondary"
+            onClick={() => setModeCardsExpanded((expanded) => !expanded)}
+          >
+            {modeCardsExpanded ? "Hide Modes" : "Change Mode"}
+          </button>
+        </div>
+      )}
+    </section>
+  ) : null;
+
+  const pvpQueuePanel = hasRefundablePvpQueue ? (
+    <section className="gb-pvp-queue-panel" aria-label="PvP battle queue status">
+      <div className="gb-pvp-queue-copy">
+        <p className="gb-pvp-queue-kicker">PvP Battle Queue</p>
+        <h2>Waiting for opponent</h2>
+        <div className="gb-pvp-queue-facts" aria-label="PvP queue details">
+          <span>{entryFeeLabel} deposited</span>
+          <span>Winner receives {pvpWinnerPayoutLabel}</span>
+          <span>{pvpTreeSupportLabel} supports TREE buybacks</span>
+        </div>
+      </div>
+      <div className="gb-pvp-queue-actions">
+        <button
+          type="button"
+          onClick={handleForceRefund}
+          disabled={isRefunding}
+          className="gb-refund-button gb-pvp-queue-refund-button"
+          data-testid="button-queue-refund"
+        >
+          {isRefunding ? "Refunding..." : "Get Refund"}
+        </button>
+        <Link href={leaderboardRoute} className="gb-active-mode-button">
+          View Leaderboard
+        </Link>
         <button
           type="button"
           className="gb-active-mode-button gb-active-mode-button-secondary"
@@ -1322,19 +1408,21 @@ export default function Battle() {
           <div
             className="gb-header-actions"
           >
-            <button
-              onClick={handleForceRefund}
-              disabled={!isConnected || isRefunding}
-              className="gb-refund-button"
-              data-testid="button-emergency-refund"
-            >
-              <span className="gb-refund-label-full">
-                {isRefunding ? "Processing..." : "Get Refund"}
-              </span>
-              <span className="gb-refund-label-compact">
-                {isRefunding ? "Processing" : "Refund"}
-              </span>
-            </button>
+            {hasRefundablePvpQueue && (
+              <button
+                onClick={handleForceRefund}
+                disabled={!isConnected || isRefunding}
+                className="gb-refund-button"
+                data-testid="button-emergency-refund"
+              >
+                <span className="gb-refund-label-full">
+                  {isRefunding ? "Processing..." : "Get Refund"}
+                </span>
+                <span className="gb-refund-label-compact">
+                  {isRefunding ? "Processing" : "Refund"}
+                </span>
+              </button>
+            )}
             <ConnectButton connectText="Connect Wallet" />
             <button
               type="button"
@@ -1396,15 +1484,17 @@ export default function Battle() {
                 </a>
               ))}
             </div>
-            <button
-              type="button"
-              onClick={handleForceRefund}
-              disabled={!isConnected || isRefunding}
-              className="gb-mobile-refund-menu-item"
-              data-testid="mobile-button-emergency-refund"
-            >
-              {isRefunding ? "Processing" : "Refund"}
-            </button>
+            {hasRefundablePvpQueue && (
+              <button
+                type="button"
+                onClick={handleForceRefund}
+                disabled={!isConnected || isRefunding}
+                className="gb-mobile-refund-menu-item"
+                data-testid="mobile-button-emergency-refund"
+              >
+                {isRefunding ? "Processing" : "Refund"}
+              </button>
+            )}
           </nav>
         </header>
 
@@ -1416,61 +1506,6 @@ export default function Battle() {
             <ForestPower address={address} />
             <PlayerRecord address={address} />
           </section>
-        )}
-
-        {/* 2-Player Warning Banner */}
-        {!battleState && isWaiting && (
-          <div
-            style={{
-              background:
-                "linear-gradient(135deg, rgba(255, 165, 0, 0.9), rgba(255, 69, 0, 0.9))",
-              color: "#fff",
-              padding: "clamp(12px, 3vw, 20px)",
-              margin: "0 auto",
-              maxWidth: "95%",
-              width: "800px",
-              borderRadius: "12px",
-              border: "3px solid #ff6600",
-              boxShadow: "0 0 30px rgba(255, 102, 0, 0.8)",
-              marginTop: "20px",
-              marginBottom: "10px",
-              textAlign: "center",
-            }}
-            data-testid="warning-need-2-players"
-          >
-            <h2
-              style={{
-                fontSize: "clamp(14px, 3.5vw, 24px)",
-                margin: "0 0 10px 0",
-                fontFamily: "Orbitron, sans-serif",
-                textShadow: "0 0 10px rgba(0, 0, 0, 0.5)",
-              }}
-            >
-              WAITING FOR 2ND PLAYER
-            </h2>
-            <p
-              style={{
-                fontSize: "clamp(11px, 2.5vw, 18px)",
-                margin: "8px 0",
-                lineHeight: "1.5",
-              }}
-            >
-              <strong>Battles require 2 players total!</strong>
-              <br />
-              You have paid {entryFeeLabel} and are in the queue.
-              <br />A 2nd player must join to start the battle.
-            </p>
-            <p
-              style={{
-                fontSize: "clamp(10px, 2.2vw, 16px)",
-                margin: "12px 0 0 0",
-                opacity: 0.9,
-              }}
-            >
-              Tip: Get a friend to join with a different wallet, OR click "Get
-              Refund" above to get your 3 SUI back.
-            </p>
-          </div>
         )}
 
         <main className="gb-battle-main">
@@ -1530,6 +1565,7 @@ export default function Battle() {
             </section>
           )}
           {activeModeBar}
+          {pvpQueuePanel}
           {modeSelect}
           {/* How to Play */}
           <HowToPlay />
@@ -1560,6 +1596,8 @@ export default function Battle() {
             className={
               !isConnected && !battleState
                 ? "gb-battle-arena gb-battle-arena-disconnected"
+                : isWaiting && !battleState
+                  ? "gb-battle-arena gb-battle-arena-queue"
                 : "gb-battle-arena"
             }
             aria-label="Current battle arena"
@@ -1567,6 +1605,11 @@ export default function Battle() {
           {!isConnected && !battleState && (
             <div className="gb-disconnected-arena-overlay">
               Connect for ranked modes, or start Practice Mode above.
+            </div>
+          )}
+          {isWaiting && !battleState && (
+            <div className="gb-queue-arena-overlay">
+              Waiting for PvP opponent.
             </div>
           )}
           <div className="battle-grid">
@@ -2639,6 +2682,11 @@ export default function Battle() {
           message={dialogMessage}
           onClose={handleCloseBattleDialog}
           canClose={canCloseBattleDialog}
+          pendingNote={
+            isWalletPendingDialog
+              ? "Approve or reject the request in your wallet."
+              : undefined
+          }
         />
         <BattleResultModal
           open={resultModalOpen}
@@ -2658,8 +2706,6 @@ export default function Battle() {
           onClose={handleCloseResultModal}
           onPlayAgain={handlePlayAgainFromResult}
         />
-        <WaitingOverlay isWaiting={isWaiting} onLeaveQueue={cancelQueue} />
-
         <AdminPanel
           adminAddresses={SUI_CONFIG.ADMIN_ADDRESSES}
           currentAddress={address || null}
