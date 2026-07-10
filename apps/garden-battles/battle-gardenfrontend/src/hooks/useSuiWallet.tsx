@@ -60,6 +60,12 @@ export interface NftData {
   imageUrl?: string;
 }
 
+export interface PvpQueueState {
+  queueId: string;
+  player: string;
+  entryFeeMist: number;
+}
+
 type BotStartStatus =
   | "wallet-request-opened"
   | "transaction-digest-received"
@@ -74,6 +80,7 @@ interface SuiWalletContextType {
   isConnected: boolean;
   battleState: BattleState | null;
   isWaiting: boolean;
+  pvpQueueState: PvpQueueState | null;
   entryFeeMist: number;
   isMyTurn: boolean;
   actionLog: ActionEntry[];
@@ -88,6 +95,7 @@ interface SuiWalletContextType {
   forfeitBattle: () => Promise<void>;
   adminForceClose: (winner?: string) => Promise<void>;
   cancelQueue: () => Promise<any>;
+  refreshPvpQueueState: () => Promise<PvpQueueState | null>;
   getFirstValidSaplingNft: (owner: string) => Promise<NftData | null>;
   ConnectWalletButton: () => JSX.Element;
 }
@@ -362,6 +370,76 @@ function parseBattleStateFromObjectFields(
   };
 }
 
+function readMoveOptionVec(value: any): any[] {
+  const vec =
+    value?.fields?.vec ??
+    value?.vec ??
+    value?.fields?.value?.fields?.vec ??
+    value?.value?.fields?.vec;
+  return Array.isArray(vec) ? vec : [];
+}
+
+function readPendingQueueEntry(value: any): any | null {
+  if (!value) return null;
+
+  const optionEntry = readMoveOptionVec(value)[0];
+  if (optionEntry) return optionEntry;
+
+  if (value?.fields?.player || value?.player) return value;
+
+  return null;
+}
+
+function parsePvpQueueStateFromObject(
+  obj: any,
+  address: string,
+): PvpQueueState | null {
+  const fields = obj?.data?.content?.fields;
+  const pending = readPendingQueueEntry(fields?.waiting);
+  const pendingFields = pending?.fields ?? pending;
+  const player =
+    typeof pendingFields?.player === "string"
+      ? pendingFields.player.toLowerCase()
+      : null;
+
+  if (!player || player !== address.toLowerCase()) return null;
+
+  const entryFeeMist = Number(pendingFields?.entry_fee_snapshot ?? 0);
+  if (!Number.isFinite(entryFeeMist) || entryFeeMist < 0) return null;
+
+  return {
+    queueId: SUI_CONFIG.MATCHMAKING_QUEUE_ID,
+    player,
+    entryFeeMist,
+  };
+}
+
+async function getRefundablePvpQueueState(
+  suiClient: any,
+  address: string,
+): Promise<PvpQueueState | null> {
+  try {
+    console.info("[pvp-queue] checking refundable queue state");
+    const obj = await suiClient.getObject({
+      id: SUI_CONFIG.MATCHMAKING_QUEUE_ID,
+      options: { showContent: true },
+    });
+    const state = parsePvpQueueStateFromObject(obj, address);
+    if (state) {
+      console.info("[pvp-queue] found refundable battle/queue object", {
+        queueId: state.queueId,
+        entryFeeMist: state.entryFeeMist,
+      });
+    } else {
+      console.info("[pvp-queue] no refundable queue found");
+    }
+    return state;
+  } catch (err) {
+    console.warn("[pvp-queue] could not check refundable queue state", err);
+    throw err;
+  }
+}
+
 async function getLiveBattleState(
   suiClient: any,
   battleId: string,
@@ -499,6 +577,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
 
   const [battleState, setBattleState] = useState<BattleState | null>(null);
   const [isWaiting, setIsWaiting] = useState(false);
+  const [pvpQueueState, setPvpQueueState] = useState<PvpQueueState | null>(null);
   const [entryFeeMist, setEntryFeeMist] = useState<number>(
     SUI_CONFIG.ENTRY_FEE,
   );
@@ -526,6 +605,24 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
         battleState.turn === 1));
 
   const clearActionLog = useCallback(() => setActionLog([]), []);
+
+  const refreshPvpQueueState = useCallback(async () => {
+    if (!address) {
+      setPvpQueueState(null);
+      setIsWaiting(false);
+      return null;
+    }
+
+    const queueState = await getRefundablePvpQueueState(suiClient, address);
+    setPvpQueueState(queueState);
+    setIsWaiting(!!queueState);
+    if (queueState) {
+      console.info("[pvp-queue] queue state restored after refresh", {
+        queueId: queueState.queueId,
+      });
+    }
+    return queueState;
+  }, [address, suiClient]);
 
   const submitFinishedBattleDigest = useCallback((digest: string | null, reason: string) => {
     if (!digest) {
@@ -593,6 +690,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
   const clearBattleState = useCallback(() => {
     setBattleState(null);
     setIsWaiting(false);
+    setPvpQueueState(null);
     prevBattleStateRef.current = null;
     if (address) cacheBattleState(address, null);
   }, [address]);
@@ -651,10 +749,49 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
           "finished state applied",
         );
       }
-      setIsWaiting(stateIsActive && isZeroAddress(state.player2));
+      const stateIsWaiting = stateIsActive && isZeroAddress(state.player2);
+      setIsWaiting(stateIsWaiting);
+      if (!stateIsWaiting) {
+        setPvpQueueState(null);
+      }
     },
     [address, clearBattleState, suiClient, submitFinishedBattleDigest],
   );
+
+  useEffect(() => {
+    if (!isConnected || !address) {
+      setPvpQueueState(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    const checkQueue = async () => {
+      try {
+        const state = await refreshPvpQueueState();
+        if (cancelled) return;
+        if (state) {
+          console.info("[pvp-queue] refund object id", {
+            queueId: state.queueId,
+          });
+        }
+      } catch (err) {
+        if (!cancelled) {
+          console.warn("[pvp-queue] queue refresh failed", err);
+        }
+      }
+    };
+
+    void checkQueue();
+    const interval = setInterval(() => {
+      void checkQueue();
+    }, 30_000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [isConnected, address, refreshPvpQueueState]);
 
   useEffect(() => {
     if (!isConnected || !address) return;
@@ -1018,6 +1155,11 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
           {
             onSuccess: (result) => {
               console.log("join_queue tx success:", result.digest);
+              setPvpQueueState({
+                queueId: SUI_CONFIG.MATCHMAKING_QUEUE_ID,
+                player: address.toLowerCase(),
+                entryFeeMist: liveEntryFeeMist,
+              });
               setIsWaiting(true);
 
               resolve();
@@ -1494,8 +1636,11 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
       await tx.build({ client: suiClient });
     } catch (e: any) {
       const msg = e?.message ?? "";
-      if (msg.includes("108"))
+      if (msg.includes("108")) {
+        setPvpQueueState(null);
+        setIsWaiting(false);
         throw new Error("You are NOT in the queue. Nothing to refund.");
+      }
       if (msg.includes("102")) throw new Error("This is not your queue entry.");
       throw new Error(`Cannot refund: ${msg}`);
     }
@@ -1505,6 +1650,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
         { transaction: tx },
         {
           onSuccess: (r) => {
+            setPvpQueueState(null);
             setIsWaiting(false);
             resolve(r);
           },
@@ -1839,6 +1985,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
         isConnected,
         battleState,
         isWaiting,
+        pvpQueueState,
         entryFeeMist,
         isMyTurn,
         actionLog,
@@ -1850,6 +1997,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
         forfeitBattle,
         adminForceClose,
         cancelQueue,
+        refreshPvpQueueState,
         getFirstValidSaplingNft,
         ConnectWalletButton,
       }}

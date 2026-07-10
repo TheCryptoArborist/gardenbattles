@@ -2328,6 +2328,26 @@
     color: #001414;
   }
 
+  .gb-mode-action-secondary {
+    background: rgba(0, 20, 24, 0.72);
+    border: 1px solid rgba(0, 213, 199, 0.48);
+    box-shadow: inset 0 0 14px rgba(0, 213, 199, 0.08);
+    color: var(--gb-teal);
+    min-height: 40px;
+  }
+
+  .gb-mode-queued-label {
+    background: rgba(255, 178, 71, 0.12);
+    border: 1px solid rgba(255, 178, 71, 0.5);
+    border-radius: 8px;
+    color: #ffda9e;
+    font-family: Orbitron, sans-serif;
+    font-size: clamp(11px, 2.1vw, 13px);
+    font-weight: 900;
+    padding: 8px 10px;
+    text-transform: uppercase;
+  }
+
   .gb-mode-action-practice {
     background: linear-gradient(45deg, rgba(0, 213, 199, 0.18), rgba(57, 255, 136, 0.14));
     border: 1px solid rgba(0, 213, 199, 0.62);

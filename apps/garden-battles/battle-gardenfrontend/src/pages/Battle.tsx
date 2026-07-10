@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { Link } from "wouter";
 import { Menu, Trophy, X } from "lucide-react";
 import { ConnectButton } from "@mysten/dapp-kit";
-import { useSuiWallet } from "@/hooks/useSuiWallet";
+import { useSuiWallet, type PvpQueueState } from "@/hooks/useSuiWallet";
 import { usePracticeBattle } from "@/hooks/usePracticeBattle";
 import {
   MOVE_LABELS,
@@ -223,6 +223,7 @@ export default function Battle() {
     address,
     battleState: verifiedBattleState,
     isWaiting,
+    pvpQueueState,
     entryFeeMist,
     isMyTurn: isVerifiedTurn,
     actionLog,
@@ -234,6 +235,7 @@ export default function Battle() {
     forfeitBattle,
     adminForceClose,
     cancelQueue,
+    refreshPvpQueueState,
     getFirstValidSaplingNft,
   } = useSuiWallet();
   const {
@@ -264,7 +266,10 @@ export default function Battle() {
   const [arboretumModalOpen, setArboretumModalOpen] = useState(false);
   const [isRefunding, setIsRefunding] = useState(false);
   const [isJoining, setIsJoining] = useState(false);
+  const [isCheckingPvpQueue, setIsCheckingPvpQueue] = useState(false);
   const [localPvpQueued, setLocalPvpQueued] = useState(false);
+  const [recoveredPvpQueueState, setRecoveredPvpQueueState] =
+    useState<PvpQueueState | null>(null);
   const [isStartingBot, setIsStartingBot] = useState(false);
   const [isClaimingTimeout, setIsClaimingTimeout] = useState(false);
   const [isForfeiting, setIsForfeiting] = useState(false);
@@ -278,6 +283,10 @@ export default function Battle() {
   const [liveResultKey, setLiveResultKey] = useState<string | null>(null);
   const [isResultPlayAgainStarting, setIsResultPlayAgainStarting] = useState(false);
   const entryFeeLabel = formatSuiAmount(entryFeeMist);
+  const activePvpQueueState = recoveredPvpQueueState ?? pvpQueueState;
+  const pvpQueueEntryFeeLabel = formatSuiAmount(
+    activePvpQueueState?.entryFeeMist ?? entryFeeMist,
+  );
   const pvpWinnerPayoutLabel = formatSuiAmount(PVP_WINNER_PAYOUT_MIST);
   const pvpTreeSupportLabel = formatSuiAmount(PVP_TREE_SUPPORT_MIST);
   const [playerNftImageUrl, setPlayerNftImageUrl] = useState<string | null>(
@@ -291,6 +300,7 @@ export default function Battle() {
   const inlineErrorTimer = useRef<NodeJS.Timeout | null>(null);
 
   const battleFocusRef = useRef<HTMLElement | null>(null);
+  const pvpQueuePanelRef = useRef<HTMLElement | null>(null);
   const playerAnimationTimer = useRef<NodeJS.Timeout | null>(null);
   const opponentAnimationTimer = useRef<NodeJS.Timeout | null>(null);
   const resultModalArmedRef = useRef(false);
@@ -298,6 +308,8 @@ export default function Battle() {
   const resultModalArmedUntilRef = useRef(0);
   const liveResultKeysShownRef = useRef<Set<string>>(new Set());
   const resultPlayAgainTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const pvpQueueActivationKeyRef = useRef<string | null>(null);
+  const pvpQueueWalletRef = useRef<string | null>(null);
 
   const showInlineError = (message: string) => {
     if (inlineErrorTimer.current) clearTimeout(inlineErrorTimer.current);
@@ -452,6 +464,65 @@ export default function Battle() {
     }, 120);
   };
 
+  const scrollToPvpQueuePanel = () => {
+    window.setTimeout(() => {
+      pvpQueuePanelRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }, 120);
+  };
+
+  const clearRecoveredPvpQueue = (reason: string) => {
+    if (recoveredPvpQueueState) {
+      console.info(`[pvp-status] queue recovery cleared: ${reason}`);
+    }
+    setRecoveredPvpQueueState(null);
+    pvpQueueActivationKeyRef.current = null;
+  };
+
+  const activatePvpQueuePanel = (
+    queueState?: Partial<PvpQueueState> | null,
+    options: { scroll?: boolean } = {},
+  ) => {
+    const shouldScroll = options.scroll ?? true;
+    const activationKey = queueState
+      ? `${queueState.queueId ?? "queue"}:${queueState.entryFeeMist ?? "entry"}`
+      : "local";
+    if (pvpQueueActivationKeyRef.current === activationKey) {
+      console.info("[pvp-status] queue panel already active");
+      if (shouldScroll) scrollToPvpQueuePanel();
+      return;
+    } else {
+      console.info("[pvp-status] queue panel activated", {
+        queueId: queueState?.queueId,
+        entryFeeMist: queueState?.entryFeeMist,
+      });
+      pvpQueueActivationKeyRef.current = activationKey;
+    }
+    if (queueState?.queueId) {
+      console.info("[pvp-status] queue recovery pinned", {
+        queueId: queueState.queueId,
+        entryFeeMist: queueState.entryFeeMist,
+      });
+      setRecoveredPvpQueueState({
+        queueId: queueState.queueId,
+        player:
+          "player" in queueState && typeof queueState.player === "string"
+            ? queueState.player
+            : address?.toLowerCase() ?? "",
+        entryFeeMist: queueState.entryFeeMist ?? entryFeeMist,
+      });
+      pvpQueueWalletRef.current = address?.toLowerCase() ?? null;
+    } else if (recoveredPvpQueueState) {
+      console.info("[pvp-status] queue recovery retained");
+    }
+    setLocalPvpQueued(true);
+    setModeCardsExpanded(false);
+    setEcosystemExpanded(false);
+    if (shouldScroll) scrollToPvpQueuePanel();
+  };
+
   const handleForceRefund = async () => {
     if (!isConnected) {
       alert("Please connect your wallet first");
@@ -463,27 +534,80 @@ export default function Battle() {
       setDialogOpen(true);
       setDialogKind("pvp-refund-pending");
       setDialogMessage(
-        `Refund requested\n\nWaiting for wallet approval to refund your ${entryFeeLabel}.\n\nApprove or reject the request in your wallet.`,
+        `Refund requested\n\nWaiting for wallet approval to refund your ${pvpQueueEntryFeeLabel}.\n\nApprove or reject the request in your wallet.`,
       );
       await cancelQueue();
       setLocalPvpQueued(false);
+      clearRecoveredPvpQueue("refund success");
       setDialogOpen(true);
       setDialogKind("pvp-refund-success");
       setDialogMessage(
-        `Refund successful.\n\nYour ${entryFeeLabel} has been returned.`,
+        `Refund successful.\n\nYour ${pvpQueueEntryFeeLabel} has been returned.`,
       );
     } catch (error: any) {
       const message = error?.message || "";
       const isCancelled = isWalletCancelMessage(message);
+      const noQueueFound = message.toLowerCase().includes("not in the queue");
+      if (noQueueFound) {
+        setLocalPvpQueued(false);
+        clearRecoveredPvpQueue("confirmed no queue");
+        void refreshPvpQueueState().catch((err) => {
+          console.warn("[pvp-status] queue check failed", err);
+        });
+      }
       setDialogOpen(true);
       setDialogKind(isCancelled ? "pvp-refund-cancelled" : "pvp-refund-error");
       setDialogMessage(
         isCancelled
           ? "Refund cancelled in wallet."
+          : noQueueFound
+            ? "No active refundable PvP queue entry was found for this wallet."
           : "Could not refund your queue deposit. Try again.",
       );
     } finally {
       setIsRefunding(false);
+    }
+  };
+
+  const handleCheckPvpQueueStatus = async () => {
+    if (!isConnected) {
+      alert("Please connect your wallet first");
+      return;
+    }
+
+    setIsCheckingPvpQueue(true);
+    console.info("[pvp-status] check button clicked");
+    try {
+      console.info("[pvp-status] checking queue");
+      const queueState = await refreshPvpQueueState();
+      console.info("[pvp-status] queue state returned", {
+        found: !!queueState,
+        queueId: queueState?.queueId,
+        entryFeeMist: queueState?.entryFeeMist,
+      });
+      setLocalPvpQueued(!!queueState);
+      if (queueState) {
+        activatePvpQueuePanel(queueState);
+        setDialogOpen(false);
+        setDialogKind("info");
+        setDialogMessage("");
+      } else {
+        console.info("[pvp-status] no queue found");
+        setLocalPvpQueued(false);
+        clearRecoveredPvpQueue("confirmed no queue");
+        setDialogOpen(true);
+        setDialogKind("info");
+        setDialogMessage(
+          "No active refundable PvP queue entry was found for this wallet.",
+        );
+      }
+    } catch (err) {
+      console.warn("[pvp-status] queue check failed", err);
+      setDialogOpen(true);
+      setDialogKind("info");
+      setDialogMessage("Could not check PvP queue status. Try again.");
+    } finally {
+      setIsCheckingPvpQueue(false);
     }
   };
 
@@ -729,13 +853,23 @@ export default function Battle() {
     !!battleState.player2 &&
     battleState.player1 !== "0x0" &&
     battleState.player2 !== "0x0";
+  const hasActivePvpBattle =
+    !!battleState &&
+    !isPracticeActive &&
+    !isGardenBotBattle &&
+    hasOpponent &&
+    !battleFinished;
   const isPvpQueued =
     isConnected &&
     !isPracticeActive &&
-    !battleFinished &&
-    !hasOpponent &&
-    (localPvpQueued || isWaiting);
-  const hasRefundablePvpQueue = isPvpQueued;
+    !hasActivePvpBattle &&
+    (
+      !!recoveredPvpQueueState ||
+      !!pvpQueueState ||
+      ((localPvpQueued || isWaiting) && !battleFinished && !hasOpponent)
+    );
+  const shouldShowPvpQueuePanel = isPvpQueued || !!pvpQueueState;
+  const hasRefundablePvpQueue = shouldShowPvpQueuePanel;
   const isQueueWaitingMessage =
     /waiting for (opponent|chain update)|joined queue/i.test(dialogMessage);
   const isQueueWaitingDialog = isWaiting && isQueueWaitingMessage;
@@ -757,18 +891,62 @@ export default function Battle() {
   useEffect(() => {
     if (!isConnected) {
       setLocalPvpQueued(false);
+      clearRecoveredPvpQueue("wallet changed");
       return;
     }
 
-    if (hasOpponent || battleFinished) {
+    const normalizedAddress = address?.toLowerCase() ?? null;
+    if (
+      recoveredPvpQueueState &&
+      pvpQueueWalletRef.current &&
+      pvpQueueWalletRef.current !== normalizedAddress
+    ) {
       setLocalPvpQueued(false);
+      clearRecoveredPvpQueue("wallet changed");
       return;
+    }
+
+    if (recoveredPvpQueueState && hasActivePvpBattle) {
+      setLocalPvpQueued(false);
+      clearRecoveredPvpQueue("active PvP battle found");
+      return;
+    }
+
+    if (!recoveredPvpQueueState && !pvpQueueState && (hasOpponent || battleFinished)) {
+      setLocalPvpQueued(false);
+      pvpQueueActivationKeyRef.current = null;
+      return;
+    }
+
+    if (recoveredPvpQueueState && !pvpQueueState) {
+      console.info("[pvp-status] queue recovery NOT cleared during transient refresh");
     }
 
     if (isWaiting) {
       setLocalPvpQueued(true);
     }
-  }, [isConnected, isWaiting, hasOpponent, battleFinished]);
+  }, [
+    isConnected,
+    address,
+    isWaiting,
+    hasOpponent,
+    hasActivePvpBattle,
+    battleFinished,
+    pvpQueueState,
+    recoveredPvpQueueState,
+  ]);
+
+  useEffect(() => {
+    if (!isConnected || isPracticeActive || !pvpQueueState) return;
+
+    activatePvpQueuePanel(pvpQueueState, { scroll: false });
+  }, [
+    isConnected,
+    isPracticeActive,
+    pvpQueueState?.queueId,
+    pvpQueueState?.player,
+    pvpQueueState?.entryFeeMist,
+  ]);
 
   useEffect(() => {
     if (hasOpponent && dialogOpen && isQueueWaitingMessage) {
@@ -1091,7 +1269,7 @@ export default function Battle() {
   const activeModeDetails = isPracticeActive
     ? "No wallet needed - No rewards - No leaderboard credit"
     : isPvpQueued
-      ? `${entryFeeLabel} deposited - Waiting for opponent`
+      ? `${pvpQueueEntryFeeLabel} deposited - Waiting for opponent`
       : isGardenBotBattle
         ? "Leaderboard eligible - Wallet approval required"
         : `${entryFeeLabel} entry - Leaderboard eligible`;
@@ -1137,20 +1315,56 @@ export default function Battle() {
           <p>Player-vs-player queue</p>
           <div className="gb-mode-card-details">
             <div className="gb-mode-card-chips" aria-label="PvP Battle details">
-              <span>Entry: {entryFeeLabel}</span>
+              <span>{shouldShowPvpQueuePanel ? "Already in queue" : `Entry: ${entryFeeLabel}`}</span>
               <span>Winner receives {pvpWinnerPayoutLabel}</span>
               <span>{pvpTreeSupportLabel} supports TREE buybacks</span>
               <span>Wallet approval required</span>
               <span>Leaderboard eligible</span>
             </div>
-            <button
-              onClick={handleJoinBattle}
-              disabled={!isConnected || modeActionsDisabled}
-              className="gb-mode-action gb-mode-action-pvp"
-              data-testid="button-join-battle"
-            >
-              {isJoining ? "Joining..." : `Join Battle Queue (${entryFeeLabel})`}
-            </button>
+            {shouldShowPvpQueuePanel ? (
+              <>
+                <div className="gb-mode-queued-label">Already in queue</div>
+                <button
+                  type="button"
+                  onClick={handleForceRefund}
+                  disabled={isRefunding}
+                  className="gb-mode-action gb-mode-action-pvp"
+                  data-testid="button-mode-card-refund"
+                >
+                  {isRefunding ? "Refunding..." : "Get Refund"}
+                </button>
+                <button
+                  type="button"
+                  onClick={scrollToPvpQueuePanel}
+                  className="gb-mode-action gb-mode-action-secondary"
+                  data-testid="button-view-pvp-queue"
+                >
+                  View Queue
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  onClick={handleJoinBattle}
+                  disabled={!isConnected || modeActionsDisabled}
+                  className="gb-mode-action gb-mode-action-pvp"
+                  data-testid="button-join-battle"
+                >
+                  {isJoining ? "Joining..." : `Join Battle Queue (${entryFeeLabel})`}
+                </button>
+                {isConnected && !hasActiveSession && (
+                  <button
+                    type="button"
+                    onClick={handleCheckPvpQueueStatus}
+                    disabled={isCheckingPvpQueue}
+                    className="gb-mode-action gb-mode-action-secondary"
+                    data-testid="button-check-pvp-queue"
+                  >
+                    {isCheckingPvpQueue ? "Checking..." : "Check Queue Status"}
+                  </button>
+                )}
+              </>
+            )}
           </div>
         </article>
 
@@ -1235,13 +1449,17 @@ export default function Battle() {
     </section>
   ) : null;
 
-  const pvpQueuePanel = hasRefundablePvpQueue ? (
-    <section className="gb-pvp-queue-panel" aria-label="PvP battle queue status">
+  const pvpQueuePanel = shouldShowPvpQueuePanel ? (
+    <section
+      ref={pvpQueuePanelRef}
+      className="gb-pvp-queue-panel"
+      aria-label="PvP battle queue status"
+    >
       <div className="gb-pvp-queue-copy">
         <p className="gb-pvp-queue-kicker">PvP Battle Queue</p>
         <h2>Waiting for opponent</h2>
         <div className="gb-pvp-queue-facts" aria-label="PvP queue details">
-          <span>{entryFeeLabel} deposited</span>
+          <span>{pvpQueueEntryFeeLabel} deposited</span>
           <span>Winner receives {pvpWinnerPayoutLabel}</span>
           <span>{pvpTreeSupportLabel} supports TREE buybacks</span>
         </div>
