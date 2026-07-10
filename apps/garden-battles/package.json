@@ -8,6 +8,8 @@
     "build": "vite build && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
     "start": "NODE_ENV=production node dist/index.js",
     "check": "tsc",
+    "test:telegram": "tsx --test server/pvp-queue-telegram.test.ts",
+    "telegram:test-send": "tsx server/send-telegram-test.ts",
     "db:push": "drizzle-kit push",
     "nft:cli": "npm --prefix scripts run nft:cli --",
     "nft:prepare": "npm --prefix scripts run nft:prepare --",

@@ -59,6 +59,22 @@ db.exec(`
     started_at INTEGER NOT NULL,
     ended_at INTEGER
   );
+
+  CREATE TABLE IF NOT EXISTS pvp_queue_telegram_alerts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    queue_entry_key TEXT UNIQUE NOT NULL,
+    queue_id TEXT NOT NULL,
+    waiting_wallet TEXT NOT NULL,
+    queue_object_version TEXT,
+    previous_transaction TEXT,
+    entry_fee_mist INTEGER NOT NULL,
+    telegram_message_id TEXT,
+    notified_at INTEGER,
+    resolved_at INTEGER,
+    active INTEGER DEFAULT 1,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
 `);
 
 if (!hasColumn("battle_records", "transaction_digest")) {
@@ -142,6 +158,22 @@ export interface BattleRecordRow {
   recorded_at: number;
 }
 
+export interface PvpQueueTelegramAlertRow {
+  id: number;
+  queue_entry_key: string;
+  queue_id: string;
+  waiting_wallet: string;
+  queue_object_version: string | null;
+  previous_transaction: string | null;
+  entry_fee_mist: number;
+  telegram_message_id: string | null;
+  notified_at: number | null;
+  resolved_at: number | null;
+  active: number;
+  created_at: number;
+  updated_at: number;
+}
+
 export type LeaderboardMode = "pvp" | "bot" | "overall";
 
 export interface LeaderboardEntry {
@@ -222,6 +254,58 @@ const getBattleByTransactionDigestStmt = db.prepare(
   "SELECT * FROM battle_records WHERE transaction_digest = ?"
 );
 
+const getActivePvpQueueAlertStmt = db.prepare(`
+  SELECT * FROM pvp_queue_telegram_alerts
+  WHERE queue_id = ? AND active = 1
+  ORDER BY updated_at DESC
+  LIMIT 1
+`);
+
+const getPvpQueueAlertByKeyStmt = db.prepare(`
+  SELECT * FROM pvp_queue_telegram_alerts
+  WHERE queue_entry_key = ?
+`);
+
+const upsertNotifiedPvpQueueAlertStmt = db.prepare(`
+  INSERT INTO pvp_queue_telegram_alerts (
+    queue_entry_key,
+    queue_id,
+    waiting_wallet,
+    queue_object_version,
+    previous_transaction,
+    entry_fee_mist,
+    telegram_message_id,
+    notified_at,
+    resolved_at,
+    active,
+    created_at,
+    updated_at
+  )
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, 1, ?, ?)
+  ON CONFLICT(queue_entry_key) DO UPDATE SET
+    telegram_message_id = excluded.telegram_message_id,
+    notified_at = excluded.notified_at,
+    resolved_at = NULL,
+    active = 1,
+    updated_at = excluded.updated_at
+`);
+
+const resolvePvpQueueAlertStmt = db.prepare(`
+  UPDATE pvp_queue_telegram_alerts
+  SET active = 0,
+      resolved_at = COALESCE(resolved_at, ?),
+      updated_at = ?
+  WHERE queue_entry_key = ? AND active = 1
+`);
+
+const resolveActivePvpQueueAlertsStmt = db.prepare(`
+  UPDATE pvp_queue_telegram_alerts
+  SET active = 0,
+      resolved_at = COALESCE(resolved_at, ?),
+      updated_at = ?
+  WHERE queue_id = ? AND active = 1
+`);
+
 const getCompletedBattlesStmt = db.prepare(`
   SELECT * FROM battle_records
   WHERE winner IS NOT NULL
@@ -238,6 +322,17 @@ export interface TrackBattleInput {
   isBotBattle: boolean;
   transactionDigest?: string | null;
   finishedAt: number;
+}
+
+export interface UpsertPvpQueueTelegramAlertInput {
+  queueEntryKey: string;
+  queueId: string;
+  waitingWallet: string;
+  queueObjectVersion?: string | null;
+  previousTransaction?: string | null;
+  entryFeeMist: number;
+  telegramMessageId?: string | null;
+  notifiedAt: number;
 }
 
 export function trackBattle(input: TrackBattleInput): void {
@@ -505,4 +600,53 @@ export function getBattleByTransactionDigest(
     (getBattleByTransactionDigestStmt.get(transactionDigest) as BattleRecordRow) ??
     null
   );
+}
+
+export function getActivePvpQueueTelegramAlert(
+  queueId: string,
+): PvpQueueTelegramAlertRow | null {
+  return (
+    (getActivePvpQueueAlertStmt.get(queueId) as PvpQueueTelegramAlertRow) ?? null
+  );
+}
+
+export function getPvpQueueTelegramAlertByKey(
+  queueEntryKey: string,
+): PvpQueueTelegramAlertRow | null {
+  return (
+    (getPvpQueueAlertByKeyStmt.get(queueEntryKey) as PvpQueueTelegramAlertRow) ??
+    null
+  );
+}
+
+export function upsertNotifiedPvpQueueTelegramAlert(
+  input: UpsertPvpQueueTelegramAlertInput,
+): void {
+  const now = Date.now();
+  upsertNotifiedPvpQueueAlertStmt.run(
+    input.queueEntryKey,
+    input.queueId,
+    input.waitingWallet.toLowerCase(),
+    input.queueObjectVersion ?? null,
+    input.previousTransaction ?? null,
+    input.entryFeeMist,
+    input.telegramMessageId ?? null,
+    input.notifiedAt,
+    now,
+    now,
+  );
+}
+
+export function resolvePvpQueueTelegramAlert(
+  queueEntryKey: string,
+  resolvedAt = Date.now(),
+): void {
+  resolvePvpQueueAlertStmt.run(resolvedAt, resolvedAt, queueEntryKey);
+}
+
+export function resolveActivePvpQueueTelegramAlerts(
+  queueId: string,
+  resolvedAt = Date.now(),
+): void {
+  resolveActivePvpQueueAlertsStmt.run(resolvedAt, resolvedAt, queueId);
 }

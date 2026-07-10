@@ -18,6 +18,7 @@ import {
   getGlobalRecentBattles,
   type LeaderboardMode,
 } from "./battle-storage";
+import { startPvpQueueTelegramNotifier } from "./pvp-queue-telegram";
 
 // ─── Sui polling configuration ────────────────────────────────────────────────
 const SUI_RPC_URL =
@@ -740,6 +741,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     pollSuiEvents(); // immediate first poll
     setInterval(pollSuiEvents, POLL_INTERVAL_MS);
   }
+
+  startPvpQueueTelegramNotifier();
 
   return httpServer;
 }
