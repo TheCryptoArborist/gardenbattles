@@ -96,6 +96,7 @@ interface SuiWalletContextType {
   adminForceClose: (winner?: string) => Promise<void>;
   cancelQueue: () => Promise<any>;
   refreshPvpQueueState: () => Promise<PvpQueueState | null>;
+  refreshActivePvpBattle: (reason?: string) => Promise<BattleState | null>;
   getFirstValidSaplingNft: (owner: string) => Promise<NftData | null>;
   ConnectWalletButton: () => JSX.Element;
 }
@@ -198,6 +199,18 @@ function isActiveBattleForAddress(
 ): state is BattleState {
   return (
     battleBelongsToAddress(state, address) && !state.winner && !state.finished
+  );
+}
+
+function isActivePvpBattleForAddress(
+  state: BattleState | null,
+  address: string | null,
+): state is BattleState {
+  return (
+    isActiveBattleForAddress(state, address) &&
+    !state.isBotBattle &&
+    !isZeroAddress(state.player1) &&
+    !isZeroAddress(state.player2)
   );
 }
 
@@ -503,6 +516,36 @@ async function getBattleStateFromTransaction(
   return null;
 }
 
+async function findActivePvpBattleState(
+  suiClient: any,
+  address: string,
+): Promise<BattleState | null> {
+  console.info("[pvp-match] checking active battle", { address });
+  const events = await suiClient.queryEvents({
+    query: { MoveEventType: getBattleUpdateEvent() },
+    limit: 100,
+    order: "descending",
+  });
+
+  for (const event of events.data ?? []) {
+    const eventState = parseBattleStateFromEvent(event.parsedJson);
+    if (!battleBelongsToAddress(eventState, address)) continue;
+    if (eventState?.isBotBattle) continue;
+
+    const battleId = eventState.battleId;
+    if (!battleId) continue;
+
+    const liveState = await getLiveBattleState(suiClient, battleId);
+    if (isActivePvpBattleForAddress(liveState ?? null, address)) {
+      console.info("[pvp-match] active battle found", { battleId });
+      return liveState as BattleState;
+    }
+  }
+
+  console.info("[pvp-match] no active battle found");
+  return null;
+}
+
 async function getBattleUpdateStateFromTransaction(
   suiClient: any,
   digest: string,
@@ -605,6 +648,42 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
         battleState.turn === 1));
 
   const clearActionLog = useCallback(() => setActionLog([]), []);
+
+  const hydrateActivePvpBattle = useCallback(
+    (state: BattleState, reason: string): BattleState | null => {
+      if (!address || !isActivePvpBattleForAddress(state, address)) {
+        return null;
+      }
+
+      console.info("[pvp-match] battle hydrated", {
+        battleId: state.battleId,
+        reason,
+      });
+      setBattleState(state);
+      prevBattleStateRef.current = state;
+      setIsWaiting(false);
+      setPvpQueueState(null);
+      cacheBattleState(address, state);
+      console.info("[pvp-match] stale queue state cleared", { reason });
+      return state;
+    },
+    [address],
+  );
+
+  const refreshActivePvpBattle = useCallback(
+    async (reason = "manual refresh"): Promise<BattleState | null> => {
+      if (!address) return null;
+
+      try {
+        const state = await findActivePvpBattleState(suiClient, address);
+        return state ? hydrateActivePvpBattle(state, reason) : null;
+      } catch (err) {
+        console.warn("[pvp-match] active battle check failed", err);
+        return null;
+      }
+    },
+    [address, hydrateActivePvpBattle, suiClient],
+  );
 
   const refreshPvpQueueState = useCallback(async () => {
     if (!address) {
@@ -759,6 +838,15 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
   );
 
   useEffect(() => {
+    if (!isConnected || !address) return;
+    if (isActivePvpBattleForAddress(battleState, address)) return;
+
+    void refreshActivePvpBattle("page load").catch((err) => {
+      console.warn("[pvp-match] page-load active battle check failed", err);
+    });
+  }, [isConnected, address, battleState?.battleId, refreshActivePvpBattle]);
+
+  useEffect(() => {
     if (!isConnected || !address) {
       setPvpQueueState(null);
       return;
@@ -768,12 +856,22 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
 
     const checkQueue = async () => {
       try {
+        const hadQueueState =
+          isWaitingRef.current ||
+          !!pvpQueueState ||
+          isActiveBattleForAddress(battleState, address);
         const state = await refreshPvpQueueState();
         if (cancelled) return;
         if (state) {
           console.info("[pvp-queue] refund object id", {
             queueId: state.queueId,
           });
+        } else if (hadQueueState) {
+          console.info("[pvp-match] queue cleared; checking for match");
+          const activeBattle = await refreshActivePvpBattle("queue cleared");
+          if (!cancelled && !activeBattle) {
+            console.info("[pvp-match] no active battle found after queue cleared");
+          }
         }
       } catch (err) {
         if (!cancelled) {
@@ -791,7 +889,14 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
       cancelled = true;
       clearInterval(interval);
     };
-  }, [isConnected, address, refreshPvpQueueState]);
+  }, [
+    isConnected,
+    address,
+    pvpQueueState,
+    battleState,
+    refreshPvpQueueState,
+    refreshActivePvpBattle,
+  ]);
 
   useEffect(() => {
     if (!isConnected || !address) return;
@@ -1153,15 +1258,28 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
         signAndExecuteTransaction(
           { transaction: tx, chain: SUI_CONFIG.CHAIN },
           {
-            onSuccess: (result) => {
+            onSuccess: async (result) => {
               console.log("join_queue tx success:", result.digest);
+              try {
+                const matchedBattle = await getBattleStateFromTransaction(
+                  suiClient,
+                  result.digest,
+                  address,
+                );
+                if (matchedBattle && hydrateActivePvpBattle(matchedBattle, "join_queue transaction")) {
+                  resolve();
+                  return;
+                }
+              } catch (err) {
+                console.warn("[pvp-match] could not hydrate joined battle from transaction", err);
+              }
+
               setPvpQueueState({
                 queueId: SUI_CONFIG.MATCHMAKING_QUEUE_ID,
                 player: address.toLowerCase(),
                 entryFeeMist: liveEntryFeeMist,
               });
               setIsWaiting(true);
-
               resolve();
             },
             onError: (err: any) => {
@@ -1178,6 +1296,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
       refreshEntryFee,
       suiClient,
       signAndExecuteTransaction,
+      hydrateActivePvpBattle,
     ],
   );
 
@@ -1998,6 +2117,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
         adminForceClose,
         cancelQueue,
         refreshPvpQueueState,
+        refreshActivePvpBattle,
         getFirstValidSaplingNft,
         ConnectWalletButton,
       }}

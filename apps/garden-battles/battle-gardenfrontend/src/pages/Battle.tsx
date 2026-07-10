@@ -236,6 +236,7 @@ export default function Battle() {
     adminForceClose,
     cancelQueue,
     refreshPvpQueueState,
+    refreshActivePvpBattle,
     getFirstValidSaplingNft,
   } = useSuiWallet();
   const {
@@ -593,13 +594,23 @@ export default function Battle() {
         setDialogMessage("");
       } else {
         console.info("[pvp-status] no queue found");
-        setLocalPvpQueued(false);
-        clearRecoveredPvpQueue("confirmed no queue");
-        setDialogOpen(true);
-        setDialogKind("info");
-        setDialogMessage(
-          "No active refundable PvP queue entry was found for this wallet.",
-        );
+        const activeBattle = await refreshActivePvpBattle("queue status check");
+        if (activeBattle) {
+          setLocalPvpQueued(false);
+          clearRecoveredPvpQueue("active PvP battle found");
+          setDialogOpen(false);
+          setDialogKind("info");
+          setDialogMessage("");
+          scrollToBattleFocus();
+        } else {
+          setLocalPvpQueued(false);
+          clearRecoveredPvpQueue("confirmed no queue");
+          setDialogOpen(true);
+          setDialogKind("info");
+          setDialogMessage(
+            "No active refundable PvP queue entry was found for this wallet.",
+          );
+        }
       }
     } catch (err) {
       console.warn("[pvp-status] queue check failed", err);
