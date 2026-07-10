@@ -264,6 +264,7 @@ export default function Battle() {
   const [arboretumModalOpen, setArboretumModalOpen] = useState(false);
   const [isRefunding, setIsRefunding] = useState(false);
   const [isJoining, setIsJoining] = useState(false);
+  const [localPvpQueued, setLocalPvpQueued] = useState(false);
   const [isStartingBot, setIsStartingBot] = useState(false);
   const [isClaimingTimeout, setIsClaimingTimeout] = useState(false);
   const [isForfeiting, setIsForfeiting] = useState(false);
@@ -325,6 +326,7 @@ export default function Battle() {
         );
         setPlayerNftImageUrl(nftData.imageUrl || null);
         await joinBattle(nftData);
+        setLocalPvpQueued(true);
         setDialogOpen(false);
         setDialogMessage("");
         setDialogKind("info");
@@ -464,6 +466,7 @@ export default function Battle() {
         `Refund requested\n\nWaiting for wallet approval to refund your ${entryFeeLabel}.\n\nApprove or reject the request in your wallet.`,
       );
       await cancelQueue();
+      setLocalPvpQueued(false);
       setDialogOpen(true);
       setDialogKind("pvp-refund-success");
       setDialogMessage(
@@ -726,8 +729,13 @@ export default function Battle() {
     !!battleState.player2 &&
     battleState.player1 !== "0x0" &&
     battleState.player2 !== "0x0";
-  const hasRefundablePvpQueue =
-    isConnected && isWaiting && !battleState && !isPracticeActive;
+  const isPvpQueued =
+    isConnected &&
+    !isPracticeActive &&
+    !battleFinished &&
+    !hasOpponent &&
+    (localPvpQueued || isWaiting);
+  const hasRefundablePvpQueue = isPvpQueued;
   const isQueueWaitingMessage =
     /waiting for (opponent|chain update)|joined queue/i.test(dialogMessage);
   const isQueueWaitingDialog = isWaiting && isQueueWaitingMessage;
@@ -745,6 +753,22 @@ export default function Battle() {
     setIsRefunding(false);
     setIsResultPlayAgainStarting(false);
   };
+
+  useEffect(() => {
+    if (!isConnected) {
+      setLocalPvpQueued(false);
+      return;
+    }
+
+    if (hasOpponent || battleFinished) {
+      setLocalPvpQueued(false);
+      return;
+    }
+
+    if (isWaiting) {
+      setLocalPvpQueued(true);
+    }
+  }, [isConnected, isWaiting, hasOpponent, battleFinished]);
 
   useEffect(() => {
     if (hasOpponent && dialogOpen && isQueueWaitingMessage) {
@@ -1054,19 +1078,19 @@ export default function Battle() {
     SUI_CONFIG.ADMIN_ADDRESSES.some(
       (adminAddr) => adminAddr.toLowerCase() === address.toLowerCase(),
     );
-  const hasActiveSession = isWaiting || (!!battleState && !battleFinished);
+  const hasActiveSession = isPvpQueued || (!!battleState && !battleFinished);
   const showFullModeSelect = !hasActiveSession || modeCardsExpanded;
   const modeActionsDisabled = hasActiveSession || isJoining || isStartingBot;
   const activeModeTitle = isPracticeActive
     ? "Practice Mode"
-    : isWaiting
+    : isPvpQueued
       ? "PvP Battle Queue"
       : isGardenBotBattle
         ? "Single Player Garden Bot"
         : "PvP Battle";
   const activeModeDetails = isPracticeActive
     ? "No wallet needed - No rewards - No leaderboard credit"
-    : isWaiting
+    : isPvpQueued
       ? `${entryFeeLabel} deposited - Waiting for opponent`
       : isGardenBotBattle
         ? "Leaderboard eligible - Wallet approval required"
@@ -1596,7 +1620,7 @@ export default function Battle() {
             className={
               !isConnected && !battleState
                 ? "gb-battle-arena gb-battle-arena-disconnected"
-                : isWaiting && !battleState
+                : isPvpQueued
                   ? "gb-battle-arena gb-battle-arena-queue"
                 : "gb-battle-arena"
             }
@@ -1607,7 +1631,7 @@ export default function Battle() {
               Connect for ranked modes, or start Practice Mode above.
             </div>
           )}
-          {isWaiting && !battleState && (
+          {isPvpQueued && (
             <div className="gb-queue-arena-overlay">
               Waiting for PvP opponent.
             </div>
@@ -2682,11 +2706,6 @@ export default function Battle() {
           message={dialogMessage}
           onClose={handleCloseBattleDialog}
           canClose={canCloseBattleDialog}
-          pendingNote={
-            isWalletPendingDialog
-              ? "Approve or reject the request in your wallet."
-              : undefined
-          }
         />
         <BattleResultModal
           open={resultModalOpen}
