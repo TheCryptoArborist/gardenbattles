@@ -19,6 +19,26 @@ module battle_garden::matchmaking {
         entry_fee_snapshot: u64,
     }
 
+    #[test_only]
+    public fun has_waiting(queue: &MatchmakingQueue): bool {
+        option::is_some(&queue.waiting)
+    }
+
+    #[test_only]
+    public fun waiting_player(queue: &MatchmakingQueue): address {
+        option::borrow(&queue.waiting).player
+    }
+
+    #[test_only]
+    public fun waiting_entry_fee_snapshot(queue: &MatchmakingQueue): u64 {
+        option::borrow(&queue.waiting).entry_fee_snapshot
+    }
+
+    #[test_only]
+    public fun bank_value(queue: &MatchmakingQueue): u64 {
+        balance::value(&queue.bank)
+    }
+
     fun init(ctx: &mut TxContext) {
         let queue = MatchmakingQueue {
             id: object::new(ctx),
@@ -27,6 +47,12 @@ module battle_garden::matchmaking {
         };
         sui::transfer::share_object(queue);
     }
+
+    #[test_only]
+    public fun create_queue_for_testing(ctx: &mut TxContext) {
+        init(ctx);
+    }
+
     public fun join_queue<T: key + store>(config: &Config, queue: &mut MatchmakingQueue, _nft: &T, payment: Coin<SUI>, rand: &Random, ctx: &mut TxContext) {
         assert!(!config::paused(config), errors::e_paused());
         assert!(config::is_collection_whitelisted<T>(config), errors::e_nft_not_whitelisted());

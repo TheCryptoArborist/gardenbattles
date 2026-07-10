@@ -869,6 +869,14 @@ module battle_garden::battle {
     #[test_only]
     public fun p2_growth(battle: &Battle): u64 { battle.p2_growth }
     #[test_only]
+    public fun vault_value(battle: &Battle): u64 { balance::value(&battle.vault) }
+    #[test_only]
+    public fun battle_entry_fee(battle: &Battle): u64 { battle.battle_entry_fee }
+    #[test_only]
+    public fun battle_winner_payout(battle: &Battle): u64 { battle.winner_payout }
+    #[test_only]
+    public fun battle_treasury_share(battle: &Battle): u64 { battle.treasury_share }
+    #[test_only]
     public fun is_finished(battle: &Battle): bool { battle.finished }
     #[test_only]
     public fun winner(battle: &Battle): Option<address> { battle.winner }
