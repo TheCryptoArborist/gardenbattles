@@ -82,17 +82,17 @@ export default function ForestPower({ address }: ForestPowerProps) {
 
   return (
     <div
-      className={`gb-holder-rank-badge ${tier.className}`}
+      className={`gb-holder-rank-badge gb-hud-rank-card gb-tree-status-card ${tier.className}`}
       title={`Liquid TREE: ${exactBalance} TREE. SuiDex V3: Not included in liquid balance.`}
     >
-      <span className="gb-rank-main">
+      <span className="gb-hud-rank-crest-shell">
         <TreeBadgeCrest family="tree-status" rankName={tier.label} size="lg" />
-        <span className="gb-rank-copy">
-          <span className="gb-holder-rank-kicker">TREE Status</span>
-          <span className="gb-holder-rank-title">{tier.label}</span>
-        </span>
       </span>
-      <span className="gb-holder-rank-balance">{compactBalance} TREE</span>
+      <span className="gb-hud-rank-content">
+        <span className="gb-holder-rank-kicker">TREE Status</span>
+        <span className="gb-holder-rank-title">{tier.label}</span>
+        <span className="gb-holder-rank-balance">{compactBalance} TREE</span>
+      </span>
     </div>
   );
 }

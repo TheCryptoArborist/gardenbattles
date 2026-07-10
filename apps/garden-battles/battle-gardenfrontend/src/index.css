@@ -1009,6 +1009,170 @@
     line-height: 1.1;
   }
 
+  .gb-hud-rank-card {
+    align-items: center;
+    display: grid;
+    gap: 14px;
+    grid-template-columns: auto minmax(0, 1fr);
+    justify-content: start;
+    min-height: 96px;
+    min-width: min(100%, 292px);
+    padding: 12px 15px 12px 13px;
+  }
+
+  .gb-tree-status-card,
+  .gb-player-record-card.gb-hud-rank-card {
+    width: min(100%, 330px);
+  }
+
+  .gb-hud-rank-crest-shell {
+    align-items: center;
+    background:
+      radial-gradient(circle at 50% 42%, color-mix(in srgb, var(--rank-accent) 24%, transparent), transparent 58%),
+      linear-gradient(145deg, rgba(0, 21, 18, 0.92), rgba(0, 4, 5, 0.96));
+    border: 1px solid color-mix(in srgb, var(--rank-accent) 58%, rgba(234, 255, 246, 0.14));
+    border-radius: 14px;
+    box-shadow:
+      0 0 18px color-mix(in srgb, var(--rank-accent) 22%, transparent),
+      inset 0 0 16px rgba(255, 255, 255, 0.05),
+      inset 0 -10px 16px rgba(0, 0, 0, 0.35);
+    display: inline-flex;
+    height: 68px;
+    justify-content: center;
+    position: relative;
+    width: 68px;
+  }
+
+  .gb-hud-rank-crest-shell::after {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.24), transparent 44%);
+    border-radius: inherit;
+    content: "";
+    inset: 4px;
+    opacity: 0.38;
+    pointer-events: none;
+    position: absolute;
+  }
+
+  .gb-hud-rank-card .gb-tree-badge-crest-lg {
+    height: 58px;
+    width: 58px;
+  }
+
+  .gb-hud-rank-card .gb-tree-badge-image {
+    height: 98%;
+    width: 98%;
+  }
+
+  .gb-hud-rank-content {
+    align-items: flex-start;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+    text-align: left;
+    width: 100%;
+  }
+
+  .gb-hud-rank-card .gb-holder-rank-kicker,
+  .gb-hud-rank-card .gb-battle-rank-kicker {
+    color: rgba(220, 255, 238, 0.66);
+    font-size: 9px;
+    letter-spacing: 1px;
+  }
+
+  .gb-hud-rank-card .gb-holder-rank-title,
+  .gb-hud-rank-card .gb-battle-rank-title {
+    color: #f1fff7;
+    font-size: clamp(14px, 2.8vw, 16px);
+    letter-spacing: 0.5px;
+    line-height: 1.08;
+    overflow-wrap: anywhere;
+    text-align: left;
+    text-shadow: 0 0 10px color-mix(in srgb, var(--rank-accent) 28%, transparent);
+  }
+
+  .gb-hud-rank-card .gb-holder-rank-balance {
+    align-self: stretch;
+    border-left: 0;
+    border-top: 1px solid rgba(234, 255, 246, 0.12);
+    color: rgba(220, 255, 238, 0.78);
+    font-size: 11px;
+    letter-spacing: 0.45px;
+    margin-top: 1px;
+    padding-left: 0;
+    padding-top: 6px;
+    white-space: normal;
+  }
+
+  .gb-player-record-card.gb-hud-rank-card {
+    flex-direction: initial;
+    gap: 14px;
+  }
+
+  .gb-hud-rank-card .gb-player-record-stats {
+    align-items: baseline;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    justify-content: flex-start;
+    line-height: 1.12;
+    margin-top: 2px;
+    text-align: left;
+  }
+
+  .gb-hud-rank-card .gb-player-record-stats > span {
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    padding: 0;
+  }
+
+  .gb-player-record-meta {
+    align-items: flex-start;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    justify-content: flex-start;
+    text-align: left;
+  }
+
+  .gb-hud-rank-card .gb-player-record-streak,
+  .gb-player-record-meta .gb-player-record-total {
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    display: block;
+    padding: 0;
+    text-align: left;
+  }
+
+  @media (max-width: 520px) {
+    .gb-player-status-strip {
+      align-items: stretch;
+    }
+
+    .gb-tree-status-card,
+    .gb-player-record-card.gb-hud-rank-card {
+      width: 100%;
+    }
+
+    .gb-hud-rank-card {
+      grid-template-columns: 62px minmax(0, 1fr);
+      min-height: 88px;
+      padding: 10px 12px;
+    }
+
+    .gb-hud-rank-crest-shell {
+      height: 60px;
+      width: 60px;
+    }
+
+    .gb-hud-rank-card .gb-tree-badge-crest-lg {
+      height: 52px;
+      width: 52px;
+    }
+  }
+
   .gb-battle-rank-table {
     justify-content: center;
     min-width: 156px;

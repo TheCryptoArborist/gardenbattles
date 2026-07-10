@@ -108,39 +108,42 @@ export default function PlayerRecord({
       style={{ display: "block", textDecoration: "none" }}
     >
     <div
-      className={`gb-player-record-card ${getBattleRankClass(displayRankTitle)}`}
+      className={`gb-player-record-card gb-hud-rank-card ${getBattleRankClass(displayRankTitle)}`}
       title="View full leaderboard"
     >
-      <div className={`gb-battle-rank-badge ${getBattleRankClass(displayRankTitle)}`}>
+      <span className="gb-hud-rank-crest-shell">
         <TreeBadgeCrest family="battle-rank" rankName={displayRankTitle} size="lg" />
-        <span className="gb-rank-copy">
-          <span className="gb-battle-rank-kicker">Battle Rank</span>
-          <span className="gb-battle-rank-title">{displayRankTitle}</span>
-        </span>
-      </div>
+      </span>
 
-      <div
-        className="gb-player-record-stats"
-        aria-label={`${stats.wins} wins, ${stats.losses} losses`}
-      >
-        <span className="gb-player-record-wins">{stats.wins}W</span>
-        <span className="gb-player-record-losses">{stats.losses}L</span>
-        {stats.total_battles > 0 && (
-          <span className="gb-player-record-win-rate">
-            ({Math.round(stats.win_rate * 100)}%)
+      <span className="gb-hud-rank-content">
+        <span className="gb-battle-rank-kicker">Battle Rank</span>
+        <span className="gb-battle-rank-title">{displayRankTitle}</span>
+
+        <span
+          className="gb-player-record-stats"
+          aria-label={`${stats.wins} wins, ${stats.losses} losses`}
+        >
+          <span className="gb-player-record-wins">{stats.wins}W</span>
+          <span className="gb-player-record-losses">{stats.losses}L</span>
+          {stats.total_battles > 0 && (
+            <span className="gb-player-record-win-rate">
+              ({Math.round(stats.win_rate * 100)}%)
+            </span>
+          )}
+        </span>
+
+        {streakLabel && (
+          <span className="gb-player-record-streak">
+            {streakLabel}
           </span>
         )}
-      </div>
 
-      {streakLabel && (
-        <div className="gb-player-record-streak">
-          {streakLabel}
-        </div>
-      )}
-
-      <div className="gb-player-record-total">
-        {stats.total_battles} battle{stats.total_battles !== 1 ? "s" : ""}
-      </div>
+        <span className="gb-player-record-meta">
+          <span className="gb-player-record-total">
+            {stats.total_battles} battle{stats.total_battles !== 1 ? "s" : ""}
+          </span>
+        </span>
+      </span>
     </div>
     </Link>
   );
