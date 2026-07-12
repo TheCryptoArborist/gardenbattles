@@ -237,6 +237,12 @@ export default function Battle() {
     cancelQueue,
     refreshPvpQueueState,
     refreshActivePvpBattle,
+    refreshCurrentBattleState,
+    moveLifecycleStage,
+    isMoveTransactionPending,
+    isBattleRefreshPending,
+    recoverableBattleError,
+    dismissRecoverableBattleError,
     getFirstValidSaplingNft,
   } = useSuiWallet();
   const {
@@ -317,6 +323,20 @@ export default function Battle() {
     setInlineError(message);
     inlineErrorTimer.current = setTimeout(() => setInlineError(null), 8000);
   };
+
+  const handleRefreshBattle = async () => {
+    const refreshed = await refreshCurrentBattleState("recoverable error panel");
+    if (!refreshed) {
+      showInlineError("Move confirmed on-chain, but the battle state could not be refreshed.");
+    }
+  };
+
+  useEffect(() => {
+    if (moveLifecycleStage === "leaderboard-sync-failed") {
+      showInlineError("Move confirmed. Leaderboard sync will retry.");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [moveLifecycleStage]);
 
   const handleJoinBattle = async () => {
     if (!isConnected) {
@@ -719,7 +739,14 @@ export default function Battle() {
   // }, [isConnected, address, battleState, hasScanned, joinBattle, getFirstValidSaplingNft]);
 
   const handleUseAbility = async (abilityId: number) => {
-    if (pendingMoveId !== null) return; // prevent double-click
+    if (
+      pendingMoveId !== null ||
+      isMoveTransactionPending ||
+      isBattleRefreshPending ||
+      (!!recoverableBattleError && !isPracticeActive)
+    ) {
+      return;
+    }
     if (!battleState || battleState.finished || battleState.winner) {
       showInlineError("Battle not active.");
       return;
@@ -762,6 +789,16 @@ export default function Battle() {
                 lowerMsg.includes("not available") ||
                 /\b109\b/.test(msg)
               ? "That move isn't in your assigned move set."
+              : lowerMsg.includes("transaction submitted") &&
+                  lowerMsg.includes("confirmation")
+                ? "Transaction submitted, but confirmation could not be loaded. Check your wallet history before trying again."
+              : lowerMsg.includes("move was not submitted") ||
+                  lowerMsg.includes("failed to fetch") ||
+                  lowerMsg.includes("network")
+                ? "Move was not submitted. Check your wallet connection and network, then try again."
+              : lowerMsg.includes("battle state could not be refreshed") ||
+                  lowerMsg.includes("did not refresh")
+                ? "Move confirmed on-chain, but the battle state could not be refreshed."
               : msg;
       showInlineError(friendly);
     } finally {
@@ -870,6 +907,11 @@ export default function Battle() {
     !isGardenBotBattle &&
     hasOpponent &&
     !battleFinished;
+  const moveControlsLocked =
+    pendingMoveId !== null ||
+    isMoveTransactionPending ||
+    isBattleRefreshPending ||
+    (!!recoverableBattleError && !isPracticeActive && hasActivePvpBattle);
   const isPvpQueued =
     isConnected &&
     !isPracticeActive &&
@@ -2403,11 +2445,24 @@ export default function Battle() {
                 padding: "8px 16px",
                 borderRadius: "8px",
                 background:
-                  pendingMoveId !== null
+                  pendingMoveId !== null || isMoveTransactionPending
                     ? "rgba(80,60,0,0.7)"
+                    : isBattleRefreshPending
+                      ? "rgba(0, 70, 80, 0.78)"
                     : "rgba(0,40,80,0.7)",
-                border: `1px solid ${pendingMoveId !== null ? "#ffcc00" : "#44aaff"}`,
-                color: pendingMoveId !== null ? "#ffcc00" : "#88ccff",
+                border: `1px solid ${
+                  pendingMoveId !== null || isMoveTransactionPending
+                    ? "#ffcc00"
+                    : isBattleRefreshPending
+                      ? "#00e5ff"
+                      : "#44aaff"
+                }`,
+                color:
+                  pendingMoveId !== null || isMoveTransactionPending
+                    ? "#ffcc00"
+                    : isBattleRefreshPending
+                      ? "#c9fbff"
+                      : "#88ccff",
                 fontSize: "clamp(11px, 2.5vw, 14px)",
                 fontWeight: "bold",
                 letterSpacing: "0.5px",
@@ -2418,8 +2473,12 @@ export default function Battle() {
                 ? "Battle Over!"
                 : isPracticeActive
                   ? "Practice Mode - choose a move. No wallet prompt."
+                : isBattleRefreshPending
+                  ? "Refreshing battle state from chain..."
                 : pendingMoveId !== null
                   ? `Waiting for transaction... (${MOVE_LABELS[pendingMoveId] || "Move"})`
+                  : isMoveTransactionPending
+                    ? "Waiting for transaction confirmation..."
                   : !isMyTurn
                     ? "Waiting for your opponent..."
                     : "Choose your move - each turn = 1 wallet confirmation"}
@@ -2547,6 +2606,106 @@ export default function Battle() {
               </div>
             )}
 
+            {recoverableBattleError && hasActivePvpBattle && (
+              <div
+                role="alert"
+                style={{
+                  marginBottom: "12px",
+                  padding: "14px",
+                  border: "1px solid rgba(0, 229, 255, 0.68)",
+                  borderRadius: "10px",
+                  background:
+                    "linear-gradient(135deg, rgba(0, 34, 48, 0.94), rgba(35, 22, 0, 0.88))",
+                  boxShadow: "0 0 18px rgba(0, 229, 255, 0.16)",
+                  color: "#d8fbff",
+                  fontFamily: "Orbitron, sans-serif",
+                }}
+              >
+                <div
+                  style={{
+                    color: "#00e5ff",
+                    fontSize: "clamp(12px, 2.6vw, 15px)",
+                    fontWeight: 900,
+                    letterSpacing: "0.04em",
+                    textTransform: "uppercase",
+                    marginBottom: "6px",
+                  }}
+                >
+                  {recoverableBattleError.title}
+                </div>
+                <div
+                  style={{
+                    color: "#c9fbff",
+                    fontSize: "clamp(11px, 2.5vw, 13px)",
+                    lineHeight: 1.45,
+                    marginBottom: recoverableBattleError.detail ? "6px" : "12px",
+                  }}
+                >
+                  {recoverableBattleError.body}
+                </div>
+                {recoverableBattleError.detail && (
+                  <div
+                    style={{
+                      color: "#ffe7a8",
+                      fontSize: "clamp(10px, 2.4vw, 12px)",
+                      lineHeight: 1.4,
+                      marginBottom: "12px",
+                    }}
+                  >
+                    {recoverableBattleError.detail}
+                  </div>
+                )}
+                <div
+                  style={{
+                    display: "flex",
+                    gap: "10px",
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={handleRefreshBattle}
+                    disabled={isBattleRefreshPending}
+                    style={{
+                      background: isBattleRefreshPending
+                        ? "rgba(0, 160, 160, 0.28)"
+                        : "linear-gradient(135deg, #00e5ff, #00ff88)",
+                      border: "1px solid rgba(201, 251, 255, 0.65)",
+                      borderRadius: "8px",
+                      color: "#021a18",
+                      cursor: isBattleRefreshPending ? "wait" : "pointer",
+                      fontSize: "12px",
+                      fontWeight: 900,
+                      letterSpacing: "0.04em",
+                      padding: "9px 13px",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    {isBattleRefreshPending ? "Refreshing..." : "Refresh Battle"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={dismissRecoverableBattleError}
+                    disabled={isBattleRefreshPending}
+                    style={{
+                      background: "rgba(4, 14, 18, 0.72)",
+                      border: "1px solid rgba(201, 251, 255, 0.35)",
+                      borderRadius: "8px",
+                      color: "#c9fbff",
+                      cursor: isBattleRefreshPending ? "not-allowed" : "pointer",
+                      fontSize: "12px",
+                      fontWeight: 800,
+                      letterSpacing: "0.04em",
+                      padding: "9px 13px",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Move card grid */}
             <div
               style={{
@@ -2581,7 +2740,7 @@ export default function Battle() {
                 const isHybrid = meta?.type === "hybrid";
                 const isPending = pendingMoveId === moveId;
                 const isDisabled =
-                  battleFinished || pendingMoveId !== null || !isMyTurn;
+                  battleFinished || moveControlsLocked || !isMyTurn;
 
                 const borderColor = isGrowth
                   ? "#00ff88"

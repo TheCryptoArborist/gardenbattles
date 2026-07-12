@@ -66,6 +66,22 @@ export interface PvpQueueState {
   entryFeeMist: number;
 }
 
+export type MoveLifecycleStage =
+  | "idle"
+  | "awaiting-wallet-approval"
+  | "transaction-submitted"
+  | "transaction-confirmed"
+  | "battle-refresh-running"
+  | "battle-refresh-failed"
+  | "leaderboard-sync-failed";
+
+export interface RecoverableBattleError {
+  title: string;
+  body: string;
+  detail?: string;
+  digest?: string;
+}
+
 type BotStartStatus =
   | "wallet-request-opened"
   | "transaction-digest-received"
@@ -97,6 +113,12 @@ interface SuiWalletContextType {
   cancelQueue: () => Promise<any>;
   refreshPvpQueueState: () => Promise<PvpQueueState | null>;
   refreshActivePvpBattle: (reason?: string) => Promise<BattleState | null>;
+  refreshCurrentBattleState: (reason?: string) => Promise<BattleState | null>;
+  moveLifecycleStage: MoveLifecycleStage;
+  isMoveTransactionPending: boolean;
+  isBattleRefreshPending: boolean;
+  recoverableBattleError: RecoverableBattleError | null;
+  dismissRecoverableBattleError: () => void;
   getFirstValidSaplingNft: (owner: string) => Promise<NftData | null>;
   ConnectWalletButton: () => JSX.Element;
 }
@@ -120,6 +142,17 @@ interface BattleUpdateTransactionResult {
 
 const DEBUG_TX_TIMING = import.meta.env.VITE_DEBUG_TX_TIMING === "true";
 const DEBUG_BATTLE_LOG = import.meta.env.VITE_DEBUG_BATTLE_LOG === "true";
+const MOVE_NOT_SUBMITTED_MESSAGE =
+  "Move was not submitted. Check your wallet connection and network, then try again.";
+const TRANSACTION_CONFIRMATION_UNAVAILABLE_MESSAGE =
+  "Transaction submitted, but confirmation could not be loaded. Check your wallet history before trying again.";
+const BATTLE_REFRESH_FAILED_MESSAGE =
+  "Move confirmed on-chain, but the battle state could not be refreshed.";
+const LEADERBOARD_SYNC_FAILED_MESSAGE =
+  "Move confirmed. Leaderboard sync will retry.";
+const RECOVERABLE_BATTLE_ERROR_TITLE = "Battle refresh interrupted";
+const RECOVERABLE_BATTLE_ERROR_BODY =
+  "Your battle is still active. Refresh the on-chain state before making another move.";
 
 function txTimingNow() {
   return typeof performance !== "undefined" ? performance.now() : Date.now();
@@ -626,12 +659,18 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
   );
   const [randomObjectId, setRandomObjectId] = useState<string | null>(null);
   const [actionLog, setActionLog] = useState<ActionEntry[]>([]);
+  const [moveLifecycleStage, setMoveLifecycleStage] =
+    useState<MoveLifecycleStage>("idle");
+  const [isBattleRefreshPending, setIsBattleRefreshPending] = useState(false);
+  const [recoverableBattleError, setRecoverableBattleError] =
+    useState<RecoverableBattleError | null>(null);
   const prevBattleStateRef = useRef<BattleState | null>(null);
   const lastMoveIdRef = useRef<number>(0);
   const lastLoggedActionKeyRef = useRef<string | null>(null);
   const recentBattleDigestRef = useRef<string | null>(null);
   const submittedBattleDigestsRef = useRef<Set<string>>(new Set());
   const isWaitingRef = useRef(false);
+  const refreshCurrentBattleInFlightRef = useRef(false);
 
   const address = currentAccount?.address ?? null;
   const isConnected = !!currentAccount;
@@ -646,6 +685,15 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
       battleState.turn === 0) ||
       (battleState.player2?.toLowerCase() === address.toLowerCase() &&
         battleState.turn === 1));
+
+  const isMoveTransactionPending =
+    moveLifecycleStage === "awaiting-wallet-approval" ||
+    moveLifecycleStage === "transaction-submitted" ||
+    moveLifecycleStage === "transaction-confirmed";
+
+  const dismissRecoverableBattleError = useCallback(() => {
+    setRecoverableBattleError(null);
+  }, []);
 
   const clearActionLog = useCallback(() => setActionLog([]), []);
 
@@ -685,8 +733,26 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
     [address, hydrateActivePvpBattle, suiClient],
   );
 
+  const showRecoverableBattleRefreshError = useCallback(
+    (detail?: string, digest?: string) => {
+      setRecoverableBattleError({
+        title: RECOVERABLE_BATTLE_ERROR_TITLE,
+        body: RECOVERABLE_BATTLE_ERROR_BODY,
+        detail,
+        digest,
+      });
+    },
+    [],
+  );
+
   const refreshPvpQueueState = useCallback(async () => {
     if (!address) {
+      setPvpQueueState(null);
+      setIsWaiting(false);
+      return null;
+    }
+
+    if (isActivePvpBattleForAddress(battleState, address)) {
       setPvpQueueState(null);
       setIsWaiting(false);
       return null;
@@ -701,7 +767,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
       });
     }
     return queueState;
-  }, [address, suiClient]);
+  }, [address, battleState, suiClient]);
 
   const submitFinishedBattleDigest = useCallback((digest: string | null, reason: string) => {
     if (!digest) {
@@ -729,6 +795,13 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
       })
       .catch((err) => {
         console.warn("[leaderboard] battle record submission failed:", err);
+        console.warn("[pvp-move] leaderboard sync failed", {
+          digest,
+          reason,
+          userMessage: LEADERBOARD_SYNC_FAILED_MESSAGE,
+          error: err,
+        });
+        setMoveLifecycleStage("leaderboard-sync-failed");
         logTxTiming("leaderboard submit complete", submitStartedAt, {
           digest,
           failed: true,
@@ -835,6 +908,60 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
       }
     },
     [address, clearBattleState, suiClient, submitFinishedBattleDigest],
+  );
+
+  const refreshCurrentBattleState = useCallback(
+    async (reason = "manual refresh"): Promise<BattleState | null> => {
+      if (!address || !battleState?.battleId) return null;
+      if (refreshCurrentBattleInFlightRef.current) return null;
+
+      const battleId = battleState.battleId;
+      refreshCurrentBattleInFlightRef.current = true;
+      setIsBattleRefreshPending(true);
+      setMoveLifecycleStage("battle-refresh-running");
+      console.info("[pvp-move] battle refresh started", { battleId, reason });
+
+      try {
+        const liveState = await getLiveBattleState(suiClient, battleId);
+        if (!liveState || !battleBelongsToAddress(liveState, address)) {
+          throw new Error(
+            "Direct battle object refresh did not return a usable battle state.",
+          );
+        }
+
+        const hydrated = {
+          ...liveState,
+          isBotBattle: battleState.isBotBattle,
+        };
+        await applyBattleState(hydrated);
+        setRecoverableBattleError(null);
+        setMoveLifecycleStage("idle");
+        console.info("[pvp-move] battle refresh completed", {
+          battleId,
+          reason,
+        });
+        return hydrated;
+      } catch (err) {
+        console.warn("[pvp-move] battle refresh failed", {
+          battleId,
+          reason,
+          error: err,
+        });
+        setMoveLifecycleStage("battle-refresh-failed");
+        showRecoverableBattleRefreshError(BATTLE_REFRESH_FAILED_MESSAGE);
+        return null;
+      } finally {
+        refreshCurrentBattleInFlightRef.current = false;
+        setIsBattleRefreshPending(false);
+      }
+    },
+    [
+      address,
+      battleState,
+      suiClient,
+      applyBattleState,
+      showRecoverableBattleRefreshError,
+    ],
   );
 
   useEffect(() => {
@@ -1514,17 +1641,30 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
         battleId,
         abilityId,
       });
+      setRecoverableBattleError(null);
+      setMoveLifecycleStage("awaiting-wallet-approval");
+      console.info("[pvp-move] wallet approval requested", {
+        battleId,
+        abilityId,
+      });
 
       return new Promise<void>((resolve, reject) => {
         signAndExecuteTransaction(
           { transaction: tx, chain: SUI_CONFIG.CHAIN },
           {
             onSuccess: async (result) => {
+              console.info("[pvp-move] transaction submitted", {
+                battleId,
+                abilityId,
+                digest: result.digest,
+              });
+              setMoveLifecycleStage("transaction-submitted");
               logTxTiming("wallet approved / digest received", txTimingStartedAt, {
                 digest: result.digest,
               });
               recentBattleDigestRef.current = result.digest;
               let completedState: BattleState | null = null;
+              let confirmationLoaded = false;
               try {
                 const eventResult = await getBattleUpdateStateFromTransaction(
                   suiClient,
@@ -1533,13 +1673,34 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
                   battleId,
                   txTimingStartedAt,
                 );
+                confirmationLoaded = true;
+                console.info("[pvp-move] transaction confirmed", {
+                  battleId,
+                  abilityId,
+                  digest: result.digest,
+                });
+                setMoveLifecycleStage("transaction-confirmed");
                 if (eventResult.state) {
                   completedState = {
                     ...eventResult.state,
                     isBotBattle: activeState.isBotBattle,
                   };
+                  console.info("[pvp-move] battle refresh started", {
+                    battleId,
+                    digest: result.digest,
+                    source: "BattleUpdate event",
+                  });
+                  setIsBattleRefreshPending(true);
+                  setMoveLifecycleStage("battle-refresh-running");
                   await applyBattleState(completedState, {
                     botMoveId: eventResult.botMoveId,
+                  });
+                  setRecoverableBattleError(null);
+                  setMoveLifecycleStage("idle");
+                  console.info("[pvp-move] battle refresh completed", {
+                    battleId: completedState.battleId,
+                    digest: result.digest,
+                    source: "BattleUpdate event",
                   });
                   logTxTiming("applyBattleState complete", txTimingStartedAt, {
                     battleId: completedState.battleId,
@@ -1547,6 +1708,13 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
                   });
                 } else {
                   console.log("[battle] BattleUpdate event missing; refreshing live battle state.");
+                  console.info("[pvp-move] battle refresh started", {
+                    battleId,
+                    digest: result.digest,
+                    source: "live object fallback",
+                  });
+                  setIsBattleRefreshPending(true);
+                  setMoveLifecycleStage("battle-refresh-running");
                   const refreshed = await getLiveBattleState(suiClient, battleId);
                   if (refreshed) {
                     completedState = {
@@ -1560,10 +1728,57 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
                       battleId: completedState.battleId,
                       source: "live refresh fallback",
                     });
+                    setRecoverableBattleError(null);
+                    setMoveLifecycleStage("idle");
+                    console.info("[pvp-move] battle refresh completed", {
+                      battleId: completedState.battleId,
+                      digest: result.digest,
+                      source: "live object fallback",
+                    });
+                  } else {
+                    console.warn("[pvp-move] battle refresh failed", {
+                      battleId,
+                      digest: result.digest,
+                      source: "live object fallback",
+                    });
+                    setMoveLifecycleStage("battle-refresh-failed");
+                    showRecoverableBattleRefreshError(
+                      BATTLE_REFRESH_FAILED_MESSAGE,
+                      result.digest,
+                    );
                   }
                 }
               } catch (err) {
-                console.warn("[battle] post-move refresh will retry via polling:", err);
+                if (!confirmationLoaded) {
+                  console.warn("[pvp-move] transaction confirmation failed", {
+                    battleId,
+                    digest: result.digest,
+                    error: err,
+                  });
+                  showRecoverableBattleRefreshError(
+                    TRANSACTION_CONFIRMATION_UNAVAILABLE_MESSAGE,
+                    result.digest,
+                  );
+                  setMoveLifecycleStage("battle-refresh-failed");
+                  reject(
+                    new Error(TRANSACTION_CONFIRMATION_UNAVAILABLE_MESSAGE),
+                  );
+                  return;
+                }
+
+                console.warn("[battle] post-move refresh will retry via direct object read:", err);
+                console.warn("[pvp-move] battle refresh failed", {
+                  battleId,
+                  digest: result.digest,
+                  error: err,
+                });
+                console.info("[pvp-move] battle refresh started", {
+                  battleId,
+                  digest: result.digest,
+                  source: "error live object fallback",
+                });
+                setIsBattleRefreshPending(true);
+                setMoveLifecycleStage("battle-refresh-running");
                 const refreshed = await getLiveBattleState(suiClient, battleId);
                 if (refreshed) {
                   completedState = {
@@ -1571,11 +1786,26 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
                     isBotBattle: activeState.isBotBattle,
                   };
                   await applyBattleState(completedState);
+                  setRecoverableBattleError(null);
+                  setMoveLifecycleStage("idle");
+                  console.info("[pvp-move] battle refresh completed", {
+                    battleId: completedState.battleId,
+                    digest: result.digest,
+                    source: "error live object fallback",
+                  });
                   logTxTiming("applyBattleState complete", txTimingStartedAt, {
                     battleId: completedState.battleId,
                     source: "error live refresh fallback",
                   });
+                } else {
+                  setMoveLifecycleStage("battle-refresh-failed");
+                  showRecoverableBattleRefreshError(
+                    BATTLE_REFRESH_FAILED_MESSAGE,
+                    result.digest,
+                  );
                 }
+              } finally {
+                setIsBattleRefreshPending(false);
               }
               submitCompletedBattleRecord(
                 result.digest,
@@ -1584,8 +1814,15 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
               );
               resolve();
             },
-            onError: (err: any) =>
-              reject(new Error(err?.message ?? "Failed to use ability")),
+            onError: (err: any) => {
+              console.warn("[pvp-move] transaction submission failed", {
+                battleId,
+                abilityId,
+                error: err,
+              });
+              setMoveLifecycleStage("idle");
+              reject(new Error(MOVE_NOT_SUBMITTED_MESSAGE));
+            },
           },
         );
       });
@@ -1599,6 +1836,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
       clearBattleState,
       signAndExecuteTransaction,
       submitCompletedBattleRecord,
+      showRecoverableBattleRefreshError,
     ],
   );
 
@@ -2118,6 +2356,12 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
         cancelQueue,
         refreshPvpQueueState,
         refreshActivePvpBattle,
+        refreshCurrentBattleState,
+        moveLifecycleStage,
+        isMoveTransactionPending,
+        isBattleRefreshPending,
+        recoverableBattleError,
+        dismissRecoverableBattleError,
         getFirstValidSaplingNft,
         ConnectWalletButton,
       }}
