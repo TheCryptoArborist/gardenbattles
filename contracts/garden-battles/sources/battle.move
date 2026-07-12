@@ -19,6 +19,8 @@ module battle_garden::battle {
 
     const TIMEOUT_MS: u64 = 24 * 60 * 60 * 1000;
     const BOT_TIMEOUT_MS: u64 = 10 * 60 * 1000;
+    const PVP_V2_TARGET_50: u64 = 50;
+    const PVP_V2_TARGET_75: u64 = 75;
 
     public struct Battle has key {
         id: UID,
@@ -55,10 +57,45 @@ module battle_garden::battle {
         is_bot_battle: bool,
     }
 
+    public struct PvpBattleV2 has key {
+        id: UID,
+        player1: address,
+        player2: address,
+        p1_growth: u64,
+        p2_growth: u64,
+        turn: u8,
+        finished: bool,
+        winner: Option<address>,
+        p1_moves: vector<u8>,
+        p2_moves: vector<u8>,
+        p1_status: Status,
+        p2_status: Status,
+        vault: Balance<SUI>,
+        battle_entry_fee: u64,
+        winner_payout: u64,
+        treasury_share: u64,
+        treasury_addr: address,
+        last_move_ms: u64,
+        target_growth: u64,
+    }
+
     public struct BotMoveResolved has copy, drop {
         battle_id: ID,
         bot_player: address,
         move_id: u8,
+    }
+
+    public struct PvpBattleV2Update has copy, drop {
+        battle_id: ID,
+        player1: address,
+        player2: address,
+        player1_moves: vector<u8>,
+        player2_moves: vector<u8>,
+        player1_growth: u64,
+        player2_growth: u64,
+        winner: Option<address>,
+        last_move_ms: u64,
+        target_growth: u64,
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -139,6 +176,30 @@ module battle_garden::battle {
         });
     }
 
+    public fun is_valid_pvp_v2_target(target_growth: u64): bool {
+        target_growth == PVP_V2_TARGET_50 || target_growth == PVP_V2_TARGET_75
+    }
+
+    fun assert_valid_pvp_v2_target(target_growth: u64) {
+        assert!(is_valid_pvp_v2_target(target_growth), errors::e_invalid_target_growth());
+    }
+
+    fun emit_update_v2(battle: &PvpBattleV2) {
+        let update = PvpBattleV2Update {
+            battle_id: object::uid_to_inner(&battle.id),
+            player1: battle.player1,
+            player2: battle.player2,
+            player1_moves: utils::clone_vec_u8(&battle.p1_moves),
+            player2_moves: utils::clone_vec_u8(&battle.p2_moves),
+            player1_growth: battle.p1_growth,
+            player2_growth: battle.p2_growth,
+            winner: battle.winner,
+            last_move_ms: battle.last_move_ms,
+            target_growth: battle.target_growth,
+        };
+        event::emit(update);
+    }
+
     fun finish_and_payout(arg0: &mut Battle, arg1: address, arg2: &mut TxContext) {
         assert!(!arg0.finished, errors::e_battle_finished());
         arg0.finished = true;
@@ -159,6 +220,28 @@ module battle_garden::battle {
         };
         emit_update(arg0);
     }
+
+    fun finish_and_payout_v2(battle: &mut PvpBattleV2, winner: address, ctx: &mut TxContext) {
+        assert!(!battle.finished, errors::e_battle_finished());
+        battle.finished = true;
+        battle.winner = option::some(winner);
+        assert!(balance::value(&battle.vault) >= battle.winner_payout + battle.treasury_share, errors::e_insufficient_vault());
+        if (battle.winner_payout > 0) {
+            let payout = balance::split(&mut battle.vault, battle.winner_payout);
+            transfer::public_transfer(coin::from_balance(payout, ctx), winner);
+        };
+        if (battle.treasury_share > 0) {
+            let treasury_cut = balance::split(&mut battle.vault, battle.treasury_share);
+            transfer::public_transfer(coin::from_balance(treasury_cut, ctx), battle.treasury_addr);
+        };
+        let remaining = balance::value(&battle.vault);
+        if (remaining > 0) {
+            let rem = balance::split(&mut battle.vault, remaining);
+            transfer::public_transfer(coin::from_balance(rem, ctx), winner);
+        };
+        emit_update_v2(battle);
+    }
+
     public fun create_battle(
         player1: address,
         player2: address,
@@ -195,6 +278,46 @@ module battle_garden::battle {
         emit_update(&battle);
         transfer::share_object(battle);
     }
+
+    public fun create_pvp_battle_v2(
+        player1: address,
+        player2: address,
+        entry_fee: u64,
+        config: &Config,
+        vault_balance: Balance<SUI>,
+        target_growth: u64,
+        rand: &Random,
+        ctx: &mut TxContext
+    ) {
+        assert_valid_pvp_v2_target(target_growth);
+        assert!(player1 != player2, errors::e_invalid_address());
+        let p1_status = Status { block_turns: 0, next_turn_penalty: 0, poison_ticks: 0, poison_dpt: 0 };
+        let p2_status = Status { block_turns: 0, next_turn_penalty: 0, poison_ticks: 0, poison_dpt: 0 };
+        let battle = PvpBattleV2 {
+            id: object::new(ctx),
+            player1,
+            player2,
+            p1_growth: 0,
+            p2_growth: 0,
+            turn: 0,
+            finished: false,
+            winner: option::none(),
+            p1_moves: gen_moves(rand, ctx),
+            p2_moves: gen_moves(rand, ctx),
+            p1_status,
+            p2_status,
+            vault: vault_balance,
+            battle_entry_fee: entry_fee,
+            winner_payout: config::winner_payout(config),
+            treasury_share: config::treasury_share(config),
+            treasury_addr: config::treasury(config),
+            last_move_ms: tx_context::epoch_timestamp_ms(ctx),
+            target_growth,
+        };
+        emit_update_v2(&battle);
+        transfer::share_object(battle);
+    }
+
     entry fun create_bot_battle<T: key + store>(
         config: &Config,
         _nft: &T,
@@ -371,6 +494,68 @@ module battle_garden::battle {
 
     public fun admin_close(battle: &mut Battle, config: &Config, ctx: &mut TxContext) {
         admin_force_close(battle, config, ctx);
+    }
+
+    public fun surrender_pvp_v2(battle: &mut PvpBattleV2, ctx: &mut TxContext) {
+        assert!(!battle.finished, errors::e_battle_finished());
+        let sender = tx_context::sender(ctx);
+        let winner = if (sender == battle.player1) {
+            battle.player2
+        } else if (sender == battle.player2) {
+            battle.player1
+        } else {
+            abort errors::e_unauthorized_player()
+        };
+        finish_and_payout_v2(battle, winner, ctx);
+    }
+
+    public fun claim_timeout_win_pvp_v2(battle: &mut PvpBattleV2, ctx: &mut TxContext) {
+        assert!(!battle.finished, errors::e_battle_finished());
+        let sender = tx_context::sender(ctx);
+        let is_player1 = sender == battle.player1;
+        let is_player2 = sender == battle.player2;
+        assert!(is_player1 || is_player2, errors::e_unauthorized_player());
+
+        let is_opponent_turn = if (battle.turn == 0) {
+            sender == battle.player2
+        } else {
+            sender == battle.player1
+        };
+        assert!(is_opponent_turn, errors::e_unauthorized_player());
+
+        let now = tx_context::epoch_timestamp_ms(ctx);
+        assert!(now >= battle.last_move_ms + TIMEOUT_MS, errors::e_unauthorized_player());
+        finish_and_payout_v2(battle, sender, ctx);
+    }
+
+    public fun admin_force_close_pvp_v2(battle: &mut PvpBattleV2, config: &Config, ctx: &mut TxContext) {
+        assert!(tx_context::sender(ctx) == config::admin(config), errors::e_admin_only());
+        assert!(!battle.finished, errors::e_battle_finished());
+        battle.finished = true;
+        battle.winner = option::none();
+        let total = balance::value(&battle.vault);
+        let half = total / 2;
+        let p1_refund = balance::split(&mut battle.vault, half);
+        transfer::public_transfer(coin::from_balance(p1_refund, ctx), battle.player1);
+        let p2_refund = balance::split(&mut battle.vault, half);
+        transfer::public_transfer(coin::from_balance(p2_refund, ctx), battle.player2);
+        let remaining = balance::value(&battle.vault);
+        if (remaining > 0) {
+            let rem = balance::split(&mut battle.vault, remaining);
+            transfer::public_transfer(coin::from_balance(rem, ctx), battle.player1);
+        };
+        emit_update_v2(battle);
+    }
+
+    public fun admin_force_close_pvp_v2_with_winner(
+        battle: &mut PvpBattleV2,
+        config: &Config,
+        winner: address,
+        ctx: &mut TxContext,
+    ) {
+        assert!(tx_context::sender(ctx) == config::admin(config), errors::e_admin_only());
+        assert!(!battle.finished, errors::e_battle_finished());
+        finish_and_payout_v2(battle, winner, ctx);
     }
 
     fun apply_damage(arg0: u64, arg1: &mut Status): u64 {
@@ -581,6 +766,40 @@ module battle_garden::battle {
         battle.last_move_ms = tx_context::epoch_timestamp_ms(ctx);
     }
 
+    fun apply_player1_move_v2(battle: &mut PvpBattleV2, move_id: u8, rand: &Random, ctx: &mut TxContext) {
+        if (battle.p1_status.next_turn_penalty > 0) {
+            battle.p1_growth = utils::sub_growth(battle.p1_growth, battle.p1_status.next_turn_penalty);
+            battle.p1_status.next_turn_penalty = 0;
+        };
+        if (battle.p1_status.poison_ticks > 0) {
+            battle.p1_growth = utils::sub_growth(battle.p1_growth, battle.p1_status.poison_dpt);
+            battle.p1_status.poison_ticks = battle.p1_status.poison_ticks - 1;
+        };
+
+        resolve_move(move_id, &mut battle.p1_growth, &mut battle.p2_growth, &mut battle.p1_status, &mut battle.p2_status, rand, ctx);
+
+        battle.p1_growth = utils::clamp(battle.p1_growth, 0, 100);
+        battle.p2_growth = utils::clamp(battle.p2_growth, 0, 100);
+        battle.last_move_ms = tx_context::epoch_timestamp_ms(ctx);
+    }
+
+    fun apply_player2_move_v2(battle: &mut PvpBattleV2, move_id: u8, rand: &Random, ctx: &mut TxContext) {
+        if (battle.p2_status.next_turn_penalty > 0) {
+            battle.p2_growth = utils::sub_growth(battle.p2_growth, battle.p2_status.next_turn_penalty);
+            battle.p2_status.next_turn_penalty = 0;
+        };
+        if (battle.p2_status.poison_ticks > 0) {
+            battle.p2_growth = utils::sub_growth(battle.p2_growth, battle.p2_status.poison_dpt);
+            battle.p2_status.poison_ticks = battle.p2_status.poison_ticks - 1;
+        };
+
+        resolve_move(move_id, &mut battle.p2_growth, &mut battle.p1_growth, &mut battle.p2_status, &mut battle.p1_status, rand, ctx);
+
+        battle.p2_growth = utils::clamp(battle.p2_growth, 0, 100);
+        battle.p1_growth = utils::clamp(battle.p1_growth, 0, 100);
+        battle.last_move_ms = tx_context::epoch_timestamp_ms(ctx);
+    }
+
     public fun use_ability(battle: &mut Battle, ability_name: vector<u8>, rand: &Random, ctx: &mut TxContext) {
         let move_id = map_ability_name(ability_name);
         assert!(move_id != 0, errors::e_invalid_ability_name());
@@ -632,6 +851,41 @@ module battle_garden::battle {
             } else {
                 battle.turn = 0;
                 emit_update(battle);
+            };
+        };
+    }
+
+    public fun use_ability_id_pvp_v2(battle: &mut PvpBattleV2, move_id: u8, rand: &Random, ctx: &mut TxContext) {
+        assert!(!battle.finished, errors::e_battle_finished());
+        let sender = tx_context::sender(ctx);
+        let is_player_turn = if (battle.turn == 0) {
+            assert!(sender == battle.player1, errors::e_unauthorized_player());
+            utils::contains_u8(&battle.p1_moves, move_id)
+        } else {
+            assert!(sender == battle.player2, errors::e_unauthorized_player());
+            utils::contains_u8(&battle.p2_moves, move_id)
+        };
+        assert!(is_player_turn, errors::e_invalid_move());
+
+        if (battle.turn == 0) {
+            apply_player1_move_v2(battle, move_id, rand, ctx);
+
+            if (battle.p1_growth >= battle.target_growth) {
+                let winner = battle.player1;
+                finish_and_payout_v2(battle, winner, ctx);
+            } else {
+                battle.turn = 1;
+                emit_update_v2(battle);
+            };
+        } else {
+            apply_player2_move_v2(battle, move_id, rand, ctx);
+
+            if (battle.p2_growth >= battle.target_growth) {
+                let winner = battle.player2;
+                finish_and_payout_v2(battle, winner, ctx);
+            } else {
+                battle.turn = 0;
+                emit_update_v2(battle);
             };
         };
     }
@@ -906,4 +1160,52 @@ module battle_garden::battle {
     public fun bot_score_is_viable_for_testing(score: u64, max_score: u64): bool {
         bot_score_is_viable(score, max_score)
     }
+    #[test_only]
+    public fun pvp_v2_p1_moves(battle: &PvpBattleV2): &vector<u8> { &battle.p1_moves }
+    #[test_only]
+    public fun pvp_v2_p2_moves(battle: &PvpBattleV2): &vector<u8> { &battle.p2_moves }
+    #[test_only]
+    public fun set_pvp_v2_p1_moves_for_testing(battle: &mut PvpBattleV2, moves: vector<u8>) {
+        battle.p1_moves = moves;
+    }
+    #[test_only]
+    public fun set_pvp_v2_p2_moves_for_testing(battle: &mut PvpBattleV2, moves: vector<u8>) {
+        battle.p2_moves = moves;
+    }
+    #[test_only]
+    public fun set_pvp_v2_p1_growth_for_testing(battle: &mut PvpBattleV2, growth: u64) {
+        battle.p1_growth = growth;
+    }
+    #[test_only]
+    public fun set_pvp_v2_p2_growth_for_testing(battle: &mut PvpBattleV2, growth: u64) {
+        battle.p2_growth = growth;
+    }
+    #[test_only]
+    public fun set_pvp_v2_last_move_ms_for_testing(battle: &mut PvpBattleV2, last_move_ms: u64) {
+        battle.last_move_ms = last_move_ms;
+    }
+    #[test_only]
+    public fun pvp_v2_p1_growth(battle: &PvpBattleV2): u64 { battle.p1_growth }
+    #[test_only]
+    public fun pvp_v2_p2_growth(battle: &PvpBattleV2): u64 { battle.p2_growth }
+    #[test_only]
+    public fun pvp_v2_target_growth(battle: &PvpBattleV2): u64 { battle.target_growth }
+    #[test_only]
+    public fun pvp_v2_vault_value(battle: &PvpBattleV2): u64 { balance::value(&battle.vault) }
+    #[test_only]
+    public fun pvp_v2_battle_entry_fee(battle: &PvpBattleV2): u64 { battle.battle_entry_fee }
+    #[test_only]
+    public fun pvp_v2_winner_payout(battle: &PvpBattleV2): u64 { battle.winner_payout }
+    #[test_only]
+    public fun pvp_v2_treasury_share(battle: &PvpBattleV2): u64 { battle.treasury_share }
+    #[test_only]
+    public fun pvp_v2_is_finished(battle: &PvpBattleV2): bool { battle.finished }
+    #[test_only]
+    public fun pvp_v2_winner(battle: &PvpBattleV2): Option<address> { battle.winner }
+    #[test_only]
+    public fun pvp_v2_player1(battle: &PvpBattleV2): address { battle.player1 }
+    #[test_only]
+    public fun pvp_v2_player2(battle: &PvpBattleV2): address { battle.player2 }
+    #[test_only]
+    public fun pvp_v2_turn(battle: &PvpBattleV2): u8 { battle.turn }
 }
