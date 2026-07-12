@@ -33,6 +33,12 @@ const EVENT_PACKAGE_ID =
   "0x656ac984c39b952b40ccaaad4c26a3e074c4c99f56e2bac0862b811557de448b";
 const MODULE = process.env.BATTLE_MODULE || "battle";
 const BATTLE_UPDATE_EVENT = `${EVENT_PACKAGE_ID}::${MODULE}::BattleUpdate`;
+const PVP_BATTLE_V2_EVENT_PACKAGE_ID =
+  process.env.PVP_BATTLE_V2_EVENT_PACKAGE_ID ||
+  process.env.BATTLE_PACKAGE_ID ||
+  process.env.PACKAGE_ID ||
+  PACKAGE_ID;
+const PVP_BATTLE_V2_UPDATE_EVENT = `${PVP_BATTLE_V2_EVENT_PACKAGE_ID}::${MODULE}::PvpBattleV2Update`;
 const POLL_INTERVAL_MS = 2_000; // poll every 2 s
 const RANDOM_OBJECT_ID = process.env.SUI_RANDOM_OBJECT_ID || "0x8";
 const LEADERBOARD_MODES = new Set<LeaderboardMode>(["pvp", "bot", "overall"]);
@@ -91,6 +97,8 @@ interface BattleState {
   isBotBattle?: boolean;
   lastMoveMs?: number;
   lastEventCursor?: string | null;
+  battleVersion?: "legacy" | "pvp-v2";
+  targetGrowth?: number | null;
 }
 
 // battleId → current state
@@ -103,13 +111,14 @@ const playerToBattle = new Map<string, string>();
 async function querySuiEvents(
   cursor: string | null = null,
   limit = 50,
+  eventType = BATTLE_UPDATE_EVENT,
 ): Promise<{ data: any[]; nextCursor: string | null; hasNextPage: boolean }> {
   const body = {
     jsonrpc: "2.0",
     id: 1,
     method: "suix_queryEvents",
     params: [
-      { MoveEventType: BATTLE_UPDATE_EVENT },
+      { MoveEventType: eventType },
       cursor,
       limit,
       true, // descending so newest first
@@ -136,7 +145,10 @@ async function querySuiEvents(
 }
 
 // ─── Parse a raw Sui event into our BattleState shape ─────────────────────────
-function parseBattleEvent(parsedJson: any): BattleState | null {
+export function parseBattleEvent(
+  parsedJson: any,
+  battleVersion: "legacy" | "pvp-v2" = "legacy",
+): BattleState | null {
   try {
     if (
       !parsedJson?.battle_id ||
@@ -150,6 +162,16 @@ function parseBattleEvent(parsedJson: any): BattleState | null {
     const player2 = parsedJson.player2.toLowerCase();
     const winner = normalizeWinner(parsedJson.winner);
     const parsedTurn = Number(parsedJson.turn);
+    const isBotBattle =
+      battleVersion === "legacy" &&
+      (Boolean(parsedJson.is_bot_battle) ||
+        (!!BOT_ADDRESS && (player1 === BOT_ADDRESS || player2 === BOT_ADDRESS)));
+    const targetGrowth =
+      battleVersion === "pvp-v2"
+        ? Number(parsedJson.target_growth)
+        : isBotBattle
+          ? 50
+          : 100;
 
     return {
       battleId: parsedJson.battle_id,
@@ -162,10 +184,10 @@ function parseBattleEvent(parsedJson: any): BattleState | null {
       turn: Number.isFinite(parsedTurn) ? parsedTurn : 0,
       winner,
       finished: !!winner,
-      isBotBattle:
-        Boolean(parsedJson.is_bot_battle) ||
-        (!!BOT_ADDRESS && (player1 === BOT_ADDRESS || player2 === BOT_ADDRESS)),
+      isBotBattle,
       lastMoveMs: Number(parsedJson.last_move_ms ?? 0),
+      battleVersion,
+      targetGrowth: Number.isFinite(targetGrowth) && targetGrowth > 0 ? targetGrowth : null,
     };
   } catch {
     return null;
@@ -190,8 +212,17 @@ async function getVerifiedBattleStateFromTransaction(
 
   const states =
     tx.events
-      ?.filter((event: any) => event.type === BATTLE_UPDATE_EVENT)
-      .map((event: any) => parseBattleEvent(event.parsedJson))
+      ?.filter(
+        (event: any) =>
+          event.type === BATTLE_UPDATE_EVENT ||
+          event.type === PVP_BATTLE_V2_UPDATE_EVENT,
+      )
+      .map((event: any) =>
+        parseBattleEvent(
+          event.parsedJson,
+          event.type === PVP_BATTLE_V2_UPDATE_EVENT ? "pvp-v2" : "legacy",
+        ),
+      )
       .filter((state: BattleState | null): state is BattleState => !!state) ?? [];
 
   return (
@@ -228,6 +259,11 @@ async function hydrateBattleState(
       finished: Boolean(fields.finished) || !!winner,
       isBotBattle: Boolean(fields.is_bot_battle),
       lastMoveMs: Number(fields.last_move_ms ?? 0),
+      battleVersion: eventState.battleVersion,
+      targetGrowth:
+        eventState.battleVersion === "pvp-v2"
+          ? Number(fields.target_growth ?? eventState.targetGrowth ?? 0)
+          : eventState.targetGrowth,
     };
   } catch (err) {
     console.warn(
@@ -344,13 +380,21 @@ let io: SocketIOServer | null = null;
 async function pollSuiEvents() {
   try {
     // We only need the most recent page (descending).
-    const { data } = await querySuiEvents(null, 50);
+    const eventPages = await Promise.all([
+      querySuiEvents(null, 50, PVP_BATTLE_V2_UPDATE_EVENT),
+      querySuiEvents(null, 50, BATTLE_UPDATE_EVENT),
+    ]);
+    const data = eventPages.flatMap((page) => page.data ?? []);
 
     // Track newest event per battleId (data is descending, so first = newest)
     const seen = new Set<string>();
 
     for (const event of data) {
-      const eventState = parseBattleEvent(event.parsedJson);
+      const eventType = event.type ?? event.eventType ?? "";
+      const eventState = parseBattleEvent(
+        event.parsedJson,
+        eventType === PVP_BATTLE_V2_UPDATE_EVENT ? "pvp-v2" : "legacy",
+      );
       if (!eventState) continue;
       const parsed = await hydrateBattleState(eventState);
 
@@ -387,6 +431,8 @@ async function pollSuiEvents() {
             player2: parsed.player2,
             winner: parsed.winner,
             isBotBattle: parsed.isBotBattle ?? false,
+            battleVersion: parsed.battleVersion ?? "legacy",
+            targetGrowth: parsed.targetGrowth ?? null,
             transactionDigest:
               event.id?.txDigest ?? event.id?.tx_digest ?? event.txDigest ?? null,
             finishedAt: parsed.lastMoveMs ?? Date.now(),
@@ -568,6 +614,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         player2: verifiedState.player2,
         winner: verifiedState.winner,
         isBotBattle: verifiedState.isBotBattle ?? false,
+        battleVersion: verifiedState.battleVersion ?? "legacy",
+        targetGrowth: verifiedState.targetGrowth ?? null,
         transactionDigest,
         finishedAt: verifiedState.lastMoveMs || Date.now(),
       });

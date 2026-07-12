@@ -3,16 +3,22 @@ import assert from "node:assert/strict";
 import {
   buildTelegramSendMessagePayload,
   createPvpQueueTelegramPoller,
+  getConfiguredPvpQueueDefinitions,
+  parsePendingQueueEntry,
   parseTelegramMessageThreadId,
   sendManualPvpQueueTelegramTest,
   startPvpQueueTelegramNotifier,
   validateTelegramChatId,
   type PendingQueueEntry,
+  type PvpQueueDefinition,
   type QueueAlertStore,
 } from "./pvp-queue-telegram";
 import type { PvpQueueTelegramAlertRow } from "./battle-storage";
+import { parseBattleEvent } from "./routes";
 
 const QUEUE_ID = "0xqueue";
+const QUEUE_50_ID = "0xqueue50";
+const QUEUE_75_ID = "0xqueue75";
 const PLAYER_A = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const PLAYER_B = "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 const PLAYER_C = "0xcccccccccccccccccccccccccccccccccccccccc";
@@ -22,15 +28,17 @@ function queueObject(
   version: string,
   previousTransaction: string,
   entryFeeMist = 3_000_000_000,
+  options: { queueId?: string; targetGrowth?: number } = {},
 ) {
   return {
     data: {
-      objectId: QUEUE_ID,
+      objectId: options.queueId ?? QUEUE_ID,
       version,
       previousTransaction,
       content: {
         fields: {
           bank: player ? String(entryFeeMist) : "0",
+          ...(options.targetGrowth ? { target_growth: String(options.targetGrowth) } : {}),
           waiting: player
             ? {
                 type: "matchmaking::Pending",
@@ -48,13 +56,34 @@ function queueObject(
 
 class FakeSuiClient {
   objects: any[] = [];
+  objectsById = new Map<string, any[]>();
+  callsById = new Map<string, number>();
   calls = 0;
 
-  constructor(objects: any[]) {
+  constructor(objects: any[] | Record<string, any[]>) {
+    if (!Array.isArray(objects)) {
+      for (const [id, queueObjects] of Object.entries(objects)) {
+        this.objectsById.set(id, queueObjects);
+      }
+      return;
+    }
     this.objects = objects;
   }
 
-  async getObject() {
+  async getObject(input?: { id?: string }) {
+    if (input?.id && this.objectsById.size > 0) {
+      const objects = this.objectsById.get(input.id);
+      if (!objects || objects.length === 0) {
+        throw new Error(`no fake Sui object queued for ${input.id}`);
+      }
+      const calls = this.callsById.get(input.id) ?? 0;
+      const index = Math.min(calls, objects.length - 1);
+      this.callsById.set(input.id, calls + 1);
+      const next = objects[index];
+      if (next instanceof Error) throw next;
+      return next;
+    }
+
     if (this.objects.length === 0) {
       throw new Error("no fake Sui object queued");
     }
@@ -122,6 +151,9 @@ class MemoryStore implements QueueAlertStore {
       queue_object_version: input.entry.objectVersion,
       previous_transaction: input.entry.previousTransaction,
       entry_fee_mist: input.entry.entryFeeMist,
+      target_growth: input.entry.targetGrowth,
+      queue_label: input.entry.displayLabel,
+      queue_type: input.entry.queueType,
       telegram_message_id: input.telegramMessageId,
       notified_at: input.notifiedAt,
       resolved_at: null,
@@ -152,14 +184,16 @@ class MemoryStore implements QueueAlertStore {
 }
 
 function makePoller(
-  objects: any[],
+  objects: any[] | Record<string, any[]>,
   store = new MemoryStore(),
   messageThreadId: number | null = 123,
+  queues?: PvpQueueDefinition[],
 ) {
   const suiClient = new FakeSuiClient(objects);
   const telegramClient = new FakeTelegramClient();
   const poller = createPvpQueueTelegramPoller({
     queueId: QUEUE_ID,
+    queues,
     battleUrl: "https://nftree.net/battle",
     botToken: "token",
     chatId: "chat",
@@ -184,10 +218,201 @@ test("empty to player A sends exactly once and repeated A polls skip", async () 
   assert.equal((await poller.pollOnce()).reason, "already_notified");
   assert.equal(telegramClient.sent.length, 1);
   assert.equal(telegramClient.sent[0].messageThreadId, 123);
-  assert.match(telegramClient.sent[0].text, /<b>Garden Battles PvP queue alert<\/b>/);
+  assert.match(telegramClient.sent[0].text, /<b>PvP Opponent Needed<\/b>/);
   assert.deepEqual(telegramClient.sent[0].replyMarkup, {
     inline_keyboard: [[{ text: "Join Battle", url: "https://nftree.net/battle" }]],
   });
+});
+
+test("legacy queue alert includes 100 Growth and Legacy Match", async () => {
+  const { poller, telegramClient } = makePoller([
+    queueObject(PLAYER_A, "2", "tx-a"),
+  ]);
+
+  assert.equal((await poller.pollOnce()).status, "notified");
+  assert.match(telegramClient.sent[0].text, /Match target: <b>100 Growth<\/b>/);
+  assert.match(telegramClient.sent[0].text, /<b>Legacy Match<\/b>/);
+});
+
+test("50 queue alert includes 50 Growth and Quick Match", async () => {
+  const queue50: PvpQueueDefinition = {
+    queueId: QUEUE_50_ID,
+    targetGrowth: 50,
+    displayLabel: "Quick Match",
+    queueType: "v2",
+  };
+  const { poller, telegramClient } = makePoller(
+    {
+      [QUEUE_50_ID]: [
+        queueObject(PLAYER_A, "2", "tx-a-50", 3_000_000_000, {
+          queueId: QUEUE_50_ID,
+          targetGrowth: 50,
+        }),
+      ],
+    },
+    new MemoryStore(),
+    123,
+    [queue50],
+  );
+
+  assert.equal((await poller.pollOnce()).status, "notified");
+  assert.match(telegramClient.sent[0].text, /Match target: <b>50 Growth<\/b>/);
+  assert.match(telegramClient.sent[0].text, /<b>Quick Match<\/b>/);
+});
+
+test("75 queue alert includes 75 Growth and Standard Match", async () => {
+  const queue75: PvpQueueDefinition = {
+    queueId: QUEUE_75_ID,
+    targetGrowth: 75,
+    displayLabel: "Standard Match",
+    queueType: "v2",
+  };
+  const { poller, telegramClient } = makePoller(
+    {
+      [QUEUE_75_ID]: [
+        queueObject(PLAYER_A, "2", "tx-a-75", 3_000_000_000, {
+          queueId: QUEUE_75_ID,
+          targetGrowth: 75,
+        }),
+      ],
+    },
+    new MemoryStore(),
+    123,
+    [queue75],
+  );
+
+  assert.equal((await poller.pollOnce()).status, "notified");
+  assert.match(telegramClient.sent[0].text, /Match target: <b>75 Growth<\/b>/);
+  assert.match(telegramClient.sent[0].text, /<b>Standard Match<\/b>/);
+});
+
+test("empty v2 queue IDs are ignored in queue configuration", () => {
+  const queues = getConfiguredPvpQueueDefinitions({
+    MATCHMAKING_QUEUE_ID: QUEUE_ID,
+    MATCHMAKING_QUEUE_50_ID: "",
+    MATCHMAKING_QUEUE_75_ID: "   ",
+  } as any);
+
+  assert.deepEqual(
+    queues.map((queue) => [queue.queueId, queue.targetGrowth, queue.displayLabel]),
+    [[QUEUE_ID, 100, "Legacy Match"]],
+  );
+});
+
+test("queue-ID-separated dedupe lets same wallet alert separately in 50 and 75 queues", async () => {
+  const queues: PvpQueueDefinition[] = [
+    {
+      queueId: QUEUE_50_ID,
+      targetGrowth: 50,
+      displayLabel: "Quick Match",
+      queueType: "v2",
+    },
+    {
+      queueId: QUEUE_75_ID,
+      targetGrowth: 75,
+      displayLabel: "Standard Match",
+      queueType: "v2",
+    },
+  ];
+  const { poller, telegramClient } = makePoller(
+    {
+      [QUEUE_50_ID]: [
+        queueObject(PLAYER_A, "2", "tx-same-wallet", 3_000_000_000, {
+          queueId: QUEUE_50_ID,
+          targetGrowth: 50,
+        }),
+      ],
+      [QUEUE_75_ID]: [
+        queueObject(PLAYER_A, "2", "tx-same-wallet", 3_000_000_000, {
+          queueId: QUEUE_75_ID,
+          targetGrowth: 75,
+        }),
+      ],
+    },
+    new MemoryStore(),
+    123,
+    queues,
+  );
+
+  await poller.pollOnce();
+  assert.equal(telegramClient.sent.length, 2);
+  assert.match(telegramClient.sent[0].text, /50 Growth/);
+  assert.match(telegramClient.sent[1].text, /75 Growth/);
+});
+
+test("queue clear does not generate a false alert", async () => {
+  const store = new MemoryStore();
+  const { poller, telegramClient } = makePoller(
+    [
+      queueObject(PLAYER_A, "2", "tx-a"),
+      queueObject(null, "3", "tx-empty"),
+    ],
+    store,
+  );
+
+  await poller.pollOnce();
+  assert.equal((await poller.pollOnce()).status, "empty");
+  assert.equal(telegramClient.sent.length, 1);
+  assert.equal(store.getActive(QUEUE_ID), null);
+});
+
+test("mismatched v2 target is handled safely", () => {
+  const queue50: PvpQueueDefinition = {
+    queueId: QUEUE_50_ID,
+    targetGrowth: 50,
+    displayLabel: "Quick Match",
+    queueType: "v2",
+  };
+
+  assert.throws(
+    () =>
+      parsePendingQueueEntry(
+        queueObject(PLAYER_A, "2", "tx-a", 3_000_000_000, {
+          queueId: QUEUE_50_ID,
+          targetGrowth: 75,
+        }),
+        queue50,
+      ),
+    /queue target mismatch/,
+  );
+});
+
+test("legacy and v2 battle event parsing both work", () => {
+  const legacy = parseBattleEvent({
+    battle_id: "0xlegacy",
+    player1: PLAYER_A,
+    player2: PLAYER_B,
+    player1_growth: "20",
+    player2_growth: "10",
+    player1_moves: [1, 2, 3, 4],
+    player2_moves: [20, 21, 22, 23],
+    turn: "1",
+    winner: "0x0",
+    is_bot_battle: false,
+    last_move_ms: "123",
+  });
+  const v2 = parseBattleEvent(
+    {
+      battle_id: "0xv2",
+      player1: PLAYER_A,
+      player2: PLAYER_B,
+      player1_growth: "50",
+      player2_growth: "44",
+      player1_moves: [1, 2, 3, 4],
+      player2_moves: [20, 21, 22, 23],
+      turn: "0",
+      winner: PLAYER_A,
+      target_growth: "75",
+      last_move_ms: "456",
+    },
+    "pvp-v2",
+  );
+
+  assert.equal(legacy?.battleVersion, "legacy");
+  assert.equal(legacy?.targetGrowth, 100);
+  assert.equal(v2?.battleVersion, "pvp-v2");
+  assert.equal(v2?.targetGrowth, 75);
+  assert.equal(v2?.winner, PLAYER_A);
 });
 
 test("no thread ID omits message_thread_id from sendMessage payload", () => {

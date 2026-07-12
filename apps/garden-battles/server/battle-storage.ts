@@ -32,6 +32,8 @@ db.exec(`
     player2 TEXT NOT NULL,
     winner TEXT,
     is_bot_battle INTEGER DEFAULT 0,
+    battle_version TEXT DEFAULT 'legacy',
+    target_growth INTEGER,
     transaction_digest TEXT,
     finished_at INTEGER NOT NULL,
     recorded_at INTEGER NOT NULL
@@ -68,6 +70,9 @@ db.exec(`
     queue_object_version TEXT,
     previous_transaction TEXT,
     entry_fee_mist INTEGER NOT NULL,
+    target_growth INTEGER,
+    queue_label TEXT,
+    queue_type TEXT,
     telegram_message_id TEXT,
     notified_at INTEGER,
     resolved_at INTEGER,
@@ -79,6 +84,21 @@ db.exec(`
 
 if (!hasColumn("battle_records", "transaction_digest")) {
   db.exec("ALTER TABLE battle_records ADD COLUMN transaction_digest TEXT");
+}
+if (!hasColumn("battle_records", "battle_version")) {
+  db.exec("ALTER TABLE battle_records ADD COLUMN battle_version TEXT DEFAULT 'legacy'");
+}
+if (!hasColumn("battle_records", "target_growth")) {
+  db.exec("ALTER TABLE battle_records ADD COLUMN target_growth INTEGER");
+}
+if (!hasColumn("pvp_queue_telegram_alerts", "target_growth")) {
+  db.exec("ALTER TABLE pvp_queue_telegram_alerts ADD COLUMN target_growth INTEGER");
+}
+if (!hasColumn("pvp_queue_telegram_alerts", "queue_label")) {
+  db.exec("ALTER TABLE pvp_queue_telegram_alerts ADD COLUMN queue_label TEXT");
+}
+if (!hasColumn("pvp_queue_telegram_alerts", "queue_type")) {
+  db.exec("ALTER TABLE pvp_queue_telegram_alerts ADD COLUMN queue_type TEXT");
 }
 
 db.exec(`
@@ -153,6 +173,8 @@ export interface BattleRecordRow {
   player2: string;
   winner: string | null;
   is_bot_battle: number;
+  battle_version: string | null;
+  target_growth: number | null;
   transaction_digest: string | null;
   finished_at: number;
   recorded_at: number;
@@ -166,6 +188,9 @@ export interface PvpQueueTelegramAlertRow {
   queue_object_version: string | null;
   previous_transaction: string | null;
   entry_fee_mist: number;
+  target_growth: number | null;
+  queue_label: string | null;
+  queue_type: string | null;
   telegram_message_id: string | null;
   notified_at: number | null;
   resolved_at: number | null;
@@ -194,8 +219,8 @@ export interface LeaderboardEntry {
 
 // ─── Prepared statements ───────────────────────────────────────────────────────
 const upsertBattleRecord = db.prepare(`
-  INSERT OR IGNORE INTO battle_records (battle_id, player1, player2, winner, is_bot_battle, transaction_digest, finished_at, recorded_at)
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  INSERT OR IGNORE INTO battle_records (battle_id, player1, player2, winner, is_bot_battle, battle_version, target_growth, transaction_digest, finished_at, recorded_at)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `);
 
 const getPlayerStats = db.prepare(
@@ -274,6 +299,9 @@ const upsertNotifiedPvpQueueAlertStmt = db.prepare(`
     queue_object_version,
     previous_transaction,
     entry_fee_mist,
+    target_growth,
+    queue_label,
+    queue_type,
     telegram_message_id,
     notified_at,
     resolved_at,
@@ -281,7 +309,7 @@ const upsertNotifiedPvpQueueAlertStmt = db.prepare(`
     created_at,
     updated_at
   )
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, 1, ?, ?)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 1, ?, ?)
   ON CONFLICT(queue_entry_key) DO UPDATE SET
     telegram_message_id = excluded.telegram_message_id,
     notified_at = excluded.notified_at,
@@ -320,6 +348,8 @@ export interface TrackBattleInput {
   player2: string;
   winner: string | null;
   isBotBattle: boolean;
+  battleVersion?: string;
+  targetGrowth?: number | null;
   transactionDigest?: string | null;
   finishedAt: number;
 }
@@ -331,6 +361,9 @@ export interface UpsertPvpQueueTelegramAlertInput {
   queueObjectVersion?: string | null;
   previousTransaction?: string | null;
   entryFeeMist: number;
+  targetGrowth?: number | null;
+  queueLabel?: string | null;
+  queueType?: string | null;
   telegramMessageId?: string | null;
   notifiedAt: number;
 }
@@ -345,6 +378,8 @@ export function trackBattle(input: TrackBattleInput): void {
     input.player2,
     input.winner || null,
     input.isBotBattle ? 1 : 0,
+    input.battleVersion || "legacy",
+    input.targetGrowth ?? (input.isBotBattle ? 50 : null),
     input.transactionDigest || null,
     input.finishedAt,
     now,
@@ -630,6 +665,9 @@ export function upsertNotifiedPvpQueueTelegramAlert(
     input.queueObjectVersion ?? null,
     input.previousTransaction ?? null,
     input.entryFeeMist,
+    input.targetGrowth ?? null,
+    input.queueLabel ?? null,
+    input.queueType ?? null,
     input.telegramMessageId ?? null,
     input.notifiedAt,
     now,

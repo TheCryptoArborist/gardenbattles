@@ -1,17 +1,44 @@
 # Telegram PvP Queue Alerts
 
-Garden Battles can send a Telegram message when a wallet is waiting in the PvP
+Garden Battles can send a Telegram message when a wallet is waiting in a PvP
 matchmaking queue. The service is optional and runs in the backend API process.
 It is separate from the Sui event relay; `DISABLE_SUI_RELAY=true` can remain
 enabled.
 
-## Queue Entry Key
+## Queue Configuration
 
-The notifier reads the shared `MatchmakingQueue` object:
+The notifier polls every configured queue independently:
+
+```text
+LEGACY_MATCHMAKING_QUEUE_ID or MATCHMAKING_QUEUE_ID
+MATCHMAKING_QUEUE_50_ID
+MATCHMAKING_QUEUE_75_ID
+```
+
+The current live legacy queue remains:
 
 ```text
 0xb5c054185c98d9cb80e35c50f78e306ca2d7bed52955e397df9f1acad9938e4d
 ```
+
+It is treated as `Legacy Match` with a `100 Growth` target. Empty or unset v2
+queue IDs are ignored safely; do not invent IDs before the shared v2 queues are
+initialized.
+
+Target labels:
+
+```text
+Legacy Match: 100 Growth
+Quick Match: 50 Growth
+Standard Match: 75 Growth
+```
+
+`MATCHMAKING_QUEUE_50_ID` and `MATCHMAKING_QUEUE_75_ID` point to
+`MatchmakingQueueV2` objects. For v2 queues, the notifier reads
+`target_growth` from the queue object and rejects/logs a configuration mismatch
+instead of trusting environment variables alone.
+
+## Queue Entry Key
 
 For each waiting entry, the preferred dedupe key is:
 
@@ -25,8 +52,10 @@ If `previousTransaction` is unavailable, the fallback key is:
 ${queueId}:${waitingWallet}:${queueObjectVersion}:${entryFeeMist}
 ```
 
-This lets the same wallet trigger a new alert later when it rejoins with a new
-queue object version or previous transaction.
+This includes the queue ID, so the same wallet waiting in the 50 Growth queue
+does not collide with the same wallet waiting in the 75 Growth queue. It also
+lets the same wallet trigger a new alert later when it rejoins with a new queue
+object version or previous transaction.
 
 ## Persistence
 
@@ -58,6 +87,9 @@ waiting_wallet
 queue_object_version
 previous_transaction
 entry_fee_mist
+target_growth
+queue_label
+queue_type
 telegram_message_id
 notified_at
 resolved_at
@@ -78,28 +110,31 @@ again.
 
 - Empty queue: resolve any active stored queue entry. No Telegram message is sent.
 - Same active key on repeated polls: skip.
-- Entry A to entry B directly: resolve A and send one alert for B.
+- Entry A to entry B directly in the same queue: resolve A and send one alert for B.
+- Same wallet in different queues: send one alert for each distinct queue entry.
 - Same wallet rejoins later: send a new alert when the key changes.
 - Sui RPC failure: do not resolve the last known active entry.
 
-## Railway Variables
-
-Required to enable alerts:
-
-```text
-ENABLE_PVP_QUEUE_TELEGRAM=true
-TELEGRAM_BOT_TOKEN=<telegram bot token>
-TELEGRAM_CHAT_ID=<community chat id>
-# Optional, for Telegram forum topics/supergroup threads:
-TELEGRAM_MESSAGE_THREAD_ID=<topic id>
-MATCHMAKING_QUEUE_ID=0xb5c054185c98d9cb80e35c50f78e306ca2d7bed52955e397df9f1acad9938e4d
-GARDEN_BATTLES_PUBLIC_URL=https://nftree.net/battle
-PVP_QUEUE_TELEGRAM_POLL_MS=30000
-```
+## Telegram Message
 
 Messages are sent with `parse_mode=HTML` and an inline `Join Battle` button.
 When `TELEGRAM_MESSAGE_THREAD_ID` is set, the backend includes
 `message_thread_id` in the Telegram `sendMessage` payload.
+
+Example:
+
+```text
+⚔️ PvP Opponent Needed
+
+Match target: 50 Growth
+Quick Match
+
+Player: 0x18d7...35d6
+Entry: 3 SUI
+Winner receives: 5 SUI
+
+Join the battle: https://nftree.net/battle
+```
 
 For forum topics:
 
@@ -113,6 +148,45 @@ For forum topics:
 - Do not set `TELEGRAM_CHAT_ID` to a full `https://t.me/...` URL. The backend
   rejects those values so secrets and routing mistakes fail early.
 
+## PvP v2 Event Parsing
+
+The API continues to parse legacy `BattleUpdate` events from the original event
+package. It also recognizes `PvpBattleV2Update` events from the current battle
+package and stores:
+
+```text
+battle_id
+battle_version
+target_growth
+players
+growth
+winner
+last_move_ms
+```
+
+Legacy PvP remains `100 Growth`. `PvpBattleV2` records use the on-chain
+`target_growth` emitted by `PvpBattleV2Update`.
+
+## Railway Variables
+
+Required to enable alerts:
+
+```text
+ENABLE_PVP_QUEUE_TELEGRAM=true
+TELEGRAM_BOT_TOKEN=<telegram bot token>
+TELEGRAM_CHAT_ID=<community chat id>
+# Optional, for Telegram forum topics/supergroup threads:
+TELEGRAM_MESSAGE_THREAD_ID=<topic id>
+LEGACY_MATCHMAKING_QUEUE_ID=0xb5c054185c98d9cb80e35c50f78e306ca2d7bed52955e397df9f1acad9938e4d
+# Compatibility alias for the legacy queue:
+MATCHMAKING_QUEUE_ID=0xb5c054185c98d9cb80e35c50f78e306ca2d7bed52955e397df9f1acad9938e4d
+# Leave unset until shared v2 queues are initialized:
+MATCHMAKING_QUEUE_50_ID=
+MATCHMAKING_QUEUE_75_ID=
+GARDEN_BATTLES_PUBLIC_URL=https://nftree.net/battle
+PVP_QUEUE_TELEGRAM_POLL_MS=30000
+```
+
 Keep the existing API-only settings:
 
 ```text
@@ -121,6 +195,17 @@ GARDEN_BATTLES_DB_PATH=/data/battle-data.db
 ```
 
 Do not log or commit Telegram secrets.
+
+## Rollout Sequence
+
+1. Deploy backend code with `MATCHMAKING_QUEUE_50_ID` and
+   `MATCHMAKING_QUEUE_75_ID` unset. Only the legacy queue is polled.
+2. Initialize shared 50 and 75 Growth queues on-chain in a separate approved
+   checkpoint.
+3. Set `MATCHMAKING_QUEUE_50_ID` and `MATCHMAKING_QUEUE_75_ID` in Railway.
+4. Restart the API and confirm logs show all configured queues.
+5. Join each queue with a test wallet and confirm exactly one topic alert per
+   waiting occurrence.
 
 ## Test Procedure
 

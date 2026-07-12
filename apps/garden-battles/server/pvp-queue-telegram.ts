@@ -24,11 +24,22 @@ export interface PendingQueueEntry {
   objectVersion: string | null;
   previousTransaction: string | null;
   queueEntryKey: string;
+  targetGrowth: 50 | 75 | 100;
+  displayLabel: string;
+  queueType: "legacy" | "v2";
+}
+
+export interface PvpQueueDefinition {
+  queueId: string;
+  targetGrowth: 50 | 75 | 100;
+  displayLabel: string;
+  queueType: "legacy" | "v2";
 }
 
 interface TelegramQueueNotifierOptions {
   suiRpcUrl?: string;
   queueId?: string;
+  queues?: PvpQueueDefinition[];
   enabled?: boolean;
   botToken?: string;
   chatId?: string;
@@ -171,10 +182,69 @@ function buildQueueEntryKey(input: {
   return `${input.queueId}:${input.player}:${input.objectVersion ?? "unknown-version"}:${input.entryFeeMist}`;
 }
 
+function normalizeQueueId(value: string | undefined | null): string {
+  return (value ?? "").trim();
+}
+
+export function getConfiguredPvpQueueDefinitions(env: NodeJS.ProcessEnv = process.env): PvpQueueDefinition[] {
+  const legacyQueueId =
+    normalizeQueueId(env.LEGACY_MATCHMAKING_QUEUE_ID) ||
+    normalizeQueueId(env.MATCHMAKING_QUEUE_ID) ||
+    normalizeQueueId(env.PVP_MATCHMAKING_QUEUE_ID) ||
+    DEFAULT_MATCHMAKING_QUEUE_ID;
+  const queue50Id = normalizeQueueId(env.MATCHMAKING_QUEUE_50_ID);
+  const queue75Id = normalizeQueueId(env.MATCHMAKING_QUEUE_75_ID);
+  const queues: PvpQueueDefinition[] = [];
+
+  if (legacyQueueId) {
+    queues.push({
+      queueId: legacyQueueId,
+      targetGrowth: 100,
+      displayLabel: "Legacy Match",
+      queueType: "legacy",
+    });
+  }
+
+  if (queue50Id) {
+    queues.push({
+      queueId: queue50Id,
+      targetGrowth: 50,
+      displayLabel: "Quick Match",
+      queueType: "v2",
+    });
+  }
+
+  if (queue75Id) {
+    queues.push({
+      queueId: queue75Id,
+      targetGrowth: 75,
+      displayLabel: "Standard Match",
+      queueType: "v2",
+    });
+  }
+
+  return queues;
+}
+
+function readQueueTargetGrowth(obj: any): number | null {
+  const raw = obj?.data?.content?.fields?.target_growth;
+  const target = Number(raw);
+  return Number.isFinite(target) && target > 0 ? target : null;
+}
+
 export function parsePendingQueueEntry(
   obj: any,
-  queueId: string,
+  queue: PvpQueueDefinition,
 ): PendingQueueEntry | null {
+  if (queue.queueType === "v2") {
+    const onChainTarget = readQueueTargetGrowth(obj);
+    if (onChainTarget !== queue.targetGrowth) {
+      throw new Error(
+        `Configured ${queue.displayLabel} queue target mismatch: expected ${queue.targetGrowth}, got ${onChainTarget ?? "missing"}`,
+      );
+    }
+  }
+
   const objectVersion =
     obj?.data?.version != null ? String(obj.data.version) : null;
   const previousTransaction =
@@ -195,18 +265,21 @@ export function parsePendingQueueEntry(
   if (!Number.isFinite(entryFeeMist) || entryFeeMist < 0) return null;
 
   return {
-    queueId,
+    queueId: queue.queueId,
     player,
     entryFeeMist,
     objectVersion,
     previousTransaction,
     queueEntryKey: buildQueueEntryKey({
-      queueId,
+      queueId: queue.queueId,
       player,
       objectVersion,
       previousTransaction,
       entryFeeMist,
     }),
+    targetGrowth: queue.targetGrowth,
+    displayLabel: queue.displayLabel,
+    queueType: queue.queueType,
   };
 }
 
@@ -275,6 +348,9 @@ const sqliteQueueAlertStore: QueueAlertStore = {
       queueObjectVersion: entry.objectVersion,
       previousTransaction: entry.previousTransaction,
       entryFeeMist: entry.entryFeeMist,
+      targetGrowth: entry.targetGrowth,
+      queueLabel: entry.displayLabel,
+      queueType: entry.queueType,
       telegramMessageId,
       notifiedAt,
     });
@@ -285,9 +361,11 @@ const sqliteQueueAlertStore: QueueAlertStore = {
 
 function buildQueueMessage(entry: PendingQueueEntry, battleUrl: string): string {
   return [
-    "<b>Garden Battles PvP queue alert</b>",
+    "&#x2694;&#xfe0f; <b>PvP Opponent Needed</b>",
     "",
-    "A player is waiting for an opponent.",
+    `Match target: <b>${entry.targetGrowth} Growth</b>`,
+    `<b>${escapeHtml(entry.displayLabel)}</b>`,
+    "",
     `Player: <code>${escapeHtml(shortAddress(entry.player))}</code>`,
     `Entry: <b>${escapeHtml(formatSui(entry.entryFeeMist))}</b>`,
     "Winner receives: <b>5 SUI</b>",
@@ -322,6 +400,9 @@ function createQueueTestEntry(): PendingQueueEntry {
     entryFeeMist,
     objectVersion,
     previousTransaction,
+    targetGrowth: 100,
+    displayLabel: "Legacy Match",
+    queueType: "legacy",
     queueEntryKey: buildQueueEntryKey({
       queueId,
       player,
@@ -348,7 +429,8 @@ async function getQueueObjectWithTimeout(
 }
 
 export function createPvpQueueTelegramPoller(options: {
-  queueId: string;
+  queueId?: string;
+  queues?: PvpQueueDefinition[];
   battleUrl: string;
   botToken: string;
   chatId: string;
@@ -358,6 +440,17 @@ export function createPvpQueueTelegramPoller(options: {
   store: QueueAlertStore;
 }) {
   let pollInFlight = false;
+  const queues =
+    options.queues && options.queues.length > 0
+      ? options.queues
+      : [
+          {
+            queueId: options.queueId ?? DEFAULT_MATCHMAKING_QUEUE_ID,
+            targetGrowth: 100,
+            displayLabel: "Legacy Match",
+            queueType: "legacy",
+          } satisfies PvpQueueDefinition,
+        ];
 
   const pollOnce = async (): Promise<QueuePollResult> => {
     if (pollInFlight) {
@@ -366,49 +459,55 @@ export function createPvpQueueTelegramPoller(options: {
     pollInFlight = true;
 
     try {
-      const object = await getQueueObjectWithTimeout(
-        options.suiClient,
-        options.queueId,
-      );
-      const pending = parsePendingQueueEntry(object, options.queueId);
+      let lastResult: QueuePollResult = { status: "empty", reason: "queue_empty" };
+      for (const queue of queues) {
+        const object = await getQueueObjectWithTimeout(
+          options.suiClient,
+          queue.queueId,
+        );
+        const pending = parsePendingQueueEntry(object, queue);
 
-      if (!pending) {
-        options.store.resolveActive(options.queueId);
-        return { status: "empty", reason: "queue_empty" };
-      }
+        if (!pending) {
+          options.store.resolveActive(queue.queueId);
+          continue;
+        }
 
-      const active = options.store.getActive(options.queueId);
-      if (active && active.queue_entry_key !== pending.queueEntryKey) {
-        options.store.resolve(active.queue_entry_key);
-      }
+        const active = options.store.getActive(queue.queueId);
+        if (active && active.queue_entry_key !== pending.queueEntryKey) {
+          options.store.resolve(active.queue_entry_key);
+        }
 
-      const existing = options.store.getByKey(pending.queueEntryKey);
-      if (existing?.notified_at) {
-        return {
-          status: "skipped",
-          reason: "already_notified",
+        const existing = options.store.getByKey(pending.queueEntryKey);
+        if (existing?.notified_at) {
+          lastResult = {
+            status: "skipped",
+            reason: "already_notified",
+            entryKey: pending.queueEntryKey,
+          };
+          continue;
+        }
+
+        const telegramResult = await options.telegramClient.sendMessage({
+          botToken: options.botToken,
+          chatId: options.chatId,
+          messageThreadId: options.messageThreadId,
+          replyMarkup: buildQueueReplyMarkup(options.battleUrl),
+          text: buildQueueMessage(pending, options.battleUrl),
+        });
+
+        options.store.markNotified({
+          entry: pending,
+          telegramMessageId: telegramResult.messageId,
+          notifiedAt: Date.now(),
+        });
+
+        lastResult = {
+          status: "notified",
           entryKey: pending.queueEntryKey,
         };
       }
 
-      const telegramResult = await options.telegramClient.sendMessage({
-        botToken: options.botToken,
-        chatId: options.chatId,
-        messageThreadId: options.messageThreadId,
-        replyMarkup: buildQueueReplyMarkup(options.battleUrl),
-        text: buildQueueMessage(pending, options.battleUrl),
-      });
-
-      options.store.markNotified({
-        entry: pending,
-        telegramMessageId: telegramResult.messageId,
-        notifiedAt: Date.now(),
-      });
-
-      return {
-        status: "notified",
-        entryKey: pending.queueEntryKey,
-      };
+      return lastResult;
     } catch (error) {
       console.warn("[telegram] PvP queue notifier poll failed", error);
       return {
@@ -462,11 +561,18 @@ export function startPvpQueueTelegramNotifier(
   const chatId = validateTelegramChatId(rawChatId);
   const messageThreadId = parseTelegramMessageThreadId(rawMessageThreadId);
 
-  const queueId =
-    options.queueId ??
-    process.env.MATCHMAKING_QUEUE_ID ??
-    process.env.PVP_MATCHMAKING_QUEUE_ID ??
-    DEFAULT_MATCHMAKING_QUEUE_ID;
+  const queues =
+    options.queues ??
+    (options.queueId
+      ? [
+          {
+            queueId: options.queueId,
+            targetGrowth: 100,
+            displayLabel: "Legacy Match",
+            queueType: "legacy",
+          } satisfies PvpQueueDefinition,
+        ]
+      : getConfiguredPvpQueueDefinitions());
   const battleUrl =
     options.battleUrl ?? process.env.GARDEN_BATTLES_PUBLIC_URL ?? DEFAULT_BATTLE_URL;
   const pollIntervalMs = Math.max(
@@ -480,7 +586,7 @@ export function startPvpQueueTelegramNotifier(
       url: options.suiRpcUrl ?? process.env.SUI_RPC_URL ?? DEFAULT_SUI_RPC_URL,
     });
   const poller = createPvpQueueTelegramPoller({
-    queueId,
+    queues,
     battleUrl,
     botToken,
     chatId,
@@ -491,7 +597,7 @@ export function startPvpQueueTelegramNotifier(
   });
 
   console.log(
-    `[telegram] PvP queue notifier enabled; polling ${queueId.slice(0, 10)}... every ${pollIntervalMs}ms`,
+    `[telegram] PvP queue notifier enabled; polling ${queues.length} queue(s) every ${pollIntervalMs}ms`,
   );
   void poller.pollOnce();
   const interval = setInterval(() => {
