@@ -8,7 +8,9 @@ import {
   MOVE_LABELS,
   MOVE_META,
   SUI_CONFIG,
+  getPvpMatchDisplayLabel,
   moveGrowsSelf,
+  type PvpMatchTarget,
 } from "@/lib/sui-config";
 import { PRACTICE_PLAYER_ADDRESS } from "@/lib/practiceBattle";
 import BattleDialog from "@/components/BattleDialog";
@@ -274,6 +276,8 @@ export default function Battle() {
   const [isRefunding, setIsRefunding] = useState(false);
   const [isJoining, setIsJoining] = useState(false);
   const [isCheckingPvpQueue, setIsCheckingPvpQueue] = useState(false);
+  const [selectedPvpTarget, setSelectedPvpTarget] =
+    useState<PvpMatchTarget>(50);
   const [localPvpQueued, setLocalPvpQueued] = useState(false);
   const [recoveredPvpQueueState, setRecoveredPvpQueueState] =
     useState<PvpQueueState | null>(null);
@@ -296,6 +300,15 @@ export default function Battle() {
   );
   const pvpWinnerPayoutLabel = formatSuiAmount(PVP_WINNER_PAYOUT_MIST);
   const pvpTreeSupportLabel = formatSuiAmount(PVP_TREE_SUPPORT_MIST);
+  const selectedPvpMatchLabel = getPvpMatchDisplayLabel(selectedPvpTarget);
+  const activePvpMatchLabel =
+    activePvpQueueState?.matchLabel ??
+    (battleState && !battleState.isBotBattle
+      ? battleState.matchLabel ||
+        getPvpMatchDisplayLabel(
+          (battleState.targetGrowth as PvpMatchTarget | undefined) ?? 100,
+        )
+      : selectedPvpMatchLabel);
   const [playerNftImageUrl, setPlayerNftImageUrl] = useState<string | null>(
     null,
   );
@@ -355,10 +368,10 @@ export default function Battle() {
       if (nftData) {
         setDialogKind("pvp-join-pending");
         setDialogMessage(
-          "Joining PvP queue\n\nWaiting for wallet approval.\n\nApprove or reject the request in your wallet.",
+          `Joining PvP queue\n\n${selectedPvpMatchLabel}\n\nWaiting for wallet approval.\n\nApprove or reject the request in your wallet.`,
         );
         setPlayerNftImageUrl(nftData.imageUrl || null);
-        await joinBattle(nftData);
+        await joinBattle(nftData, selectedPvpTarget);
         setLocalPvpQueued(true);
         setDialogOpen(false);
         setDialogMessage("");
@@ -375,10 +388,15 @@ export default function Battle() {
     } catch (error: any) {
       const message = error?.message || "";
       const isCancelled = isWalletCancelMessage(message);
+      const isInactiveMatchType = message.includes(
+        "This match type is not active yet",
+      );
       setDialogOpen(true);
       setDialogKind(isCancelled ? "pvp-join-cancelled" : "pvp-join-error");
       setDialogMessage(
-        isCancelled
+        isInactiveMatchType
+          ? "This match type is not active yet."
+          : isCancelled
           ? "Queue join cancelled in wallet."
           : "Could not join the PvP queue. Try again.",
       );
@@ -533,6 +551,14 @@ export default function Battle() {
             ? queueState.player
             : address?.toLowerCase() ?? "",
         entryFeeMist: queueState.entryFeeMist ?? entryFeeMist,
+        targetGrowth:
+          (queueState.targetGrowth as PvpMatchTarget | undefined) ?? 100,
+        matchLabel:
+          queueState.matchLabel ??
+          getPvpMatchDisplayLabel(
+            (queueState.targetGrowth as PvpMatchTarget | undefined) ?? 100,
+          ),
+        queueType: queueState.queueType ?? "legacy",
       });
       pvpQueueWalletRef.current = address?.toLowerCase() ?? null;
     } else if (recoveredPvpQueueState) {
@@ -837,7 +863,9 @@ export default function Battle() {
     (battleState.isBotBattle ||
       battleState.player1?.toLowerCase() === SUI_CONFIG.BOT_ADDRESS.toLowerCase() ||
       battleState.player2?.toLowerCase() === SUI_CONFIG.BOT_ADDRESS.toLowerCase());
-  const activeGrowthTarget = isGardenBotBattle ? 50 : 100;
+  const activeGrowthTarget =
+    battleState?.targetGrowth ??
+    (isGardenBotBattle || isPracticeActive ? 50 : 100);
   const displayGrowthTarget = battleState ? activeGrowthTarget : 50;
   const growthTarget = activeGrowthTarget;
   const playerRole: BattleRole = isPlayer1 ? "player-1" : "player-2";
@@ -1110,7 +1138,7 @@ export default function Battle() {
 
   let battleStatus = "Connect wallet to start!";
   if (isWaiting) {
-    battleStatus = "Waiting for 2nd player... (Need 2 players total!)";
+    battleStatus = "Waiting for opponent.";
   } else if (isConnected && !battleState) {
     battleStatus = "Ready to join! Click the button below.";
   } else if (battleState && !battleFinished) {
@@ -1192,9 +1220,9 @@ export default function Battle() {
       : battleState && isGardenBotBattle
       ? "Single Player Garden Bot - Leaderboard eligible - Wallet approval required"
       : battleState && !isGardenBotBattle
-        ? `${entryFeeLabel} per Battle`
+        ? `${activePvpMatchLabel} - ${entryFeeLabel} entry`
         : isWaiting
-          ? `PvP Battle - ${entryFeeLabel} entry paid. Waiting for opponent.`
+          ? `PvP Battle - ${activePvpMatchLabel} - ${entryFeeLabel} entry paid. Waiting for opponent.`
           : isConnected
             ? "Choose Single Player or PvP to begin"
             : "Connect wallet to choose a mode";
@@ -1322,10 +1350,10 @@ export default function Battle() {
   const activeModeDetails = isPracticeActive
     ? "No wallet needed - No rewards - No leaderboard credit"
     : isPvpQueued
-      ? `${pvpQueueEntryFeeLabel} deposited - Waiting for opponent`
+      ? `${activePvpMatchLabel} - ${pvpQueueEntryFeeLabel} deposited - Waiting for opponent`
       : isGardenBotBattle
         ? "Leaderboard eligible - Wallet approval required"
-        : `${entryFeeLabel} entry - Leaderboard eligible`;
+        : `${activePvpMatchLabel} - ${entryFeeLabel} entry - Leaderboard eligible`;
 
   const handleStartPracticeBattle = () => {
     startPracticeBattle();
@@ -1374,6 +1402,44 @@ export default function Battle() {
               <span>Wallet approval required</span>
               <span>Leaderboard eligible</span>
             </div>
+            {!shouldShowPvpQueuePanel && (
+              <div className="gb-pvp-target-selector" aria-label="Choose PvP match length">
+                <span className="gb-pvp-target-selector-label">Choose Match Length</span>
+                <div className="gb-pvp-target-options">
+                  {[
+                    {
+                      target: 50 as const,
+                      title: "50 Growth",
+                      subtitle: "Quick Match",
+                    },
+                    {
+                      target: 75 as const,
+                      title: "75 Growth",
+                      subtitle: "Standard Match",
+                    },
+                  ].map((option) => (
+                    <button
+                      key={option.target}
+                      type="button"
+                      className={
+                        selectedPvpTarget === option.target
+                          ? "gb-pvp-target-option gb-pvp-target-option-active"
+                          : "gb-pvp-target-option"
+                      }
+                      aria-pressed={selectedPvpTarget === option.target}
+                      onClick={() => setSelectedPvpTarget(option.target)}
+                    >
+                      <strong>{option.title}</strong>
+                      <span>{option.subtitle}</span>
+                    </button>
+                  ))}
+                </div>
+                <p className="gb-pvp-target-note">
+                  New 50/75 Growth queues are pending activation. Legacy
+                  recovery stays available for existing 100 Growth queues.
+                </p>
+              </div>
+            )}
             {shouldShowPvpQueuePanel ? (
               <>
                 <div className="gb-mode-queued-label">Already in queue</div>
@@ -1403,7 +1469,9 @@ export default function Battle() {
                   className="gb-mode-action gb-mode-action-pvp"
                   data-testid="button-join-battle"
                 >
-                  {isJoining ? "Joining..." : `Join Battle Queue (${entryFeeLabel})`}
+                  {isJoining
+                    ? "Joining..."
+                    : `Join ${selectedPvpTarget} Growth Queue (${entryFeeLabel})`}
                 </button>
                 {isConnected && !hasActiveSession && (
                   <button
@@ -1512,6 +1580,7 @@ export default function Battle() {
         <p className="gb-pvp-queue-kicker">PvP Battle Queue</p>
         <h2>Waiting for opponent</h2>
         <div className="gb-pvp-queue-facts" aria-label="PvP queue details">
+          <span>{activePvpMatchLabel}</span>
           <span>{pvpQueueEntryFeeLabel} deposited</span>
           <span>Winner receives {pvpWinnerPayoutLabel}</span>
           <span>{pvpTreeSupportLabel} supports TREE buybacks</span>
@@ -2480,7 +2549,7 @@ export default function Battle() {
                   : isMoveTransactionPending
                     ? "Waiting for transaction confirmation..."
                   : !isMyTurn
-                    ? "Waiting for your opponent..."
+                    ? "Waiting for your opponent to move."
                     : "Choose your move - each turn = 1 wallet confirmation"}
             </div>
 

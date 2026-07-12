@@ -11,8 +11,12 @@ export const SUI_CONFIG = {
   MODULE: "battle",
   CONFIG_ID:
     "0x30addc978abe37f31d55cc60a395f30fd6cfdcbfb3cd4e319d2920b0e780a9bf",
+  LEGACY_MATCHMAKING_QUEUE_ID:
+    "0xb5c054185c98d9cb80e35c50f78e306ca2d7bed52955e397df9f1acad9938e4d",
   MATCHMAKING_QUEUE_ID:
     "0xb5c054185c98d9cb80e35c50f78e306ca2d7bed52955e397df9f1acad9938e4d",
+  MATCHMAKING_QUEUE_50_ID: "",
+  MATCHMAKING_QUEUE_75_ID: "",
   BOT_ADDRESS:
     "0xbbe518c2a2025d2d95b9e5b6435911771f64d7d9fe037fbf2ec661981890d5b4",
   SAPLING_STRUCT:
@@ -33,6 +37,61 @@ export const SUI_CONFIG = {
     "0xaf19c438c96320d14954a63c06d71fab99a2165800c839d667bd1803ecf86f36", // Contract deployer
   ],
 } as const;
+
+export type PvpBattleVersion = "legacy" | "pvp-v2";
+export type PvpMatchTarget = 50 | 75 | 100;
+export type PvpQueueType = "legacy" | "v2";
+
+export interface PvpMatchOption {
+  targetGrowth: PvpMatchTarget;
+  label: string;
+  shortLabel: string;
+  queueId: string;
+  queueType: PvpQueueType;
+}
+
+export function getPvpMatchOption(targetGrowth: PvpMatchTarget): PvpMatchOption {
+  if (targetGrowth === 50) {
+    return {
+      targetGrowth,
+      label: "Quick Match",
+      shortLabel: "50 Growth",
+      queueId: SUI_CONFIG.MATCHMAKING_QUEUE_50_ID,
+      queueType: "v2",
+    };
+  }
+
+  if (targetGrowth === 75) {
+    return {
+      targetGrowth,
+      label: "Standard Match",
+      shortLabel: "75 Growth",
+      queueId: SUI_CONFIG.MATCHMAKING_QUEUE_75_ID,
+      queueType: "v2",
+    };
+  }
+
+  return {
+    targetGrowth: 100,
+    label: "Legacy Match",
+    shortLabel: "100 Growth",
+    queueId: SUI_CONFIG.LEGACY_MATCHMAKING_QUEUE_ID,
+    queueType: "legacy",
+  };
+}
+
+export function getConfiguredPvpQueueOptions(): PvpMatchOption[] {
+  return [
+    getPvpMatchOption(100),
+    getPvpMatchOption(50),
+    getPvpMatchOption(75),
+  ].filter((option) => option.queueId.trim().length > 0);
+}
+
+export function getPvpMatchDisplayLabel(targetGrowth: PvpMatchTarget): string {
+  const option = getPvpMatchOption(targetGrowth);
+  return `${option.label} - First to ${option.targetGrowth} Growth`;
+}
 
 // Short display label for buttons
 export const MOVE_LABELS: Record<number, string> = {
@@ -111,6 +170,10 @@ export function moveGrowsSelf(moveId: number): boolean {
 
 export function getBattleUpdateEvent() {
   return `${SUI_CONFIG.ORIGINAL_PACKAGE_ID}::${SUI_CONFIG.MODULE}::BattleUpdate`;
+}
+
+export function getPvpBattleV2UpdateEvent() {
+  return `${SUI_CONFIG.PACKAGE_ID}::${SUI_CONFIG.MODULE}::PvpBattleV2Update`;
 }
 
 export function getBotMoveResolvedEvent() {

@@ -2277,6 +2277,80 @@
     text-transform: uppercase;
   }
 
+  .gb-pvp-target-selector {
+    background: rgba(0, 12, 16, 0.48);
+    border: 1px solid rgba(0, 213, 199, 0.24);
+    border-radius: 8px;
+    display: grid;
+    gap: 8px;
+    padding: 9px;
+    width: 100%;
+  }
+
+  .gb-pvp-target-selector-label {
+    color: var(--gb-teal);
+    font-family: Orbitron, sans-serif;
+    font-size: 10px;
+    font-weight: 900;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+  }
+
+  .gb-pvp-target-options {
+    display: grid;
+    gap: 7px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .gb-pvp-target-option {
+    background: rgba(0, 35, 35, 0.72);
+    border: 1px solid rgba(0, 213, 199, 0.32);
+    border-radius: 8px;
+    color: rgba(234, 255, 246, 0.82);
+    cursor: pointer;
+    display: grid;
+    gap: 3px;
+    min-height: 52px;
+    padding: 8px;
+    text-align: left;
+    transition: border-color 140ms ease, box-shadow 140ms ease, background 140ms ease;
+  }
+
+  .gb-pvp-target-option strong,
+  .gb-pvp-target-option span {
+    display: block;
+    line-height: 1.15;
+  }
+
+  .gb-pvp-target-option strong {
+    color: #ffffff;
+    font-family: Orbitron, sans-serif;
+    font-size: clamp(12px, 2.3vw, 14px);
+    font-weight: 900;
+  }
+
+  .gb-pvp-target-option span {
+    color: rgba(186, 255, 238, 0.78);
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+  }
+
+  .gb-pvp-target-option-active {
+    background: rgba(0, 72, 58, 0.84);
+    border-color: rgba(57, 255, 136, 0.75);
+    box-shadow:
+      0 0 14px rgba(57, 255, 136, 0.2),
+      inset 0 0 14px rgba(57, 255, 136, 0.08);
+  }
+
+  .gb-pvp-target-note {
+    color: rgba(234, 255, 246, 0.62);
+    font-size: 11px;
+    line-height: 1.35;
+    margin: 0;
+  }
+
   .gb-mode-crest {
     align-items: center;
     aspect-ratio: 1;
@@ -3926,6 +4000,10 @@
 
     .gb-mode-card-details {
       grid-column: 1 / -1;
+    }
+
+    .gb-pvp-target-options {
+      grid-template-columns: 1fr;
     }
 
     .gb-practice-mode-strip {

@@ -28,8 +28,15 @@ import {
   MOVE_LABELS,
   MOVE_META,
   SUI_CONFIG,
+  getConfiguredPvpQueueOptions,
   getBattleUpdateEvent,
   getBotMoveResolvedEvent,
+  getPvpBattleV2UpdateEvent,
+  getPvpMatchDisplayLabel,
+  getPvpMatchOption,
+  type PvpBattleVersion,
+  type PvpMatchOption,
+  type PvpMatchTarget,
 } from "@/lib/sui-config";
 import { submitBattleRecord } from "@/lib/api";
 import type { ActionEntry } from "@/components/BattleLog";
@@ -49,6 +56,9 @@ export interface BattleState {
   finished?: boolean;
   isBotBattle?: boolean;
   lastMoveMs?: number;
+  battleVersion?: PvpBattleVersion;
+  targetGrowth?: number;
+  matchLabel?: string;
 }
 
 export interface NftData {
@@ -64,6 +74,9 @@ export interface PvpQueueState {
   queueId: string;
   player: string;
   entryFeeMist: number;
+  targetGrowth: PvpMatchTarget;
+  matchLabel: string;
+  queueType: "legacy" | "v2";
 }
 
 export type MoveLifecycleStage =
@@ -101,7 +114,7 @@ interface SuiWalletContextType {
   isMyTurn: boolean;
   actionLog: ActionEntry[];
   clearActionLog: () => void;
-  joinBattle: (nftData: NftData) => Promise<void>;
+  joinBattle: (nftData: NftData, targetGrowth?: PvpMatchTarget) => Promise<void>;
   startBotBattle: (
     nftData: NftData,
     options?: StartBotBattleOptions,
@@ -235,6 +248,38 @@ function isActiveBattleForAddress(
   );
 }
 
+function readTargetGrowth(value: any): number | undefined {
+  const targetGrowth = Number(value);
+  return Number.isFinite(targetGrowth) && targetGrowth > 0
+    ? targetGrowth
+    : undefined;
+}
+
+function resolveBattleTargetGrowth(state: Pick<BattleState, "isBotBattle" | "targetGrowth" | "battleVersion">): number {
+  if (state.targetGrowth && Number.isFinite(state.targetGrowth)) {
+    return state.targetGrowth;
+  }
+
+  if (state.isBotBattle) return 50;
+  return state.battleVersion === "pvp-v2" ? 50 : 100;
+}
+
+function resolveBattleMatchLabel(state: Pick<BattleState, "isBotBattle" | "targetGrowth" | "battleVersion">): string {
+  if (state.isBotBattle) return "Single Player Garden Bot";
+  const targetGrowth = resolveBattleTargetGrowth(state);
+  if (targetGrowth === 50) return "Quick Match";
+  if (targetGrowth === 75) return "Standard Match";
+  return "Legacy Match";
+}
+
+function isPvpBattleV2ObjectType(type: unknown): boolean {
+  return typeof type === "string" && type.endsWith(`::${SUI_CONFIG.MODULE}::PvpBattleV2`);
+}
+
+function isLegacyBattleObjectType(type: unknown): boolean {
+  return typeof type === "string" && type.endsWith(`::${SUI_CONFIG.MODULE}::Battle`);
+}
+
 function isActivePvpBattleForAddress(
   state: BattleState | null,
   address: string | null,
@@ -273,12 +318,25 @@ function readConfigEntryFeeMist(content: any): number | null {
   return Number.isFinite(fee) && fee >= 0 ? fee : null;
 }
 
-function parseBattleStateFromEvent(json: any): BattleState | null {
+function parseBattleStateFromEvent(
+  json: any,
+  battleVersion: PvpBattleVersion = "legacy",
+): BattleState | null {
   if (!json?.battle_id || !json?.player1 || !json?.player2) return null;
 
   const parsedTurn = Number(json.turn);
   const player1 = json.player1.toLowerCase();
   const player2 = json.player2.toLowerCase();
+  const isBotBattle =
+    battleVersion === "legacy"
+      ? inferIsBotBattle(json.is_bot_battle, player1, player2)
+      : false;
+  const targetGrowth =
+    battleVersion === "pvp-v2"
+      ? readTargetGrowth(json.target_growth)
+      : isBotBattle
+        ? 50
+        : 100;
   return {
     battleId: json.battle_id,
     player1,
@@ -290,8 +348,15 @@ function parseBattleStateFromEvent(json: any): BattleState | null {
     turn: Number.isFinite(parsedTurn) ? parsedTurn : 0,
     winner: normalizeWinner(json.winner),
     finished: !!normalizeWinner(json.winner),
-    isBotBattle: inferIsBotBattle(json.is_bot_battle, player1, player2),
+    isBotBattle,
     lastMoveMs: Number(json.last_move_ms ?? 0),
+    battleVersion,
+    targetGrowth,
+    matchLabel: resolveBattleMatchLabel({
+      isBotBattle,
+      battleVersion,
+      targetGrowth,
+    }),
   };
 }
 
@@ -395,11 +460,22 @@ function resolveBotMoveId(
 function parseBattleStateFromObjectFields(
   battleId: string,
   fields: any,
+  battleVersion: PvpBattleVersion = "legacy",
 ): BattleState | null {
   if (!fields?.player1 || !fields?.player2) return null;
 
   const player1 = String(fields.player1).toLowerCase();
   const player2 = String(fields.player2).toLowerCase();
+  const isBotBattle =
+    battleVersion === "legacy"
+      ? inferIsBotBattle(fields.is_bot_battle, player1, player2)
+      : false;
+  const targetGrowth =
+    battleVersion === "pvp-v2"
+      ? readTargetGrowth(fields.target_growth)
+      : isBotBattle
+        ? 50
+        : 100;
   return {
     battleId,
     player1,
@@ -411,8 +487,15 @@ function parseBattleStateFromObjectFields(
     turn: Number(fields.turn ?? 0),
     winner: normalizeWinner(fields.winner),
     finished: Boolean(fields.finished) || !!normalizeWinner(fields.winner),
-    isBotBattle: inferIsBotBattle(fields.is_bot_battle, player1, player2),
+    isBotBattle,
     lastMoveMs: Number(fields.last_move_ms ?? 0),
+    battleVersion,
+    targetGrowth,
+    matchLabel: resolveBattleMatchLabel({
+      isBotBattle,
+      battleVersion,
+      targetGrowth,
+    }),
   };
 }
 
@@ -439,6 +522,7 @@ function readPendingQueueEntry(value: any): any | null {
 function parsePvpQueueStateFromObject(
   obj: any,
   address: string,
+  option: PvpMatchOption,
 ): PvpQueueState | null {
   const fields = obj?.data?.content?.fields;
   const pending = readPendingQueueEntry(fields?.waiting);
@@ -454,9 +538,12 @@ function parsePvpQueueStateFromObject(
   if (!Number.isFinite(entryFeeMist) || entryFeeMist < 0) return null;
 
   return {
-    queueId: SUI_CONFIG.MATCHMAKING_QUEUE_ID,
+    queueId: option.queueId,
     player,
     entryFeeMist,
+    targetGrowth: option.targetGrowth,
+    matchLabel: getPvpMatchDisplayLabel(option.targetGrowth),
+    queueType: option.queueType,
   };
 }
 
@@ -466,20 +553,24 @@ async function getRefundablePvpQueueState(
 ): Promise<PvpQueueState | null> {
   try {
     console.info("[pvp-queue] checking refundable queue state");
-    const obj = await suiClient.getObject({
-      id: SUI_CONFIG.MATCHMAKING_QUEUE_ID,
-      options: { showContent: true },
-    });
-    const state = parsePvpQueueStateFromObject(obj, address);
-    if (state) {
-      console.info("[pvp-queue] found refundable battle/queue object", {
-        queueId: state.queueId,
-        entryFeeMist: state.entryFeeMist,
+    for (const option of getConfiguredPvpQueueOptions()) {
+      const obj = await suiClient.getObject({
+        id: option.queueId,
+        options: { showContent: true },
       });
-    } else {
-      console.info("[pvp-queue] no refundable queue found");
+      const state = parsePvpQueueStateFromObject(obj, address, option);
+      if (state) {
+        console.info("[pvp-queue] found refundable battle/queue object", {
+          queueId: state.queueId,
+          entryFeeMist: state.entryFeeMist,
+          targetGrowth: state.targetGrowth,
+          queueType: state.queueType,
+        });
+        return state;
+      }
     }
-    return state;
+    console.info("[pvp-queue] no refundable queue found");
+    return null;
   } catch (err) {
     console.warn("[pvp-queue] could not check refundable queue state", err);
     throw err;
@@ -495,8 +586,13 @@ async function getLiveBattleState(
       id: battleId,
       options: { showContent: true },
     });
-    const fields = (obj?.data?.content as any)?.fields;
-    return parseBattleStateFromObjectFields(battleId, fields);
+    const content = obj?.data?.content as any;
+    const type = obj?.data?.type ?? content?.type;
+    const fields = content?.fields;
+    const battleVersion: PvpBattleVersion = isPvpBattleV2ObjectType(type)
+      ? "pvp-v2"
+      : "legacy";
+    return parseBattleStateFromObjectFields(battleId, fields, battleVersion);
   } catch (err) {
     console.warn("[battle] could not verify live battle object:", err);
     return undefined;
@@ -521,8 +617,17 @@ async function getBattleStateFromTransaction(
   });
 
   const eventState = tx.events
-    ?.filter((event: any) => event.type === getBattleUpdateEvent())
-    .map((event: any) => parseBattleStateFromEvent(event.parsedJson))
+    ?.filter(
+      (event: any) =>
+        event.type === getBattleUpdateEvent() ||
+        event.type === getPvpBattleV2UpdateEvent(),
+    )
+    .map((event: any) =>
+      parseBattleStateFromEvent(
+        event.parsedJson,
+        event.type === getPvpBattleV2UpdateEvent() ? "pvp-v2" : "legacy",
+      ),
+    )
     .find((state: BattleState | null) =>
       isActiveBattleForAddress(state, address),
     );
@@ -532,7 +637,8 @@ async function getBattleStateFromTransaction(
     (change: any) =>
       change.type === "created" &&
       typeof change.objectType === "string" &&
-      change.objectType.endsWith(`::${SUI_CONFIG.MODULE}::Battle`) &&
+      (isLegacyBattleObjectType(change.objectType) ||
+        isPvpBattleV2ObjectType(change.objectType)) &&
       typeof change.objectId === "string",
   );
 
@@ -554,24 +660,38 @@ async function findActivePvpBattleState(
   address: string,
 ): Promise<BattleState | null> {
   console.info("[pvp-match] checking active battle", { address });
-  const events = await suiClient.queryEvents({
-    query: { MoveEventType: getBattleUpdateEvent() },
-    limit: 100,
-    order: "descending",
-  });
+  const eventQueries = [
+    { eventType: getPvpBattleV2UpdateEvent(), battleVersion: "pvp-v2" as const },
+    { eventType: getBattleUpdateEvent(), battleVersion: "legacy" as const },
+  ];
 
-  for (const event of events.data ?? []) {
-    const eventState = parseBattleStateFromEvent(event.parsedJson);
-    if (!battleBelongsToAddress(eventState, address)) continue;
-    if (eventState?.isBotBattle) continue;
+  for (const eventQuery of eventQueries) {
+    const events = await suiClient.queryEvents({
+      query: { MoveEventType: eventQuery.eventType },
+      limit: 100,
+      order: "descending",
+    });
 
-    const battleId = eventState.battleId;
-    if (!battleId) continue;
+    for (const event of events.data ?? []) {
+      const eventState = parseBattleStateFromEvent(
+        event.parsedJson,
+        eventQuery.battleVersion,
+      );
+      if (!battleBelongsToAddress(eventState, address)) continue;
+      if (eventState?.isBotBattle) continue;
 
-    const liveState = await getLiveBattleState(suiClient, battleId);
-    if (isActivePvpBattleForAddress(liveState ?? null, address)) {
-      console.info("[pvp-match] active battle found", { battleId });
-      return liveState as BattleState;
+      const battleId = eventState.battleId;
+      if (!battleId) continue;
+
+      const liveState = await getLiveBattleState(suiClient, battleId);
+      if (isActivePvpBattleForAddress(liveState ?? null, address)) {
+        console.info("[pvp-match] active battle found", {
+          battleId,
+          battleVersion: liveState?.battleVersion,
+          targetGrowth: liveState?.targetGrowth,
+        });
+        return liveState as BattleState;
+      }
     }
   }
 
@@ -608,8 +728,17 @@ async function getBattleUpdateStateFromTransaction(
   const parseStartedAt = txTimingNow();
   const state =
     tx.events
-      ?.filter((event: any) => event.type === getBattleUpdateEvent())
-      .map((event: any) => parseBattleStateFromEvent(event.parsedJson))
+      ?.filter(
+        (event: any) =>
+          event.type === getBattleUpdateEvent() ||
+          event.type === getPvpBattleV2UpdateEvent(),
+      )
+      .map((event: any) =>
+        parseBattleStateFromEvent(
+          event.parsedJson,
+          event.type === getPvpBattleV2UpdateEvent() ? "pvp-v2" : "legacy",
+        ),
+      )
       .find((state: BattleState | null) =>
         battleBelongsToAddress(state, address),
       ) ?? null;
@@ -1107,32 +1236,42 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
             }
           }
 
-          const events = await suiClient.queryEvents({
-            query: { MoveEventType: getBattleUpdateEvent() },
-            limit: force ? 50 : 20,
-            order: "descending",
-          });
+          const eventQueries = [
+            { eventType: getPvpBattleV2UpdateEvent(), battleVersion: "pvp-v2" as const },
+            { eventType: getBattleUpdateEvent(), battleVersion: "legacy" as const },
+          ];
 
-          for (const event of events.data) {
-            if (cancelled) return;
+          for (const eventQuery of eventQueries) {
+            const events = await suiClient.queryEvents({
+              query: { MoveEventType: eventQuery.eventType },
+              limit: force ? 50 : 20,
+              order: "descending",
+            });
 
-            const newState = parseBattleStateFromEvent(event.parsedJson);
+            for (const event of events.data) {
+              if (cancelled) return;
 
-            // Is this battle relevant to us?
-            if (battleBelongsToAddress(newState, address)) {
-              if (isWaiting && !isActiveBattleForAddress(newState, address)) {
-                continue;
+              const newState = parseBattleStateFromEvent(
+                event.parsedJson,
+                eventQuery.battleVersion,
+              );
+
+              // Is this battle relevant to us?
+              if (battleBelongsToAddress(newState, address)) {
+                if (isWaiting && !isActiveBattleForAddress(newState, address)) {
+                  continue;
+                }
+
+                // Update state if it's newer or we were waiting
+                if (
+                  isWaiting ||
+                  JSON.stringify(newState) !== JSON.stringify(battleState)
+                ) {
+                  console.log("[polling] detected battle update from blockchain");
+                  await applyBattleState(newState, { verifyLive: true });
+                }
+                return; // Found our most recent battle, stop searching
               }
-
-              // Update state if it's newer or we were waiting
-              if (
-                isWaiting ||
-                JSON.stringify(newState) !== JSON.stringify(battleState)
-              ) {
-                console.log("[polling] detected battle update from blockchain");
-                await applyBattleState(newState, { verifyLive: true });
-              }
-              break; // Found our most recent battle, stop searching
             }
           }
         } catch (err) {
@@ -1314,11 +1453,16 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
 
   // ── 4. Join the battle queue ──────────────────────────────────────────────
   const joinBattle = useCallback(
-    async (nftData: NftData) => {
+    async (nftData: NftData, targetGrowth: PvpMatchTarget = 50) => {
       if (!address || !randomObjectId) {
         throw new Error(
           "Wallet not connected or random object not initialised",
         );
+      }
+
+      const matchOption = getPvpMatchOption(targetGrowth);
+      if (matchOption.queueType === "v2" && !matchOption.queueId.trim()) {
+        throw new Error("This match type is not active yet.");
       }
 
       const liveEntryFeeMist = await refreshEntryFee();
@@ -1351,11 +1495,13 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
 
       if (nftData.location === "wallet") {
         tx.moveCall({
-          target: `${SUI_CONFIG.PACKAGE_ID}::matchmaking::join_queue`,
+          target: `${SUI_CONFIG.PACKAGE_ID}::matchmaking::${
+            matchOption.queueType === "v2" ? "join_queue_v2" : "join_queue"
+          }`,
           typeArguments: [nftData.nftType],
           arguments: [
             tx.object(SUI_CONFIG.CONFIG_ID),
-            tx.object(SUI_CONFIG.MATCHMAKING_QUEUE_ID),
+            tx.object(matchOption.queueId),
             tx.object(nftData.nftId),
             fee,
             tx.object(randomObjectId),
@@ -1363,11 +1509,15 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
         });
       } else if (nftData.kioskId && nftData.kioskCapId) {
         tx.moveCall({
-          target: `${SUI_CONFIG.PACKAGE_ID}::matchmaking::join_queue_from_kiosk`,
+          target: `${SUI_CONFIG.PACKAGE_ID}::matchmaking::${
+            matchOption.queueType === "v2"
+              ? "join_queue_v2_from_kiosk"
+              : "join_queue_from_kiosk"
+          }`,
           typeArguments: [nftData.nftType],
           arguments: [
             tx.object(SUI_CONFIG.CONFIG_ID),
-            tx.object(SUI_CONFIG.MATCHMAKING_QUEUE_ID),
+            tx.object(matchOption.queueId),
             tx.object(nftData.kioskId),
             tx.object(nftData.kioskCapId),
             tx.pure.address(nftData.nftId),
@@ -1402,9 +1552,12 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
               }
 
               setPvpQueueState({
-                queueId: SUI_CONFIG.MATCHMAKING_QUEUE_ID,
+                queueId: matchOption.queueId,
                 player: address.toLowerCase(),
                 entryFeeMist: liveEntryFeeMist,
+                targetGrowth: matchOption.targetGrowth,
+                matchLabel: getPvpMatchDisplayLabel(matchOption.targetGrowth),
+                queueType: matchOption.queueType,
               });
               setIsWaiting(true);
               resolve();
@@ -1628,7 +1781,11 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
       const tx = new Transaction();
       lastMoveIdRef.current = abilityId; // track for action log
       tx.moveCall({
-        target: `${SUI_CONFIG.PACKAGE_ID}::${SUI_CONFIG.MODULE}::use_ability_id`,
+        target: `${SUI_CONFIG.PACKAGE_ID}::${SUI_CONFIG.MODULE}::${
+          activeState.battleVersion === "pvp-v2"
+            ? "use_ability_id_pvp_v2"
+            : "use_ability_id"
+        }`,
         arguments: [
           tx.object(battleId),
           tx.pure.u8(abilityId),
@@ -1848,7 +2005,11 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
     const battleId = battleState.battleId;
     const tx = new Transaction();
     tx.moveCall({
-      target: `${SUI_CONFIG.PACKAGE_ID}::${SUI_CONFIG.MODULE}::claim_timeout_win`,
+      target: `${SUI_CONFIG.PACKAGE_ID}::${SUI_CONFIG.MODULE}::${
+        battleState.battleVersion === "pvp-v2"
+          ? "claim_timeout_win_pvp_v2"
+          : "claim_timeout_win"
+      }`,
       arguments: [tx.object(battleId)],
     });
     tx.setSender(address);
@@ -1889,7 +2050,9 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
     const battleId = battleState.battleId;
     const tx = new Transaction();
     tx.moveCall({
-      target: `${SUI_CONFIG.PACKAGE_ID}::${SUI_CONFIG.MODULE}::surrender`,
+      target: `${SUI_CONFIG.PACKAGE_ID}::${SUI_CONFIG.MODULE}::${
+        battleState.battleVersion === "pvp-v2" ? "surrender_pvp_v2" : "surrender"
+      }`,
       arguments: [tx.object(battleId)],
     });
     tx.setSender(address);
@@ -1932,7 +2095,11 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
       const tx = new Transaction();
       if (winner) {
         tx.moveCall({
-          target: `${SUI_CONFIG.PACKAGE_ID}::${SUI_CONFIG.MODULE}::admin_force_close_with_winner`,
+          target: `${SUI_CONFIG.PACKAGE_ID}::${SUI_CONFIG.MODULE}::${
+            battleState.battleVersion === "pvp-v2"
+              ? "admin_force_close_pvp_v2_with_winner"
+              : "admin_force_close_with_winner"
+          }`,
           arguments: [
             tx.object(battleId),
             tx.object(SUI_CONFIG.CONFIG_ID),
@@ -1941,7 +2108,11 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
         });
       } else {
         tx.moveCall({
-          target: `${SUI_CONFIG.PACKAGE_ID}::${SUI_CONFIG.MODULE}::admin_force_close`,
+          target: `${SUI_CONFIG.PACKAGE_ID}::${SUI_CONFIG.MODULE}::${
+            battleState.battleVersion === "pvp-v2"
+              ? "admin_force_close_pvp_v2"
+              : "admin_force_close"
+          }`,
           arguments: [tx.object(battleId), tx.object(SUI_CONFIG.CONFIG_ID)],
         });
       }
@@ -1981,10 +2152,20 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
   const cancelQueue = useCallback(async () => {
     if (!address) throw new Error("Wallet not connected");
 
+    const queueState =
+      pvpQueueState ?? (await getRefundablePvpQueueState(suiClient, address));
+    if (!queueState) {
+      setPvpQueueState(null);
+      setIsWaiting(false);
+      throw new Error("You are NOT in the queue. Nothing to refund.");
+    }
+
     const tx = new Transaction();
     tx.moveCall({
-      target: `${SUI_CONFIG.PACKAGE_ID}::matchmaking::cancel_queue`,
-      arguments: [tx.object(SUI_CONFIG.MATCHMAKING_QUEUE_ID)],
+      target: `${SUI_CONFIG.PACKAGE_ID}::matchmaking::${
+        queueState.queueType === "v2" ? "cancel_queue_v2" : "cancel_queue"
+      }`,
+      arguments: [tx.object(queueState.queueId)],
     });
     tx.setSender(address);
 
@@ -2017,7 +2198,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
     });
 
     return result;
-  }, [address, suiClient, signAndExecuteTransaction]);
+  }, [address, pvpQueueState, suiClient, signAndExecuteTransaction]);
 
   // ── ConnectWalletButton component ─────────────────────────────────────────
   const ConnectWalletButton = useCallback(
@@ -2088,7 +2269,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
     const opponentNextGrowth = isP1 ? next.player2Growth : next.player1Growth;
     const playerGrowthDelta = playerNextGrowth - playerPrevGrowth;
     const opponentGrowthDelta = opponentNextGrowth - opponentPrevGrowth;
-    const targetGrowth = next.isBotBattle ? 50 : 100;
+    const targetGrowth = resolveBattleTargetGrowth(next);
     const botMoveEventId =
       explicitBotMoveId && Number.isFinite(explicitBotMoveId) && explicitBotMoveId > 0
         ? explicitBotMoveId
