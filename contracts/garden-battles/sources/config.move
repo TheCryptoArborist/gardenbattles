@@ -29,6 +29,11 @@ module battle_garden::config {
         new_treasury: address,
     }
 
+    public struct AdminTransferred has copy, drop {
+        old_admin: address,
+        new_admin: address,
+    }
+
     // ═══════════════════════════════════════════════════════════════════════════
     //  NEW: TreeConfig — separate shared object for TREE utility params
     // ═══════════════════════════════════════════════════════════════════════════
@@ -61,6 +66,11 @@ module battle_garden::config {
         max_tree_advantage: u64,
         advantage_per_tier: u64,
         min_tree_for_advantage: u64,
+    }
+
+    public struct TreeAdminTransferred has copy, drop {
+        old_admin: address,
+        new_admin: address,
     }
 
     fun init(ctx: &mut TxContext) {
@@ -110,6 +120,18 @@ module battle_garden::config {
     public fun set_paused(config: &mut Config, paused: bool, ctx: &mut TxContext) {
         assert!(tx_context::sender(ctx) == config.admin, errors::e_admin_only());
         config.paused = paused;
+    }
+
+    public fun transfer_admin(config: &mut Config, new_admin: address, ctx: &mut TxContext) {
+        assert!(tx_context::sender(ctx) == config.admin, errors::e_admin_only());
+        assert!(new_admin != @0x0, errors::e_invalid_address());
+        assert!(new_admin != config.admin, errors::e_admin_transfer_noop());
+        let old_admin = config.admin;
+        config.admin = new_admin;
+        event::emit(AdminTransferred {
+            old_admin,
+            new_admin,
+        });
     }
 
     public fun set_treasury(config: &mut Config, new_treasury: address, ctx: &mut TxContext) {
@@ -181,6 +203,18 @@ module battle_garden::config {
     public fun set_utility_coin<T>(tc: &mut TreeConfig, ctx: &mut TxContext) {
         assert!(tx_context::sender(ctx) == tc.admin, errors::e_admin_only());
         tc.utility_coin = type_name::with_original_ids<T>();
+    }
+
+    public fun transfer_tree_admin(tc: &mut TreeConfig, new_admin: address, ctx: &mut TxContext) {
+        assert!(tx_context::sender(ctx) == tc.admin, errors::e_admin_only());
+        assert!(new_admin != @0x0, errors::e_invalid_address());
+        assert!(new_admin != tc.admin, errors::e_admin_transfer_noop());
+        let old_admin = tc.admin;
+        tc.admin = new_admin;
+        event::emit(TreeAdminTransferred {
+            old_admin,
+            new_admin,
+        });
     }
 
     public fun set_tree_params(

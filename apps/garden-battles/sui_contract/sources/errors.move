@@ -13,6 +13,7 @@ module battle_garden::errors {
     const EInvalidAddress: u64 = 111;
     const EEntryFeeChanged: u64 = 112;
     const EInvalidTargetGrowth: u64 = 113;
+    const EAdminTransferNoop: u64 = 114;
 
     // ── TREE utility errors ──────────────────────────────────────────────────
     const EIncorrectCoinType: u64 = 200;
@@ -32,6 +33,7 @@ module battle_garden::errors {
     public fun e_invalid_address(): u64 { EInvalidAddress }
     public fun e_entry_fee_changed(): u64 { EEntryFeeChanged }
     public fun e_invalid_target_growth(): u64 { EInvalidTargetGrowth }
+    public fun e_admin_transfer_noop(): u64 { EAdminTransferNoop }
     public fun e_incorrect_coin_type(): u64 { EIncorrectCoinType }
     public fun e_tree_insufficient(): u64 { ETreeInsufficient }
 }

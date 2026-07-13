@@ -5,7 +5,8 @@ This runbook prepares the package upgrade and v2 queue initialization for PvP 50
 ## Current Verified State
 
 - Sui client active environment: `mainnet`
-- Sui client active address observed during preflight: `0x47a6b4e25fd82af7b6a43e82e70fd4437de82a9189dbaa832cf5318946a17274`
+- Sui client active address observed during the first runbook preflight: `0x47a6b4e25fd82af7b6a43e82e70fd4437de82a9189dbaa832cf5318946a17274`
+- Current upgrade-prep operator reports active CLI address: `0x485953e2eadf4aa02af950cf8e914fbd2b67523385e73c36118341459d8d45c4`
 - Current package from `Published.toml`: `0x71a3b321d9db461746b2f9a2427f381e2e3105a80a648bc08c2e5f7c45eed5ef`
 - Current package version from `Published.toml` and mainnet object: `6`
 - Original package ID: `0x656ac984c39b952b40ccaaad4c26a3e074c4c99f56e2bac0862b811557de448b`
@@ -32,11 +33,12 @@ This runbook prepares the package upgrade and v2 queue initialization for PvP 50
 
 ## Readiness Caveats
 
-- The active CLI address observed during this runbook, `0x47a6b4e25fd82af7b6a43e82e70fd4437de82a9189dbaa832cf5318946a17274`, does not own the UpgradeCap.
-- The active CLI address observed during this runbook is also not the Config admin.
+- The active CLI address observed during the first runbook preflight, `0x47a6b4e25fd82af7b6a43e82e70fd4437de82a9189dbaa832cf5318946a17274`, did not own the UpgradeCap.
+- The current upgrade-prep operator reports active CLI address `0x485953e2eadf4aa02af950cf8e914fbd2b67523385e73c36118341459d8d45c4`, which owns the UpgradeCap.
 - Package upgrade must be signed by the UpgradeCap owner: `0x485953e2eadf4aa02af950cf8e914fbd2b67523385e73c36118341459d8d45c4`.
-- Queue initialization must be signed by the Config admin: `0xaf19c438c96320d14954a63c06d71fab99a2165800c839d667bd1803ecf86f36`.
-- Do not attempt the upgrade or queue initialization until the CLI active address, hardware wallet, or multisig flow matches the required signer for that step.
+- Before authority consolidation, queue initialization must be signed by the Config admin: `0xaf19c438c96320d14954a63c06d71fab99a2165800c839d667bd1803ecf86f36`.
+- After authority consolidation, queue initialization must be signed by the new sole admin: `0x485953e2eadf4aa02af950cf8e914fbd2b67523385e73c36118341459d8d45c4`.
+- Do not attempt the upgrade, admin transfer, or queue initialization until the CLI active address, Slush wallet, hardware wallet, or multisig flow matches the required signer for that step.
 
 ## Preflight Checks
 
@@ -99,6 +101,70 @@ Unresolved placeholders until execution:
 - `<UPGRADED_PACKAGE_VERSION>`
 - `<UPGRADE_TRANSACTION_DIGEST>`
 
+## Authority Consolidation
+
+Goal: make `0x485953e2eadf4aa02af950cf8e914fbd2b67523385e73c36118341459d8d45c4` the sole Garden Battles administrative wallet before creating the v2 queues.
+
+Known authority objects:
+
+- Old Config admin: `0xaf19c438c96320d14954a63c06d71fab99a2165800c839d667bd1803ecf86f36`
+- New sole admin: `0x485953e2eadf4aa02af950cf8e914fbd2b67523385e73c36118341459d8d45c4`
+- Config object: `0x30addc978abe37f31d55cc60a395f30fd6cfdcbfb3cd4e319d2920b0e780a9bf`
+- UpgradeCap: `0xe94d5b1b468dd1e843181edd055b2b24f5b67afcff184820acc9aa86a82fa604`
+- Live TreeConfig object ID: unresolved. Do not attempt TreeConfig transfer until a live TreeConfig object ID is verified with `sui client object <TREE_CONFIG_ID>`.
+
+Launch order:
+
+1. `d45c4` upgrades the package.
+2. Verify the upgraded package ID and UpgradeCap version.
+3. `6f36` signs `config::transfer_admin` to `d45c4` through Slush.
+4. Verify the live Config admin is `d45c4`.
+5. If a verified live TreeConfig exists, its current admin signs `config::transfer_tree_admin` to `d45c4`.
+6. Verify the TreeConfig admin is `d45c4`.
+7. `d45c4` creates the 50 Growth queue.
+8. `d45c4` creates the 75 Growth queue.
+9. Record both shared queue object IDs.
+10. Update frontend configuration.
+11. Update Railway variables.
+12. Deploy.
+13. Run smoke tests.
+
+Config admin transfer command template:
+
+```powershell
+sui client call --package <UPGRADED_PACKAGE_ID> --module config --function transfer_admin --args 0x30addc978abe37f31d55cc60a395f30fd6cfdcbfb3cd4e319d2920b0e780a9bf 0x485953e2eadf4aa02af950cf8e914fbd2b67523385e73c36118341459d8d45c4 --gas-budget 100000000
+```
+
+Signer requirement: this transaction must be signed by the current Config admin, `0xaf19c438c96320d14954a63c06d71fab99a2165800c839d667bd1803ecf86f36`.
+
+Config transfer verification:
+
+```powershell
+sui client object 0x30addc978abe37f31d55cc60a395f30fd6cfdcbfb3cd4e319d2920b0e780a9bf
+```
+
+Expected field after transfer:
+
+- `admin = 0x485953e2eadf4aa02af950cf8e914fbd2b67523385e73c36118341459d8d45c4`
+
+TreeConfig admin transfer command template, only if a live TreeConfig object is verified:
+
+```powershell
+sui client call --package <UPGRADED_PACKAGE_ID> --module config --function transfer_tree_admin --args <TREE_CONFIG_ID> 0x485953e2eadf4aa02af950cf8e914fbd2b67523385e73c36118341459d8d45c4 --gas-budget 100000000
+```
+
+Signer requirement: this transaction must be signed by the current TreeConfig admin shown on the verified TreeConfig object.
+
+TreeConfig transfer verification:
+
+```powershell
+sui client object <TREE_CONFIG_ID>
+```
+
+Expected field after transfer:
+
+- `admin = 0x485953e2eadf4aa02af950cf8e914fbd2b67523385e73c36118341459d8d45c4`
+
 ## Queue Creation Commands
 
 `create_queue_v2` is defined as:
@@ -109,7 +175,7 @@ public entry fun create_queue_v2(config: &Config, target_growth: u64, ctx: &mut 
 
 It requires:
 
-- signer is the Config admin
+- signer is the Config admin. After authority consolidation, this should be `0x485953e2eadf4aa02af950cf8e914fbd2b67523385e73c36118341459d8d45c4`.
 - `config` is the live shared Config object
 - `target_growth` is `50` or `75`
 
@@ -187,6 +253,7 @@ Update frontend config after verification:
 - `PACKAGE_ID=<UPGRADED_PACKAGE_ID>`
 - `MATCHMAKING_QUEUE_50_ID=<MATCHMAKING_QUEUE_50_ID>`
 - `MATCHMAKING_QUEUE_75_ID=<MATCHMAKING_QUEUE_75_ID>`
+- After Config admin transfer is verified, update frontend `ADMIN_ADDRESSES` from `0xaf19c438c96320d14954a63c06d71fab99a2165800c839d667bd1803ecf86f36` to `0x485953e2eadf4aa02af950cf8e914fbd2b67523385e73c36118341459d8d45c4` in every active frontend config copy.
 - Keep `LEGACY_MATCHMAKING_QUEUE_ID=0xb5c054185c98d9cb80e35c50f78e306ca2d7bed52955e397df9f1acad9938e4d`
 - Keep `ORIGINAL_PACKAGE_ID=0x656ac984c39b952b40ccaaad4c26a3e074c4c99f56e2bac0862b811557de448b`
 - Keep `BOT_MOVE_RESOLVED_EVENT_PACKAGE_ID=0x6cae4020693bcfcac9523ce8bc3d0bef7f830900e48b743d002b5d6b676e5142`
@@ -256,6 +323,34 @@ Gameplay smoke tests:
 - Confirm legacy queue/refund recovery still works.
 
 ## Rollback Plan
+
+If the package upgrade succeeds but Config transfer fails:
+
+- Do not deploy v2 frontend configuration.
+- Do not create queues from an unauthorized wallet.
+- Legacy queue remains operational.
+- Retry the Config transfer from `0xaf19c438c96320d14954a63c06d71fab99a2165800c839d667bd1803ecf86f36`.
+- Package remains upgraded and usable.
+
+If Config transfer succeeds but queue creation fails:
+
+- Verify Config admin is `0x485953e2eadf4aa02af950cf8e914fbd2b67523385e73c36118341459d8d45c4`.
+- Retry queue creation from `0x485953e2eadf4aa02af950cf8e914fbd2b67523385e73c36118341459d8d45c4`.
+- Keep v2 queue IDs unset until successful.
+- Legacy queue remains available.
+
+If TreeConfig transfer is not applicable:
+
+- Document that no verified live TreeConfig exists.
+- Do not create a TreeConfig merely for this migration.
+- Proceed with Config consolidation only.
+
+If one queue is created and the second fails:
+
+- Do not deploy partially configured frontend unless explicitly approved.
+- Keep both v2 queue IDs unset until both queues are verified.
+- Preserve the created queue object for later use.
+- Retry the missing queue creation from `0x485953e2eadf4aa02af950cf8e914fbd2b67523385e73c36118341459d8d45c4`.
 
 If the package upgrade succeeds but queue initialization fails:
 
