@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { parsePvpQueueStateFromObject } from "./pvpQueueState";
+import {
+  getPvpQueueCancelFunctionName,
+  parsePvpQueueStateFromObject,
+} from "./pvpQueueState";
 import type { PvpMatchOption } from "./sui-config";
 
 const wallet =
@@ -66,6 +69,7 @@ describe("parsePvpQueueStateFromObject", () => {
     assert.equal(state?.queueType, "v2");
     assert.equal(state?.targetGrowth, 50);
     assert.equal(state?.entryFeeMist, 3000000000);
+    assert.equal(getPvpQueueCancelFunctionName(state!.queueType), "cancel_queue_v2");
   });
 
   it("parses a recovered 75 Growth queue entry", () => {
@@ -97,6 +101,7 @@ describe("parsePvpQueueStateFromObject", () => {
     assert.equal(state?.queueId, "0xlegacy");
     assert.equal(state?.queueType, "legacy");
     assert.equal(state?.targetGrowth, 100);
+    assert.equal(getPvpQueueCancelFunctionName(state!.queueType), "cancel_queue");
   });
 
   it("rejects a v2 queue target mismatch", () => {

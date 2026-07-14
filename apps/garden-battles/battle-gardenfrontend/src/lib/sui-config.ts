@@ -2,7 +2,12 @@
 export const SUI_CONFIG = {
   NETWORK: "mainnet",
   CHAIN: "sui:mainnet",
-  RPC_URL: "https://fullnode.mainnet.sui.io:443",
+  RPC_URL:
+    ((import.meta as any).env?.VITE_SUI_RPC_URL as string | undefined) ||
+    "https://fullnode.mainnet.sui.io:443",
+  RPC_FALLBACK_URL:
+    ((import.meta as any).env?.VITE_SUI_RPC_FALLBACK_URL as string | undefined) ||
+    "",
   WS_URL: "wss://fullnode.mainnet.sui.io:443",
   PACKAGE_ID: "0x37d3567ff2d92f94b5b55198d0692a4ba02437325aa4281f3db69ee8078aca23",
   ORIGINAL_PACKAGE_ID:

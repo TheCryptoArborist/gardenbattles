@@ -35,12 +35,15 @@ import {
   getPvpMatchDisplayLabel,
   getPvpMatchOption,
   type PvpBattleVersion,
-  type PvpMatchOption,
   type PvpMatchTarget,
 } from "@/lib/sui-config";
 import { submitBattleRecord } from "@/lib/api";
 import type { ActionEntry } from "@/components/BattleLog";
-import { parsePvpQueueStateFromObject } from "@/lib/pvpQueueState";
+import {
+  getPvpQueueCancelFunctionName,
+  parsePvpQueueStateFromObject,
+} from "@/lib/pvpQueueState";
+import { readSuiObjectWithRetry, SuiRpcReadError } from "@/lib/suiRpc";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -511,10 +514,20 @@ async function getRefundablePvpQueueState(
   try {
     console.info("[pvp-queue] checking refundable queue state");
     for (const option of getConfiguredPvpQueueOptions()) {
-      const obj = await suiClient.getObject({
-        id: option.queueId,
-        options: { showContent: true },
-      });
+      const obj = await readSuiObjectWithRetry(
+        suiClient,
+        {
+          id: option.queueId,
+          options: { showContent: true },
+        },
+        {
+          operation: "pvp-queue-refund-read",
+          queueId: option.queueId,
+        },
+      );
+      if (!obj?.data?.content || !("fields" in (obj.data.content as any))) {
+        throw new Error("Unexpected PvP queue data shape.");
+      }
       const state = parsePvpQueueStateFromObject(obj, address, option);
       if (state) {
         console.info("[pvp-queue] found refundable battle/queue object", {
@@ -539,10 +552,16 @@ async function getLiveBattleState(
   battleId: string,
 ): Promise<BattleState | null | undefined> {
   try {
-    const obj = await suiClient.getObject({
-      id: battleId,
-      options: { showContent: true },
-    });
+    const obj = await readSuiObjectWithRetry(
+      suiClient,
+      {
+        id: battleId,
+        options: { showContent: true },
+      },
+      {
+        operation: "active-battle-read",
+      },
+    );
     const content = obj?.data?.content as any;
     const type = obj?.data?.type ?? content?.type;
     const fields = content?.fields;
@@ -1191,6 +1210,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
               await applyBattleState(liveState);
               return;
             }
+            return;
           }
 
           const eventQueries = [
@@ -1240,7 +1260,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
     void pollForLatestBattle(true);
     const pollInterval = setInterval(() => {
       void pollForLatestBattle(false);
-    }, 3000); // Poll every 3 seconds
+    }, 10_000); // Poll every 10 seconds to avoid hammering public RPC.
 
     return () => {
       cancelled = true;
@@ -2114,6 +2134,13 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
       queueState = await getRefundablePvpQueueState(suiClient, address);
     } catch (err) {
       console.warn("[pvp-queue] refund queue hydration failed", err);
+      if (err instanceof SuiRpcReadError) {
+        if (err.kind === "rate_limited" || err.kind === "transport") {
+          throw new Error(
+            "The Sui network is temporarily rate-limiting requests. Your queue deposit has not been reported missing. Wait a moment and try again.",
+          );
+        }
+      }
       throw new Error(
         "Could not read your PvP queue entry. Refresh the page and try again.",
       );
@@ -2133,9 +2160,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
 
     const tx = new Transaction();
     tx.moveCall({
-      target: `${SUI_CONFIG.PACKAGE_ID}::matchmaking::${
-        queueState.queueType === "v2" ? "cancel_queue_v2" : "cancel_queue"
-      }`,
+      target: `${SUI_CONFIG.PACKAGE_ID}::matchmaking::${getPvpQueueCancelFunctionName(queueState.queueType)}`,
       arguments: [tx.object(queueState.queueId)],
     });
     tx.setSender(address);

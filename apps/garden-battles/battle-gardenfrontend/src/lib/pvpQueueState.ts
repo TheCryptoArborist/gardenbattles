@@ -13,6 +13,10 @@ export interface ParsedPvpQueueState {
   queueType: "legacy" | "v2";
 }
 
+export function getPvpQueueCancelFunctionName(queueType: "legacy" | "v2") {
+  return queueType === "v2" ? "cancel_queue_v2" : "cancel_queue";
+}
+
 function readMoveOptionVec(value: any): any[] {
   const vec =
     value?.fields?.vec ??

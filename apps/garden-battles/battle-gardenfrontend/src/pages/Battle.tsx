@@ -607,6 +607,9 @@ export default function Battle() {
       const queueReadFailed = message
         .toLowerCase()
         .includes("could not read your pvp queue entry");
+      const queueReadRateLimited = message
+        .toLowerCase()
+        .includes("temporarily rate-limiting requests");
       if (noQueueFound) {
         setLocalPvpQueued(false);
         clearRecoveredPvpQueue("confirmed no queue");
@@ -619,6 +622,8 @@ export default function Battle() {
       setDialogMessage(
         isCancelled
           ? "Refund cancelled in wallet."
+          : queueReadRateLimited
+            ? "The Sui network is temporarily rate-limiting requests. Your queue deposit has not been reported missing. Wait a moment and try again."
           : queueReadFailed
             ? "Could not read your PvP queue entry. Refresh the page and try again."
           : noQueueFound
