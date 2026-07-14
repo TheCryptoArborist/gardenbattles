@@ -1,44 +1,55 @@
 # Garden Battles PvP v2 Mainnet Upgrade Runbook
 
-This runbook prepares the package upgrade and v2 queue initialization for PvP 50/75 Growth. It is a planning document only. Do not execute transaction commands until the upgrade window is explicitly approved.
+This runbook records the completed package upgrade, authority transfer, and v2 queue initialization for PvP 50/75 Growth. Deployment and Railway configuration changes remain pending.
 
 ## Current Verified State
 
 - Sui client active environment: `mainnet`
-- Sui client active address observed during the first runbook preflight: `0x47a6b4e25fd82af7b6a43e82e70fd4437de82a9189dbaa832cf5318946a17274`
-- Current upgrade-prep operator reports active CLI address: `0x485953e2eadf4aa02af950cf8e914fbd2b67523385e73c36118341459d8d45c4`
-- Current package from `Published.toml`: `0x71a3b321d9db461746b2f9a2427f381e2e3105a80a648bc08c2e5f7c45eed5ef`
-- Current package version from `Published.toml` and mainnet object: `6`
+- Current package from `Published.toml`: `0x37d3567ff2d92f94b5b55198d0692a4ba02437325aa4281f3db69ee8078aca23`
+- Current package version from `Published.toml` and mainnet object: `7`
+- Upgrade transaction: `8goT3mXxMPFNSMdx678bwkq6myjkxHYcqpoWuZPMCSxz`
 - Original package ID: `0x656ac984c39b952b40ccaaad4c26a3e074c4c99f56e2bac0862b811557de448b`
 - UpgradeCap: `0xe94d5b1b468dd1e843181edd055b2b24f5b67afcff184820acc9aa86a82fa604`
 - UpgradeCap owner from mainnet object: `0x485953e2eadf4aa02af950cf8e914fbd2b67523385e73c36118341459d8d45c4`
-- UpgradeCap package field from mainnet object: `0x71a3b321d9db461746b2f9a2427f381e2e3105a80a648bc08c2e5f7c45eed5ef`
+- UpgradeCap package field from mainnet object: `0x37d3567ff2d92f94b5b55198d0692a4ba02437325aa4281f3db69ee8078aca23`
 - UpgradeCap policy: `0`
-- UpgradeCap version field: `6`
+- UpgradeCap version field: `7`
 - Config object: `0x30addc978abe37f31d55cc60a395f30fd6cfdcbfb3cd4e319d2920b0e780a9bf`
-- Config admin from mainnet object: `0xaf19c438c96320d14954a63c06d71fab99a2165800c839d667bd1803ecf86f36`
+- Config admin from mainnet object: `0x485953e2eadf4aa02af950cf8e914fbd2b67523385e73c36118341459d8d45c4`
+- Admin transfer transaction: `5DfpU1CWxSpZa2z6gF5fAz1eNYRctaZbMea63LrbtBv3`
 - Config treasury: `0x485953e2eadf4aa02af950cf8e914fbd2b67523385e73c36118341459d8d45c4`
 - Config entry fee: `3000000000` MIST
 - Config winner payout: `5000000000` MIST
 - Config treasury share: `1000000000` MIST
 - Legacy matchmaking queue: `0xb5c054185c98d9cb80e35c50f78e306ca2d7bed52955e397df9f1acad9938e4d`
+- 50 Growth queue: `0x469a5da237047f4c78223e3a2fac6bf42427ba488fd1e26f2233b65f01a31960`
+- 50 Growth queue transaction: `5fQQ2kkbdem8vhTqd8fAFszqyjNuF1dd3dvAcRrHsfXv`
+- 75 Growth queue: `0x9d805e74d3a4412e4bb935ed383ad8f9dde00715632ea61704ccc4af804666cd`
+- 75 Growth queue transaction: `A98DCKUwainiP9CFfppe4gkGBvWDGqSbdv3UQynszghE`
+
+## Completion Status
+
+- Complete: package upgrade to version 7.
+- Complete: Config authority transfer from `0xaf19c438c96320d14954a63c06d71fab99a2165800c839d667bd1803ecf86f36` to `0x485953e2eadf4aa02af950cf8e914fbd2b67523385e73c36118341459d8d45c4`.
+- Complete: 50 Growth shared queue creation.
+- Complete: 75 Growth shared queue creation.
+- Pending: frontend deployment with verified v2 IDs.
+- Pending: Railway variable update with verified v2 IDs.
+- Pending: production smoke tests.
 
 ## Local Package Configuration
 
 - `apps/garden-battles/sui_contract/Move.toml` has `published-at = "0xfff4c6177eaa2cec6bc2c5aa4366cbf8a55c8ba58e3196f0c803f6f0ce301070"`.
 - `contracts/garden-battles/Move.toml` has the same `published-at` value.
-- Both `Published.toml` files record the current mainnet package as `0x71a3b321d9db461746b2f9a2427f381e2e3105a80a648bc08c2e5f7c45eed5ef`.
+- Both `Published.toml` files should record the current mainnet package as `0x37d3567ff2d92f94b5b55198d0692a4ba02437325aa4281f3db69ee8078aca23`, version `7`.
 - Treat `Published.toml` and the UpgradeCap object as the current package lineage source of truth for this runbook.
 - Before executing an upgrade, confirm the Sui CLI is using the intended package metadata and does not require a separate approved `Move.toml` published-at cleanup.
 
 ## Readiness Caveats
 
-- The active CLI address observed during the first runbook preflight, `0x47a6b4e25fd82af7b6a43e82e70fd4437de82a9189dbaa832cf5318946a17274`, did not own the UpgradeCap.
-- The current upgrade-prep operator reports active CLI address `0x485953e2eadf4aa02af950cf8e914fbd2b67523385e73c36118341459d8d45c4`, which owns the UpgradeCap.
-- Package upgrade must be signed by the UpgradeCap owner: `0x485953e2eadf4aa02af950cf8e914fbd2b67523385e73c36118341459d8d45c4`.
-- Before authority consolidation, queue initialization must be signed by the Config admin: `0xaf19c438c96320d14954a63c06d71fab99a2165800c839d667bd1803ecf86f36`.
-- After authority consolidation, queue initialization must be signed by the new sole admin: `0x485953e2eadf4aa02af950cf8e914fbd2b67523385e73c36118341459d8d45c4`.
-- Do not attempt the upgrade, admin transfer, or queue initialization until the CLI active address, Slush wallet, hardware wallet, or multisig flow matches the required signer for that step.
+- Upgrade, authority consolidation, and queue initialization are complete.
+- Remaining privileged follow-up work should be signed by `0x485953e2eadf4aa02af950cf8e914fbd2b67523385e73c36118341459d8d45c4`.
+- Do not create replacement queues unless a new launch plan is approved.
 
 ## Preflight Checks
 
@@ -78,9 +89,9 @@ sui move build
 sui move test
 ```
 
-## Package Upgrade Command
+## Package Upgrade Record
 
-Use the authoritative source package:
+Executed upgrade command shape:
 
 ```powershell
 Set-Location -LiteralPath "D:\Finance\Crypto\Repos\gardenbattles\apps\garden-battles\sui_contract"
@@ -89,17 +100,11 @@ sui client upgrade --upgrade-capability 0xe94d5b1b468dd1e843181edd055b2b24f5b67a
 
 Recommended gas budget: `1000000000` MIST. If a dry run or wallet simulation gives a higher requirement, use the higher value with margin.
 
-Expected result:
+Recorded result:
 
-- A new upgraded package object is created.
-- The UpgradeCap package field advances from `0x71a3b321d9db461746b2f9a2427f381e2e3105a80a648bc08c2e5f7c45eed5ef` to `<UPGRADED_PACKAGE_ID>`.
-- The package version advances from `6` to `<UPGRADED_PACKAGE_VERSION>`.
-
-Unresolved placeholders until execution:
-
-- `<UPGRADED_PACKAGE_ID>`
-- `<UPGRADED_PACKAGE_VERSION>`
-- `<UPGRADE_TRANSACTION_DIGEST>`
+- Upgraded package object: `0x37d3567ff2d92f94b5b55198d0692a4ba02437325aa4281f3db69ee8078aca23`
+- Package version: `7`
+- Upgrade transaction: `8goT3mXxMPFNSMdx678bwkq6myjkxHYcqpoWuZPMCSxz`
 
 ## Authority Consolidation
 
@@ -113,29 +118,29 @@ Known authority objects:
 - UpgradeCap: `0xe94d5b1b468dd1e843181edd055b2b24f5b67afcff184820acc9aa86a82fa604`
 - Live TreeConfig object ID: unresolved. Do not attempt TreeConfig transfer until a live TreeConfig object ID is verified with `sui client object <TREE_CONFIG_ID>`.
 
-Launch order:
+Completed launch order:
 
-1. `d45c4` upgrades the package.
-2. Verify the upgraded package ID and UpgradeCap version.
-3. `6f36` signs `config::transfer_admin` to `d45c4` through Slush.
-4. Verify the live Config admin is `d45c4`.
-5. If a verified live TreeConfig exists, its current admin signs `config::transfer_tree_admin` to `d45c4`.
-6. Verify the TreeConfig admin is `d45c4`.
-7. `d45c4` creates the 50 Growth queue.
-8. `d45c4` creates the 75 Growth queue.
-9. Record both shared queue object IDs.
-10. Update frontend configuration.
-11. Update Railway variables.
-12. Deploy.
-13. Run smoke tests.
+1. Complete: `d45c4` upgraded the package.
+2. Complete: upgraded package ID and UpgradeCap version were verified.
+3. Complete: `6f36` signed `config::transfer_admin` to `d45c4` through Slush.
+4. Complete: live Config admin is `d45c4`.
+5. Not applicable unless a verified live TreeConfig exists later.
+6. Deferred: no verified live TreeConfig object ID is recorded.
+7. Complete: `d45c4` created the 50 Growth queue.
+8. Complete: `d45c4` created the 75 Growth queue.
+9. Complete: both shared queue object IDs are recorded.
+10. Pending: deploy frontend configuration.
+11. Pending: update Railway variables.
+12. Pending: deploy.
+13. Pending: run smoke tests.
 
-Config admin transfer command template:
+Config admin transfer command record:
 
 ```powershell
-sui client call --package <UPGRADED_PACKAGE_ID> --module config --function transfer_admin --args 0x30addc978abe37f31d55cc60a395f30fd6cfdcbfb3cd4e319d2920b0e780a9bf 0x485953e2eadf4aa02af950cf8e914fbd2b67523385e73c36118341459d8d45c4 --gas-budget 100000000
+sui client call --package 0x37d3567ff2d92f94b5b55198d0692a4ba02437325aa4281f3db69ee8078aca23 --module config --function transfer_admin --args 0x30addc978abe37f31d55cc60a395f30fd6cfdcbfb3cd4e319d2920b0e780a9bf 0x485953e2eadf4aa02af950cf8e914fbd2b67523385e73c36118341459d8d45c4 --gas-budget 100000000
 ```
 
-Signer requirement: this transaction must be signed by the current Config admin, `0xaf19c438c96320d14954a63c06d71fab99a2165800c839d667bd1803ecf86f36`.
+Recorded signer requirement: this transaction was signed by the previous Config admin, `0xaf19c438c96320d14954a63c06d71fab99a2165800c839d667bd1803ecf86f36`.
 
 Config transfer verification:
 
@@ -150,7 +155,7 @@ Expected field after transfer:
 TreeConfig admin transfer command template, only if a live TreeConfig object is verified:
 
 ```powershell
-sui client call --package <UPGRADED_PACKAGE_ID> --module config --function transfer_tree_admin --args <TREE_CONFIG_ID> 0x485953e2eadf4aa02af950cf8e914fbd2b67523385e73c36118341459d8d45c4 --gas-budget 100000000
+sui client call --package 0x37d3567ff2d92f94b5b55198d0692a4ba02437325aa4281f3db69ee8078aca23 --module config --function transfer_tree_admin --args <TREE_CONFIG_ID> 0x485953e2eadf4aa02af950cf8e914fbd2b67523385e73c36118341459d8d45c4 --gas-budget 100000000
 ```
 
 Signer requirement: this transaction must be signed by the current TreeConfig admin shown on the verified TreeConfig object.
@@ -165,7 +170,7 @@ Expected field after transfer:
 
 - `admin = 0x485953e2eadf4aa02af950cf8e914fbd2b67523385e73c36118341459d8d45c4`
 
-## Queue Creation Commands
+## Queue Creation Record
 
 `create_queue_v2` is defined as:
 
@@ -179,26 +184,23 @@ It requires:
 - `config` is the live shared Config object
 - `target_growth` is `50` or `75`
 
-Create the 50 Growth queue:
+50 Growth queue transaction:
 
 ```powershell
-sui client call --package <UPGRADED_PACKAGE_ID> --module matchmaking --function create_queue_v2 --args 0x30addc978abe37f31d55cc60a395f30fd6cfdcbfb3cd4e319d2920b0e780a9bf 50 --gas-budget 200000000
+sui client call --package 0x37d3567ff2d92f94b5b55198d0692a4ba02437325aa4281f3db69ee8078aca23 --module matchmaking --function create_queue_v2 --args 0x30addc978abe37f31d55cc60a395f30fd6cfdcbfb3cd4e319d2920b0e780a9bf 50 --gas-budget 200000000
 ```
 
-Create the 75 Growth queue:
+- Queue ID: `0x469a5da237047f4c78223e3a2fac6bf42427ba488fd1e26f2233b65f01a31960`
+- Transaction digest: `5fQQ2kkbdem8vhTqd8fAFszqyjNuF1dd3dvAcRrHsfXv`
+
+75 Growth queue transaction:
 
 ```powershell
-sui client call --package <UPGRADED_PACKAGE_ID> --module matchmaking --function create_queue_v2 --args 0x30addc978abe37f31d55cc60a395f30fd6cfdcbfb3cd4e319d2920b0e780a9bf 75 --gas-budget 200000000
+sui client call --package 0x37d3567ff2d92f94b5b55198d0692a4ba02437325aa4281f3db69ee8078aca23 --module matchmaking --function create_queue_v2 --args 0x30addc978abe37f31d55cc60a395f30fd6cfdcbfb3cd4e319d2920b0e780a9bf 75 --gas-budget 200000000
 ```
 
-Recommended queue creation gas budget: `200000000` MIST per queue. Increase if wallet simulation reports a higher requirement.
-
-Unresolved placeholders until execution:
-
-- `<QUEUE_50_TRANSACTION_DIGEST>`
-- `<QUEUE_75_TRANSACTION_DIGEST>`
-- `<MATCHMAKING_QUEUE_50_ID>`
-- `<MATCHMAKING_QUEUE_75_ID>`
+- Queue ID: `0x9d805e74d3a4412e4bb935ed383ad8f9dde00715632ea61704ccc4af804666cd`
+- Transaction digest: `A98DCKUwainiP9CFfppe4gkGBvWDGqSbdv3UQynszghE`
 
 ## Transaction Verification
 
@@ -206,30 +208,20 @@ After the upgrade transaction:
 
 ```powershell
 sui client object 0xe94d5b1b468dd1e843181edd055b2b24f5b67afcff184820acc9aa86a82fa604
-sui client object <UPGRADED_PACKAGE_ID>
+sui client object 0x37d3567ff2d92f94b5b55198d0692a4ba02437325aa4281f3db69ee8078aca23
 ```
 
 Verify:
 
-- UpgradeCap `package` equals `<UPGRADED_PACKAGE_ID>`.
-- UpgradeCap `version` equals `<UPGRADED_PACKAGE_VERSION>`.
+- UpgradeCap `package` equals `0x37d3567ff2d92f94b5b55198d0692a4ba02437325aa4281f3db69ee8078aca23`.
+- UpgradeCap `version` equals `7`.
 - Package object exists and is immutable.
 
-After each queue creation transaction:
-
-1. Inspect the transaction effects.
-2. Find the created shared object with type:
-
-```text
-<UPGRADED_PACKAGE_ID>::matchmaking::MatchmakingQueueV2
-```
-
-3. Record its object ID as the queue ID.
-4. Verify the queue object:
+Verify the queue objects:
 
 ```powershell
-sui client object <MATCHMAKING_QUEUE_50_ID>
-sui client object <MATCHMAKING_QUEUE_75_ID>
+sui client object 0x469a5da237047f4c78223e3a2fac6bf42427ba488fd1e26f2233b65f01a31960
+sui client object 0x9d805e74d3a4412e4bb935ed383ad8f9dde00715632ea61704ccc4af804666cd
 ```
 
 Expected 50 queue fields:
@@ -250,17 +242,17 @@ Do not deploy the frontend until both v2 queue IDs are known and verified.
 
 Update frontend config after verification:
 
-- `PACKAGE_ID=<UPGRADED_PACKAGE_ID>`
-- `MATCHMAKING_QUEUE_50_ID=<MATCHMAKING_QUEUE_50_ID>`
-- `MATCHMAKING_QUEUE_75_ID=<MATCHMAKING_QUEUE_75_ID>`
-- After Config admin transfer is verified, update frontend `ADMIN_ADDRESSES` from `0xaf19c438c96320d14954a63c06d71fab99a2165800c839d667bd1803ecf86f36` to `0x485953e2eadf4aa02af950cf8e914fbd2b67523385e73c36118341459d8d45c4` in every active frontend config copy.
+- `PACKAGE_ID=0x37d3567ff2d92f94b5b55198d0692a4ba02437325aa4281f3db69ee8078aca23`
+- `MATCHMAKING_QUEUE_50_ID=0x469a5da237047f4c78223e3a2fac6bf42427ba488fd1e26f2233b65f01a31960`
+- `MATCHMAKING_QUEUE_75_ID=0x9d805e74d3a4412e4bb935ed383ad8f9dde00715632ea61704ccc4af804666cd`
+- `ADMIN_ADDRESSES=["0x485953e2eadf4aa02af950cf8e914fbd2b67523385e73c36118341459d8d45c4"]`
 - Keep `LEGACY_MATCHMAKING_QUEUE_ID=0xb5c054185c98d9cb80e35c50f78e306ca2d7bed52955e397df9f1acad9938e4d`
 - Keep `ORIGINAL_PACKAGE_ID=0x656ac984c39b952b40ccaaad4c26a3e074c4c99f56e2bac0862b811557de448b`
 - Keep `BOT_MOVE_RESOLVED_EVENT_PACKAGE_ID=0x6cae4020693bcfcac9523ce8bc3d0bef7f830900e48b743d002b5d6b676e5142`
 
 `PvpBattleV2Update` event package should be the upgraded package:
 
-- `PVP_BATTLE_V2_EVENT_PACKAGE_ID=<UPGRADED_PACKAGE_ID>`
+- `PVP_BATTLE_V2_EVENT_PACKAGE_ID=0x37d3567ff2d92f94b5b55198d0692a4ba02437325aa4281f3db69ee8078aca23`
 
 ## Railway Variable Changes
 
@@ -268,11 +260,11 @@ Do not change Railway variables until the upgrade and queue creation transaction
 
 Set or update:
 
-- `BATTLE_PACKAGE_ID=<UPGRADED_PACKAGE_ID>`
-- `PVP_BATTLE_V2_EVENT_PACKAGE_ID=<UPGRADED_PACKAGE_ID>`
+- `BATTLE_PACKAGE_ID=0x37d3567ff2d92f94b5b55198d0692a4ba02437325aa4281f3db69ee8078aca23`
+- `PVP_BATTLE_V2_EVENT_PACKAGE_ID=0x37d3567ff2d92f94b5b55198d0692a4ba02437325aa4281f3db69ee8078aca23`
 - `LEGACY_MATCHMAKING_QUEUE_ID=0xb5c054185c98d9cb80e35c50f78e306ca2d7bed52955e397df9f1acad9938e4d`
-- `MATCHMAKING_QUEUE_50_ID=<MATCHMAKING_QUEUE_50_ID>`
-- `MATCHMAKING_QUEUE_75_ID=<MATCHMAKING_QUEUE_75_ID>`
+- `MATCHMAKING_QUEUE_50_ID=0x469a5da237047f4c78223e3a2fac6bf42427ba488fd1e26f2233b65f01a31960`
+- `MATCHMAKING_QUEUE_75_ID=0x9d805e74d3a4412e4bb935ed383ad8f9dde00715632ea61704ccc4af804666cd`
 
 Preserve:
 
@@ -286,9 +278,9 @@ Preserve:
 On-chain read-only checks:
 
 ```powershell
-sui client object <UPGRADED_PACKAGE_ID>
-sui client object <MATCHMAKING_QUEUE_50_ID>
-sui client object <MATCHMAKING_QUEUE_75_ID>
+sui client object 0x37d3567ff2d92f94b5b55198d0692a4ba02437325aa4281f3db69ee8078aca23
+sui client object 0x469a5da237047f4c78223e3a2fac6bf42427ba488fd1e26f2233b65f01a31960
+sui client object 0x9d805e74d3a4412e4bb935ed383ad8f9dde00715632ea61704ccc4af804666cd
 sui client object 0xb5c054185c98d9cb80e35c50f78e306ca2d7bed52955e397df9f1acad9938e4d
 ```
 
@@ -296,8 +288,8 @@ Frontend smoke tests after deployment:
 
 - Battle page loads under `/battle`.
 - Legacy queue/refund recovery still displays if relevant.
-- 50 Growth option uses `<MATCHMAKING_QUEUE_50_ID>`.
-- 75 Growth option uses `<MATCHMAKING_QUEUE_75_ID>`.
+- 50 Growth option uses `0x469a5da237047f4c78223e3a2fac6bf42427ba488fd1e26f2233b65f01a31960`.
+- 75 Growth option uses `0x9d805e74d3a4412e4bb935ed383ad8f9dde00715632ea61704ccc4af804666cd`.
 - Legacy 100 Growth queue remains available for recovery only.
 - No frontend build points to unset v2 queue IDs.
 
@@ -324,12 +316,12 @@ Gameplay smoke tests:
 
 ## Rollback Plan
 
-If the package upgrade succeeds but Config transfer fails:
+Historical rollback note for the pre-completion stage where the package upgrade succeeded but Config transfer had failed:
 
 - Do not deploy v2 frontend configuration.
 - Do not create queues from an unauthorized wallet.
 - Legacy queue remains operational.
-- Retry the Config transfer from `0xaf19c438c96320d14954a63c06d71fab99a2165800c839d667bd1803ecf86f36`.
+- Before the recorded transfer transaction, retry would have required the previous Config admin, `0xaf19c438c96320d14954a63c06d71fab99a2165800c839d667bd1803ecf86f36`.
 - Package remains upgraded and usable.
 
 If Config transfer succeeds but queue creation fails:

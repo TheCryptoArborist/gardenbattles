@@ -5,7 +5,7 @@ export const SUI_CONFIG = {
   RPC_URL: "https://fullnode.mainnet.sui.io:443",
   WS_URL: "wss://fullnode.mainnet.sui.io:443",
   PACKAGE_ID:
-    "0x50864e060caca53c7c50a355f7550276b52f91a0bd1e7b1e54ac9dbb754ef299",
+    "0x37d3567ff2d92f94b5b55198d0692a4ba02437325aa4281f3db69ee8078aca23",
   ORIGINAL_PACKAGE_ID:
     "0x656ac984c39b952b40ccaaad4c26a3e074c4c99f56e2bac0862b811557de448b",
   MODULE: "battle",
@@ -30,7 +30,7 @@ export const SUI_CONFIG = {
   ENTRY_FEE: 3_000_000_000, // Intended battle entry fee: 3 SUI.
   RANDOM_OBJECT_CANDIDATES: ["0x8", "0x6"],
   ADMIN_ADDRESSES: [
-    "0xaf19c438c96320d14954a63c06d71fab99a2165800c839d667bd1803ecf86f36", // Contract deployer
+    "0x485953e2eadf4aa02af950cf8e914fbd2b67523385e73c36118341459d8d45c4", // Contract admin
   ],
 } as const;
 
