@@ -40,6 +40,7 @@ import {
 } from "@/lib/sui-config";
 import { submitBattleRecord } from "@/lib/api";
 import type { ActionEntry } from "@/components/BattleLog";
+import { parsePvpQueueStateFromObject } from "@/lib/pvpQueueState";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -104,6 +105,10 @@ interface StartBotBattleOptions {
   onStatus?: (status: BotStartStatus, details?: { digest?: string }) => void;
 }
 
+interface CancelQueueOptions {
+  onWalletApprovalRequested?: (queueState: PvpQueueState) => void;
+}
+
 interface SuiWalletContextType {
   address: string | null;
   isConnected: boolean;
@@ -123,7 +128,7 @@ interface SuiWalletContextType {
   claimTimeoutWin: () => Promise<void>;
   forfeitBattle: () => Promise<void>;
   adminForceClose: (winner?: string) => Promise<void>;
-  cancelQueue: () => Promise<any>;
+  cancelQueue: (options?: CancelQueueOptions) => Promise<any>;
   refreshPvpQueueState: () => Promise<PvpQueueState | null>;
   refreshActivePvpBattle: (reason?: string) => Promise<BattleState | null>;
   refreshCurrentBattleState: (reason?: string) => Promise<BattleState | null>;
@@ -496,54 +501,6 @@ function parseBattleStateFromObjectFields(
       battleVersion,
       targetGrowth,
     }),
-  };
-}
-
-function readMoveOptionVec(value: any): any[] {
-  const vec =
-    value?.fields?.vec ??
-    value?.vec ??
-    value?.fields?.value?.fields?.vec ??
-    value?.value?.fields?.vec;
-  return Array.isArray(vec) ? vec : [];
-}
-
-function readPendingQueueEntry(value: any): any | null {
-  if (!value) return null;
-
-  const optionEntry = readMoveOptionVec(value)[0];
-  if (optionEntry) return optionEntry;
-
-  if (value?.fields?.player || value?.player) return value;
-
-  return null;
-}
-
-function parsePvpQueueStateFromObject(
-  obj: any,
-  address: string,
-  option: PvpMatchOption,
-): PvpQueueState | null {
-  const fields = obj?.data?.content?.fields;
-  const pending = readPendingQueueEntry(fields?.waiting);
-  const pendingFields = pending?.fields ?? pending;
-  const player =
-    typeof pendingFields?.player === "string"
-      ? pendingFields.player.toLowerCase()
-      : null;
-
-  if (!player || player !== address.toLowerCase()) return null;
-
-  const entryFeeMist = Number(pendingFields?.entry_fee_snapshot ?? 0);
-  if (!Number.isFinite(entryFeeMist) || entryFeeMist < 0) return null;
-
-  return {
-    queueId: option.queueId,
-    player,
-    entryFeeMist,
-    targetGrowth: option.targetGrowth,
-    matchLabel: getPvpMatchDisplayLabel(option.targetGrowth),
-    queueType: option.queueType,
   };
 }
 
@@ -2149,16 +2106,30 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
   );
 
   // ── 6. Cancel queue / emergency refund ───────────────────────────────────
-  const cancelQueue = useCallback(async () => {
+  const cancelQueue = useCallback(async (options?: CancelQueueOptions) => {
     if (!address) throw new Error("Wallet not connected");
 
-    const queueState =
-      pvpQueueState ?? (await getRefundablePvpQueueState(suiClient, address));
+    let queueState: PvpQueueState | null = null;
+    try {
+      queueState = await getRefundablePvpQueueState(suiClient, address);
+    } catch (err) {
+      console.warn("[pvp-queue] refund queue hydration failed", err);
+      throw new Error(
+        "Could not read your PvP queue entry. Refresh the page and try again.",
+      );
+    }
+
     if (!queueState) {
       setPvpQueueState(null);
       setIsWaiting(false);
       throw new Error("You are NOT in the queue. Nothing to refund.");
     }
+
+    console.info("[pvp-queue] constructing refund transaction", {
+      queueId: queueState.queueId,
+      queueType: queueState.queueType,
+      targetGrowth: queueState.targetGrowth,
+    });
 
     const tx = new Transaction();
     tx.moveCall({
@@ -2169,7 +2140,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
     });
     tx.setSender(address);
 
-    // Dry-run first
+    // Build first so wallet approval is only requested for a verified queue entry.
     try {
       await tx.build({ client: suiClient });
     } catch (e: any) {
@@ -2183,9 +2154,11 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
       throw new Error(`Cannot refund: ${msg}`);
     }
 
+    options?.onWalletApprovalRequested?.(queueState);
+
     const result = await new Promise((resolve, reject) => {
       signAndExecuteTransaction(
-        { transaction: tx },
+        { transaction: tx, chain: SUI_CONFIG.CHAIN },
         {
           onSuccess: (r) => {
             setPvpQueueState(null);
@@ -2198,7 +2171,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
     });
 
     return result;
-  }, [address, pvpQueueState, suiClient, signAndExecuteTransaction]);
+  }, [address, suiClient, signAndExecuteTransaction]);
 
   // ── ConnectWalletButton component ─────────────────────────────────────────
   const ConnectWalletButton = useCallback(

@@ -579,11 +579,20 @@ export default function Battle() {
     setIsRefunding(true);
     try {
       setDialogOpen(true);
-      setDialogKind("pvp-refund-pending");
+      setDialogKind("info");
       setDialogMessage(
-        `Refund requested\n\nWaiting for wallet approval to refund your ${pvpQueueEntryFeeLabel}.\n\nApprove or reject the request in your wallet.`,
+        "Checking your PvP queue entry before requesting a refund.",
       );
-      await cancelQueue();
+      await cancelQueue({
+        onWalletApprovalRequested: (queueState) => {
+          const refundLabel = formatSuiAmount(queueState.entryFeeMist);
+          setDialogOpen(true);
+          setDialogKind("pvp-refund-pending");
+          setDialogMessage(
+            `Refund requested\n\nWaiting for wallet approval to refund your ${refundLabel}.\n\nApprove or reject the request in your wallet.`,
+          );
+        },
+      });
       setLocalPvpQueued(false);
       clearRecoveredPvpQueue("refund success");
       setDialogOpen(true);
@@ -595,6 +604,9 @@ export default function Battle() {
       const message = error?.message || "";
       const isCancelled = isWalletCancelMessage(message);
       const noQueueFound = message.toLowerCase().includes("not in the queue");
+      const queueReadFailed = message
+        .toLowerCase()
+        .includes("could not read your pvp queue entry");
       if (noQueueFound) {
         setLocalPvpQueued(false);
         clearRecoveredPvpQueue("confirmed no queue");
@@ -607,6 +619,8 @@ export default function Battle() {
       setDialogMessage(
         isCancelled
           ? "Refund cancelled in wallet."
+          : queueReadFailed
+            ? "Could not read your PvP queue entry. Refresh the page and try again."
           : noQueueFound
             ? "No active refundable PvP queue entry was found for this wallet."
           : "Could not refund your queue deposit. Try again.",
