@@ -22,6 +22,14 @@ type FetchLike = typeof fetch;
 const DEFAULT_OBJECT_READ_RETRY_DELAYS_MS = [750, 1500, 3000] as const;
 const SUI_GET_OBJECT_METHOD = "sui_getObject";
 
+export function resolveFetchImplementation(fetchImpl?: FetchLike): FetchLike {
+  if (fetchImpl) {
+    return (input, init) => fetchImpl(input, init);
+  }
+
+  return (input, init) => globalThis.fetch(input, init);
+}
+
 export type SuiReadFailureKind =
   | "rate_limited"
   | "transport"
@@ -277,14 +285,14 @@ export async function readSuiObjectWithRetry(
     queueId?: string;
     retryDelaysMs?: readonly number[];
     endpoints?: string[];
-    fetchFn?: FetchLike;
+    fetchImpl?: FetchLike;
   },
 ): Promise<SuiObjectResponse> {
   const retryDelaysMs =
     options.retryDelaysMs ?? DEFAULT_OBJECT_READ_RETRY_DELAYS_MS;
   const endpoints =
     options.endpoints?.filter(Boolean) ?? getConfiguredEndpoints();
-  const fetchFn = options.fetchFn ?? fetch;
+  const fetchFn = resolveFetchImplementation(options.fetchImpl);
 
   let lastError: unknown;
   for (let index = 0; index < endpoints.length; index += 1) {

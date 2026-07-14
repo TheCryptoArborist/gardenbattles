@@ -4,6 +4,7 @@ import {
   buildSuiGetObjectJsonRpcBody,
   classifySuiRpcReadError,
   readSuiObjectWithRetry,
+  resolveFetchImplementation,
   SuiRpcReadError,
 } from "./suiRpc";
 
@@ -39,13 +40,13 @@ function objectResult(id = "0xobject") {
 
 function fetchFromResponses(responses: Response[]) {
   const calls: Array<{ url: string; init: RequestInit }> = [];
-  const fetchFn = async (url: RequestInfo | URL, init?: RequestInit) => {
+  const fetchImpl = async (url: RequestInfo | URL, init?: RequestInit) => {
     calls.push({ url: String(url), init: init ?? {} });
     const response = responses.shift();
     if (!response) throw new Error("No test response configured");
     return response;
   };
-  return { calls, fetchFn: fetchFn as typeof fetch };
+  return { calls, fetchImpl: fetchImpl as typeof fetch };
 }
 
 describe("readSuiObjectWithRetry", () => {
@@ -66,7 +67,7 @@ describe("readSuiObjectWithRetry", () => {
 
   it("posts to the endpoint URL unchanged without appending the object ID", async () => {
     const endpoint = "https://example.quicknode.pro/token/path/";
-    const { calls, fetchFn } = fetchFromResponses([
+    const { calls, fetchImpl } = fetchFromResponses([
       jsonResponse(200, objectResult(quickQueue)),
     ]);
 
@@ -76,7 +77,7 @@ describe("readSuiObjectWithRetry", () => {
       {
         operation: "test-read",
         endpoints: [endpoint],
-        fetchFn,
+        fetchImpl,
         retryDelaysMs: [],
       },
     );
@@ -92,7 +93,7 @@ describe("readSuiObjectWithRetry", () => {
   });
 
   it("returns the primary RPC object response when primary succeeds", async () => {
-    const { fetchFn } = fetchFromResponses([
+    const { fetchImpl } = fetchFromResponses([
       jsonResponse(200, objectResult(legacyQueue)),
     ]);
 
@@ -102,7 +103,7 @@ describe("readSuiObjectWithRetry", () => {
       {
         operation: "test-read",
         endpoints: ["https://primary.example/rpc"],
-        fetchFn,
+        fetchImpl,
         retryDelaysMs: [],
       },
     );
@@ -111,7 +112,7 @@ describe("readSuiObjectWithRetry", () => {
   });
 
   it("retries primary after a 429 and succeeds", async () => {
-    const { calls, fetchFn } = fetchFromResponses([
+    const { calls, fetchImpl } = fetchFromResponses([
       jsonResponse(429, { error: { code: 429, message: "Too Many Requests" } }),
       jsonResponse(200, objectResult(quickQueue)),
     ]);
@@ -122,7 +123,7 @@ describe("readSuiObjectWithRetry", () => {
       {
         operation: "test-read",
         endpoints: ["https://primary.example/rpc"],
-        fetchFn,
+        fetchImpl,
         retryDelaysMs: [0],
       },
     );
@@ -132,7 +133,7 @@ describe("readSuiObjectWithRetry", () => {
   });
 
   it("uses fallback when primary returns 404", async () => {
-    const { calls, fetchFn } = fetchFromResponses([
+    const { calls, fetchImpl } = fetchFromResponses([
       jsonResponse(404, { error: { code: -32000, message: "not found" } }),
       jsonResponse(200, objectResult(standardQueue)),
     ]);
@@ -143,7 +144,7 @@ describe("readSuiObjectWithRetry", () => {
       {
         operation: "test-read",
         endpoints: ["https://primary.example/rpc", "https://fallback.example/rpc"],
-        fetchFn,
+        fetchImpl,
         retryDelaysMs: [],
       },
     );
@@ -155,7 +156,7 @@ describe("readSuiObjectWithRetry", () => {
   });
 
   it("throws an RPC unavailable error when all endpoints fail", async () => {
-    const { fetchFn } = fetchFromResponses([
+    const { fetchImpl } = fetchFromResponses([
       jsonResponse(404, { error: { code: -32000, message: "not found" } }),
       jsonResponse(503, { error: { code: 503, message: "unavailable" } }),
     ]);
@@ -168,7 +169,7 @@ describe("readSuiObjectWithRetry", () => {
           {
             operation: "test-read",
             endpoints: ["https://primary.example/rpc", "https://fallback.example/rpc"],
-            fetchFn,
+            fetchImpl,
             retryDelaysMs: [],
           },
         ),
@@ -183,5 +184,35 @@ describe("readSuiObjectWithRetry", () => {
 
     assert.equal(result.kind, "transport");
     assert.equal(result.retryable, true);
+  });
+
+  it("default fetch wrapper preserves the globalThis receiver", async () => {
+    const originalFetch = globalThis.fetch;
+    const expectedReceiver = globalThis;
+    let called = false;
+
+    try {
+      globalThis.fetch = function receiverSensitiveFetch(
+        this: unknown,
+        _input: RequestInfo | URL,
+        _init?: RequestInit,
+      ) {
+        called = true;
+        if (this !== expectedReceiver) {
+          throw new TypeError("Illegal invocation");
+        }
+        return Promise.resolve(jsonResponse(200, objectResult(quickQueue)));
+      } as typeof fetch;
+
+      const wrappedFetch = resolveFetchImplementation();
+      const response = await wrappedFetch("https://primary.example/rpc", {
+        method: "POST",
+      });
+
+      assert.equal(called, true);
+      assert.equal(response.ok, true);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 });
