@@ -17,6 +17,32 @@ export function getPvpQueueCancelFunctionName(queueType: "legacy" | "v2") {
   return queueType === "v2" ? "cancel_queue_v2" : "cancel_queue";
 }
 
+export type PvpRefundLifecycleOutcome =
+  | "success"
+  | "failed"
+  | "wallet-rejected";
+
+export interface PvpQueueUiRecoveryState {
+  localPvpQueued: boolean;
+  recoveredQueueState: ParsedPvpQueueState | null;
+  activationKey: string | null;
+  recoveryWallet: string | null;
+}
+
+export function resolvePvpQueueUiAfterRefund(
+  state: PvpQueueUiRecoveryState,
+  outcome: PvpRefundLifecycleOutcome,
+): PvpQueueUiRecoveryState {
+  if (outcome !== "success") return state;
+
+  return {
+    localPvpQueued: false,
+    recoveredQueueState: null,
+    activationKey: null,
+    recoveryWallet: null,
+  };
+}
+
 function readMoveOptionVec(value: any): any[] {
   const vec =
     value?.fields?.vec ??

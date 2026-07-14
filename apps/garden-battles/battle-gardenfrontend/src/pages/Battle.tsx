@@ -21,6 +21,7 @@ import PlayerRecord from "@/components/PlayerRecord";
 import ForestPower from "@/components/ForestPower";
 import { appAsset } from "@/lib/assets";
 import { appRoute } from "@/lib/routes";
+import { resolvePvpQueueUiAfterRefund } from "@/lib/pvpQueueState";
 import TreePowerPanel from "@/components/TreePowerPanel";
 import TreeEcosystemStatus from "@/components/TreeEcosystemStatus";
 import PrizePayoutPanel from "@/components/PrizePayoutPanel";
@@ -518,6 +519,23 @@ export default function Battle() {
     }
     setRecoveredPvpQueueState(null);
     pvpQueueActivationKeyRef.current = null;
+    pvpQueueWalletRef.current = null;
+  };
+
+  const clearPvpQueueUiAfterRefundSuccess = () => {
+    const cleared = resolvePvpQueueUiAfterRefund(
+      {
+        localPvpQueued,
+        recoveredQueueState: recoveredPvpQueueState,
+        activationKey: pvpQueueActivationKeyRef.current,
+        recoveryWallet: pvpQueueWalletRef.current,
+      },
+      "success",
+    );
+    setLocalPvpQueued(cleared.localPvpQueued);
+    setRecoveredPvpQueueState(cleared.recoveredQueueState);
+    pvpQueueActivationKeyRef.current = cleared.activationKey;
+    pvpQueueWalletRef.current = cleared.recoveryWallet;
   };
 
   const activatePvpQueuePanel = (
@@ -583,7 +601,7 @@ export default function Battle() {
       setDialogMessage(
         "Checking your PvP queue entry before requesting a refund.",
       );
-      await cancelQueue({
+      const refundResult = await cancelQueue({
         onWalletApprovalRequested: (queueState) => {
           const refundLabel = formatSuiAmount(queueState.entryFeeMist);
           setDialogOpen(true);
@@ -593,12 +611,18 @@ export default function Battle() {
           );
         },
       });
-      setLocalPvpQueued(false);
-      clearRecoveredPvpQueue("refund success");
+      console.info("[pvp-status] queue recovery cleared: refund success");
+      clearPvpQueueUiAfterRefundSuccess();
+      setModeCardsExpanded(true);
       setDialogOpen(true);
       setDialogKind("pvp-refund-success");
       setDialogMessage(
-        `Refund successful.\n\nYour ${pvpQueueEntryFeeLabel} has been returned.`,
+        [
+          `Refund complete. Your ${formatSuiAmount(refundResult.queueState.entryFeeMist)} queue deposit was returned.`,
+          refundResult.verificationNotice,
+        ]
+          .filter(Boolean)
+          .join("\n\n"),
       );
     } catch (error: any) {
       const message = error?.message || "";

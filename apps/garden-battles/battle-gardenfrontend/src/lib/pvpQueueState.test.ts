@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import {
   getPvpQueueCancelFunctionName,
   parsePvpQueueStateFromObject,
+  resolvePvpQueueUiAfterRefund,
 } from "./pvpQueueState";
 import type { PvpMatchOption } from "./sui-config";
 
@@ -130,5 +131,124 @@ describe("parsePvpQueueStateFromObject", () => {
     );
 
     assert.equal(state, null);
+  });
+
+  it("successful 50 refund clears waiting UI recovery state", () => {
+    const queueState = parsePvpQueueStateFromObject(
+      queueObject({
+        bank: "3000000000",
+        target_growth: "50",
+        waiting: pending(),
+      }),
+      wallet,
+      quickOption,
+    );
+
+    const result = resolvePvpQueueUiAfterRefund(
+      {
+        localPvpQueued: true,
+        recoveredQueueState: queueState,
+        activationKey: "0xquick:3000000000",
+        recoveryWallet: wallet,
+      },
+      "success",
+    );
+
+    assert.equal(result.localPvpQueued, false);
+    assert.equal(result.recoveredQueueState, null);
+    assert.equal(result.activationKey, null);
+    assert.equal(result.recoveryWallet, null);
+  });
+
+  it("successful 75 refund clears waiting UI recovery state", () => {
+    const queueState = parsePvpQueueStateFromObject(
+      queueObject({
+        bank: "3000000000",
+        target_growth: "75",
+        waiting: pending(),
+      }),
+      wallet,
+      standardOption,
+    );
+
+    const result = resolvePvpQueueUiAfterRefund(
+      {
+        localPvpQueued: true,
+        recoveredQueueState: queueState,
+        activationKey: "0xstandard:3000000000",
+        recoveryWallet: wallet,
+      },
+      "success",
+    );
+
+    assert.equal(result.localPvpQueued, false);
+    assert.equal(result.recoveredQueueState, null);
+  });
+
+  it("successful legacy refund clears waiting UI recovery state", () => {
+    const queueState = parsePvpQueueStateFromObject(
+      queueObject({
+        bank: "3000000000",
+        waiting: pending(),
+      }),
+      wallet,
+      legacyOption,
+    );
+
+    const result = resolvePvpQueueUiAfterRefund(
+      {
+        localPvpQueued: true,
+        recoveredQueueState: queueState,
+        activationKey: "0xlegacy:3000000000",
+        recoveryWallet: wallet,
+      },
+      "success",
+    );
+
+    assert.equal(result.localPvpQueued, false);
+    assert.equal(result.recoveredQueueState, null);
+  });
+
+  it("failed refund preserves waiting UI recovery state", () => {
+    const queueState = parsePvpQueueStateFromObject(
+      queueObject({
+        bank: "3000000000",
+        target_growth: "50",
+        waiting: pending(),
+      }),
+      wallet,
+      quickOption,
+    );
+    const current = {
+      localPvpQueued: true,
+      recoveredQueueState: queueState,
+      activationKey: "0xquick:3000000000",
+      recoveryWallet: wallet,
+    };
+
+    assert.equal(resolvePvpQueueUiAfterRefund(current, "failed"), current);
+  });
+
+  it("wallet rejection preserves waiting UI recovery state", () => {
+    const queueState = parsePvpQueueStateFromObject(
+      queueObject({
+        bank: "3000000000",
+        target_growth: "50",
+        waiting: pending(),
+      }),
+      wallet,
+      quickOption,
+    );
+    const current = {
+      localPvpQueued: true,
+      recoveredQueueState: queueState,
+      activationKey: "0xquick:3000000000",
+      recoveryWallet: wallet,
+    };
+
+    assert.equal(
+      resolvePvpQueueUiAfterRefund(current, "wallet-rejected"),
+      current,
+    );
   });
 });

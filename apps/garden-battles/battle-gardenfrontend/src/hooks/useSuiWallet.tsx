@@ -35,6 +35,7 @@ import {
   getPvpMatchDisplayLabel,
   getPvpMatchOption,
   type PvpBattleVersion,
+  type PvpMatchOption,
   type PvpMatchTarget,
 } from "@/lib/sui-config";
 import { submitBattleRecord } from "@/lib/api";
@@ -112,6 +113,12 @@ interface CancelQueueOptions {
   onWalletApprovalRequested?: (queueState: PvpQueueState) => void;
 }
 
+export interface CancelQueueResult {
+  digest?: string;
+  queueState: PvpQueueState;
+  verificationNotice?: string;
+}
+
 interface SuiWalletContextType {
   address: string | null;
   isConnected: boolean;
@@ -131,7 +138,7 @@ interface SuiWalletContextType {
   claimTimeoutWin: () => Promise<void>;
   forfeitBattle: () => Promise<void>;
   adminForceClose: (winner?: string) => Promise<void>;
-  cancelQueue: (options?: CancelQueueOptions) => Promise<any>;
+  cancelQueue: (options?: CancelQueueOptions) => Promise<CancelQueueResult>;
   refreshPvpQueueState: () => Promise<PvpQueueState | null>;
   refreshActivePvpBattle: (reason?: string) => Promise<BattleState | null>;
   refreshCurrentBattleState: (reason?: string) => Promise<BattleState | null>;
@@ -514,21 +521,12 @@ async function getRefundablePvpQueueState(
   try {
     console.info("[pvp-queue] checking refundable queue state");
     for (const option of getConfiguredPvpQueueOptions()) {
-      const obj = await readSuiObjectWithRetry(
+      const state = await getPvpQueueStateForOption(
         suiClient,
-        {
-          id: option.queueId,
-          options: { showContent: true },
-        },
-        {
-          operation: "pvp-queue-refund-read",
-          queueId: option.queueId,
-        },
+        address,
+        option,
+        "pvp-queue-refund-read",
       );
-      if (!obj?.data?.content || !("fields" in (obj.data.content as any))) {
-        throw new Error("Unexpected PvP queue data shape.");
-      }
-      const state = parsePvpQueueStateFromObject(obj, address, option);
       if (state) {
         console.info("[pvp-queue] found refundable battle/queue object", {
           queueId: state.queueId,
@@ -545,6 +543,29 @@ async function getRefundablePvpQueueState(
     console.warn("[pvp-queue] could not check refundable queue state", err);
     throw err;
   }
+}
+
+async function getPvpQueueStateForOption(
+  suiClient: any,
+  address: string,
+  option: PvpMatchOption,
+  operation: string,
+): Promise<PvpQueueState | null> {
+  const obj = await readSuiObjectWithRetry(
+    suiClient,
+    {
+      id: option.queueId,
+      options: { showContent: true },
+    },
+    {
+      operation,
+      queueId: option.queueId,
+    },
+  );
+  if (!obj?.data?.content || !("fields" in (obj.data.content as any))) {
+    throw new Error("Unexpected PvP queue data shape.");
+  }
+  return parsePvpQueueStateFromObject(obj, address, option);
 }
 
 async function getLiveBattleState(
@@ -2181,7 +2202,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
 
     options?.onWalletApprovalRequested?.(queueState);
 
-    const result = await new Promise((resolve, reject) => {
+    const result = await new Promise<any>((resolve, reject) => {
       signAndExecuteTransaction(
         { transaction: tx, chain: SUI_CONFIG.CHAIN },
         {
@@ -2195,7 +2216,59 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
       );
     });
 
-    return result;
+    let verificationNotice: string | undefined;
+    const refundedQueueOption: PvpMatchOption = {
+      targetGrowth: queueState.targetGrowth,
+      label:
+        queueState.targetGrowth === 50
+          ? "Quick Match"
+          : queueState.targetGrowth === 75
+            ? "Standard Match"
+            : "Legacy Match",
+      shortLabel: `${queueState.targetGrowth} Growth`,
+      queueId: queueState.queueId,
+      queueType: queueState.queueType,
+    };
+
+    try {
+      const remainingEntry = await getPvpQueueStateForOption(
+        suiClient,
+        address,
+        refundedQueueOption,
+        "pvp-queue-post-refund-verify",
+      );
+      if (remainingEntry) {
+        verificationNotice =
+          "Refund transaction succeeded, but the queue still appears to show a waiting entry. Refresh once before joining again.";
+        console.warn("[pvp-queue] post-refund verification still found entry", {
+          queueId: remainingEntry.queueId,
+          targetGrowth: remainingEntry.targetGrowth,
+        });
+      }
+    } catch (err) {
+      if (err instanceof SuiRpcReadError) {
+        if (err.kind === "rate_limited" || err.kind === "transport") {
+          verificationNotice =
+            "Refund complete. Follow-up queue verification was rate-limited, but your local waiting state was cleared.";
+        } else {
+          verificationNotice =
+            "Refund complete. Follow-up queue verification could not read the queue shape.";
+        }
+      } else {
+        verificationNotice =
+          "Refund complete. Follow-up queue verification could not be completed.";
+      }
+      console.warn("[pvp-queue] post-refund verification failed", err);
+    }
+
+    setPvpQueueState(null);
+    setIsWaiting(false);
+
+    return {
+      digest: result?.digest,
+      queueState,
+      verificationNotice,
+    };
   }, [address, suiClient, signAndExecuteTransaction]);
 
   // ── ConnectWalletButton component ─────────────────────────────────────────
