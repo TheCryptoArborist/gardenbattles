@@ -41,10 +41,28 @@ import {
 import { submitBattleRecord } from "@/lib/api";
 import type { ActionEntry } from "@/components/BattleLog";
 import {
+  classifyPostRefundQueueSnapshot,
   getPvpQueueCancelMoveCall,
+  parsePvpQueueObjectSnapshot,
   parsePvpQueueStateFromObject,
+  type ParsedPvpQueueObjectSnapshot,
 } from "@/lib/pvpQueueState";
 import { readSuiObjectWithRetry, SuiRpcReadError } from "@/lib/suiRpc";
+
+const POST_REFUND_VERIFICATION_RETRY_DELAYS_MS = [
+  750,
+  1500,
+  3000,
+  5000,
+] as const;
+
+const POST_REFUND_SYNCING_NOTICE = "Network verification is still syncing.";
+const POST_REFUND_STILL_WAITING_NOTICE =
+  "The latest queue object still shows your wallet waiting after the refund transaction. Refresh once before joining again.";
+
+function wait(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -111,6 +129,7 @@ interface StartBotBattleOptions {
 
 interface CancelQueueOptions {
   onWalletApprovalRequested?: (queueState: PvpQueueState) => void;
+  onRefundConfirmed?: (queueState: PvpQueueState) => void;
 }
 
 export interface CancelQueueResult {
@@ -551,21 +570,109 @@ async function getPvpQueueStateForOption(
   option: PvpMatchOption,
   operation: string,
 ): Promise<PvpQueueState | null> {
+  const snapshot = await getPvpQueueSnapshotForOption(
+    suiClient,
+    address,
+    option,
+    operation,
+  );
+  return snapshot.queueState;
+}
+
+async function getPvpQueueSnapshotForOption(
+  suiClient: any,
+  address: string,
+  option: PvpMatchOption,
+  operation: string,
+  retryDelaysMs?: readonly number[],
+): Promise<ParsedPvpQueueObjectSnapshot> {
   const obj = await readSuiObjectWithRetry(
     suiClient,
     {
       id: option.queueId,
-      options: { showContent: true },
+      options: { showContent: true, showOwner: true, showType: true },
     },
     {
       operation,
       queueId: option.queueId,
+      retryDelaysMs,
     },
   );
   if (!obj?.data?.content || !("fields" in (obj.data.content as any))) {
     throw new Error("Unexpected PvP queue data shape.");
   }
-  return parsePvpQueueStateFromObject(obj, address, option);
+  return parsePvpQueueObjectSnapshot(obj, address, option);
+}
+
+async function verifyPostRefundQueueState(
+  suiClient: any,
+  address: string,
+  option: PvpMatchOption,
+  refundDigest: string,
+): Promise<string | undefined> {
+  let lastError: unknown;
+  let lastSnapshot: ParsedPvpQueueObjectSnapshot | null = null;
+
+  for (
+    let attempt = 0;
+    attempt <= POST_REFUND_VERIFICATION_RETRY_DELAYS_MS.length;
+    attempt += 1
+  ) {
+    if (attempt > 0) {
+      await wait(POST_REFUND_VERIFICATION_RETRY_DELAYS_MS[attempt - 1]);
+    }
+
+    try {
+      const snapshot = await getPvpQueueSnapshotForOption(
+        suiClient,
+        address,
+        option,
+        "pvp-queue-post-refund-verify",
+        [],
+      );
+      lastSnapshot = snapshot;
+      const status = classifyPostRefundQueueSnapshot(snapshot, refundDigest);
+      console.info("[pvp-queue] post-refund verification read", {
+        queueId: option.queueId,
+        targetGrowth: option.targetGrowth,
+        previousTransaction: snapshot.previousTransaction,
+        version: snapshot.version,
+        bankMist: snapshot.bankMist,
+        status,
+        attempt,
+      });
+
+      if (status === "cleared") return undefined;
+      if (status === "still-waiting") return POST_REFUND_STILL_WAITING_NOTICE;
+
+      console.info("[pvp-queue] post-refund queue read appears stale", {
+        queueId: option.queueId,
+        targetGrowth: option.targetGrowth,
+        previousTransaction: snapshot.previousTransaction,
+        expectedPreviousTransaction: refundDigest,
+        version: snapshot.version,
+        attempt,
+      });
+    } catch (err) {
+      lastError = err;
+      console.warn("[pvp-queue] post-refund verification read failed", {
+        queueId: option.queueId,
+        targetGrowth: option.targetGrowth,
+        attempt,
+        err,
+      });
+    }
+  }
+
+  console.warn("[pvp-queue] post-refund verification still syncing", {
+    queueId: option.queueId,
+    targetGrowth: option.targetGrowth,
+    lastPreviousTransaction: lastSnapshot?.previousTransaction,
+    lastVersion: lastSnapshot?.version,
+    lastBankMist: lastSnapshot?.bankMist,
+    lastError,
+  });
+  return POST_REFUND_SYNCING_NOTICE;
 }
 
 async function getLiveBattleState(
@@ -2211,11 +2318,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
       signAndExecuteTransaction(
         { transaction: tx, chain: SUI_CONFIG.CHAIN },
         {
-          onSuccess: (r) => {
-            setPvpQueueState(null);
-            setIsWaiting(false);
-            resolve(r);
-          },
+          onSuccess: (r) => resolve(r),
           onError: (e: any) => {
             console.error("[pvp-queue] refund transaction submission failed", {
               name: e?.name,
@@ -2231,6 +2334,52 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
     });
 
     let verificationNotice: string | undefined;
+    if (!result?.digest) {
+      throw new Error(
+        "Refund transaction was submitted, but no transaction digest was returned. Check your wallet history before trying again.",
+      );
+    }
+
+    try {
+      const confirmedRefund = await suiClient.waitForTransaction({
+        digest: result.digest,
+        options: {
+          showEffects: true,
+          showObjectChanges: true,
+        },
+      });
+      const status = confirmedRefund?.effects?.status?.status;
+      if (status && status !== "success") {
+        throw new Error(
+          confirmedRefund?.effects?.status?.error ??
+            `Refund transaction finished with status: ${status}`,
+        );
+      }
+      console.info("[pvp-queue] refund transaction confirmed", {
+        digest: result.digest,
+        queueId: queueState.queueId,
+        targetGrowth: queueState.targetGrowth,
+      });
+    } catch (err: any) {
+      console.error("[pvp-queue] refund transaction confirmation failed", {
+        digest: result.digest,
+        queueId: queueState.queueId,
+        targetGrowth: queueState.targetGrowth,
+        name: err?.name,
+        message: err?.message,
+        code: err?.code,
+        cause: err?.cause,
+        status: err?.status ?? err?.response?.status ?? err?.cause?.status,
+      });
+      throw new Error(
+        `Refund transaction was submitted, but confirmation could not be loaded: ${err?.message ?? "Unknown confirmation error"}`,
+      );
+    }
+
+    setPvpQueueState(null);
+    setIsWaiting(false);
+    options?.onRefundConfirmed?.(queueState);
+
     const refundedQueueOption: PvpMatchOption = {
       targetGrowth: queueState.targetGrowth,
       label:
@@ -2244,36 +2393,12 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
       queueType: queueState.queueType,
     };
 
-    try {
-      const remainingEntry = await getPvpQueueStateForOption(
-        suiClient,
-        address,
-        refundedQueueOption,
-        "pvp-queue-post-refund-verify",
-      );
-      if (remainingEntry) {
-        verificationNotice =
-          "Refund transaction succeeded, but the queue still appears to show a waiting entry. Refresh once before joining again.";
-        console.warn("[pvp-queue] post-refund verification still found entry", {
-          queueId: remainingEntry.queueId,
-          targetGrowth: remainingEntry.targetGrowth,
-        });
-      }
-    } catch (err) {
-      if (err instanceof SuiRpcReadError) {
-        if (err.kind === "rate_limited" || err.kind === "transport") {
-          verificationNotice =
-            "Refund complete. Follow-up queue verification was rate-limited, but your local waiting state was cleared.";
-        } else {
-          verificationNotice =
-            "Refund complete. Follow-up queue verification could not read the queue shape.";
-        }
-      } else {
-        verificationNotice =
-          "Refund complete. Follow-up queue verification could not be completed.";
-      }
-      console.warn("[pvp-queue] post-refund verification failed", err);
-    }
+    verificationNotice = await verifyPostRefundQueueState(
+      suiClient,
+      address,
+      refundedQueueOption,
+      result.digest,
+    );
 
     setPvpQueueState(null);
     setIsWaiting(false);

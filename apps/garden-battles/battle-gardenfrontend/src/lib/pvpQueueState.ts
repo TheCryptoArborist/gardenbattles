@@ -13,6 +13,18 @@ export interface ParsedPvpQueueState {
   queueType: "legacy" | "v2";
 }
 
+export interface ParsedPvpQueueObjectSnapshot {
+  queueState: ParsedPvpQueueState | null;
+  previousTransaction?: string;
+  version?: string;
+  bankMist?: number;
+}
+
+export type PostRefundQueueVerificationStatus =
+  | "cleared"
+  | "stale"
+  | "still-waiting";
+
 export function getPvpQueueCancelFunctionName(queueType: "legacy" | "v2") {
   return queueType === "v2" ? "cancel_queue_v2" : "cancel_queue";
 }
@@ -123,4 +135,38 @@ export function parsePvpQueueStateFromObject(
     matchLabel: getPvpMatchDisplayLabel(option.targetGrowth),
     queueType: option.queueType,
   };
+}
+
+export function parsePvpQueueObjectSnapshot(
+  obj: any,
+  address: string,
+  option: PvpMatchOption,
+): ParsedPvpQueueObjectSnapshot {
+  const fields = obj?.data?.content?.fields;
+  const bankMist = Number(fields?.bank ?? 0);
+  return {
+    queueState: parsePvpQueueStateFromObject(obj, address, option),
+    previousTransaction:
+      typeof obj?.data?.previousTransaction === "string"
+        ? obj.data.previousTransaction
+        : typeof obj?.data?.previous_transaction === "string"
+          ? obj.data.previous_transaction
+          : undefined,
+    version:
+      typeof obj?.data?.version === "string"
+        ? obj.data.version
+        : obj?.data?.version !== undefined
+          ? String(obj.data.version)
+          : undefined,
+    bankMist: Number.isFinite(bankMist) ? bankMist : undefined,
+  };
+}
+
+export function classifyPostRefundQueueSnapshot(
+  snapshot: ParsedPvpQueueObjectSnapshot,
+  refundDigest: string,
+): PostRefundQueueVerificationStatus {
+  if (!snapshot.queueState) return "cleared";
+  if (snapshot.previousTransaction !== refundDigest) return "stale";
+  return "still-waiting";
 }

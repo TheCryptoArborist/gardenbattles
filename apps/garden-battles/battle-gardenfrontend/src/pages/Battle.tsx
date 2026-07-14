@@ -639,19 +639,22 @@ export default function Battle() {
             `Refund requested\n\nWaiting for wallet approval to refund your ${refundLabel}.\n\nApprove or reject the request in your wallet.`,
           );
         },
+        onRefundConfirmed: () => {
+          console.info("[pvp-status] queue recovery cleared: refund confirmed");
+          clearPvpQueueUiAfterRefundSuccess();
+          setModeCardsExpanded(true);
+        },
       });
       console.info("[pvp-status] queue recovery cleared: refund success");
       clearPvpQueueUiAfterRefundSuccess();
       setModeCardsExpanded(true);
       setDialogOpen(true);
       setDialogKind("pvp-refund-success");
+      const refundCompleteMessage = `Refund complete. Your ${formatSuiAmount(refundResult.queueState.entryFeeMist)} queue deposit was returned.`;
       setDialogMessage(
-        [
-          `Refund complete. Your ${formatSuiAmount(refundResult.queueState.entryFeeMist)} queue deposit was returned.`,
-          refundResult.verificationNotice,
-        ]
-          .filter(Boolean)
-          .join("\n\n"),
+        refundResult.verificationNotice
+          ? `${refundCompleteMessage} ${refundResult.verificationNotice}`
+          : refundCompleteMessage,
       );
     } catch (error: any) {
       const message = error?.message || "";

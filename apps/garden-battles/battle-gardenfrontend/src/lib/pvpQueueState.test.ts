@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  classifyPostRefundQueueSnapshot,
   getPvpQueueCancelMoveCall,
   getPvpQueueCancelFunctionName,
+  parsePvpQueueObjectSnapshot,
   parsePvpQueueStateFromObject,
   resolvePvpQueueUiAfterRefund,
 } from "./pvpQueueState";
@@ -43,9 +45,14 @@ const standardOption: PvpMatchOption = {
   queueType: "v2",
 };
 
-function queueObject(fields: Record<string, unknown>) {
+function queueObject(
+  fields: Record<string, unknown>,
+  meta: { previousTransaction?: string; version?: string } = {},
+) {
   return {
     data: {
+      previousTransaction: meta.previousTransaction,
+      version: meta.version,
       content: {
         fields,
       },
@@ -270,6 +277,130 @@ describe("parsePvpQueueStateFromObject", () => {
     assert.equal(
       resolvePvpQueueUiAfterRefund(current, "wallet-rejected"),
       current,
+    );
+  });
+
+  it("treats a stale pre-refund object as stale before a later cleared object", () => {
+    const refundDigest = "9refundDigest";
+    const staleSnapshot = parsePvpQueueObjectSnapshot(
+      queueObject(
+        {
+          bank: "3000000000",
+          target_growth: "50",
+          waiting: pending(),
+        },
+        { previousTransaction: "oldJoinDigest", version: "18" },
+      ),
+      wallet,
+      quickOption,
+    );
+    const clearedSnapshot = parsePvpQueueObjectSnapshot(
+      queueObject(
+        {
+          bank: "0",
+          target_growth: "50",
+          waiting: null,
+        },
+        { previousTransaction: refundDigest, version: "19" },
+      ),
+      wallet,
+      quickOption,
+    );
+
+    assert.equal(
+      classifyPostRefundQueueSnapshot(staleSnapshot, refundDigest),
+      "stale",
+    );
+    assert.equal(
+      classifyPostRefundQueueSnapshot(clearedSnapshot, refundDigest),
+      "cleared",
+    );
+  });
+
+  it("treats previousTransaction mismatch with a waiting entry as stale", () => {
+    const snapshot = parsePvpQueueObjectSnapshot(
+      queueObject(
+        {
+          bank: "3000000000",
+          target_growth: "75",
+          waiting: pending(),
+        },
+        { previousTransaction: "notTheRefundDigest", version: "22" },
+      ),
+      wallet,
+      standardOption,
+    );
+
+    assert.equal(
+      classifyPostRefundQueueSnapshot(snapshot, "refundDigest"),
+      "stale",
+    );
+  });
+
+  it("treats a confirmed cleared queue as normal success", () => {
+    const refundDigest = "7confirmedRefund";
+    const snapshot = parsePvpQueueObjectSnapshot(
+      queueObject(
+        {
+          bank: "0",
+          target_growth: "50",
+          waiting: null,
+        },
+        { previousTransaction: refundDigest, version: "30" },
+      ),
+      wallet,
+      quickOption,
+    );
+
+    assert.equal(snapshot.queueState, null);
+    assert.equal(snapshot.previousTransaction, refundDigest);
+    assert.equal(snapshot.version, "30");
+    assert.equal(snapshot.bankMist, 0);
+    assert.equal(classifyPostRefundQueueSnapshot(snapshot, refundDigest), "cleared");
+  });
+
+  it("does not restore waiting UI state when verification remains stale after success", () => {
+    const queueState = parsePvpQueueStateFromObject(
+      queueObject({
+        bank: "3000000000",
+        target_growth: "50",
+        waiting: pending(),
+      }),
+      wallet,
+      quickOption,
+    );
+    const result = resolvePvpQueueUiAfterRefund(
+      {
+        localPvpQueued: true,
+        recoveredQueueState: queueState,
+        activationKey: "0xquick:3000000000",
+        recoveryWallet: wallet,
+      },
+      "success",
+    );
+
+    assert.equal(result.localPvpQueued, false);
+    assert.equal(result.recoveredQueueState, null);
+  });
+
+  it("warns only when the current queue object still shows the wallet waiting", () => {
+    const refundDigest = "currentRefundDigest";
+    const snapshot = parsePvpQueueObjectSnapshot(
+      queueObject(
+        {
+          bank: "3000000000",
+          target_growth: "50",
+          waiting: pending(),
+        },
+        { previousTransaction: refundDigest, version: "41" },
+      ),
+      wallet,
+      quickOption,
+    );
+
+    assert.equal(
+      classifyPostRefundQueueSnapshot(snapshot, refundDigest),
+      "still-waiting",
     );
   });
 });
