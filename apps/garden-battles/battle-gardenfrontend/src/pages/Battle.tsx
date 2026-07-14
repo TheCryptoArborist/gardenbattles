@@ -392,11 +392,16 @@ export default function Battle() {
       const isInactiveMatchType = message.includes(
         "This match type is not active yet",
       );
+      const nftScanFailed = message
+        .toLowerCase()
+        .includes("could not scan your nftrees");
       setDialogOpen(true);
       setDialogKind(isCancelled ? "pvp-join-cancelled" : "pvp-join-error");
       setDialogMessage(
         isInactiveMatchType
           ? "This match type is not active yet."
+          : nftScanFailed
+            ? "Could not scan your NFTrees because the Sui RPC request failed. Wait a moment and try again."
           : isCancelled
           ? "Queue join cancelled in wallet."
           : "Could not join the PvP queue. Try again.",
@@ -468,6 +473,8 @@ export default function Battle() {
       const friendlyMessage =
         lowerMessage.includes("timed out waiting")
           ? "Timed out waiting for the Garden Bot battle to start. Please try again."
+          : lowerMessage.includes("could not scan your nftrees")
+            ? "Could not scan your NFTrees because the Sui RPC request failed. Wait a moment and try again."
           : lowerMessage.includes("did not refresh")
             ? "Battle transaction confirmed, but the game did not refresh. Try Refresh Battle."
           : lowerMessage.includes("reject") ||

@@ -1,106 +1,180 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  buildSuiGetObjectJsonRpcBody,
   classifySuiRpcReadError,
   readSuiObjectWithRetry,
   SuiRpcReadError,
 } from "./suiRpc";
 
-function objectResponse(id = "0xobject") {
+const legacyQueue =
+  "0xb5c054185c98d9cb80e35c50f78e306ca2d7bed52955e397df9f1acad9938e4d";
+const quickQueue =
+  "0x469a5da237047f4c78223e3a2fac6bf42427ba488fd1e26f2233b65f01a31960";
+const standardQueue =
+  "0x9d805e74d3a4412e4bb935ed383ad8f9dde00715632ea61704ccc4af804666cd";
+
+function jsonResponse(status: number, body: unknown) {
   return {
-    data: {
-      objectId: id,
-      content: { fields: {} },
+    ok: status >= 200 && status < 300,
+    status,
+    async json() {
+      return body;
     },
-  };
+  } as Response;
 }
 
-function retryableError(status = 429) {
-  const error = new Error(`${status} Too Many Requests`) as Error & {
-    status?: number;
-  };
-  error.status = status;
-  return error;
-}
-
-function clientFromResults(results: Array<unknown>) {
-  const calls: unknown[] = [];
+function objectResult(id = "0xobject") {
   return {
-    calls,
-    client: {
-      async getObject(args: unknown) {
-        calls.push(args);
-        const result = results.shift();
-        if (result instanceof Error) throw result;
-        return result;
+    jsonrpc: "2.0",
+    id: 1,
+    result: {
+      data: {
+        objectId: id,
+        content: { fields: {} },
       },
     },
   };
 }
 
+function fetchFromResponses(responses: Response[]) {
+  const calls: Array<{ url: string; init: RequestInit }> = [];
+  const fetchFn = async (url: RequestInfo | URL, init?: RequestInit) => {
+    calls.push({ url: String(url), init: init ?? {} });
+    const response = responses.shift();
+    if (!response) throw new Error("No test response configured");
+    return response;
+  };
+  return { calls, fetchFn: fetchFn as typeof fetch };
+}
+
 describe("readSuiObjectWithRetry", () => {
-  it("returns the primary RPC object response when primary succeeds", async () => {
-    const primary = clientFromResults([objectResponse()]);
+  it("builds a proper sui_getObject JSON-RPC POST body", () => {
+    const body = buildSuiGetObjectJsonRpcBody({
+      id: quickQueue,
+      options: { showContent: true },
+    });
 
-    const result = await readSuiObjectWithRetry(
-      primary.client,
-      { id: "0xqueue", options: { showContent: true } },
-      { operation: "test-read", retryDelaysMs: [] },
-    );
-
-    assert.equal(result.data?.objectId, "0xobject");
-    assert.equal(primary.calls.length, 1);
+    assert.equal(body.method, "sui_getObject");
+    assert.equal(body.params[0], quickQueue);
+    assert.deepEqual(body.params[1], {
+      showType: true,
+      showOwner: true,
+      showContent: true,
+    });
   });
 
-  it("retries primary after a 429 and succeeds", async () => {
-    const primary = clientFromResults([retryableError(429), objectResponse()]);
+  it("posts to the endpoint URL unchanged without appending the object ID", async () => {
+    const endpoint = "https://example.quicknode.pro/token/path/";
+    const { calls, fetchFn } = fetchFromResponses([
+      jsonResponse(200, objectResult(quickQueue)),
+    ]);
 
-    const result = await readSuiObjectWithRetry(
-      primary.client,
-      { id: "0xqueue", options: { showContent: true } },
-      { operation: "test-read", retryDelaysMs: [0] },
-    );
-
-    assert.equal(result.data?.objectId, "0xobject");
-    assert.equal(primary.calls.length, 2);
-  });
-
-  it("uses configured fallback when primary stays rate-limited", async () => {
-    const primary = clientFromResults([retryableError(429)]);
-    const fallback = clientFromResults([objectResponse("0xfallback")]);
-
-    const result = await readSuiObjectWithRetry(
-      primary.client,
-      { id: "0xqueue", options: { showContent: true } },
+    await readSuiObjectWithRetry(
+      null,
+      { id: quickQueue, options: { showContent: true } },
       {
         operation: "test-read",
-        fallbackClient: fallback.client,
+        endpoints: [endpoint],
+        fetchFn,
         retryDelaysMs: [],
       },
     );
 
-    assert.equal(result.data?.objectId, "0xfallback");
-    assert.equal(primary.calls.length, 1);
-    assert.equal(fallback.calls.length, 1);
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].url, endpoint);
+    assert.equal(calls[0].init.method, "POST");
+    assert.equal(
+      JSON.parse(String(calls[0].init.body)).params[0],
+      quickQueue,
+    );
+    assert.equal(calls[0].url.includes(quickQueue), false);
   });
 
-  it("throws a rate-limited read error when all endpoints are exhausted", async () => {
-    const primary = clientFromResults([retryableError(429)]);
-    const fallback = clientFromResults([retryableError(503)]);
+  it("returns the primary RPC object response when primary succeeds", async () => {
+    const { fetchFn } = fetchFromResponses([
+      jsonResponse(200, objectResult(legacyQueue)),
+    ]);
+
+    const result = await readSuiObjectWithRetry(
+      null,
+      { id: legacyQueue, options: { showContent: true } },
+      {
+        operation: "test-read",
+        endpoints: ["https://primary.example/rpc"],
+        fetchFn,
+        retryDelaysMs: [],
+      },
+    );
+
+    assert.equal(result.data?.objectId, legacyQueue);
+  });
+
+  it("retries primary after a 429 and succeeds", async () => {
+    const { calls, fetchFn } = fetchFromResponses([
+      jsonResponse(429, { error: { code: 429, message: "Too Many Requests" } }),
+      jsonResponse(200, objectResult(quickQueue)),
+    ]);
+
+    const result = await readSuiObjectWithRetry(
+      null,
+      { id: quickQueue, options: { showContent: true } },
+      {
+        operation: "test-read",
+        endpoints: ["https://primary.example/rpc"],
+        fetchFn,
+        retryDelaysMs: [0],
+      },
+    );
+
+    assert.equal(result.data?.objectId, quickQueue);
+    assert.equal(calls.length, 2);
+  });
+
+  it("uses fallback when primary returns 404", async () => {
+    const { calls, fetchFn } = fetchFromResponses([
+      jsonResponse(404, { error: { code: -32000, message: "not found" } }),
+      jsonResponse(200, objectResult(standardQueue)),
+    ]);
+
+    const result = await readSuiObjectWithRetry(
+      null,
+      { id: standardQueue, options: { showContent: true } },
+      {
+        operation: "test-read",
+        endpoints: ["https://primary.example/rpc", "https://fallback.example/rpc"],
+        fetchFn,
+        retryDelaysMs: [],
+      },
+    );
+
+    assert.equal(result.data?.objectId, standardQueue);
+    assert.equal(calls.length, 2);
+    assert.equal(calls[0].url, "https://primary.example/rpc");
+    assert.equal(calls[1].url, "https://fallback.example/rpc");
+  });
+
+  it("throws an RPC unavailable error when all endpoints fail", async () => {
+    const { fetchFn } = fetchFromResponses([
+      jsonResponse(404, { error: { code: -32000, message: "not found" } }),
+      jsonResponse(503, { error: { code: 503, message: "unavailable" } }),
+    ]);
 
     await assert.rejects(
       () =>
         readSuiObjectWithRetry(
-          primary.client,
-          { id: "0xqueue", options: { showContent: true } },
+          null,
+          { id: quickQueue, options: { showContent: true } },
           {
             operation: "test-read",
-            fallbackClient: fallback.client,
+            endpoints: ["https://primary.example/rpc", "https://fallback.example/rpc"],
+            fetchFn,
             retryDelaysMs: [],
           },
         ),
       (error) =>
-        error instanceof SuiRpcReadError && error.kind === "rate_limited",
+        error instanceof SuiRpcReadError &&
+        (error.kind === "transport" || error.kind === "rate_limited"),
     );
   });
 

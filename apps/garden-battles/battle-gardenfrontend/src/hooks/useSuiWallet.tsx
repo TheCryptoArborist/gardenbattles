@@ -1443,7 +1443,9 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
         return null;
       } catch (err) {
         console.error("NFT scan error:", err);
-        return null;
+        throw new Error(
+          "Could not scan your NFTrees because the Sui RPC request failed. Wait a moment and try again.",
+        );
       }
     },
     [suiClient],
