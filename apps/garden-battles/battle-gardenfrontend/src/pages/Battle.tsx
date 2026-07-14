@@ -1435,8 +1435,8 @@ export default function Battle() {
                   ))}
                 </div>
                 <p className="gb-pvp-target-note">
-                  New 50/75 Growth queues are pending activation. Legacy
-                  recovery stays available for existing 100 Growth queues.
+                  Choose your battle length. Quick Match is first to 50 Growth.
+                  Standard Match is first to 75 Growth.
                 </p>
               </div>
             )}
