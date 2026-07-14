@@ -17,6 +17,16 @@ export function getPvpQueueCancelFunctionName(queueType: "legacy" | "v2") {
   return queueType === "v2" ? "cancel_queue_v2" : "cancel_queue";
 }
 
+export function getPvpQueueCancelMoveCall(
+  packageId: string,
+  queueState: Pick<ParsedPvpQueueState, "queueId" | "queueType">,
+) {
+  return {
+    target: `${packageId}::matchmaking::${getPvpQueueCancelFunctionName(queueState.queueType)}`,
+    queueObjectId: queueState.queueId,
+  };
+}
+
 export type PvpRefundLifecycleOutcome =
   | "success"
   | "failed"

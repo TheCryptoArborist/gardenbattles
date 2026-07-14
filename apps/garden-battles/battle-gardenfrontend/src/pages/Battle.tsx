@@ -188,6 +188,28 @@ function isWalletCancelMessage(message: string) {
   );
 }
 
+function formatRefundFailureMessage(message: string) {
+  const lowerMessage = message.toLowerCase();
+  if (lowerMessage.includes("temporarily rate-limiting requests")) {
+    return "The Sui network is temporarily rate-limiting requests. Your queue deposit has not been reported missing. Wait a moment and try again.";
+  }
+  if (lowerMessage.includes("could not read your pvp queue entry")) {
+    return "Could not read your PvP queue entry. Refresh the page and try again.";
+  }
+  if (lowerMessage.includes("not in the queue")) {
+    return "No active refundable PvP queue entry was found for this wallet.";
+  }
+  if (lowerMessage.includes("could not construct the refund transaction")) {
+    return message;
+  }
+  if (lowerMessage.includes("moveabort") || lowerMessage.includes("move abort")) {
+    return `Refund transaction was rejected on-chain: ${message}`;
+  }
+  return message.trim()
+    ? `Could not refund your queue deposit: ${message}`
+    : "Could not refund your queue deposit. Try again.";
+}
+
 function resolveGrowthStageVisual({
   role,
   growth,
@@ -635,12 +657,6 @@ export default function Battle() {
       const message = error?.message || "";
       const isCancelled = isWalletCancelMessage(message);
       const noQueueFound = message.toLowerCase().includes("not in the queue");
-      const queueReadFailed = message
-        .toLowerCase()
-        .includes("could not read your pvp queue entry");
-      const queueReadRateLimited = message
-        .toLowerCase()
-        .includes("temporarily rate-limiting requests");
       if (noQueueFound) {
         setLocalPvpQueued(false);
         clearRecoveredPvpQueue("confirmed no queue");
@@ -653,13 +669,7 @@ export default function Battle() {
       setDialogMessage(
         isCancelled
           ? "Refund cancelled in wallet."
-          : queueReadRateLimited
-            ? "The Sui network is temporarily rate-limiting requests. Your queue deposit has not been reported missing. Wait a moment and try again."
-          : queueReadFailed
-            ? "Could not read your PvP queue entry. Refresh the page and try again."
-          : noQueueFound
-            ? "No active refundable PvP queue entry was found for this wallet."
-          : "Could not refund your queue deposit. Try again.",
+          : formatRefundFailureMessage(message),
       );
     } finally {
       setIsRefunding(false);

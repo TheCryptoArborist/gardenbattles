@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  getPvpQueueCancelMoveCall,
   getPvpQueueCancelFunctionName,
   parsePvpQueueStateFromObject,
   resolvePvpQueueUiAfterRefund,
@@ -15,6 +16,8 @@ const quickQueue =
   "0x469a5da237047f4c78223e3a2fac6bf42427ba488fd1e26f2233b65f01a31960";
 const standardQueue =
   "0x9d805e74d3a4412e4bb935ed383ad8f9dde00715632ea61704ccc4af804666cd";
+const packageId =
+  "0x37d3567ff2d92f94b5b55198d0692a4ba02437325aa4281f3db69ee8078aca23";
 
 const legacyOption: PvpMatchOption = {
   targetGrowth: 100,
@@ -77,6 +80,10 @@ describe("parsePvpQueueStateFromObject", () => {
     assert.equal(state?.targetGrowth, 50);
     assert.equal(state?.entryFeeMist, 3000000000);
     assert.equal(getPvpQueueCancelFunctionName(state!.queueType), "cancel_queue_v2");
+    assert.deepEqual(getPvpQueueCancelMoveCall(packageId, state!), {
+      target: `${packageId}::matchmaking::cancel_queue_v2`,
+      queueObjectId: quickQueue,
+    });
   });
 
   it("parses a recovered 75 Growth queue entry", () => {
@@ -93,6 +100,10 @@ describe("parsePvpQueueStateFromObject", () => {
     assert.equal(state?.queueId, standardQueue);
     assert.equal(state?.queueType, "v2");
     assert.equal(state?.targetGrowth, 75);
+    assert.deepEqual(getPvpQueueCancelMoveCall(packageId, state!), {
+      target: `${packageId}::matchmaking::cancel_queue_v2`,
+      queueObjectId: standardQueue,
+    });
   });
 
   it("keeps the legacy refund path on legacy queue entries", () => {
@@ -109,6 +120,10 @@ describe("parsePvpQueueStateFromObject", () => {
     assert.equal(state?.queueType, "legacy");
     assert.equal(state?.targetGrowth, 100);
     assert.equal(getPvpQueueCancelFunctionName(state!.queueType), "cancel_queue");
+    assert.deepEqual(getPvpQueueCancelMoveCall(packageId, state!), {
+      target: `${packageId}::matchmaking::cancel_queue`,
+      queueObjectId: legacyQueue,
+    });
   });
 
   it("rejects a v2 queue target mismatch", () => {

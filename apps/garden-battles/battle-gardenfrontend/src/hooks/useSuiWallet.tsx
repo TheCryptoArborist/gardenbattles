@@ -41,7 +41,7 @@ import {
 import { submitBattleRecord } from "@/lib/api";
 import type { ActionEntry } from "@/components/BattleLog";
 import {
-  getPvpQueueCancelFunctionName,
+  getPvpQueueCancelMoveCall,
   parsePvpQueueStateFromObject,
 } from "@/lib/pvpQueueState";
 import { readSuiObjectWithRetry, SuiRpcReadError } from "@/lib/suiRpc";
@@ -2181,25 +2181,28 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
       targetGrowth: queueState.targetGrowth,
     });
 
-    const tx = new Transaction();
-    tx.moveCall({
-      target: `${SUI_CONFIG.PACKAGE_ID}::matchmaking::${getPvpQueueCancelFunctionName(queueState.queueType)}`,
-      arguments: [tx.object(queueState.queueId)],
-    });
-    tx.setSender(address);
-
-    // Build first so wallet approval is only requested for a verified queue entry.
+    let tx: Transaction;
     try {
-      await tx.build({ client: suiClient });
+      tx = new Transaction();
+      const refundMoveCall = getPvpQueueCancelMoveCall(
+        SUI_CONFIG.PACKAGE_ID,
+        queueState,
+      );
+      tx.moveCall({
+        target: refundMoveCall.target,
+        arguments: [tx.object(refundMoveCall.queueObjectId)],
+      });
+      tx.setSender(address);
     } catch (e: any) {
-      const msg = e?.message ?? "";
-      if (msg.includes("108")) {
-        setPvpQueueState(null);
-        setIsWaiting(false);
-        throw new Error("You are NOT in the queue. Nothing to refund.");
-      }
-      if (msg.includes("102")) throw new Error("This is not your queue entry.");
-      throw new Error(`Cannot refund: ${msg}`);
+      console.error("[pvp-queue] refund transaction construction failed", {
+        name: e?.name,
+        message: e?.message,
+        code: e?.code,
+        cause: e?.cause,
+      });
+      throw new Error(
+        `Could not construct the refund transaction: ${e?.message ?? "Unknown error"}`,
+      );
     }
 
     options?.onWalletApprovalRequested?.(queueState);
@@ -2213,7 +2216,16 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
             setIsWaiting(false);
             resolve(r);
           },
-          onError: (e) => reject(e),
+          onError: (e: any) => {
+            console.error("[pvp-queue] refund transaction submission failed", {
+              name: e?.name,
+              message: e?.message,
+              code: e?.code,
+              cause: e?.cause,
+              status: e?.status ?? e?.response?.status ?? e?.cause?.status,
+            });
+            reject(e);
+          },
         },
       );
     });
