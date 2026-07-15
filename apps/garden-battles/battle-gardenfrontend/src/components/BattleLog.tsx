@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import React, { useEffect, useRef } from "react";
 import { MOVE_LABELS } from "@/lib/sui-config";
 
 export interface ActionEntry {
@@ -93,10 +93,10 @@ export default function BattleLog({
             ? "Round Result"
             : entry.label && entry.label !== "Round Result"
               ? entry.label
-              : MOVE_LABELS[entry.moveId] ||
+                : MOVE_LABELS[entry.moveId] ||
                 (entry.actor === "you"
                   ? "Your move"
-                  : `${opponentLabel} move unavailable`);
+                  : `${opponentLabel} move resolved`);
 
         const actorLabel =
           isRoundEntry

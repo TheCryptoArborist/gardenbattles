@@ -17,10 +17,13 @@ type SuiObjectResponse = {
   error?: any;
 };
 
+export type SuiTransactionBlockResponse = any;
+
 type FetchLike = typeof fetch;
 
 const DEFAULT_OBJECT_READ_RETRY_DELAYS_MS = [750, 1500, 3000] as const;
 const SUI_GET_OBJECT_METHOD = "sui_getObject";
+const SUI_GET_TRANSACTION_BLOCK_METHOD = "sui_getTransactionBlock";
 
 export function resolveFetchImplementation(fetchImpl?: FetchLike): FetchLike {
   if (fetchImpl) {
@@ -140,17 +143,41 @@ export function buildSuiGetObjectJsonRpcBody(request: SuiObjectRequest) {
   };
 }
 
-async function readObjectViaJsonRpc(
+export function buildSuiGetTransactionBlockJsonRpcBody(
+  digest: string,
+  options: Record<string, unknown> = {},
+) {
+  return {
+    jsonrpc: "2.0",
+    id: 1,
+    method: SUI_GET_TRANSACTION_BLOCK_METHOD,
+    params: [
+      digest,
+      {
+        showInput: true,
+        showEffects: false,
+        showEvents: false,
+        showObjectChanges: false,
+        showBalanceChanges: false,
+        ...options,
+      },
+    ],
+  };
+}
+
+async function readJsonRpcViaPost(
   endpoint: string,
-  request: SuiObjectRequest,
+  body: Record<string, unknown>,
   options: {
     endpointIndex: number;
     operation: string;
+    jsonRpcMethod: string;
+    objectId?: string;
+    transactionDigest?: string;
     queueId?: string;
     fetchFn: FetchLike;
   },
-): Promise<SuiObjectResponse> {
-  const body = buildSuiGetObjectJsonRpcBody(request);
+): Promise<any> {
   const endpointCategory = endpointLabel(options.endpointIndex);
   const response = await options.fetchFn(endpoint, {
     method: "POST",
@@ -168,18 +195,19 @@ async function readObjectViaJsonRpc(
   }
 
   if (!response.ok) {
-    console.warn("[sui-rpc] object read http failure", {
+    console.warn("[sui-rpc] json-rpc http failure", {
       operation: options.operation,
       endpointCategory,
       httpMethod: "POST",
-      jsonRpcMethod: SUI_GET_OBJECT_METHOD,
-      objectId: request.id,
+      jsonRpcMethod: options.jsonRpcMethod,
+      objectId: options.objectId,
+      transactionDigest: options.transactionDigest,
       status: response.status,
       rpcCode: json?.error?.code,
       rpcMessage: json?.error?.message,
       queueId: options.queueId,
     });
-    throw new SuiRpcReadError("Sui JSON-RPC HTTP object read failed.", {
+    throw new SuiRpcReadError("Sui JSON-RPC HTTP request failed.", {
       kind:
         response.status === 429 || response.status === 503
           ? "rate_limited"
@@ -191,18 +219,19 @@ async function readObjectViaJsonRpc(
   }
 
   if (json?.error) {
-    console.warn("[sui-rpc] object read json-rpc failure", {
+    console.warn("[sui-rpc] json-rpc failure", {
       operation: options.operation,
       endpointCategory,
       httpMethod: "POST",
-      jsonRpcMethod: SUI_GET_OBJECT_METHOD,
-      objectId: request.id,
+      jsonRpcMethod: options.jsonRpcMethod,
+      objectId: options.objectId,
+      transactionDigest: options.transactionDigest,
       status: response.status,
       rpcCode: json.error.code,
       rpcMessage: json.error.message,
       queueId: options.queueId,
     });
-    throw new SuiRpcReadError("Sui JSON-RPC object read failed.", {
+    throw new SuiRpcReadError("Sui JSON-RPC request failed.", {
       kind: "unexpected",
       status: response.status,
       rpcCode: json.error.code,
@@ -211,6 +240,27 @@ async function readObjectViaJsonRpc(
   }
 
   return json?.result;
+}
+
+async function readObjectViaJsonRpc(
+  endpoint: string,
+  request: SuiObjectRequest,
+  options: {
+    endpointIndex: number;
+    operation: string;
+    queueId?: string;
+    fetchFn: FetchLike;
+  },
+): Promise<SuiObjectResponse> {
+  const body = buildSuiGetObjectJsonRpcBody(request);
+  return readJsonRpcViaPost(endpoint, body, {
+    endpointIndex: options.endpointIndex,
+    operation: options.operation,
+    jsonRpcMethod: SUI_GET_OBJECT_METHOD,
+    objectId: request.id,
+    queueId: options.queueId,
+    fetchFn: options.fetchFn,
+  });
 }
 
 async function readWithRetries(
@@ -316,6 +366,144 @@ export async function readSuiObjectWithRetry(
           rpcCode: rpcError.rpcCode,
           rpcMessage: rpcError.rpcMessage,
           queueId: options.queueId,
+        });
+      }
+    }
+  }
+
+  throw lastError;
+}
+
+async function readTransactionBlockViaJsonRpc(
+  endpoint: string,
+  digest: string,
+  requestOptions: Record<string, unknown>,
+  options: {
+    endpointIndex: number;
+    operation: string;
+    fetchFn: FetchLike;
+  },
+): Promise<SuiTransactionBlockResponse> {
+  const body = buildSuiGetTransactionBlockJsonRpcBody(digest, requestOptions);
+  return readJsonRpcViaPost(endpoint, body, {
+    endpointIndex: options.endpointIndex,
+    operation: options.operation,
+    jsonRpcMethod: SUI_GET_TRANSACTION_BLOCK_METHOD,
+    transactionDigest: digest,
+    fetchFn: options.fetchFn,
+  });
+}
+
+async function readTransactionBlockWithRetries(
+  endpoint: string,
+  digest: string,
+  requestOptions: Record<string, unknown>,
+  options: {
+    endpointIndex: number;
+    operation: string;
+    retryDelaysMs: readonly number[];
+    fetchFn: FetchLike;
+  },
+): Promise<SuiTransactionBlockResponse> {
+  const endpointCategory = endpointLabel(options.endpointIndex);
+  let lastError: unknown;
+  let lastKind: SuiReadFailureKind = "unexpected";
+  let lastStatus: number | undefined;
+  let lastRpcCode: number | undefined;
+  let lastRpcMessage: string | undefined;
+
+  for (let attempt = 0; attempt <= options.retryDelaysMs.length; attempt += 1) {
+    try {
+      return await readTransactionBlockViaJsonRpc(
+        endpoint,
+        digest,
+        requestOptions,
+        options,
+      );
+    } catch (error) {
+      lastError = error;
+      const classification = classifySuiRpcReadError(error);
+      lastKind = classification.kind;
+      lastStatus = classification.status;
+      lastRpcCode = error instanceof SuiRpcReadError ? error.rpcCode : undefined;
+      lastRpcMessage =
+        error instanceof SuiRpcReadError ? error.rpcMessage : undefined;
+
+      console.warn("[sui-rpc] transaction block read failed", {
+        operation: options.operation,
+        endpointCategory,
+        httpMethod: "POST",
+        jsonRpcMethod: SUI_GET_TRANSACTION_BLOCK_METHOD,
+        transactionDigest: digest,
+        status: classification.status,
+        rpcCode: lastRpcCode,
+        rpcMessage: lastRpcMessage,
+        retry: attempt,
+      });
+
+      const shouldRetry =
+        classification.retryable && attempt < options.retryDelaysMs.length;
+      if (!shouldRetry) break;
+      await sleep(options.retryDelaysMs[attempt]);
+    }
+  }
+
+  throw new SuiRpcReadError(
+    lastKind === "rate_limited"
+      ? "Sui RPC transaction block read was rate-limited after retries."
+      : "Sui RPC transaction block read failed after retries.",
+    {
+      kind: lastKind,
+      status: lastStatus,
+      rpcCode: lastRpcCode,
+      rpcMessage: lastRpcMessage,
+      cause: lastError,
+    },
+  );
+}
+
+export async function readSuiTransactionBlockWithRetry(
+  digest: string,
+  options: {
+    operation: string;
+    requestOptions?: Record<string, unknown>;
+    retryDelaysMs?: readonly number[];
+    endpoints?: string[];
+    fetchImpl?: FetchLike;
+  },
+): Promise<SuiTransactionBlockResponse> {
+  const retryDelaysMs =
+    options.retryDelaysMs ?? DEFAULT_OBJECT_READ_RETRY_DELAYS_MS;
+  const endpoints =
+    options.endpoints?.filter(Boolean) ?? getConfiguredEndpoints();
+  const fetchFn = resolveFetchImplementation(options.fetchImpl);
+
+  let lastError: unknown;
+  for (let index = 0; index < endpoints.length; index += 1) {
+    try {
+      return await readTransactionBlockWithRetries(
+        endpoints[index],
+        digest,
+        options.requestOptions ?? {},
+        {
+          endpointIndex: index,
+          operation: options.operation,
+          retryDelaysMs,
+          fetchFn,
+        },
+      );
+    } catch (error) {
+      lastError = error;
+      if (index < endpoints.length - 1) {
+        const rpcError = error as Partial<SuiRpcReadError>;
+        console.warn("[sui-rpc] switching endpoint after transaction read failure", {
+          operation: options.operation,
+          endpointCategory: endpointLabel(index),
+          nextEndpointCategory: endpointLabel(index + 1),
+          status: rpcError.status,
+          rpcCode: rpcError.rpcCode,
+          rpcMessage: rpcError.rpcMessage,
+          transactionDigest: digest,
         });
       }
     }

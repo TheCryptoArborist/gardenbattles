@@ -2,8 +2,10 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   buildSuiGetObjectJsonRpcBody,
+  buildSuiGetTransactionBlockJsonRpcBody,
   classifySuiRpcReadError,
   readSuiObjectWithRetry,
+  readSuiTransactionBlockWithRetry,
   resolveFetchImplementation,
   SuiRpcReadError,
 } from "./suiRpc";
@@ -90,6 +92,48 @@ describe("readSuiObjectWithRetry", () => {
       quickQueue,
     );
     assert.equal(calls[0].url.includes(quickQueue), false);
+  });
+
+  it("builds a proper sui_getTransactionBlock JSON-RPC POST body", () => {
+    const body = buildSuiGetTransactionBlockJsonRpcBody("9digest", {
+      showEffects: true,
+    });
+
+    assert.equal(body.method, "sui_getTransactionBlock");
+    assert.equal(body.params[0], "9digest");
+    assert.deepEqual(body.params[1], {
+      showInput: true,
+      showEffects: true,
+      showEvents: false,
+      showObjectChanges: false,
+      showBalanceChanges: false,
+    });
+  });
+
+  it("reads transaction blocks through POST without altering endpoint URLs", async () => {
+    const endpoint = "https://example.quicknode.pro/token/path/";
+    const { calls, fetchImpl } = fetchFromResponses([
+      jsonResponse(200, {
+        jsonrpc: "2.0",
+        id: 1,
+        result: { digest: "9digest" },
+      }),
+    ]);
+
+    const result = await readSuiTransactionBlockWithRetry("9digest", {
+      operation: "tx-read",
+      endpoints: [endpoint],
+      fetchImpl,
+      retryDelaysMs: [],
+    });
+
+    assert.equal(result.digest, "9digest");
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].url, endpoint);
+    assert.equal(calls[0].init.method, "POST");
+    const body = JSON.parse(String(calls[0].init.body));
+    assert.equal(body.method, "sui_getTransactionBlock");
+    assert.equal(body.params[0], "9digest");
   });
 
   it("returns the primary RPC object response when primary succeeds", async () => {

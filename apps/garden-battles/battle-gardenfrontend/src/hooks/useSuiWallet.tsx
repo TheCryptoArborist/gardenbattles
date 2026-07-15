@@ -47,6 +47,10 @@ import {
   parsePvpQueueStateFromObject,
   type ParsedPvpQueueObjectSnapshot,
 } from "@/lib/pvpQueueState";
+import {
+  resolvePvpMoveFromTransactionDigest,
+  type PvpMoveResolution,
+} from "@/lib/pvpMoveResolution";
 import { readSuiObjectWithRetry, SuiRpcReadError } from "@/lib/suiRpc";
 
 const POST_REFUND_VERIFICATION_RETRY_DELAYS_MS = [
@@ -82,6 +86,9 @@ export interface BattleState {
   battleVersion?: PvpBattleVersion;
   targetGrowth?: number;
   matchLabel?: string;
+  lastTransactionDigest?: string;
+  resolvedMoveId?: number | null;
+  resolvedMoveSource?: "local" | "transaction" | "unavailable";
 }
 
 export interface NftData {
@@ -185,6 +192,7 @@ interface CachedBattleState {
 interface BattleUpdateTransactionResult {
   state: BattleState | null;
   botMoveId: number | null;
+  pvpMoveResolution?: PvpMoveResolution;
 }
 
 const DEBUG_TX_TIMING = import.meta.env.VITE_DEBUG_TX_TIMING === "true";
@@ -355,6 +363,7 @@ function readConfigEntryFeeMist(content: any): number | null {
 function parseBattleStateFromEvent(
   json: any,
   battleVersion: PvpBattleVersion = "legacy",
+  transactionDigest?: string,
 ): BattleState | null {
   if (!json?.battle_id || !json?.player1 || !json?.player2) return null;
 
@@ -391,6 +400,7 @@ function parseBattleStateFromEvent(
       battleVersion,
       targetGrowth,
     }),
+    lastTransactionDigest: transactionDigest,
   };
 }
 
@@ -696,7 +706,16 @@ async function getLiveBattleState(
     const battleVersion: PvpBattleVersion = isPvpBattleV2ObjectType(type)
       ? "pvp-v2"
       : "legacy";
-    return parseBattleStateFromObjectFields(battleId, fields, battleVersion);
+    const state = parseBattleStateFromObjectFields(battleId, fields, battleVersion);
+    return state
+      ? {
+          ...state,
+          lastTransactionDigest:
+            typeof obj?.data?.previousTransaction === "string"
+              ? obj.data.previousTransaction
+              : state.lastTransactionDigest,
+        }
+      : null;
   } catch (err) {
     console.warn("[battle] could not verify live battle object:", err);
     return undefined;
@@ -730,6 +749,7 @@ async function getBattleStateFromTransaction(
       parseBattleStateFromEvent(
         event.parsedJson,
         event.type === getPvpBattleV2UpdateEvent() ? "pvp-v2" : "legacy",
+        event.id?.txDigest,
       ),
     )
     .find((state: BattleState | null) =>
@@ -780,6 +800,7 @@ async function findActivePvpBattleState(
       const eventState = parseBattleStateFromEvent(
         event.parsedJson,
         eventQuery.battleVersion,
+        event.id?.txDigest,
       );
       if (!battleBelongsToAddress(eventState, address)) continue;
       if (eventState?.isBotBattle) continue;
@@ -841,6 +862,7 @@ async function getBattleUpdateStateFromTransaction(
         parseBattleStateFromEvent(
           event.parsedJson,
           event.type === getPvpBattleV2UpdateEvent() ? "pvp-v2" : "legacy",
+          event.id?.txDigest ?? digest,
         ),
       )
       .find((state: BattleState | null) =>
@@ -1083,7 +1105,11 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
   const applyBattleState = useCallback(
     async (
       nextState: BattleState | null,
-      options: { verifyLive?: boolean; botMoveId?: number | null } = {},
+      options: {
+        verifyLive?: boolean;
+        botMoveId?: number | null;
+        pvpMoveResolution?: PvpMoveResolution;
+      } = {},
     ) => {
       if (!address || !battleBelongsToAddress(nextState, address)) return;
 
@@ -1117,6 +1143,35 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
         return;
       }
 
+      let pvpMoveResolution = options.pvpMoveResolution;
+      const previousForResolution = prevBattleStateRef.current;
+      if (
+        !state.isBotBattle &&
+        !pvpMoveResolution &&
+        previousForResolution?.battleId === state.battleId &&
+        state.lastTransactionDigest
+      ) {
+        const isP1 =
+          previousForResolution.player1?.toLowerCase() === address.toLowerCase();
+        const p1Acted = previousForResolution.turn === 0;
+        const actor: "you" | "opponent" =
+          (isP1 && p1Acted) || (!isP1 && !p1Acted) ? "you" : "opponent";
+
+        if (actor === "opponent") {
+          pvpMoveResolution = await resolvePvpMoveFromTransactionDigest(
+            state.lastTransactionDigest,
+            state.battleId,
+          );
+          if (pvpMoveResolution.source === "unavailable") {
+            console.warn("[pvp-move-resolution] opponent move unresolved", {
+              battleId: state.battleId,
+              digest: state.lastTransactionDigest,
+              failureCategory: pvpMoveResolution.failureCategory,
+            });
+          }
+        }
+      }
+
       setBattleState((prev) => {
         if (
           prev?.battleId === state.battleId &&
@@ -1124,7 +1179,13 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
         ) {
           return prev;
         }
-        buildActionLogEntry(prev, state, address, options.botMoveId ?? null);
+        buildActionLogEntry(
+          prev,
+          state,
+          address,
+          options.botMoveId ?? null,
+          pvpMoveResolution,
+        );
         prevBattleStateRef.current = state;
         return state;
       });
@@ -1359,6 +1420,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
               const newState = parseBattleStateFromEvent(
                 event.parsedJson,
                 eventQuery.battleVersion,
+                event.id?.txDigest,
               );
 
               // Is this battle relevant to us?
@@ -2439,6 +2501,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
     next: BattleState,
     myAddress: string | null,
     explicitBotMoveId: number | null = null,
+    pvpMoveResolution?: PvpMoveResolution,
   ) {
     if (!prev || !myAddress) return;
     if (!next.battleId || next.battleId !== prev.battleId) return;
@@ -2505,6 +2568,9 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
       actor,
       lastMoveIdRef.current,
       resolvedBotMoveId ?? 0,
+      next.lastTransactionDigest ?? "",
+      pvpMoveResolution?.moveId ?? 0,
+      pvpMoveResolution?.source ?? "",
       playerPrevGrowth,
       playerNextGrowth,
       opponentPrevGrowth,
@@ -2643,6 +2709,29 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
 
       return details;
     };
+    const buildPvpOpponentDetails = (): string[] => {
+      const details: string[] = [];
+
+      if (opponentGrowthDelta > 0) {
+        details.push(`Opponent gained +${opponentGrowthDelta} growth.`);
+      } else if (opponentGrowthDelta < 0) {
+        details.push(`Opponent lost ${Math.abs(opponentGrowthDelta)} growth.`);
+      }
+
+      if (playerGrowthDelta < 0) {
+        details.push(`Your growth was reduced by ${Math.abs(playerGrowthDelta)}.`);
+      } else if (playerGrowthDelta > 0) {
+        details.push(`Your tree gained +${playerGrowthDelta} growth.`);
+      }
+
+      if (details.length === 0) {
+        details.push(
+          "No visible growth changed. The move may have been blocked, missed, or applied a status effect.",
+        );
+      }
+
+      return details;
+    };
     const buildRoundResultDetails = (): string[] => {
       const details = [
         `Round result: You ${playerNextGrowth} / ${targetGrowth} - Garden Bot ${opponentNextGrowth} / ${targetGrowth}`,
@@ -2695,16 +2784,33 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
       next.isBotBattle && actor === "you"
         ? buildPlayerMoveDetails(lastMoveIdRef.current)
         : undefined;
+    const pvpOpponentMoveId =
+      !next.isBotBattle &&
+      actor === "opponent" &&
+      pvpMoveResolution?.source === "transaction" &&
+      pvpMoveResolution.moveId
+        ? pvpMoveResolution.moveId
+        : 0;
+    const pvpOpponentLabel =
+      !next.isBotBattle && actor === "opponent"
+        ? pvpMoveResolution?.label ?? "Opponent move resolved"
+        : undefined;
+    const pvpOpponentDetails =
+      !next.isBotBattle && actor === "opponent"
+        ? buildPvpOpponentDetails()
+        : undefined;
 
     const entries: ActionEntry[] = [];
-    const playerMoveId = actor === "you" ? lastMoveIdRef.current : 0;
+    const playerMoveId =
+      actor === "you" ? lastMoveIdRef.current : pvpOpponentMoveId;
 
     if (actor !== "you" || playerMoveId > 0) {
       entries.push(
         createEntry(
           actor,
           playerMoveId,
-          actor === "you" ? playerMoveDetails : undefined,
+          actor === "you" ? playerMoveDetails : pvpOpponentDetails,
+          actor === "opponent" ? pvpOpponentLabel : undefined,
         ),
       );
     }
