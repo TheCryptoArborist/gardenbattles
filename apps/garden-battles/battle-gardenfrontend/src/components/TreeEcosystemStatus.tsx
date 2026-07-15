@@ -1,56 +1,15 @@
-import { useEffect, useState } from "react";
-import { useCurrentAccount, useSuiClient } from "@mysten/dapp-kit";
-import {
-  FALLBACK_TREE_DECIMALS,
-  TREE_COIN_TYPE,
-  formatCompactTREE,
-  treeBalanceToNumber,
-} from "@/components/ForestPower";
+import { useCurrentAccount } from "@mysten/dapp-kit";
+import { useTreeBalance } from "@/hooks/useTreeBalance";
 
 export default function TreeEcosystemStatus() {
   const account = useCurrentAccount();
-  const suiClient = useSuiClient();
-  const [liquidTreeLabel, setLiquidTreeLabel] = useState("Connect wallet");
-
-  useEffect(() => {
-    if (!account?.address) {
-      setLiquidTreeLabel("Connect wallet");
-      return;
-    }
-
-    let isMounted = true;
-    setLiquidTreeLabel("Loading");
-
-    Promise.all([
-      suiClient.getBalance({
-        owner: account.address,
-        coinType: TREE_COIN_TYPE,
-      }),
-      suiClient.getCoinMetadata({
-        coinType: TREE_COIN_TYPE,
-      }),
-    ])
-      .then(([balance, metadata]) => {
-        if (!isMounted) return;
-        const decimals = metadata?.decimals ?? FALLBACK_TREE_DECIMALS;
-        const liquidTree = treeBalanceToNumber(BigInt(balance.totalBalance), decimals);
-        setLiquidTreeLabel(`${formatCompactTREE(liquidTree)} TREE`);
-      })
-      .catch(() => {
-        if (!isMounted) return;
-        setLiquidTreeLabel("Unavailable");
-      });
-
-    return () => {
-      isMounted = false;
-    };
-  }, [account?.address, suiClient]);
+  const liquidTree = useTreeBalance(account?.address);
 
   const rows = [
     {
       label: "Liquid TREE",
       description: "Spendable wallet TREE.",
-      value: liquidTreeLabel,
+      value: liquidTree.label,
     },
     {
       label: "SuiDex V2 Position",

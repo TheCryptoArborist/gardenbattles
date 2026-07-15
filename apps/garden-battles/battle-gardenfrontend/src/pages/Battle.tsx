@@ -2016,7 +2016,14 @@ export default function Battle() {
             className={battleState ? "gb-battle-hud" : "gb-battle-hud gb-battle-hud-preview"}
             aria-label="Garden Battles HUD"
           >
-          {battleState && <TreePowerPanel />}
+          {battleState && (
+            <TreePowerPanel
+              address={address}
+              isBattleActive={!battleFinished}
+              isPracticeBattle={isPracticeActive}
+              currentMoveCount={playerMoves.length}
+            />
+          )}
           <div className="gb-battle-hud-center">
           {/* Battle Area */}
           <section

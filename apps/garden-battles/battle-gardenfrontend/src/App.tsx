@@ -10,6 +10,7 @@ import Home from "@/pages/Home";
 import Battle from "@/pages/Battle";
 import Mint from "@/pages/Mint";
 import Leaderboard from "@/pages/Leaderboard";
+import TreePowerPreview from "@/pages/TreePowerPreview";
 import NotFound from "@/pages/not-found";
 import BadgeGalleryPreview from "@/components/BadgeGalleryPreview";
 import '@mysten/dapp-kit/dist/index.css';
@@ -30,6 +31,8 @@ function Router() {
         <>
           <Route path="/badge-gallery" component={BadgeGalleryPreview} />
           <Route path="/battle/badge-gallery" component={BadgeGalleryPreview} />
+          <Route path="/tree-power-preview" component={TreePowerPreview} />
+          <Route path="/battle/tree-power-preview" component={TreePowerPreview} />
         </>
       )}
       <Route path="/battle" component={Battle} />
