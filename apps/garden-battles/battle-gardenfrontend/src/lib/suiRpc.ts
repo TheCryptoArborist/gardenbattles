@@ -5,6 +5,7 @@ type SuiObjectOptions = {
   showOwner?: boolean;
   showContent?: boolean;
   showDisplay?: boolean;
+  showPreviousTransaction?: boolean;
 };
 
 type SuiObjectRequest = {

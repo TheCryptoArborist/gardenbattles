@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   getQueueClearTransitionKey,
+  preserveBattleTransactionDigest,
   resolvePvpHydrationMode,
   shouldRunQueueClearDiscovery,
   shouldSuppressQueueRecovery,
@@ -91,6 +92,26 @@ describe("pvp queue lifecycle helpers", () => {
         hasCurrentActiveBattle: false,
       }),
       "initialize",
+    );
+  });
+
+  it("preserves an event digest when verify-live has no object digest", () => {
+    assert.equal(
+      preserveBattleTransactionDigest({
+        liveDigest: undefined,
+        eventDigest: "eventDigest",
+      }),
+      "eventDigest",
+    );
+  });
+
+  it("uses a live object digest over an older event digest", () => {
+    assert.equal(
+      preserveBattleTransactionDigest({
+        liveDigest: "liveDigest",
+        eventDigest: "eventDigest",
+      }),
+      "liveDigest",
     );
   });
 });

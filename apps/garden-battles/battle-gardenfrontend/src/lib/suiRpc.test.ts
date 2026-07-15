@@ -67,6 +67,24 @@ describe("readSuiObjectWithRetry", () => {
     });
   });
 
+  it("preserves showPreviousTransaction in object reads", () => {
+    const body = buildSuiGetObjectJsonRpcBody({
+      id: quickQueue,
+      options: {
+        showContent: true,
+        showType: true,
+        showPreviousTransaction: true,
+      },
+    });
+
+    assert.deepEqual(body.params[1], {
+      showType: true,
+      showOwner: true,
+      showContent: true,
+      showPreviousTransaction: true,
+    });
+  });
+
   it("posts to the endpoint URL unchanged without appending the object ID", async () => {
     const endpoint = "https://example.quicknode.pro/token/path/";
     const { calls, fetchImpl } = fetchFromResponses([

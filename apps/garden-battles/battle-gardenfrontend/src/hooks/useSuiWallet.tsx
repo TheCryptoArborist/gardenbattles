@@ -52,6 +52,7 @@ import {
   type PvpMoveResolution,
 } from "@/lib/pvpMoveResolution";
 import {
+  preserveBattleTransactionDigest,
   resolvePvpHydrationMode,
   shouldRunQueueClearDiscovery,
   shouldSuppressQueueRecovery,
@@ -699,7 +700,11 @@ async function getLiveBattleState(
       suiClient,
       {
         id: battleId,
-        options: { showContent: true },
+        options: {
+          showContent: true,
+          showType: true,
+          showPreviousTransaction: true,
+        },
       },
       {
         operation: "active-battle-read",
@@ -1105,6 +1110,11 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
           state = {
             ...liveState,
             isBotBattle: state.isBotBattle,
+            lastTransactionDigest:
+              preserveBattleTransactionDigest({
+                liveDigest: liveState.lastTransactionDigest,
+                eventDigest: state.lastTransactionDigest,
+              }),
           };
         }
       }
@@ -1121,8 +1131,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
       if (
         !state.isBotBattle &&
         !pvpMoveResolution &&
-        previousForResolution?.battleId === state.battleId &&
-        state.lastTransactionDigest
+        previousForResolution?.battleId === state.battleId
       ) {
         const isP1 =
           previousForResolution.player1?.toLowerCase() === address.toLowerCase();
@@ -1130,7 +1139,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
         const actor: "you" | "opponent" =
           (isP1 && p1Acted) || (!isP1 && !p1Acted) ? "you" : "opponent";
 
-        if (actor === "opponent") {
+        if (actor === "opponent" && state.lastTransactionDigest) {
           pvpMoveResolution = await resolvePvpMoveFromTransactionDigest(
             state.lastTransactionDigest,
             state.battleId,
@@ -1149,6 +1158,14 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
               label: pvpMoveResolution.label,
             });
           }
+        } else if (actor === "opponent") {
+          console.warn("[pvp-move-resolution] opponent transition missing transaction digest", {
+            battleId: state.battleId,
+            previousTurn: previousForResolution.turn,
+            nextTurn: state.turn,
+            previousLastMoveMs: previousForResolution.lastMoveMs,
+            nextLastMoveMs: state.lastMoveMs,
+          });
         }
       }
 
@@ -2005,6 +2022,11 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
         activeState = {
           ...liveState,
           isBotBattle: activeState.isBotBattle,
+          lastTransactionDigest:
+            preserveBattleTransactionDigest({
+              liveDigest: liveState.lastTransactionDigest,
+              eventDigest: activeState.lastTransactionDigest,
+            }),
         };
         await applyBattleState(activeState);
       }

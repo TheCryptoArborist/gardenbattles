@@ -60,3 +60,10 @@ export function resolvePvpHydrationMode(params: {
     ? "apply-update"
     : "initialize";
 }
+
+export function preserveBattleTransactionDigest(params: {
+  liveDigest?: string | null;
+  eventDigest?: string | null;
+}): string | undefined {
+  return params.liveDigest ?? params.eventDigest ?? undefined;
+}
