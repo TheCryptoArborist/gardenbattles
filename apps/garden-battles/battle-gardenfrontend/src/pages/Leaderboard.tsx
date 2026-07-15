@@ -406,32 +406,45 @@ export default function Leaderboard() {
       }}
     >
       <header className="gb-leaderboard-header">
-        <Link href="/">
-          <img
-            src={appAsset("assets/thick.png")}
-            alt="Thickquidity Logo"
-            className="gb-leaderboard-logo"
-            data-testid="logo-home"
-          />
-        </Link>
+        <div className="gb-leaderboard-header-inner">
+          <Link href="/" className="gb-leaderboard-brand">
+            <img
+              src={appAsset("assets/thick.png")}
+              alt="Thickquidity Logo"
+              className="gb-leaderboard-logo"
+              data-testid="logo-home"
+            />
+            <span className="gb-leaderboard-brand-text">Garden Battles</span>
+          </Link>
 
-        <nav className="gb-leaderboard-nav">
-          <a href="https://tree-token.net/" target="_blank" rel="noopener noreferrer">Home</a>
-          <Link href="/battle">Battle</Link>
-          <a href="https://nftree.net" target="_blank" rel="noopener noreferrer">Buy NFTree</a>
-        </nav>
+          <nav className="gb-leaderboard-nav">
+            <a href="https://tree-token.net/" target="_blank" rel="noopener noreferrer">Home</a>
+            <Link href="/battle">Battle</Link>
+            <a href="https://nftree.net" target="_blank" rel="noopener noreferrer">Buy NFTree</a>
+          </nav>
 
-        <div className="gb-leaderboard-wallet-bar">
-          {address && <ForestPower address={address} />}
-          {address && <PlayerRecord address={address} label="Overall Battle Rank" />}
-          <ConnectButton connectText="Connect Wallet" />
+          <div className="gb-leaderboard-status-cluster">
+            {address && <ForestPower address={address} />}
+            {address && <PlayerRecord address={address} label="Overall Battle Rank" />}
+          </div>
+
+          <div className="gb-leaderboard-wallet-control">
+            <ConnectButton connectText="Connect Wallet" />
+          </div>
         </div>
       </header>
 
       <main className="gb-leaderboard-shell">
         <section className="gb-leaderboard-hero">
           <p className="gb-leaderboard-section-kicker">Verified on-chain battle records</p>
-          <h1>Garden Leaderboard</h1>
+          <h1 className="gb-visually-hidden">Garden Leaderboard</h1>
+          <img
+            className="gb-leaderboard-hero-logo"
+            src={appAsset("assets/garden-leaderboard-logo.png")}
+            alt=""
+            aria-hidden="true"
+            draggable={false}
+          />
           <p>Track the strongest NFTree fighters across PvP, Garden Bot, and Overall records.</p>
         </section>
 

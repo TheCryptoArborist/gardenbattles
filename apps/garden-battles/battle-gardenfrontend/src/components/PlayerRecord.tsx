@@ -75,19 +75,15 @@ export default function PlayerRecord({
   if (loading && !stats) {
     return (
       <div
-        style={{
-          alignItems: "center",
-          background: "rgba(0,30,0,0.6)",
-          border: "1px solid rgba(0,255,0,0.2)",
-          borderRadius: "6px",
-          color: "#888",
-          display: "flex",
-          fontSize: "11px",
-          gap: "6px",
-          padding: "4px 10px",
-        }}
+        className="gb-player-record-card gb-hud-rank-card gb-hud-rank-loading"
+        aria-label="Loading battle rank"
       >
-        <span>Loading stats...</span>
+        <span className="gb-hud-rank-loading-crest" />
+        <span className="gb-hud-rank-content">
+          <span className="gb-battle-rank-kicker">{label}</span>
+          <span className="gb-hud-rank-loading-line gb-hud-rank-loading-line-title" />
+          <span className="gb-hud-rank-loading-line" />
+        </span>
       </div>
     );
   }
