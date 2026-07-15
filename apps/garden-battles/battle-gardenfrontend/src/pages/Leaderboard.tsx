@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
 import { ConnectButton, useCurrentAccount, useSuiClient } from "@mysten/dapp-kit";
+import { Crown, Medal, RefreshCw, Swords, Trophy } from "lucide-react";
 import {
   fetchLeaderboard,
   fetchPlayerStats,
@@ -12,28 +13,20 @@ import ForestPower from "@/components/ForestPower";
 import PlayerRecord from "@/components/PlayerRecord";
 import TreeBadgeCrest from "@/components/TreeBadgeCrest";
 import { appAsset } from "@/lib/assets";
-
-const TITLE_COLORS: Record<string, string> = {
-  "Grove Recruit": "#8B8B8B",
-  "Rooted Fighter": "#4CAF50",
-  "Thorn Challenger": "#2196F3",
-  "Grove Striker": "#9C27B0",
-  "Canopy Champion": "#FF9800",
-  "Elderroot Titan": "#F44336",
-};
-
-function getBattleRankClass(rankTitle: string): string {
-  return `gb-battle-rank-${rankTitle.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`;
-}
-
-const COSMETIC_PLACEHOLDERS: Record<string, string> = {
-  "Grove Recruit": "Recruit badge",
-  "Rooted Fighter": "Root-frame border",
-  "Thorn Challenger": "Thorn trim",
-  "Grove Striker": "Leaf-slash accent",
-  "Canopy Champion": "Premium canopy glow",
-  "Elderroot Titan": "Final-boss aura",
-};
+import {
+  formatRecord,
+  formatStreak,
+  formatWinRate,
+  getDisplayRankTitle,
+  getEarnedBadgeDisplay,
+  getEmptyModeMessage,
+  getModeLabel,
+  getPlayerRecordHeading,
+  getRankProgress,
+  isConnectedWallet,
+  orderPodiumForDesktop,
+  selectTopPlayers,
+} from "@/lib/leaderboardPresentation";
 
 const BADGE_LABELS: Record<string, string> = {
   first_blood: "First Blood",
@@ -60,12 +53,15 @@ type SuiNameResolver = {
 const LEADERBOARD_MODES: Array<{
   id: LeaderboardMode;
   label: string;
-  note: string;
 }> = [
-  { id: "pvp", label: "PvP Battle", note: "Ranked player-vs-player results" },
-  { id: "bot", label: "Garden Bot", note: "Practice battles against Garden Bot" },
-  { id: "overall", label: "Overall", note: "PvP plus Garden Bot totals" },
+  { id: "pvp", label: "PvP Battle" },
+  { id: "bot", label: "Garden Bot" },
+  { id: "overall", label: "Overall" },
 ];
+
+function getBattleRankClass(rankTitle: string): string {
+  return `gb-battle-rank-${rankTitle.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`;
+}
 
 function shortenAddress(addr: string): string {
   return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
@@ -120,14 +116,8 @@ async function resolveSuiNameForAddress(
   }
 }
 
-function formatMode(mode: LeaderboardMode): string {
-  if (mode === "bot") return "Garden Bot";
-  if (mode === "overall") return "Overall";
-  return "PvP";
-}
-
 function formatLastPlayed(value: number | null | undefined): string {
-  if (!value) return "-";
+  if (!value) return "Not yet";
   return new Date(value).toLocaleDateString(undefined, {
     month: "short",
     day: "numeric",
@@ -135,15 +125,15 @@ function formatLastPlayed(value: number | null | undefined): string {
   });
 }
 
-function statColor(value: number): string {
-  if (value > 0) return "#4CAF50";
-  if (value < 0) return "#F44336";
-  return "#888";
+function streakClass(value: number): string {
+  if (value > 0) return "gb-leaderboard-positive";
+  if (value < 0) return "gb-leaderboard-negative";
+  return "gb-leaderboard-muted";
 }
 
-function formatStreak(value: number): string {
-  if (value > 0) return `+${value}W`;
-  if (value < 0) return `${value}L`;
+function resultLabel(result: "Win" | "Loss" | null | undefined): string {
+  if (result === "Win") return "W";
+  if (result === "Loss") return "L";
   return "-";
 }
 
@@ -153,7 +143,7 @@ function PlayerIdentity({
   suinsName,
 }: {
   address: string;
-  isMe: boolean | null;
+  isMe: boolean;
   suinsName: string | null | undefined;
 }) {
   const shortAddress = shortenAddress(address);
@@ -162,7 +152,7 @@ function PlayerIdentity({
     <span className="gb-leaderboard-player-identity">
       <span className="gb-leaderboard-player-primary">
         {suinsName || shortAddress}
-        {isMe && <span className="gb-leaderboard-player-you">You</span>}
+        {isMe && <span className="gb-leaderboard-player-you">YOU</span>}
       </span>
       {suinsName && (
         <span className="gb-leaderboard-player-secondary">{shortAddress}</span>
@@ -171,21 +161,149 @@ function PlayerIdentity({
   );
 }
 
-function renderBadgeSlots(badges: string[]) {
+function BadgeChips({ badges }: { badges: string[] }) {
+  const display = getEarnedBadgeDisplay(badges);
+  if (display.visible.length === 0) {
+    return <span className="gb-leaderboard-no-badges">No badges yet</span>;
+  }
+
   return (
-    <>
-      {badges.slice(0, 3).map((badge) => (
-        <span key={badge} title={BADGE_LABELS[badge] || badge}>
-          {BADGE_LABELS[badge] || "BDG"}
+    <span className="gb-leaderboard-badges">
+      {display.visible.map((badge) => (
+        <span
+          className="gb-leaderboard-badge-chip"
+          key={badge}
+          title={BADGE_LABELS[badge] || badge}
+        >
+          {BADGE_LABELS[badge] || badge.replace(/_/g, " ")}
         </span>
       ))}
-      <span style={{ color: "#777", fontSize: "10px" }} title="NFTree rarity slot pending">
-        RAR
+      {display.overflow > 0 && (
+        <span className="gb-leaderboard-badge-chip" title={`${display.overflow} more earned badges`}>
+          +{display.overflow}
+        </span>
+      )}
+    </span>
+  );
+}
+
+function RankBadge({ entry, compact = false }: { entry: Pick<LeaderboardEntry | PlayerStats, "rank_title" | "ranked" | "total_battles">; compact?: boolean }) {
+  const rankTitle = getDisplayRankTitle(entry);
+  const isProvisional = entry.ranked === false || entry.total_battles < 3;
+  return (
+    <span className={`gb-leaderboard-rank-badge ${getBattleRankClass(rankTitle)}`}>
+      <TreeBadgeCrest family="battle-rank" rankName={rankTitle} size={compact ? "sm" : "md"} />
+      <span>
+        <span>{rankTitle}</span>
+        {isProvisional && <small>Provisional</small>}
       </span>
-      <span style={{ color: "#777", fontSize: "10px" }} title="VICTORY Locked status pending">
-        VLK
-      </span>
-    </>
+    </span>
+  );
+}
+
+function CurrentPlayerCard({
+  stats,
+  mode,
+}: {
+  stats: PlayerStats | null;
+  mode: LeaderboardMode;
+}) {
+  if (!stats) {
+    return (
+      <section className="gb-leaderboard-current-card gb-leaderboard-current-card-empty">
+        <div>
+          <p className="gb-leaderboard-section-kicker">{getPlayerRecordHeading(mode)}</p>
+          <h2>Connect wallet to view your record</h2>
+          <p>Your selected-mode record appears here after verified battles are recorded.</p>
+        </div>
+      </section>
+    );
+  }
+
+  const progress = getRankProgress(stats);
+  const rankTitle = getDisplayRankTitle(stats);
+
+  return (
+    <section className="gb-leaderboard-current-card">
+      <div className="gb-leaderboard-current-crest">
+        <TreeBadgeCrest family="battle-rank" rankName={rankTitle} size="lg" />
+      </div>
+      <div className="gb-leaderboard-current-main">
+        <p className="gb-leaderboard-section-kicker">{getPlayerRecordHeading(mode)}</p>
+        <h2>{rankTitle}</h2>
+        <p>{getModeLabel(mode)} Rank</p>
+        <div className="gb-leaderboard-current-stats">
+          <span><strong>{formatRecord(stats.wins, stats.losses)}</strong><small>Record</small></span>
+          <span><strong>{formatWinRate(stats.win_rate)}</strong><small>Win Rate</small></span>
+          <span><strong className={streakClass(stats.current_streak)}>{formatStreak(stats.current_streak)}</strong><small>Streak</small></span>
+          <span><strong>{stats.total_battles}</strong><small>Battles</small></span>
+          <span><strong>{stats.recent_result ?? "-"}</strong><small>Recent</small></span>
+        </div>
+        <div className="gb-leaderboard-progress-block">
+          <div className="gb-leaderboard-progress-head">
+            <span>
+              {progress.isMaximumRank
+                ? "Maximum battle rank reached"
+                : `Next Rank: ${progress.nextTitle}`}
+            </span>
+            <span>{progress.progressPercent}%</span>
+          </div>
+          <div className="gb-leaderboard-progress-track" aria-label={progress.progressLabel}>
+            <span style={{ width: `${progress.progressPercent}%` }} />
+          </div>
+          <p>{progress.progressLabel}</p>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function PodiumCard({
+  entry,
+  address,
+  suinsName,
+}: {
+  entry: LeaderboardEntry;
+  address: string | null;
+  suinsName: string | null | undefined;
+}) {
+  const isMe = isConnectedWallet(entry.address, address);
+  const placeClass = entry.rank === 1 ? "first" : entry.rank === 2 ? "second" : "third";
+  const Icon = entry.rank === 1 ? Crown : entry.rank === 2 ? Trophy : Medal;
+
+  return (
+    <article className={`gb-leaderboard-podium-card gb-leaderboard-podium-${placeClass} ${isMe ? "gb-leaderboard-is-me" : ""}`}>
+      <div className="gb-leaderboard-podium-place">
+        <Icon aria-hidden="true" size={18} />
+        <span>#{entry.ranked ? entry.rank : "UR"}</span>
+      </div>
+      <PlayerIdentity address={entry.address} isMe={isMe} suinsName={suinsName} />
+      <RankBadge entry={entry} />
+      <div className="gb-leaderboard-podium-stats">
+        <span>{formatRecord(entry.wins, entry.losses)}</span>
+        <span>{formatWinRate(entry.win_rate)}</span>
+        <span className={streakClass(entry.current_streak)}>{formatStreak(entry.current_streak)}</span>
+      </div>
+      <BadgeChips badges={entry.badges.slice(0, 1)} />
+    </article>
+  );
+}
+
+function LoadingState() {
+  return (
+    <div className="gb-leaderboard-loading" aria-label="Loading leaderboard">
+      <div className="gb-leaderboard-skeleton gb-leaderboard-skeleton-current" />
+      <div className="gb-leaderboard-skeleton-grid">
+        <span />
+        <span />
+        <span />
+      </div>
+      <div className="gb-leaderboard-skeleton-table">
+        {Array.from({ length: 5 }).map((_, index) => (
+          <span key={index} />
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -202,27 +320,30 @@ export default function Leaderboard() {
   const [myStats, setMyStats] = useState<PlayerStats | null>(null);
   const [suinsNames, setSuinsNames] = useState<Record<string, string | null>>({});
 
-  useEffect(() => {
+  const loadLeaderboard = useCallback(() => {
     setLoading(true);
     setError(null);
-    fetchLeaderboard(100, 0, mode)
+
+    const leaderboardRequest = fetchLeaderboard(100, 0, mode)
       .then((data) => {
         setLeaderboard(data.leaderboard);
         setTotalPlayers(data.total);
-      })
+      });
+
+    const statsRequest = address
+      ? fetchPlayerStats(address, mode)
+          .then(setMyStats)
+          .catch(() => setMyStats(null))
+      : Promise.resolve(setMyStats(null));
+
+    Promise.all([leaderboardRequest, statsRequest])
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
-  }, [mode]);
+  }, [address, mode]);
 
   useEffect(() => {
-    if (!address) {
-      setMyStats(null);
-      return;
-    }
-    fetchPlayerStats(address, mode)
-      .then(setMyStats)
-      .catch(() => setMyStats(null));
-  }, [address, mode]);
+    loadLeaderboard();
+  }, [loadLeaderboard]);
 
   useEffect(() => {
     if (leaderboard.length === 0) return;
@@ -274,548 +395,232 @@ export default function Leaderboard() {
     };
   }, [leaderboard, suiClient]);
 
-  const activeMode = LEADERBOARD_MODES.find((item) => item.id === mode);
+  const topPlayers = useMemo(() => selectTopPlayers(leaderboard), [leaderboard]);
+  const desktopPodium = useMemo(() => orderPodiumForDesktop(topPlayers), [topPlayers]);
 
   return (
     <div
+      className="gb-leaderboard-page"
       style={{
-        backgroundImage: `url(${appAsset("assets/background4.jpg")})`,
-        backgroundSize: "cover",
-        backgroundPosition: "center center",
-        backgroundAttachment: "fixed",
-        backgroundRepeat: "no-repeat",
-        backgroundColor: "#000",
-        color: "white",
-        fontFamily: "Orbitron, sans-serif",
-        margin: 0,
-        minHeight: "100vh",
-        padding: 0,
+        backgroundImage: `linear-gradient(rgba(0, 24, 19, 0.35), rgba(0, 24, 19, 0.62)), url(${appAsset("assets/background4.jpg")})`,
       }}
     >
-      <header
-        style={{
-          alignItems: "center",
-          background: "rgba(0, 35, 24, 0.88)",
-          borderBottom: "2px solid #00ff88",
-          boxShadow: "0 0 15px rgba(0,255,136,0.55)",
-          display: "flex",
-          flexWrap: "wrap",
-          gap: "10px",
-          justifyContent: "space-between",
-          padding: "clamp(10px, 2vw, 15px) clamp(15px, 3vw, 30px)",
-        }}
-      >
+      <header className="gb-leaderboard-header">
         <Link href="/">
           <img
             src={appAsset("assets/thick.png")}
             alt="Thickquidity Logo"
-            style={{
-              cursor: "pointer",
-              filter: "drop-shadow(0 0 15px #00ff88)",
-              width: "clamp(60px, 10vw, 80px)",
-            }}
+            className="gb-leaderboard-logo"
             data-testid="logo-home"
           />
         </Link>
 
-        <nav style={{ display: "flex", flexWrap: "wrap", gap: "clamp(8px, 2vw, 10px)" }}>
-          <a
-            href="https://tree-token.net/"
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{
-              color: "#00ff88",
-              fontSize: "clamp(14px, 2.5vw, 16px)",
-              margin: 0,
-              textDecoration: "none",
-            }}
-          >
-            Home
-          </a>
-          <Link
-            href="/battle"
-            style={{
-              color: "#00ff88",
-              fontSize: "clamp(14px, 2.5vw, 16px)",
-              margin: 0,
-              textDecoration: "none",
-            }}
-          >
-            Battle
-          </Link>
-          <a
-            href="https://nftree.net"
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{
-              color: "#00ff88",
-              fontSize: "clamp(14px, 2.5vw, 16px)",
-              margin: 0,
-              textDecoration: "none",
-            }}
-          >
-            Buy NFTree
-          </a>
+        <nav className="gb-leaderboard-nav">
+          <a href="https://tree-token.net/" target="_blank" rel="noopener noreferrer">Home</a>
+          <Link href="/battle">Battle</Link>
+          <a href="https://nftree.net" target="_blank" rel="noopener noreferrer">Buy NFTree</a>
         </nav>
 
-        <div style={{ alignItems: "center", display: "flex", flexWrap: "wrap", gap: "8px" }}>
+        <div className="gb-leaderboard-wallet-bar">
           {address && <ForestPower address={address} />}
-          {address && <PlayerRecord address={address} />}
+          {address && <PlayerRecord address={address} label="Overall Battle Rank" />}
           <ConnectButton connectText="Connect Wallet" />
         </div>
       </header>
 
-      <main style={{ margin: "0 auto", maxWidth: "1120px", padding: "20px 15px" }}>
-        <h1
-          style={{
-            color: "#00ff88",
-            fontFamily: "FantasyBattles, sans-serif",
-            fontSize: "clamp(26px, 5vw, 42px)",
-            margin: "0 0 8px",
-            textAlign: "center",
-            textShadow: "0 0 20px rgba(0,255,136,0.72)",
-          }}
-        >
-          Garden Leaderboard
-        </h1>
-        <p
-          style={{
-            color: "#00ffcc",
-            fontSize: "clamp(12px, 2.5vw, 14px)",
-            margin: "0 0 18px",
-            textAlign: "center",
-          }}
-        >
-          {activeMode?.note} - tracked from verified battle records
-        </p>
+      <main className="gb-leaderboard-shell">
+        <section className="gb-leaderboard-hero">
+          <p className="gb-leaderboard-section-kicker">Verified on-chain battle records</p>
+          <h1>Garden Leaderboard</h1>
+          <p>Track the strongest NFTree fighters across PvP, Garden Bot, and Overall records.</p>
+        </section>
 
-        <div
-          aria-label="Leaderboard mode"
-          style={{
-            display: "flex",
-            flexWrap: "wrap",
-            gap: "8px",
-            justifyContent: "center",
-            marginBottom: "18px",
-          }}
-        >
+        <div className="gb-leaderboard-tabs" aria-label="Leaderboard mode">
           {LEADERBOARD_MODES.map((item) => (
             <button
               key={item.id}
               type="button"
+              aria-pressed={mode === item.id}
+              className={mode === item.id ? "gb-leaderboard-tab-active" : ""}
               onClick={() => setMode(item.id)}
-              style={{
-                background:
-                  mode === item.id ? "rgba(0,255,136,0.22)" : "rgba(0,20,18,0.72)",
-                border: `1px solid ${
-                  mode === item.id ? "#00ff88" : "rgba(0,255,136,0.28)"
-                }`,
-                borderRadius: "8px",
-                color: mode === item.id ? "#eafff6" : "#9bd9bd",
-                cursor: "pointer",
-                fontFamily: "Orbitron, sans-serif",
-                fontSize: "12px",
-                fontWeight: 800,
-                minHeight: "40px",
-                padding: "9px 12px",
-                textTransform: "uppercase",
-              }}
             >
               {item.label}
             </button>
           ))}
-          <button
-            type="button"
-            disabled
-            style={{
-              background: "rgba(255,203,79,0.08)",
-              border: "1px solid rgba(255,203,79,0.28)",
-              borderRadius: "8px",
-              color: "rgba(255,233,166,0.62)",
-              cursor: "not-allowed",
-              fontFamily: "Orbitron, sans-serif",
-              fontSize: "12px",
-              fontWeight: 800,
-              minHeight: "40px",
-              padding: "9px 12px",
-              textTransform: "uppercase",
-            }}
-          >
-            Canopy Clash - Coming Soon
+          <button type="button" disabled aria-disabled="true">
+            Canopy Clash - Soon
           </button>
         </div>
 
-        {address && myStats && myStats.total_battles > 0 && (
-          <section
-            style={{
-              background: "rgba(0, 40, 24, 0.9)",
-              border: "2px solid #00ff88",
-              borderRadius: "12px",
-              boxShadow: "0 0 20px rgba(0,255,136,0.2)",
-              marginBottom: "20px",
-              padding: "16px 20px",
-            }}
-          >
-            <h2
-              style={{
-                color: "#00ff88",
-                fontSize: "14px",
-                margin: "0 0 10px",
-                textTransform: "uppercase",
-              }}
-            >
-              Your {formatMode(mode)} Record
-            </h2>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "clamp(16px, 4vw, 32px)" }}>
-              {[
-                ["Rank Title", myStats.rank_title, TITLE_COLORS[myStats.rank_title] || "#fff"],
-                [
-                  "Planned Cosmetic",
-                  COSMETIC_PLACEHOLDERS[myStats.rank_title] || "Cosmetic placeholder",
-                  "#00ffcc",
-                ],
-                ["Wins", myStats.wins, "#4CAF50"],
-                ["Losses", myStats.losses, "#F44336"],
-                ["Win Rate", `${Math.round(myStats.win_rate * 100)}%`, "#FF9800"],
-                ["Total", myStats.total_battles, "#fff"],
-                ["Recent", myStats.recent_result ?? "-", myStats.recent_result === "Win" ? "#4CAF50" : "#F44336"],
-              ].map(([label, value, color]) => (
-                <div key={label}>
-                  <div style={{ color: "#888", fontSize: "11px", textTransform: "uppercase" }}>
-                    {label}
-                  </div>
-                  <div style={{ color: String(color), fontSize: "16px", fontWeight: "bold" }}>
-                    {value}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
+        <CurrentPlayerCard stats={address ? myStats : null} mode={mode} />
 
-        <section
-          style={{
-            background: "rgba(0, 10, 8, 0.88)",
-            border: "2px solid rgba(0, 255, 136, 0.3)",
-            borderRadius: "12px",
-            overflow: "hidden",
-          }}
-        >
-          {loading ? (
-            <div style={{ color: "#888", padding: "40px", textAlign: "center" }}>
-              Loading leaderboard...
-            </div>
-          ) : error ? (
-            <div style={{ color: "#9bd9bd", padding: "40px", textAlign: "center" }}>
-              <strong style={{ color: "#00ff88", display: "block", marginBottom: "10px" }}>
-                Leaderboard data unavailable
-              </strong>
-              {error}
-            </div>
-          ) : leaderboard.length === 0 ? (
-            <div style={{ color: "#888", padding: "40px", textAlign: "center" }}>
-              No {formatMode(mode)} battles recorded yet.
-              <br />
-              <Link
-                href="/battle"
-                style={{
-                  color: "#00ff88",
-                  display: "inline-block",
-                  marginTop: "12px",
-                  textDecoration: "underline",
-                }}
-              >
-                Join Battle
-              </Link>
-            </div>
-          ) : (
-            <>
-            <div className="gb-leaderboard-table-wrap" style={{ overflowX: "auto" }}>
-              <table
-                style={{
-                  borderCollapse: "collapse",
-                  fontSize: "clamp(11px, 2.2vw, 13px)",
-                  minWidth: "980px",
-                  width: "100%",
-                }}
-              >
-                <thead>
-                  <tr
-                    style={{
-                      borderBottom: "1px solid rgba(0,255,136,0.2)",
-                      color: "#00ff88",
-                      fontSize: "clamp(10px, 2vw, 11px)",
-                      letterSpacing: "0.5px",
-                      textTransform: "uppercase",
-                    }}
-                  >
-                    {[
-                      "#",
-                      "Player",
-                      "Mode",
-                      "Title",
-                      "Planned Cosmetic",
-                      "Wins",
-                      "Losses",
-                      "Win%",
-                      "Streak",
-                      "Total",
-                      "Recent",
-                      "Last Played",
-                      "Badges",
-                    ].map((header) => (
-                      <th
-                        key={header}
-                        style={{
-                          padding: "12px 8px",
-                          textAlign: header === "Player" ? "left" : "center",
-                        }}
-                      >
-                        {header}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {leaderboard.map((entry) => {
-                    const isMe = address && entry.address === address.toLowerCase();
-                    return (
-                      <tr
-                        key={`${entry.mode}-${entry.address}`}
-                        style={{
-                          background: isMe ? "rgba(0,255,136,0.06)" : "transparent",
-                          borderBottom: "1px solid rgba(0,255,136,0.08)",
-                        }}
-                      >
-                        <td style={{ color: "#888", padding: "10px 8px", textAlign: "center" }}>
-                          {entry.ranked ? entry.rank : "UR"}
-                        </td>
-                        <td style={{ padding: "10px 8px", textAlign: "left" }}>
-                          <span
-                            style={{
-                              color: isMe ? "#00ff88" : "#ccc",
-                              fontWeight: isMe ? "bold" : "normal",
-                            }}
-                          >
+        {loading ? (
+          <LoadingState />
+        ) : error ? (
+          <section className="gb-leaderboard-state-card gb-leaderboard-error-card">
+            <h2>Leaderboard data unavailable</h2>
+            <p>{error}</p>
+            <button type="button" onClick={loadLeaderboard}>
+              <RefreshCw size={16} aria-hidden="true" />
+              Retry
+            </button>
+          </section>
+        ) : leaderboard.length === 0 ? (
+          <section className="gb-leaderboard-state-card">
+            <Swords size={26} aria-hidden="true" />
+            <h2>{getEmptyModeMessage(mode)}</h2>
+            <p>Start a verified battle to put your NFTree on the board.</p>
+            <Link href="/battle">Join Battle</Link>
+          </section>
+        ) : (
+          <>
+            <section className="gb-leaderboard-section">
+              <div className="gb-leaderboard-section-head">
+                <div>
+                  <p className="gb-leaderboard-section-kicker">{getModeLabel(mode)}</p>
+                  <h2>Top Players</h2>
+                </div>
+                <span>{totalPlayers} players</span>
+              </div>
+              <div className="gb-leaderboard-podium gb-leaderboard-podium-desktop">
+                {desktopPodium.map((entry) => (
+                  <PodiumCard
+                    key={`podium-${entry.address}`}
+                    entry={entry}
+                    address={address}
+                    suinsName={suinsNames[entry.address.toLowerCase()]}
+                  />
+                ))}
+              </div>
+              <div className="gb-leaderboard-podium gb-leaderboard-podium-mobile">
+                {topPlayers.map((entry) => (
+                  <PodiumCard
+                    key={`mobile-podium-${entry.address}`}
+                    entry={entry}
+                    address={address}
+                    suinsName={suinsNames[entry.address.toLowerCase()]}
+                  />
+                ))}
+              </div>
+            </section>
+
+            <section className="gb-leaderboard-section">
+              <div className="gb-leaderboard-section-head">
+                <div>
+                  <p className="gb-leaderboard-section-kicker">Full Rankings</p>
+                  <h2>{getModeLabel(mode)} Standings</h2>
+                </div>
+              </div>
+
+              <div className="gb-leaderboard-table-wrap">
+                <table className="gb-leaderboard-table">
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Player</th>
+                      <th>Rank</th>
+                      <th>Record</th>
+                      <th>Win Rate</th>
+                      <th>Streak</th>
+                      <th>Last Played</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {leaderboard.map((entry) => {
+                      const isMe = isConnectedWallet(entry.address, address);
+                      return (
+                        <tr
+                          key={`${entry.mode}-${entry.address}`}
+                          className={isMe ? "gb-leaderboard-row-current" : ""}
+                        >
+                          <td>{entry.ranked ? entry.rank : "UR"}</td>
+                          <td>
                             <PlayerIdentity
                               address={entry.address}
-                              isMe={!!isMe}
+                              isMe={isMe}
                               suinsName={suinsNames[entry.address.toLowerCase()]}
                             />
-                          </span>
-                        </td>
-                        <td style={{ color: "#00ffcc", padding: "10px 8px", textAlign: "center" }}>
-                          {formatMode(entry.mode)}
-                        </td>
-                        <td style={{ padding: "10px 8px", textAlign: "center" }}>
-                          <span
-                            className={`gb-battle-rank-badge gb-battle-rank-table ${getBattleRankClass(entry.rank_title)}`}
-                            style={{
-                              fontSize: "clamp(10px, 2vw, 11px)",
-                            }}
-                          >
-                            <TreeBadgeCrest family="battle-rank" rankName={entry.rank_title} size="sm" />
-                            <span className="gb-battle-rank-title">{entry.rank_title}</span>
-                          </span>
-                        </td>
-                        <td style={{ color: "#00ffcc", padding: "10px 8px", textAlign: "center" }}>
-                          <span className={`gb-cosmetic-placeholder ${getBattleRankClass(entry.rank_title)}`}>
-                            {COSMETIC_PLACEHOLDERS[entry.rank_title] || "Cosmetic placeholder"}
-                          </span>
-                        </td>
-                        <td style={{ color: "#4CAF50", fontWeight: "bold", padding: "10px 8px", textAlign: "center" }}>
-                          {entry.wins}
-                        </td>
-                        <td style={{ color: "#F44336", padding: "10px 8px", textAlign: "center" }}>
-                          {entry.losses}
-                        </td>
-                        <td style={{ color: "#FF9800", padding: "10px 8px", textAlign: "center" }}>
-                          {Math.round(entry.win_rate * 100)}%
-                        </td>
-                        <td
-                          style={{
-                            color: statColor(entry.current_streak),
-                            padding: "10px 8px",
-                            textAlign: "center",
-                          }}
-                        >
-                          {formatStreak(entry.current_streak)}
-                        </td>
-                        <td style={{ color: "#aaa", padding: "10px 8px", textAlign: "center" }}>
-                          {entry.total_battles}
-                        </td>
-                        <td
-                          style={{
-                            color:
-                              entry.recent_result === "Win"
-                                ? "#4CAF50"
-                                : entry.recent_result === "Loss"
-                                  ? "#F44336"
-                                  : "#888",
-                            padding: "10px 8px",
-                            textAlign: "center",
-                          }}
-                        >
-                          {entry.recent_result ?? "-"}
-                        </td>
-                        <td style={{ color: "#aaa", padding: "10px 8px", textAlign: "center" }}>
-                          {formatLastPlayed(entry.last_played)}
-                        </td>
-                        <td style={{ padding: "10px 8px", textAlign: "center" }}>
-                          <div style={{ display: "flex", gap: "4px", justifyContent: "center" }}>
-                            {renderBadgeSlots(entry.badges)}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-            <div className="gb-leaderboard-mobile-cards" aria-label="Mobile leaderboard entries">
-              {leaderboard.map((entry) => {
-                const isMe = address && entry.address === address.toLowerCase();
-                return (
-                  <article
-                    key={`mobile-${entry.mode}-${entry.address}`}
-                    className={`gb-leaderboard-mobile-card ${isMe ? "gb-leaderboard-mobile-card-current" : ""}`}
-                  >
-                    <div className="gb-leaderboard-mobile-card-head">
-                      <div>
+                            <BadgeChips badges={entry.badges} />
+                          </td>
+                          <td><RankBadge entry={entry} compact /></td>
+                          <td>
+                            <span className="gb-leaderboard-record">
+                              <span className="gb-leaderboard-positive">{entry.wins}W</span>
+                              <span>-</span>
+                              <span className="gb-leaderboard-negative">{entry.losses}L</span>
+                            </span>
+                          </td>
+                          <td>{formatWinRate(entry.win_rate)}</td>
+                          <td className={streakClass(entry.current_streak)}>
+                            {formatStreak(entry.current_streak)}
+                          </td>
+                          <td>
+                            <span className={`gb-leaderboard-result-pill gb-leaderboard-result-${entry.recent_result?.toLowerCase() || "none"}`}>
+                              {resultLabel(entry.recent_result)}
+                            </span>
+                            {formatLastPlayed(entry.last_played)}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="gb-leaderboard-mobile-cards" aria-label="Mobile leaderboard entries">
+                {leaderboard.map((entry) => {
+                  const isMe = isConnectedWallet(entry.address, address);
+                  return (
+                    <article
+                      key={`mobile-${entry.mode}-${entry.address}`}
+                      className={`gb-leaderboard-mobile-card ${isMe ? "gb-leaderboard-mobile-card-current" : ""}`}
+                    >
+                      <div className="gb-leaderboard-mobile-card-head">
                         <span className="gb-leaderboard-mobile-rank">
                           {entry.ranked ? `#${entry.rank}` : "UR"}
                         </span>
-                        <span className="gb-leaderboard-mobile-mode">
-                          {formatMode(entry.mode)}
-                        </span>
+                        <PlayerIdentity
+                          address={entry.address}
+                          isMe={isMe}
+                          suinsName={suinsNames[entry.address.toLowerCase()]}
+                        />
                       </div>
-                      <PlayerIdentity
-                        address={entry.address}
-                        isMe={!!isMe}
-                        suinsName={suinsNames[entry.address.toLowerCase()]}
-                      />
-                    </div>
+                      <RankBadge entry={entry} />
+                      <dl className="gb-leaderboard-mobile-stats">
+                        <div><dt>Record</dt><dd>{formatRecord(entry.wins, entry.losses)}</dd></div>
+                        <div><dt>Win Rate</dt><dd>{formatWinRate(entry.win_rate)}</dd></div>
+                        <div><dt>Streak</dt><dd className={streakClass(entry.current_streak)}>{formatStreak(entry.current_streak)}</dd></div>
+                        <div><dt>Last Played</dt><dd>{formatLastPlayed(entry.last_played)}</dd></div>
+                      </dl>
+                      <BadgeChips badges={entry.badges} />
+                    </article>
+                  );
+                })}
+              </div>
+            </section>
+          </>
+        )}
 
-                    <div className="gb-leaderboard-mobile-rank-row">
-                      <span
-                        className={`gb-battle-rank-badge gb-battle-rank-table ${getBattleRankClass(entry.rank_title)}`}
-                      >
-                        <TreeBadgeCrest family="battle-rank" rankName={entry.rank_title} size="sm" />
-                        <span className="gb-battle-rank-title">{entry.rank_title}</span>
-                      </span>
-                      <span className={`gb-cosmetic-placeholder ${getBattleRankClass(entry.rank_title)}`}>
-                        {COSMETIC_PLACEHOLDERS[entry.rank_title] || "Cosmetic placeholder"}
-                      </span>
-                    </div>
-
-                    <dl className="gb-leaderboard-mobile-stats">
-                      <div>
-                        <dt>Wins</dt>
-                        <dd className="gb-stat-win">{entry.wins}</dd>
-                      </div>
-                      <div>
-                        <dt>Losses</dt>
-                        <dd className="gb-stat-loss">{entry.losses}</dd>
-                      </div>
-                      <div>
-                        <dt>Win Rate</dt>
-                        <dd className="gb-stat-rate">{Math.round(entry.win_rate * 100)}%</dd>
-                      </div>
-                      <div>
-                        <dt>Streak</dt>
-                        <dd style={{ color: statColor(entry.current_streak) }}>
-                          {formatStreak(entry.current_streak)}
-                        </dd>
-                      </div>
-                      <div>
-                        <dt>Total</dt>
-                        <dd>{entry.total_battles}</dd>
-                      </div>
-                      <div>
-                        <dt>Recent</dt>
-                        <dd
-                          className={
-                            entry.recent_result === "Win"
-                              ? "gb-stat-win"
-                              : entry.recent_result === "Loss"
-                                ? "gb-stat-loss"
-                                : undefined
-                          }
-                        >
-                          {entry.recent_result ?? "-"}
-                        </dd>
-                      </div>
-                      <div className="gb-leaderboard-mobile-span">
-                        <dt>Last Played</dt>
-                        <dd>{formatLastPlayed(entry.last_played)}</dd>
-                      </div>
-                    </dl>
-
-                    <div className="gb-leaderboard-mobile-badges" aria-label="Badge placeholders">
-                      {renderBadgeSlots(entry.badges)}
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
-            </>
-          )}
-        </section>
-
-        <footer className="gb-leaderboard-info-panel">
-          <section className="gb-leaderboard-info-card">
-            <h2>Ranking Notes</h2>
+        <details className="gb-leaderboard-rules">
+          <summary>How rankings work</summary>
+          <div>
+            <p>PvP, Garden Bot, and Overall records are tracked separately from verified battle records.</p>
+            <p>Three recorded battles are required for official ranking. Before that, players are shown as Grove Recruit / provisional.</p>
             <ul>
-              <li>PvP, Garden Bot, and Overall are tracked separately.</li>
-              <li>Garden Bot practice does not dominate PvP rankings.</li>
-              <li>UR means unranked until at least 3 battles are recorded.</li>
+              <li>Rooted Fighter: ranked with fewer than 10 wins</li>
+              <li>Thorn Challenger: 10 wins</li>
+              <li>Grove Striker: 25 wins</li>
+              <li>Canopy Champion: 50 wins</li>
+              <li>Elderroot Titan: 100 wins</li>
             </ul>
-          </section>
-
-          <section className="gb-leaderboard-info-card">
-            <h2>Cosmetic Notes</h2>
-            <ul>
-              <li>Battle-rank cosmetics are planned visual rewards only.</li>
-              <li>No NFT metadata changes are live.</li>
-              <li>NFTree rarity and VICTORY Locked badge slots are placeholders.</li>
-            </ul>
-          </section>
-
-          <section className="gb-leaderboard-info-card gb-leaderboard-info-card-wide">
-            <h2>Rank Progression</h2>
-            <dl className="gb-rank-progression-list">
-              <div>
-                <dt>Grove Recruit</dt>
-                <dd>New or unranked fighters.</dd>
-              </div>
-              <div>
-                <dt>Rooted Fighter</dt>
-                <dd>Early battle record.</dd>
-              </div>
-              <div>
-                <dt>Thorn Challenger</dt>
-                <dd>Stronger record.</dd>
-              </div>
-              <div>
-                <dt>Grove Striker</dt>
-                <dd>Advanced record.</dd>
-              </div>
-              <div>
-                <dt>Canopy Champion</dt>
-                <dd>Elite record.</dd>
-              </div>
-              <div>
-                <dt>Elderroot Titan</dt>
-                <dd>Top-tier record.</dd>
-              </div>
-            </dl>
-          </section>
-
-          <div className="gb-leaderboard-info-actions">
-            <Link href="/battle">Back to Battle</Link>
-            <span>{totalPlayers} players in this view.</span>
+            <p>Earned badges come from recorded battle achievements. Battle-rank cosmetics are planned visual rewards and are not active yet.</p>
+            <p>Canopy Clash is a future tournament mode and is not live yet.</p>
           </div>
-        </footer>
+        </details>
+
+        <div className="gb-leaderboard-bottom-actions">
+          <Link href="/battle">Back to Battle</Link>
+        </div>
       </main>
     </div>
   );

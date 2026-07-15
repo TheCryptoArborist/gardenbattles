@@ -7,6 +7,7 @@ import TreeBadgeCrest from "@/components/TreeBadgeCrest";
 interface PlayerRecordProps {
   address: string | null;
   mode?: LeaderboardMode;
+  label?: string;
 }
 
 function getBattleRankClass(rankTitle: string): string {
@@ -41,6 +42,7 @@ function getEmptyStats(address: string, mode: LeaderboardMode): PlayerStats {
 export default function PlayerRecord({
   address,
   mode = "overall",
+  label = "Battle Rank",
 }: PlayerRecordProps) {
   const [stats, setStats] = useState<PlayerStats | null>(null);
   const [loading, setLoading] = useState(false);
@@ -116,7 +118,7 @@ export default function PlayerRecord({
       </span>
 
       <span className="gb-hud-rank-content">
-        <span className="gb-battle-rank-kicker">Battle Rank</span>
+        <span className="gb-battle-rank-kicker">{label}</span>
         <span className="gb-battle-rank-title">{displayRankTitle}</span>
 
         <span
