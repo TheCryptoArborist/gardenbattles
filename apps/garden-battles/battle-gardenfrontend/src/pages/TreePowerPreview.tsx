@@ -3,6 +3,7 @@ import {
   getTreeRerollPresentation,
   type TreeRerollStatus,
 } from "@/lib/treePowerPresentation";
+import type { FifthMoveEligibilityResponse, FifthMoveSource, FifthMoveSourceResult } from "@/lib/api";
 import type { FifthMoveEligibility } from "@/lib/suiDexTreePosition";
 import { makeTreeBalanceView, type TreeBalanceView } from "@/lib/treeBalance";
 
@@ -42,6 +43,40 @@ const ELIGIBILITY = {
   unavailable: { status: "unavailable", sources: [] },
 } satisfies Record<string, FifthMoveEligibility>;
 
+function source(
+  sourceName: FifthMoveSource,
+  status: FifthMoveSourceResult["status"],
+  tree = "0",
+): FifthMoveSourceResult {
+  return {
+    source: sourceName,
+    status,
+    underlyingTreeDisplay: status === "unavailable" ? undefined : tree,
+    underlyingTreeRaw: status === "unavailable" ? undefined : `${BigInt(tree) * BigInt(1_000_000)}`,
+    reason: status === "unavailable" ? "Provider verification unavailable in this mock scenario." : undefined,
+  };
+}
+
+function eligibilityResponse(options: {
+  status: FifthMoveEligibilityResponse["status"];
+  verifiedTree: string;
+  remainingTree?: string;
+  sources: FifthMoveSourceResult[];
+}): FifthMoveEligibilityResponse {
+  return {
+    wallet: MOCK_WALLET,
+    status: options.status,
+    thresholdTree: "1000000",
+    thresholdRaw: "1000000000000",
+    verifiedUnderlyingTree: options.verifiedTree,
+    verifiedUnderlyingTreeRaw: `${BigInt(options.verifiedTree) * BigInt(1_000_000)}`,
+    remainingTree: options.remainingTree,
+    remainingTreeRaw:
+      options.remainingTree === undefined ? undefined : `${BigInt(options.remainingTree) * BigInt(1_000_000)}`,
+    sources: options.sources,
+  };
+}
+
 export const TREE_POWER_PREVIEW_SCENARIOS = [
   {
     title: "Wallet disconnected",
@@ -68,16 +103,168 @@ export const TREE_POWER_PREVIEW_SCENARIOS = [
     },
   },
   {
-    title: "No qualifying position",
-    note: "No SuiDex TREE V2 or V3 liquidity position detected.",
+    title: "0 TREE verified",
+    note: "All providers verified with no qualifying underlying TREE.",
     props: {
       address: MOCK_WALLET,
       treeBalance: makeTreeBalanceView(128),
-      fifthMoveEligibility: ELIGIBILITY.notQualified,
+      fifthMoveEligibilityResponse: eligibilityResponse({
+        status: "not-qualified",
+        verifiedTree: "0",
+        remainingTree: "1000000",
+        sources: [
+          source("suidex-v2", "verified-zero"),
+          source("suidex-v3", "verified-zero"),
+          source("moonbags-staking", "verified-zero"),
+        ],
+      }),
       isBattleActive: true,
       currentMoveCount: 4,
       rerollStatus: "not-live" as TreeRerollStatus,
       rerollCostTree: null,
+    },
+  },
+  {
+    title: "999,999 TREE",
+    note: "One TREE below the threshold does not qualify when every provider is verified.",
+    props: {
+      address: MOCK_WALLET,
+      treeBalance: makeTreeBalanceView(11_345.6789),
+      fifthMoveEligibilityResponse: eligibilityResponse({
+        status: "not-qualified",
+        verifiedTree: "999999",
+        remainingTree: "1",
+        sources: [
+          source("suidex-v2", "qualified-data", "999999"),
+          source("suidex-v3", "verified-zero"),
+          source("moonbags-staking", "verified-zero"),
+        ],
+      }),
+      isBattleActive: true,
+      currentMoveCount: 4,
+      rerollStatus: "not-live" as TreeRerollStatus,
+    },
+  },
+  {
+    title: "Exactly 1,000,000 TREE",
+    note: "The exact threshold qualifies, but activation is still not live in this checkpoint.",
+    props: {
+      address: MOCK_WALLET,
+      treeBalance: makeTreeBalanceView(11_345.6789),
+      fifthMoveEligibilityResponse: eligibilityResponse({
+        status: "qualified",
+        verifiedTree: "1000000",
+        sources: [
+          source("suidex-v2", "qualified-data", "1000000"),
+          source("suidex-v3", "verified-zero"),
+          source("moonbags-staking", "verified-zero"),
+        ],
+      }),
+      isBattleActive: true,
+      currentMoveCount: 4,
+      rerollStatus: "not-live" as TreeRerollStatus,
+    },
+  },
+  {
+    title: "1,000,001 TREE",
+    note: "Above-threshold verified TREE qualifies exactly one additional future move.",
+    props: {
+      address: MOCK_WALLET,
+      treeBalance: makeTreeBalanceView(11_345.6789),
+      fifthMoveEligibilityResponse: eligibilityResponse({
+        status: "qualified",
+        verifiedTree: "1000001",
+        sources: [
+          source("suidex-v2", "qualified-data", "1000001"),
+          source("suidex-v3", "verified-zero"),
+          source("moonbags-staking", "verified-zero"),
+        ],
+      }),
+      isBattleActive: true,
+      currentMoveCount: 4,
+      rerollStatus: "not-live" as TreeRerollStatus,
+    },
+  },
+  {
+    title: "400K V2 + 300K V3 + 300K Moonbags",
+    note: "A wallet may combine all verified sources to reach the threshold.",
+    props: {
+      address: MOCK_WALLET,
+      treeBalance: makeTreeBalanceView(11_345.6789),
+      fifthMoveEligibilityResponse: eligibilityResponse({
+        status: "qualified",
+        verifiedTree: "1000000",
+        sources: [
+          source("suidex-v2", "qualified-data", "400000"),
+          source("suidex-v3", "qualified-data", "300000"),
+          source("moonbags-staking", "qualified-data", "300000"),
+        ],
+      }),
+      isBattleActive: true,
+      currentMoveCount: 4,
+      rerollStatus: "not-live" as TreeRerollStatus,
+    },
+  },
+  {
+    title: "600K V2, Moonbags unavailable",
+    note: "Below threshold plus an unavailable provider is verification incomplete, not not-qualified.",
+    props: {
+      address: MOCK_WALLET,
+      treeBalance: makeTreeBalanceView(11_345.6789),
+      fifthMoveEligibilityResponse: eligibilityResponse({
+        status: "verification-incomplete",
+        verifiedTree: "600000",
+        remainingTree: "400000",
+        sources: [
+          source("suidex-v2", "qualified-data", "600000"),
+          source("suidex-v3", "verified-zero"),
+          source("moonbags-staking", "unavailable"),
+        ],
+      }),
+      isBattleActive: true,
+      currentMoveCount: 4,
+      rerollStatus: "not-live" as TreeRerollStatus,
+    },
+  },
+  {
+    title: "1.1M V2, Moonbags unavailable",
+    note: "Verified total at or above threshold qualifies even if another source is unavailable.",
+    props: {
+      address: MOCK_WALLET,
+      treeBalance: makeTreeBalanceView(11_345.6789),
+      fifthMoveEligibilityResponse: eligibilityResponse({
+        status: "qualified",
+        verifiedTree: "1100000",
+        sources: [
+          source("suidex-v2", "qualified-data", "1100000"),
+          source("suidex-v3", "verified-zero"),
+          source("moonbags-staking", "unavailable"),
+        ],
+      }),
+      isBattleActive: true,
+      currentMoveCount: 4,
+      rerollStatus: "not-live" as TreeRerollStatus,
+    },
+  },
+  {
+    title: "All providers unavailable",
+    note: "No provider failure is converted into zero or a false not-qualified result.",
+    props: {
+      address: MOCK_WALLET,
+      treeBalance: UNAVAILABLE_BALANCE,
+      fifthMoveEligibilityResponse: eligibilityResponse({
+        status: "unavailable",
+        verifiedTree: "0",
+        remainingTree: "1000000",
+        sources: [
+          source("suidex-v2", "unavailable"),
+          source("suidex-v3", "unavailable"),
+          source("moonbags-staking", "unavailable"),
+        ],
+      }),
+      isBattleActive: true,
+      currentMoveCount: 4,
+      rerollStatus: "not-live" as TreeRerollStatus,
     },
   },
   {
@@ -86,8 +273,15 @@ export const TREE_POWER_PREVIEW_SCENARIOS = [
     props: {
       address: MOCK_WALLET,
       treeBalance: makeTreeBalanceView(11_345.6789),
-      fifthMoveEligibility: ELIGIBILITY.v2,
-      isFifthMoveActivationLive: true,
+      fifthMoveEligibilityResponse: eligibilityResponse({
+        status: "qualified",
+        verifiedTree: "1000000",
+        sources: [
+          source("suidex-v2", "qualified-data", "1000000"),
+          source("suidex-v3", "verified-zero"),
+          source("moonbags-staking", "verified-zero"),
+        ],
+      }),
       isBattleActive: true,
       currentMoveCount: 4,
       rerollStatus: "not-live" as TreeRerollStatus,
@@ -99,8 +293,15 @@ export const TREE_POWER_PREVIEW_SCENARIOS = [
     props: {
       address: MOCK_WALLET,
       treeBalance: makeTreeBalanceView(11_345.6789),
-      fifthMoveEligibility: ELIGIBILITY.v3,
-      isFifthMoveActivationLive: true,
+      fifthMoveEligibilityResponse: eligibilityResponse({
+        status: "qualified",
+        verifiedTree: "1000000",
+        sources: [
+          source("suidex-v2", "verified-zero"),
+          source("suidex-v3", "qualified-data", "1000000"),
+          source("moonbags-staking", "verified-zero"),
+        ],
+      }),
       isBattleActive: true,
       currentMoveCount: 4,
       rerollStatus: "not-live" as TreeRerollStatus,
@@ -112,8 +313,15 @@ export const TREE_POWER_PREVIEW_SCENARIOS = [
     props: {
       address: MOCK_WALLET,
       treeBalance: makeTreeBalanceView(11_345.6789),
-      fifthMoveEligibility: ELIGIBILITY.moonbags,
-      isFifthMoveActivationLive: true,
+      fifthMoveEligibilityResponse: eligibilityResponse({
+        status: "qualified",
+        verifiedTree: "1000000",
+        sources: [
+          source("suidex-v2", "verified-zero"),
+          source("suidex-v3", "verified-zero"),
+          source("moonbags-staking", "qualified-data", "1000000"),
+        ],
+      }),
       isBattleActive: true,
       currentMoveCount: 4,
       rerollStatus: "not-live" as TreeRerollStatus,
@@ -125,8 +333,15 @@ export const TREE_POWER_PREVIEW_SCENARIOS = [
     props: {
       address: MOCK_WALLET,
       treeBalance: makeTreeBalanceView(11_345.6789),
-      fifthMoveEligibility: ELIGIBILITY.v2Moonbags,
-      isFifthMoveActivationLive: true,
+      fifthMoveEligibilityResponse: eligibilityResponse({
+        status: "qualified",
+        verifiedTree: "1000000",
+        sources: [
+          source("suidex-v2", "qualified-data", "500000"),
+          source("suidex-v3", "verified-zero"),
+          source("moonbags-staking", "qualified-data", "500000"),
+        ],
+      }),
       isBattleActive: true,
       currentMoveCount: 4,
       rerollStatus: "not-live" as TreeRerollStatus,
@@ -138,8 +353,15 @@ export const TREE_POWER_PREVIEW_SCENARIOS = [
     props: {
       address: MOCK_WALLET,
       treeBalance: makeTreeBalanceView(11_345.6789),
-      fifthMoveEligibility: ELIGIBILITY.v3Moonbags,
-      isFifthMoveActivationLive: true,
+      fifthMoveEligibilityResponse: eligibilityResponse({
+        status: "qualified",
+        verifiedTree: "1000000",
+        sources: [
+          source("suidex-v2", "verified-zero"),
+          source("suidex-v3", "qualified-data", "500000"),
+          source("moonbags-staking", "qualified-data", "500000"),
+        ],
+      }),
       isBattleActive: true,
       currentMoveCount: 4,
       rerollStatus: "not-live" as TreeRerollStatus,
@@ -151,8 +373,15 @@ export const TREE_POWER_PREVIEW_SCENARIOS = [
     props: {
       address: MOCK_WALLET,
       treeBalance: makeTreeBalanceView(11_345.6789),
-      fifthMoveEligibility: ELIGIBILITY.all,
-      isFifthMoveActivationLive: true,
+      fifthMoveEligibilityResponse: eligibilityResponse({
+        status: "qualified",
+        verifiedTree: "1500000",
+        sources: [
+          source("suidex-v2", "qualified-data", "500000"),
+          source("suidex-v3", "qualified-data", "500000"),
+          source("moonbags-staking", "qualified-data", "500000"),
+        ],
+      }),
       isBattleActive: true,
       currentMoveCount: 4,
       rerollStatus: "not-live" as TreeRerollStatus,
@@ -224,7 +453,37 @@ export const TREE_POWER_PREVIEW_SCENARIOS = [
     props: {
       address: MOCK_WALLET,
       treeBalance: makeTreeBalanceView(11_283_000),
-      fifthMoveEligibility: ELIGIBILITY.notQualified,
+      fifthMoveEligibilityResponse: eligibilityResponse({
+        status: "not-qualified",
+        verifiedTree: "0",
+        remainingTree: "1000000",
+        sources: [
+          source("suidex-v2", "verified-zero"),
+          source("suidex-v3", "verified-zero"),
+          source("moonbags-staking", "verified-zero"),
+        ],
+      }),
+      isBattleActive: true,
+      currentMoveCount: 4,
+      rerollStatus: "not-live" as TreeRerollStatus,
+    },
+  },
+  {
+    title: "NFTree owned, zero qualifying position",
+    note: "NFTree access does not qualify Fifth Move by itself.",
+    props: {
+      address: MOCK_WALLET,
+      treeBalance: makeTreeBalanceView(0),
+      fifthMoveEligibilityResponse: eligibilityResponse({
+        status: "not-qualified",
+        verifiedTree: "0",
+        remainingTree: "1000000",
+        sources: [
+          source("suidex-v2", "verified-zero"),
+          source("suidex-v3", "verified-zero"),
+          source("moonbags-staking", "verified-zero"),
+        ],
+      }),
       isBattleActive: true,
       currentMoveCount: 4,
       rerollStatus: "not-live" as TreeRerollStatus,

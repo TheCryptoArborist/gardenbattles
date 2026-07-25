@@ -22,6 +22,7 @@ export type FifthMoveEligibility =
   | { status: "not-connected"; sources: [] }
   | { status: "checking"; sources: [] }
   | { status: "not-qualified"; sources: [] }
+  | { status: "verification-incomplete"; sources: FifthMoveQualificationSource[] }
   | { status: "qualified"; sources: FifthMoveQualificationSource[] }
   | { status: "unavailable"; sources: [] };
 

@@ -1,7 +1,11 @@
 import { Lock, RefreshCw, Unlock, WalletCards } from "lucide-react";
-import { useSuiDexTreePosition } from "@/hooks/useSuiDexTreePosition";
+import {
+  mapFifthMoveResponseToPanelEligibility,
+  useFifthMoveEligibility,
+} from "@/hooks/useFifthMoveEligibility";
 import { useTreeBalance } from "@/hooks/useTreeBalance";
 import { appAsset } from "@/lib/assets";
+import type { FifthMoveEligibilityResponse } from "@/lib/api";
 import {
   TREE_POWER_BUY_URL,
   getFifthMovePresentation,
@@ -18,6 +22,7 @@ type TreePowerPanelProps = {
   currentMoveCount?: number;
   treeBalance?: TreeBalanceView;
   fifthMoveEligibility?: FifthMoveEligibility;
+  fifthMoveEligibilityResponse?: FifthMoveEligibilityResponse;
   isFifthMoveActivationLive?: boolean;
   rerollStatus?: TreeRerollStatus;
   rerollCostTree?: number | null;
@@ -68,6 +73,7 @@ export default function TreePowerPanel({
   currentMoveCount = 0,
   treeBalance,
   fifthMoveEligibility,
+  fifthMoveEligibilityResponse,
   isFifthMoveActivationLive = false,
   rerollStatus = "not-live",
   rerollCostTree = null,
@@ -75,9 +81,16 @@ export default function TreePowerPanel({
   onReroll,
 }: TreePowerPanelProps) {
   const queriedTreeBalance = useTreeBalance(treeBalance ? null : address);
-  const queriedFifthMoveEligibility = useSuiDexTreePosition(fifthMoveEligibility ? null : address);
+  const queriedFifthMoveEligibility = useFifthMoveEligibility(
+    fifthMoveEligibility || fifthMoveEligibilityResponse ? null : address,
+  );
   const balance = treeBalance ?? queriedTreeBalance;
-  const eligibility = fifthMoveEligibility ?? queriedFifthMoveEligibility;
+  const eligibility =
+    fifthMoveEligibility ??
+    (fifthMoveEligibilityResponse
+      ? mapFifthMoveResponseToPanelEligibility(fifthMoveEligibilityResponse)
+      : queriedFifthMoveEligibility.panelEligibility);
+  const eligibilityResponse = fifthMoveEligibilityResponse ?? queriedFifthMoveEligibility.response;
   const fifthMove = getFifthMovePresentation({
     isBattleActive,
     currentMoveCount,
@@ -96,6 +109,20 @@ export default function TreePowerPanel({
   const activeSources = new Set<FifthMoveQualificationSource>(
     eligibility.status === "qualified" ? eligibility.sources : [],
   );
+  const responseSourceStatus = new Map(
+    eligibilityResponse?.sources.map((source) => [source.source, source.status]) ?? [],
+  );
+  const unavailableSources =
+    eligibilityResponse?.sources
+      .filter((source) => source.status === "unavailable")
+      .map((source) => source.source) ?? [];
+  const thresholdLabel = eligibilityResponse
+    ? `${eligibilityResponse.verifiedUnderlyingTree} / ${eligibilityResponse.thresholdTree} TREE`
+    : null;
+  const remainingLabel =
+    eligibilityResponse?.remainingTree && eligibilityResponse.status === "not-qualified"
+      ? `${eligibilityResponse.remainingTree} TREE remaining`
+      : null;
 
   return (
     <aside
@@ -156,19 +183,38 @@ export default function TreePowerPanel({
         <div className={`gb-tree-power-qualification gb-tree-power-status-${fifthMove.status}`}>
           <strong>{fifthMove.statusLabel}</strong>
           <span>{fifthMove.description}</span>
+          {thresholdLabel && (
+            <span className="gb-tree-power-threshold">
+              Verified underlying TREE: {thresholdLabel}
+            </span>
+          )}
+          {remainingLabel && <span className="gb-tree-power-threshold">{remainingLabel}</span>}
+          {eligibilityResponse?.status === "verification-incomplete" && (
+            <span className="gb-tree-power-threshold">
+              Verification incomplete. Known TREE is shown; unavailable sources are not counted as zero.
+            </span>
+          )}
+          {unavailableSources.length > 0 && eligibilityResponse?.status !== "qualified" && (
+            <span className="gb-tree-power-threshold">
+              Unavailable: {unavailableSources.map((source) => source.replace("-staking", "")).join(", ")}
+            </span>
+          )}
         </div>
 
         <div className="gb-tree-power-source-chips" aria-label="Fifth move qualification sources">
           {QUALIFICATION_SOURCES.map((source) => {
             const isActive = activeSources.has(source.id);
+            const sourceStatus = responseSourceStatus.get(source.id);
             return (
               <span
                 key={source.id}
-                className={
-                  isActive
-                    ? "gb-tree-power-source-chip gb-tree-power-source-chip-active"
-                    : "gb-tree-power-source-chip"
-                }
+                className={[
+                  "gb-tree-power-source-chip",
+                  isActive ? "gb-tree-power-source-chip-active" : "",
+                  sourceStatus === "unavailable" ? "gb-tree-power-source-chip-unavailable" : "",
+                ]
+                  .filter(Boolean)
+                  .join(" ")}
               >
                 {source.label}
               </span>

@@ -1,7 +1,7 @@
 const API_UNAVAILABLE_MESSAGE =
   "Leaderboard backend is not connected on this deployment yet.";
 
-const API_BASE = (import.meta.env.VITE_GARDEN_BATTLES_API_URL || "").replace(/\/$/, "");
+const API_BASE = ((import.meta.env?.VITE_GARDEN_BATTLES_API_URL ?? "") as string).replace(/\/$/, "");
 
 function apiUrl(path: string): string {
   return `${API_BASE}${path.startsWith("/") ? path : `/${path}`}`;
@@ -121,6 +121,36 @@ export interface LeaderboardEntry {
   ranked: boolean;
 }
 
+export type FifthMoveSource = "suidex-v2" | "suidex-v3" | "moonbags-staking";
+export type FifthMoveEligibilityStatus =
+  | "qualified"
+  | "not-qualified"
+  | "verification-incomplete"
+  | "unavailable";
+export type FifthMoveSourceResult = {
+  source: FifthMoveSource;
+  status: "qualified-data" | "verified-zero" | "unavailable";
+  underlyingTreeRaw?: string;
+  underlyingTreeDisplay?: string;
+  evidence?: {
+    objectIds?: string[];
+    poolId?: string;
+    positionCount?: number;
+  };
+  reason?: string;
+};
+export type FifthMoveEligibilityResponse = {
+  wallet: string;
+  status: FifthMoveEligibilityStatus;
+  thresholdTree: string;
+  thresholdRaw: string;
+  verifiedUnderlyingTree: string;
+  verifiedUnderlyingTreeRaw: string;
+  remainingTree?: string;
+  remainingTreeRaw?: string;
+  sources: FifthMoveSourceResult[];
+};
+
 interface LeaderboardResponse {
   leaderboard: LeaderboardEntry[];
   total: number;
@@ -174,5 +204,14 @@ export async function submitBattleRecord(
     "/api/battle-records/submit",
     { transaction_digest: transactionDigest },
     "Battle result could not be submitted to the leaderboard.",
+  );
+}
+
+export async function fetchFifthMoveEligibility(
+  address: string,
+): Promise<FifthMoveEligibilityResponse> {
+  return fetchJson<FifthMoveEligibilityResponse>(
+    `/api/tree-power/eligibility/${address.toLowerCase()}`,
+    "Fifth Move eligibility verification is temporarily unavailable.",
   );
 }

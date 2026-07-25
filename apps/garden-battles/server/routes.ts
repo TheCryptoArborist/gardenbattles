@@ -19,6 +19,7 @@ import {
   type LeaderboardMode,
 } from "./battle-storage";
 import { startPvpQueueTelegramNotifier } from "./pvp-queue-telegram";
+import { getCachedFifthMoveEligibility } from "./tree-power-eligibility";
 
 // ─── Sui polling configuration ────────────────────────────────────────────────
 const SUI_RPC_URL =
@@ -555,6 +556,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       ok: true,
       service: "garden-battles-api",
     });
+  });
+
+  app.get("/api/tree-power/eligibility/:address", async (req, res) => {
+    const address = typeof req.params.address === "string" ? req.params.address : "";
+
+    try {
+      const eligibility = await getCachedFifthMoveEligibility(
+        getSuiVerificationClient(),
+        address,
+      );
+      return res.json(eligibility);
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : "tree_power_eligibility_failed";
+      const status = reason === "invalid_sui_address" ? 400 : 503;
+      return res.status(status).json({ error: reason });
+    }
   });
 
   // ── REST: verified battle record submission for leaderboard ingestion ─────

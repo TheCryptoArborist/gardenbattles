@@ -1978,6 +1978,7 @@
   .gb-tree-power-status-insufficient-tree,
   .gb-tree-power-status-awaiting-approval,
   .gb-tree-power-status-checking,
+  .gb-tree-power-status-verification-incomplete,
   .gb-tree-power-status-qualified-not-live,
   .gb-tree-power-status-submitted,
   .gb-tree-power-status-used {
@@ -2048,6 +2049,14 @@
     line-height: 1.35;
   }
 
+  .gb-tree-power-qualification .gb-tree-power-threshold {
+    color: var(--gb-text);
+    font-family: Orbitron, sans-serif;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.2px;
+  }
+
   .gb-tree-power-source-chips {
     display: flex;
     flex-wrap: wrap;
@@ -2078,6 +2087,11 @@
     border-color: rgba(57, 255, 136, 0.48);
     color: var(--gb-tree-green);
     box-shadow: 0 0 12px rgba(57, 255, 136, 0.14);
+  }
+
+  .gb-tree-power-source-chip-unavailable {
+    border-color: rgba(245, 197, 66, 0.3);
+    color: var(--gb-gold);
   }
 
   .gb-tree-power-reroll-facts {

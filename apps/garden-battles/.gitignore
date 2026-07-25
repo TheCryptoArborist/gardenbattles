@@ -13,3 +13,4 @@ traces/*
 .coverage*
 Pub.*.toml
 /sui_contract/build
+diagnostics-output/

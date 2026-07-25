@@ -7,6 +7,7 @@ export type FifthMoveDisplayStatus =
   | "not-connected"
   | "checking"
   | "not-qualified"
+  | "verification-incomplete"
   | "qualified"
   | "qualified-not-live"
   | "unavailable"
@@ -125,6 +126,20 @@ export function getFifthMovePresentation(options: {
       handLabel: `Current Hand: ${filledSlots} / 5`,
       title: "Fifth Move Unlock",
       description: "Position verification temporarily unavailable.",
+      explainer,
+      slotCount,
+      filledSlots,
+      isUnlocked: false,
+    };
+  }
+
+  if (eligibility.status === "verification-incomplete") {
+    return {
+      status: "verification-incomplete",
+      statusLabel: "Position Verification Incomplete",
+      handLabel: `Current Hand: ${filledSlots} / 5`,
+      title: "Fifth Move Unlock",
+      description: "Known verified TREE is below threshold and one or more sources are unavailable.",
       explainer,
       slotCount,
       filledSlots,

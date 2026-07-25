@@ -9,7 +9,14 @@ test("Tree Power preview contains the corrected Fifth Move scenarios", () => {
     [
       "Wallet disconnected",
       "Position verification loading",
-      "No qualifying position",
+      "0 TREE verified",
+      "999,999 TREE",
+      "Exactly 1,000,000 TREE",
+      "1,000,001 TREE",
+      "400K V2 + 300K V3 + 300K Moonbags",
+      "600K V2, Moonbags unavailable",
+      "1.1M V2, Moonbags unavailable",
+      "All providers unavailable",
       "Qualified via SuiDex V2",
       "Qualified via SuiDex V3",
       "Moonbags TREE stake only",
@@ -22,6 +29,7 @@ test("Tree Power preview contains the corrected Fifth Move scenarios", () => {
       "Qualified position, activation not live",
       "Active five-move hand",
       "Large liquid TREE, no position",
+      "NFTree owned, zero qualifying position",
     ].every((title) => scenarioTitles.includes(title)),
     true,
   );
