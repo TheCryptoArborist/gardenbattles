@@ -9,10 +9,12 @@ import {
   calculateV2UnderlyingTreeRaw,
   calculateV3UnderlyingTreeForPositions,
   calculateV3UnderlyingTreeRaw,
+  decodeSignedI32Bits,
   displayTreeToRaw,
   getVerifiedV2FarmedLpRaw,
   rawTreeToDisplay,
   serializeFifthMoveEligibility,
+  sqrtPriceX64AtTick,
   type FifthMoveSourceResult,
 } from "./tree-power-eligibility";
 
@@ -159,6 +161,36 @@ test("V3 position aggregation covers multiple positions and excludes unrelated o
   assert.equal(result.positionCount, 1);
 });
 
+test("V3 tick decoding and Q64 sqrt price calculation are deterministic", () => {
+  assert.equal(decodeSignedI32Bits(33900), 33900);
+  assert.equal(decodeSignedI32Bits(4294967250), -46);
+  assert.equal(sqrtPriceX64AtTick(0), Q64);
+  assert.equal(sqrtPriceX64AtTick(33900).toString(), "100464370031846246815");
+  assert.equal(sqrtPriceX64AtTick(37620).toString(), "121000398407248309748");
+});
+
+test("V3 position aggregation accepts signed tick indexes from live SuiDex position shape", () => {
+  const result = calculateV3UnderlyingTreeForPositions({
+    pool: {
+      poolId: "0x39d5ba22e01e45bc4129ec28a0bef52e8fee8db5d07d337adf9540e3cb9074cf",
+      sqrtPriceCurrent: "109707448322793383515",
+      treeTokenIndex: 1,
+    },
+    positions: [
+      {
+        objectId: "0xe68e034a6f2390eaa9caf2dce42b75e48ab6c408a64a722a2f92f8b3a92f31c3",
+        poolId: "0x39d5ba22e01e45bc4129ec28a0bef52e8fee8db5d07d337adf9540e3cb9074cf",
+        liquidity: "164081076071423",
+        tickLower: 33900,
+        tickUpper: 37620,
+      },
+    ],
+  });
+
+  assert.equal(result.underlyingTreeRaw.toString(), "82215822268196");
+  assert.deepEqual(result.objectIds, ["0xe68e034a6f2390eaa9caf2dce42b75e48ab6c408a64a722a2f92f8b3a92f31c3"]);
+});
+
 test("V3 TREE as type_y principal can be zero, partial, or entirely present across ranges", () => {
   const lower = Q64;
   const current = BigInt(2) * Q64;
@@ -194,6 +226,48 @@ test("V3 TREE as type_y principal can be zero, partial, or entirely present acro
     }),
     BigInt(3000),
   );
+});
+
+test("V3 tick-index positions cover below, in, above, zero, closed, unrelated, and multiple", () => {
+  const poolId = "0xpool";
+  const current = sqrtPriceX64AtTick(150);
+  const result = calculateV3UnderlyingTreeForPositions({
+    pool: { poolId, sqrtPriceCurrent: current, treeTokenIndex: 1 },
+    positions: [
+      { objectId: "below", poolId, liquidity: 1000, tickLower: 200, tickUpper: 300 },
+      { objectId: "inside", poolId, liquidity: 1000, tickLower: 100, tickUpper: 300 },
+      { objectId: "above", poolId, liquidity: 1000, tickLower: -300, tickUpper: -100 },
+      { objectId: "zero", poolId, liquidity: 0, tickLower: 100, tickUpper: 300 },
+      { objectId: "closed", poolId, liquidity: 1000, tickLower: 100, tickUpper: 300, closed: true },
+      { objectId: "unrelated", poolId: "0xother", liquidity: 1000, tickLower: 100, tickUpper: 300 },
+      { objectId: "inside-two", poolId, liquidity: 2000, tickLower: 100, tickUpper: 300 },
+    ],
+  });
+
+  const inside = calculateV3UnderlyingTreeRaw({
+    liquidity: 1000n,
+    sqrtPriceLower: sqrtPriceX64AtTick(100),
+    sqrtPriceCurrent: current,
+    sqrtPriceUpper: sqrtPriceX64AtTick(300),
+    treeTokenIndex: 1,
+  });
+  const above = calculateV3UnderlyingTreeRaw({
+    liquidity: 1000n,
+    sqrtPriceLower: sqrtPriceX64AtTick(-300),
+    sqrtPriceCurrent: current,
+    sqrtPriceUpper: sqrtPriceX64AtTick(-100),
+    treeTokenIndex: 1,
+  });
+  const insideTwo = calculateV3UnderlyingTreeRaw({
+    liquidity: 2000n,
+    sqrtPriceLower: sqrtPriceX64AtTick(100),
+    sqrtPriceCurrent: current,
+    sqrtPriceUpper: sqrtPriceX64AtTick(300),
+    treeTokenIndex: 1,
+  });
+
+  assert.equal(result.underlyingTreeRaw, inside + above + insideTwo);
+  assert.deepEqual(result.objectIds, ["inside", "above", "inside-two"]);
 });
 
 test("V3 CLMM TREE calculation respects token ordering, zero liquidity, and closed positions", () => {

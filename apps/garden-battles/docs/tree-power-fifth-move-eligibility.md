@@ -17,17 +17,23 @@ The current read-only detector is intentionally conservative. The app has verifi
 - SuiDex V2 TREE pool: `0x35a1be1f01f9edf7f5221d226f357d194d43c28f2a65cb38640935518d9a5bfc`
 - SuiDex V3 TREE pool: `0x39d5ba22e01e45bc4129ec28a0bef52e8fee8db5d07d337adf9540e3cb9074cf`
 
+The server-side read-only detector currently counts:
+
+- direct wallet SuiDex V2 TREE LP principal
+- SuiDex V3 TREE concentrated-liquidity principal for owned canonical positions
+
+The SuiDex V3 provider verifies the owned position type, owner, canonical pool relationship, TREE token ordering, liquidity, tick range, active state, and bigint Q64.64 principal math. Fees and rewards are excluded.
+
 The following are not yet verified in source and must be confirmed before live qualification detection:
 
-- V2 farm ID or farm position type
-- V3 position object type and active-liquidity shape
+- V2 farm object/vault path for current deposited LP principal
 - Moonbags staking package ID
 - Moonbags TREE staking pool or registry object ID
 - Moonbags staking position object type
 - Moonbags wallet ownership representation
 - Moonbags active staked TREE amount field
 
-The V2 LP coin type is verified for direct wallet LP, but SuiDex farmed LP remains unavailable until the canonical farm and receipt/account shape are verified from public objects.
+The V2 LP coin type is verified for direct wallet LP, but SuiDex farmed LP remains unavailable until the canonical farm and receipt/account shape expose current deposited LP principal from public objects. A historical `Staked.amount` event is not counted as current principal.
 
 ## Phase 1B Read-Only Evidence Tools
 

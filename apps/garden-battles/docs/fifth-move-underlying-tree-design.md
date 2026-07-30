@@ -46,12 +46,12 @@ All qualification math uses `bigint`.
 | SuiDex V2 total LP supply | `total_supply` / `lp_supply.fields.value` | V2 pool fields | `getObject` fields | High | Yes |
 | SuiDex V2 farm ID | Unknown | Not found in repo | Needs verified farm object or example staked LP receipt | Low | No |
 | SuiDex V2 farm position type | Unknown | Not found in repo | Needs real staked LP position object | Low | No |
-| SuiDex V3 TREE pool | `0x39d5ba22e01e45bc4129ec28a0bef52e8fee8db5d07d337adf9540e3cb9074cf` | Existing Tree Power constants | `getObject` type is `pool::Pool<SUI,TREE>` | High | No runtime count yet |
-| SuiDex V3 token ordering | TREE is `type_y` / token 1 | V3 pool fields | `type_y.fields.name` equals TREE type without `0x` | High | Design/tests only |
-| SuiDex V3 current sqrt price | `sqrt_price` field | V3 pool fields | `getObject` fields | Medium | Design/tests only |
-| SuiDex V3 current tick | `tick_index.fields.bits` | V3 pool fields | `getObject` fields | Medium | Design/tests only |
-| SuiDex V3 tick spacing | `tick_spacing` | V3 pool fields | `getObject` fields | Medium | Design/tests only |
-| SuiDex V3 position type | Unknown | Not found in repo | Needs owned position object example | Low | No |
+| SuiDex V3 TREE pool | `0x39d5ba22e01e45bc4129ec28a0bef52e8fee8db5d07d337adf9540e3cb9074cf` | Existing Tree Power constants | `getObject` type is `pool::Pool<SUI,TREE>` | High | Yes |
+| SuiDex V3 token ordering | TREE is `type_y` / token 1 | V3 pool fields | `type_y.fields.name` equals TREE type without `0x` | High | Yes |
+| SuiDex V3 current sqrt price | `sqrt_price` field | V3 pool fields | `getObject` fields | High | Yes |
+| SuiDex V3 current tick | `tick_index.fields.bits` | V3 pool fields | `getObject` fields | High | Yes |
+| SuiDex V3 tick spacing | `tick_spacing` | V3 pool fields | `getObject` fields | High | Yes |
+| SuiDex V3 position type | `0xb5f529c1dcda6580a61bf7ee9fbd524b50be62f11044d137c8202c8cbace9e56::position::Position` | Fixture wallet object | Owned-object scan verified owner, pool, liquidity, tick bounds, and token Y | High | Yes |
 | Moonbags TREE staking package | Unknown | Not found in repo | Needs on-chain stake object/digest or documented API | Low | No |
 | Moonbags TREE staking pool | Unknown | Not found in repo | Needs on-chain pool/registry | Low | No |
 | Moonbags stake position type | Unknown | Not found in repo | Needs active TREE stake object | Low | No |
@@ -78,7 +78,7 @@ Runtime farm detection remains disabled because the canonical TREE farm object I
 
 ## SuiDex V3 Underlying TREE
 
-The repository now includes pure integer fixture math for concentrated liquidity:
+The repository now includes server-side read-only SuiDex V3 principal detection and pure integer fixture math for concentrated liquidity:
 
 - below range: position represented entirely by token 0
 - in range: token 0 and token 1 split by current sqrt price
@@ -86,7 +86,7 @@ The repository now includes pure integer fixture math for concentrated liquidity
 - TREE token ordering is respected
 - zero liquidity and closed positions return zero
 
-Runtime V3 verification is still unavailable because no canonical owned position object type or closed-position representation has been verified. The live pool is verified, but the wallet position object layout is not.
+Runtime V3 principal detection is enabled on the server after verifying a canonical owned TREE position object. The detector counts principal only and excludes fee/reward fields.
 
 Phase 1B added deterministic V3 position candidate aggregation for verified position fixtures:
 
@@ -96,9 +96,28 @@ Phase 1B added deterministic V3 position candidate aggregation for verified posi
 - closed and zero-liquidity positions contribute zero
 - below range, in range, and above range are covered by bigint tests
 
-Runtime V3 detection remains disabled until a real TREE V3 owned position object or add-liquidity transaction verifies the position type, owner field, pool field, liquidity field, and lower/upper tick or price representation.
+The live fixture position calculation is:
 
-Before enabling runtime V3 counting, verify:
+```text
+pool current tick = 35660
+pool current sqrt price = 109707448322793383515
+position lower tick = 33900
+position upper tick = 37620
+lower sqrt price = 100464370031846246815
+upper sqrt price = 121000398407248309748
+liquidity = 164081076071423
+TREE token index = 1
+
+underlying_tree_raw =
+  floor(liquidity * (current_sqrt_price - lower_sqrt_price) / 2^64)
+
+underlying_tree_raw = 82215822268196
+underlying_tree = 82,215,822.268196 TREE
+```
+
+This uses bigint Q64.64 arithmetic and deterministic floor rounding. The result is principal only; fees and rewards are not included.
+
+The current server detector requires:
 
 - owned position object type
 - owner representation
@@ -308,8 +327,7 @@ Threshold changes apply only to future queue entries and battles.
 
 ## Phase 2 Blockers
 
-- Verify SuiDex V2 farm object and receipt shape.
-- Verify SuiDex V3 owned position object type and official amount math.
+- Verify SuiDex V2 farm current principal object/vault path.
 - Verify Moonbags active TREE staking object/API.
 - Decide whether eligibility will be proven fully on-chain, backend-attested, or pass-based.
 - Implement contract changes only after selecting the compatibility-safe queue/pass architecture.

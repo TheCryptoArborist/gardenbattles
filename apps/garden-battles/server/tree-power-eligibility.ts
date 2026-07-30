@@ -5,6 +5,8 @@ import {
   VERIFIED_TREE_DECIMALS,
   aggregateFifthMoveEligibility,
   calculateV2TotalUnderlyingTreeRaw,
+  calculateV3UnderlyingTreeForPositions,
+  decodeSignedI32Bits,
   normalizeSuiAddress,
   serializeFifthMoveEligibility,
   type FifthMoveEligibilityResponse,
@@ -19,7 +21,8 @@ export const CANONICAL_TREE_SUIDEX_V3_POOL_ID =
 export const CANONICAL_TREE_SUIDEX_V2_LP_COIN_TYPE =
   "0xbfac5e1c6bf6ef29b12f7723857695fd2f4da9a11a7d88162c15e9124c243a4a::pair::LPCoin<0x2::sui::SUI, 0x6c5a609f6d0288523ce4a6ed87d19ae127f62073ab75fd9b0b1c9b455d4895cf::tree::TREE>";
 export const CANONICAL_TREE_SUIDEX_V2_FARM_ID: string | null = null;
-export const CANONICAL_TREE_SUIDEX_V3_POSITION_TYPE: string | null = null;
+export const CANONICAL_TREE_SUIDEX_V3_POSITION_TYPE =
+  "0xb5f529c1dcda6580a61bf7ee9fbd524b50be62f11044d137c8202c8cbace9e56::position::Position";
 export const MOONBAGS_TREE_STAKING_POOL_ID: string | null = null;
 export const MOONBAGS_TREE_STAKE_POSITION_TYPE: string | null = null;
 
@@ -47,6 +50,21 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs = TREE_POWER_READ_TIMEOUT
 function getFields(object: Awaited<ReturnType<SuiClient["getObject"]>>): Record<string, any> | null {
   const content = object.data?.content;
   return content && "fields" in content ? ((content as any).fields ?? null) : null;
+}
+
+function typeNameToCanonical(typeName: any): string | null {
+  const name = typeName?.fields?.name;
+  return typeof name === "string" ? `0x${name}` : null;
+}
+
+function readI32Bits(value: any): number | null {
+  const bits = value?.fields?.bits ?? value?.bits ?? value;
+  if (bits === null || bits === undefined) return null;
+  return decodeSignedI32Bits(bits);
+}
+
+function isAddressOwner(owner: any, wallet: string): boolean {
+  return typeof owner?.AddressOwner === "string" && owner.AddressOwner.toLowerCase() === wallet;
 }
 
 function isVerifiedTreeV2Pool(object: Awaited<ReturnType<SuiClient["getObject"]>>): boolean {
@@ -161,7 +179,7 @@ async function readSuiDexV2DirectLp(client: SuiClient, wallet: string): Promise<
   }
 }
 
-async function readSuiDexV3Status(client: SuiClient): Promise<FifthMoveSourceResult> {
+async function readSuiDexV3StatusForWallet(client: SuiClient, wallet: string): Promise<FifthMoveSourceResult> {
   try {
     const poolObject = await client.getObject({
       id: CANONICAL_TREE_SUIDEX_V3_POOL_ID,
@@ -180,14 +198,73 @@ async function readSuiDexV3Status(client: SuiClient): Promise<FifthMoveSourceRes
       };
     }
 
+    if (!wallet || typeof (client as any).getOwnedObjects !== "function") {
+      return {
+        source: "suidex-v3",
+        status: "unavailable",
+        reason: "v3_owned_position_lookup_unavailable",
+        evidence: { poolId: CANONICAL_TREE_SUIDEX_V3_POOL_ID, positionCount: 0 },
+      };
+    }
+
+    const positions = [];
+    let cursor: string | null = null;
+    do {
+      const page = await client.getOwnedObjects({
+        owner: wallet,
+        cursor,
+        limit: 50,
+        options: {
+          showContent: true,
+          showOwner: true,
+          showType: true,
+          showPreviousTransaction: true,
+        },
+      });
+
+      for (const item of page.data ?? []) {
+        if (item.data?.type !== CANONICAL_TREE_SUIDEX_V3_POSITION_TYPE) continue;
+        if (!isAddressOwner(item.data.owner, wallet)) continue;
+        const positionFields = getFields(item as any);
+        if (!positionFields) continue;
+        const positionPoolId = String(positionFields.pool_id ?? "").toLowerCase();
+        if (positionPoolId !== CANONICAL_TREE_SUIDEX_V3_POOL_ID) continue;
+        if (typeNameToCanonical(positionFields.type_y) !== TREE_COIN_TYPE) continue;
+        const tickLower = readI32Bits(positionFields.tick_lower_index);
+        const tickUpper = readI32Bits(positionFields.tick_upper_index);
+        if (tickLower === null || tickUpper === null) continue;
+        positions.push({
+          objectId: item.data.objectId,
+          poolId: positionFields.pool_id,
+          liquidity: BigInt(positionFields.liquidity ?? 0),
+          tickLower,
+          tickUpper,
+          closed: Boolean(positionFields.closed),
+        });
+      }
+
+      cursor = page.hasNextPage ? (page.nextCursor ?? null) : null;
+    } while (cursor);
+
+    const underlying = calculateV3UnderlyingTreeForPositions({
+      pool: {
+        poolId: CANONICAL_TREE_SUIDEX_V3_POOL_ID,
+        sqrtPriceCurrent: BigInt(fields?.sqrt_price ?? 0),
+        treeTokenIndex: 1,
+      },
+      positions,
+    });
+
     return {
       source: "suidex-v3",
-      status: "unavailable",
-      reason:
-        CANONICAL_TREE_SUIDEX_V3_POSITION_TYPE === null
-          ? "v3_pool_verified_position_object_type_and_owner_lookup_not_yet_verified"
-          : "v3_position_lookup_not_enabled",
-      evidence: { poolId: CANONICAL_TREE_SUIDEX_V3_POOL_ID, positionCount: 0 },
+      status: underlying.underlyingTreeRaw > BigInt(0) ? "qualified-data" : "verified-zero",
+      underlyingTreeRaw: underlying.underlyingTreeRaw,
+      reason: "v3_pool_and_owned_positions_verified_principal_only",
+      evidence: {
+        poolId: CANONICAL_TREE_SUIDEX_V3_POOL_ID,
+        objectIds: underlying.objectIds,
+        positionCount: underlying.positionCount,
+      },
     };
   } catch (err) {
     return {
@@ -224,7 +301,7 @@ export async function getFifthMoveEligibility(
 
   const [v2, v3] = await Promise.all([
     readSuiDexV2DirectLp(client, wallet),
-    readSuiDexV3Status(client),
+    readSuiDexV3StatusForWallet(client, wallet),
   ]);
 
   return aggregateFifthMoveEligibility({

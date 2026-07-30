@@ -1,6 +1,8 @@
 # Fifth Move Phase 1C Evidence Report
 
-Phase 1C is read-only evidence acquisition. Fifth Move remains inactive. No Move contracts, package IDs, queue IDs, transaction paths, or runtime provider qualification states were changed.
+Phase 1C is read-only evidence acquisition. Fifth Move remains inactive. No Move contracts, package IDs, queue IDs, transaction paths, or battle mechanics were changed.
+
+This checkpoint verified the canonical SuiDex V3 TREE position shape and bigint principal math well enough to enable the server-side read-only V3 eligibility provider. SuiDex V2 direct LP remains supported, SuiDex V2 farmed LP remains unavailable until current deposited principal can be proven, and Moonbags TREE staking remains unavailable.
 
 ## NFTree Holder Snapshot Logic
 
@@ -61,19 +63,18 @@ Historical June 22 comparison values were `87` holder-owned NFTrees, `28` unique
 
 Input: generated holder wallet CSV from the current snapshot.
 
-Providers that remain unverified were retained as `unavailable`.
+Providers that remain unverified were retained as `unavailable`. The census was rerun after enabling the verified SuiDex V3 read-only provider.
 
 | Metric | Count |
 | --- | ---: |
 | Wallets checked | 29 |
-| Qualified at 1,000,000 TREE | 0 |
+| Qualified at 1,000,000 TREE | 3 |
 | Not-qualified with every source verified | 0 |
-| Verification-incomplete | 1 |
-| Unavailable | 28 |
-| Qualified through V2 direct LP | 0 |
-| Wallets with any direct V2 LP source data | 1 |
+| Verification-incomplete | 26 |
+| Unavailable | 0 |
+| Wallets with positive SuiDex V2 source data | 1 |
+| Wallets with positive SuiDex V3 source data | 4 |
 | Qualified through V2 farm | 0 |
-| Qualified through V3 | 0 |
 | Qualified through Moonbags | 0 |
 | Qualified through combined sources | 0 |
 | Median verified underlying TREE raw | 0 |
@@ -82,10 +83,10 @@ Threshold distribution:
 
 | Threshold | Wallets at or above |
 | --- | ---: |
-| 500,000 TREE | 0 |
-| 1,000,000 TREE | 0 |
-| 2,500,000 TREE | 0 |
-| 5,000,000 TREE | 0 |
+| 500,000 TREE | 4 |
+| 1,000,000 TREE | 3 |
+| 2,500,000 TREE | 2 |
+| 5,000,000 TREE | 2 |
 
 ## Evidence Matrix
 
@@ -93,9 +94,11 @@ Threshold distribution:
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | SuiDex V2 direct LP | Pool ID | `0x35a1be1f01f9edf7f5221d226f357d194d43c28f2a65cb38640935518d9a5bfc` | Existing app config / Sui object | Read-only `getObject`, type `pair::Pair<SUI,TREE>` | Pool object | High | Yes | None for direct wallet LP |
 | SuiDex V2 direct LP | LP coin type | `0xbfac5e1c6bf6ef29b12f7723857695fd2f4da9a11a7d88162c15e9124c243a4a::pair::LPCoin<0x2::sui::SUI, TREE>` | V2 pool field/type | Read-only pool fields and wallet `getCoins` | Pool object and wallet coin objects | High | Yes | None for direct wallet LP |
-| SuiDex V2 farm | Farm object / receipt type | Unknown | No public fixture supplied/found | Not verified | None | Low | No | Need real TREE V2 farm transaction or receipt/account object |
-| SuiDex V3 | Pool ID | `0x39d5ba22e01e45bc4129ec28a0bef52e8fee8db5d07d337adf9540e3cb9074cf` | Existing app config / Sui object | Read-only `getObject`, type `pool::Pool<SUI,TREE>`, TREE is `type_y` | Pool object | High for pool only | No | Need real owned TREE V3 position object or add-liquidity transaction |
-| SuiDex V3 | Position object type | Unknown | No public fixture supplied/found | Not verified | None | Low | No | Need owner, pool field, liquidity, tick bounds, closed/zero representation |
+| SuiDex V2 farm | Staking position | `0x698c1e7aae8837b70210bb2d285d13a3d2a25f007ab71cc9fb75c382c324e9ef` | Fixture wallet object | Read-only object and latest mutation transaction inspection | `farm::StakingPosition<...LPCoin<SUI,TREE>>` | Medium for relationship, low for current principal | No | Position object read hides the current `amount`; latest `Staked.amount` is an added amount, not proven current principal |
+| SuiDex V3 | Pool ID | `0x39d5ba22e01e45bc4129ec28a0bef52e8fee8db5d07d337adf9540e3cb9074cf` | Existing app config / Sui object | Read-only `getObject`, type `pool::Pool<SUI,TREE>`, TREE is `type_y` | Pool object | High | Yes | None for principal-only read-only provider |
+| SuiDex V3 | Position object type | `0xb5f529c1dcda6580a61bf7ee9fbd524b50be62f11044d137c8202c8cbace9e56::position::Position` | Fixture wallet object | Read-only owned object scan and field verification | `0xe68e034a6f2390eaa9caf2dce42b75e48ab6c408a64a722a2f92f8b3a92f31c3` | High | Yes | None for principal-only read-only provider |
+| SuiDex V3 | Current pool state | current tick `35660`, sqrt price `109707448322793383515`, tick spacing `60` | Canonical V3 pool object | Read-only pool fields | Pool object | High | Yes | None |
+| SuiDex V3 | Fixture position principal | `82,215,822.268196 TREE` | Fixture wallet position | Q64.64 tick math, floor rounding, TREE token Y | Position `0xe68e...31c3` | High | Yes | Fees and rewards excluded by design |
 | Moonbags staking | Package / pool / stake type | Unknown | No public fixture supplied/found | Not verified | None | Low | No | Need real active TREE stake object or transaction relationship |
 | NFTree holder census | Holder discovery | Sui GraphQL object query by canonical NFTree type | TreeDrop snapshot logic | GraphQL object type query plus owner-chain resolution | Snapshot output `nftree-holder-wallets-20260715180235` | Medium | Yes for census input | 67 unresolved object/shared owner entries and total-accounting mismatch need follow-up |
 
@@ -109,11 +112,10 @@ npm.cmd exec -- tsx scripts/diagnostics/inspect-suidex-v3-position.ts --wallet <
 npm.cmd exec -- tsx scripts/diagnostics/inspect-moonbags-tree-stake.ts --wallet <wallet> --digest <tx_digest> --stake-object-id <object_id>
 ```
 
-No V2 farm, V3 position, or Moonbags stake public fixture was supplied in this checkpoint, so those diagnostics were not run against provider positions.
+V2 farm and V3 diagnostics were run against the fixture wallet using public object and transaction data. Sanitized outputs are local and gitignored under `diagnostics-output/`. The V3 evidence was sufficient to enable principal-only detection; the V2 farm evidence was not sufficient to count farmed principal.
 
 ## Remaining Evidence Required
 
-- SuiDex V2 farm package ID, farm object ID, and receipt/account object fields.
-- Real SuiDex V3 TREE position object or add-liquidity transaction.
+- SuiDex V2 farm object/vault path that exposes current deposited LP principal.
 - Moonbags TREE staking package/pool/stake object or staking transaction.
 - Follow-up for unresolved shared/object-owned NFTree entries and historical total accounting mismatch.

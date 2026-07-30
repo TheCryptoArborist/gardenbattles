@@ -47,8 +47,10 @@ export type SuiDexV3PositionCandidate = {
   objectId?: string;
   poolId?: string;
   liquidity: bigint | number | string;
-  sqrtPriceLower: bigint | number | string;
-  sqrtPriceUpper: bigint | number | string;
+  sqrtPriceLower?: bigint | number | string;
+  sqrtPriceUpper?: bigint | number | string;
+  tickLower?: bigint | number | string;
+  tickUpper?: bigint | number | string;
   closed?: boolean;
 };
 
@@ -201,6 +203,83 @@ export function calculateClmmTokenAmounts(input: {
   };
 }
 
+const MAX_UINT_256 = (BigInt(1) << BigInt(256)) - BigInt(1);
+const Q128 = BigInt(1) << BigInt(128);
+
+// Constants mirror the common CLMM tick-math table for sqrt(1.0001) in Q128.128.
+const TICK_SQRT_RATIO_MULTIPLIERS = [
+  "0xfffcb933bd6fad37aa2d162d1a594001",
+  "0xfff97272373d413259a46990580e213a",
+  "0xfff2e50f5f656932ef12357cf3c7fdcc",
+  "0xffe5caca7e10e4e61c3624eaa0941cd0",
+  "0xffcb9843d60f6159c9db58835c926644",
+  "0xff973b41fa98c081472e6896dfb254c0",
+  "0xff2ea16466c96a3843ec78b326b52861",
+  "0xfe5dee046a99a2a811c461f1969c3053",
+  "0xfcbe86c7900a88aedcffc83b479aa3a4",
+  "0xf987a7253ac413176f2b074cf7815e54",
+  "0xf3392b0822b70005940c7a398e4b70f3",
+  "0xe7159475a2c29b7443b29c7fa6e889d9",
+  "0xd097f3bdfd2022b8845ad8f792aa5825",
+  "0xa9f746462d870fdf8a65dc1f90e061e5",
+  "0x70d869a156d2a1b890bb3df62baf32f7",
+  "0x31be135f97d08fd981231505542fcfa6",
+  "0x9aa508b5b7a84e1c677de54f3e99bc9",
+  "0x5d6af8dedb81196699c329225ee604",
+  "0x2216e584f5fa1ea926041bedfe98",
+  "0x48a170391f7dc42444e8fa2",
+].map((value) => BigInt(value));
+
+export function decodeSignedI32Bits(bits: bigint | number | string): number {
+  const parsed = BigInt(bits);
+  const unsigned = parsed & BigInt(0xffffffff);
+  const signed = unsigned >= BigInt(0x80000000)
+    ? unsigned - BigInt(0x100000000)
+    : unsigned;
+  const asNumber = Number(signed);
+  if (!Number.isSafeInteger(asNumber)) throw new Error("invalid i32 bits");
+  return asNumber;
+}
+
+export function sqrtPriceX64AtTick(tick: bigint | number | string): bigint {
+  const tickNumber = typeof tick === "bigint" ? Number(tick) : Number(tick);
+  if (!Number.isSafeInteger(tickNumber)) throw new Error("invalid tick");
+  let absTick = BigInt(Math.abs(tickNumber));
+  let ratio = (absTick & BigInt(1)) !== BigInt(0)
+    ? TICK_SQRT_RATIO_MULTIPLIERS[0]
+    : Q128;
+
+  for (let index = 1; index < TICK_SQRT_RATIO_MULTIPLIERS.length; index += 1) {
+    if ((absTick & (BigInt(1) << BigInt(index))) !== BigInt(0)) {
+      ratio = (ratio * TICK_SQRT_RATIO_MULTIPLIERS[index]) >> BigInt(128);
+    }
+  }
+
+  if (tickNumber > 0) ratio = MAX_UINT_256 / ratio;
+  const remainderMask = Q64 - BigInt(1);
+  const shifted = ratio >> BigInt(64);
+  return (ratio & remainderMask) === BigInt(0) ? shifted : shifted + BigInt(1);
+}
+
+function positionSqrtPriceRange(position: SuiDexV3PositionCandidate): {
+  sqrtPriceLower: bigint;
+  sqrtPriceUpper: bigint;
+} {
+  if (position.sqrtPriceLower !== undefined && position.sqrtPriceUpper !== undefined) {
+    return {
+      sqrtPriceLower: BigInt(position.sqrtPriceLower),
+      sqrtPriceUpper: BigInt(position.sqrtPriceUpper),
+    };
+  }
+  if (position.tickLower === undefined || position.tickUpper === undefined) {
+    throw new Error("missing V3 position tick range");
+  }
+  return {
+    sqrtPriceLower: sqrtPriceX64AtTick(position.tickLower),
+    sqrtPriceUpper: sqrtPriceX64AtTick(position.tickUpper),
+  };
+}
+
 export function calculateV3UnderlyingTreeRaw(input: {
   liquidity: bigint;
   sqrtPriceLower: bigint;
@@ -223,11 +302,12 @@ export function calculateV3UnderlyingTreeForPositions(input: {
 
   for (const position of input.positions) {
     if (position.poolId && position.poolId.toLowerCase() !== input.pool.poolId.toLowerCase()) continue;
+    const { sqrtPriceLower, sqrtPriceUpper } = positionSqrtPriceRange(position);
     const amount = calculateV3UnderlyingTreeRaw({
       liquidity: BigInt(position.liquidity),
-      sqrtPriceLower: BigInt(position.sqrtPriceLower),
+      sqrtPriceLower,
       sqrtPriceCurrent: BigInt(input.pool.sqrtPriceCurrent),
-      sqrtPriceUpper: BigInt(position.sqrtPriceUpper),
+      sqrtPriceUpper,
       treeTokenIndex: input.pool.treeTokenIndex,
       closed: position.closed,
     });
