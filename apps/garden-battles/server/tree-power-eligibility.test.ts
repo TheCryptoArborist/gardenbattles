@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import test, { after } from "node:test";
 import {
   CANONICAL_TREE_SUIDEX_V2_LP_COIN_TYPE,
   CANONICAL_TREE_SUIDEX_V2_POOL_ID,
@@ -10,6 +10,17 @@ import {
 const wallet = "0x1111111111111111111111111111111111111111111111111111111111111111";
 const treeCoinType =
   "0x6c5a609f6d0288523ce4a6ed87d19ae127f62073ab75fd9b0b1c9b455d4895cf::tree::TREE";
+const originalFetch = globalThis.fetch;
+const v2FarmPositionType =
+  "0xbfac5e1c6bf6ef29b12f7723857695fd2f4da9a11a7d88162c15e9124c243a4a::farm::StakingPosition<0xbfac5e1c6bf6ef29b12f7723857695fd2f4da9a11a7d88162c15e9124c243a4a::pair::LPCoin<0x2::sui::SUI, 0x6c5a609f6d0288523ce4a6ed87d19ae127f62073ab75fd9b0b1c9b455d4895cf::tree::TREE>>";
+const v2VaultType =
+  "0xbfac5e1c6bf6ef29b12f7723857695fd2f4da9a11a7d88162c15e9124c243a4a::farm::StakedTokenVault<0xbfac5e1c6bf6ef29b12f7723857695fd2f4da9a11a7d88162c15e9124c243a4a::pair::LPCoin<0x2::sui::SUI,0x6c5a609f6d0288523ce4a6ed87d19ae127f62073ab75fd9b0b1c9b455d4895cf::tree::TREE>>";
+const v2PoolType =
+  "bfac5e1c6bf6ef29b12f7723857695fd2f4da9a11a7d88162c15e9124c243a4a::pair::LPCoin<0000000000000000000000000000000000000000000000000000000000000002::sui::SUI,6c5a609f6d0288523ce4a6ed87d19ae127f62073ab75fd9b0b1c9b455d4895cf::tree::TREE>";
+
+after(() => {
+  globalThis.fetch = originalFetch;
+});
 
 function makePoolObject() {
   return {
@@ -77,7 +88,78 @@ function makeV3PositionObject(options: {
   };
 }
 
-function makeClient(options: { lpBalance?: string; failV2?: boolean; v3Positions?: any[] } = {}) {
+function makeV2FarmGraphqlPosition(options: {
+  objectId?: string;
+  vaultId?: string;
+  owner?: string;
+  amount?: string;
+  poolType?: string;
+  vaultAmount?: string;
+  vaultOwner?: string;
+}) {
+  const objectId = options.objectId ?? "0x3333333333333333333333333333333333333333333333333333333333333333";
+  const vaultId = options.vaultId ?? "0x4444444444444444444444444444444444444444444444444444444444444444";
+  const amount = options.amount ?? "1000000000000";
+  const poolType = options.poolType ?? v2PoolType;
+  return {
+    objectId,
+    vaultId,
+    node: {
+      address: objectId,
+      asMoveObject: {
+        contents: {
+          type: { repr: v2FarmPositionType },
+          json: {
+            id: objectId,
+            owner: options.owner ?? wallet,
+            pool_type: poolType,
+            amount,
+            vault_id: vaultId,
+          },
+        },
+      },
+    },
+    vault: {
+      asMoveObject: {
+        contents: {
+          type: { repr: v2VaultType },
+          json: {
+            id: vaultId,
+            owner: options.vaultOwner ?? options.owner ?? wallet,
+            pool_type: poolType,
+            amount: options.vaultAmount ?? amount,
+            balance: options.vaultAmount ?? amount,
+          },
+        },
+      },
+    },
+  };
+}
+
+function installGraphqlMock(v2FarmPositions: ReturnType<typeof makeV2FarmGraphqlPosition>[] = []) {
+  globalThis.fetch = async (_input: any, init?: any) => {
+    const body = JSON.parse(String(init?.body ?? "{}"));
+    const variables = body.variables ?? {};
+    if (body.query.includes("objects(first: 50")) {
+      return new Response(JSON.stringify({
+        data: {
+          objects: {
+            pageInfo: { hasNextPage: false, endCursor: null },
+            nodes: v2FarmPositions.map((position) => position.node),
+          },
+        },
+      }));
+    }
+    if (body.query.includes("object(address: $id)")) {
+      const position = v2FarmPositions.find((candidate) => candidate.vaultId === variables.id);
+      return new Response(JSON.stringify({ data: { object: position?.vault ?? null } }));
+    }
+    return new Response(JSON.stringify({ data: {} }));
+  };
+}
+
+function makeClient(options: { lpBalance?: string; failV2?: boolean; v3Positions?: any[]; v2FarmPositions?: ReturnType<typeof makeV2FarmGraphqlPosition>[] } = {}) {
+  installGraphqlMock(options.v2FarmPositions ?? []);
   let coinMetadataCalls = 0;
   return {
     get callCount() {
@@ -162,22 +244,53 @@ test("provider failures remain unavailable and do not become verified zero", asy
   assert.equal(response.sources[1].status, "verified-zero");
 });
 
-test("zero direct V2 LP remains incomplete while farm representation is unverified", async () => {
+test("zero direct V2 LP and zero verified farmed LP remain incomplete while Moonbags is unavailable", async () => {
   clearTreePowerEligibilityCache();
   const client = makeClient({ lpBalance: "0" }) as any;
   const response = await getCachedFifthMoveEligibility(client, wallet);
 
   assert.equal(response.status, "verification-incomplete");
   assert.equal(response.sources[0].source, "suidex-v2");
-  assert.equal(response.sources[0].status, "unavailable");
+  assert.equal(response.sources[0].status, "verified-zero");
   assert.equal(response.sources[0].underlyingTreeRaw, "0");
-  assert.equal(response.sources[0].reason, "direct_lp_zero_and_v2_farm_representation_unverified");
+  assert.equal(response.sources[0].reason, "direct_wallet_lp_and_verified_farmed_lp_zero");
   assert.equal(response.sources[1].reason, "v3_pool_and_owned_positions_verified_principal_only");
   assert.equal(response.sources[1].underlyingTreeRaw, "0");
   assert.equal(response.sources[2].reason, "moonbags_tree_staking_pool_and_position_shape_not_yet_verified");
 });
 
-test("verified V3 principal can qualify while V2 farm and Moonbags remain unavailable", async () => {
+test("verified V2 farmed LP principal can qualify through the V2 source", async () => {
+  clearTreePowerEligibilityCache();
+  const farmPosition = makeV2FarmGraphqlPosition({ amount: "1000000000000" });
+  const client = makeClient({ lpBalance: "0", v2FarmPositions: [farmPosition] }) as any;
+  const response = await getCachedFifthMoveEligibility(client, wallet);
+
+  assert.equal(response.status, "qualified");
+  assert.equal(response.sources[0].source, "suidex-v2");
+  assert.equal(response.sources[0].status, "qualified-data");
+  assert.equal(response.sources[0].underlyingTreeRaw, "1000000000000");
+  assert.deepEqual(response.sources[0].evidence?.objectIds, [farmPosition.objectId, farmPosition.vaultId]);
+  assert.equal(response.sources[0].reason, "direct_wallet_lp_and_verified_farmed_lp_principal");
+});
+
+test("V2 farmed LP excludes mismatched vault, owner, and pool type", async () => {
+  clearTreePowerEligibilityCache();
+  const client = makeClient({
+    lpBalance: "0",
+    v2FarmPositions: [
+      makeV2FarmGraphqlPosition({ objectId: "0xwrong-vault-amount", vaultAmount: "1" }),
+      makeV2FarmGraphqlPosition({ objectId: "0xwrong-owner", owner: "0x2222222222222222222222222222222222222222222222222222222222222222" }),
+      makeV2FarmGraphqlPosition({ objectId: "0xwrong-pool", poolType: "0xother::lp::LP" }),
+    ],
+  }) as any;
+  const response = await getCachedFifthMoveEligibility(client, wallet);
+
+  assert.equal(response.status, "verification-incomplete");
+  assert.equal(response.sources[0].status, "verified-zero");
+  assert.equal(response.sources[0].underlyingTreeRaw, "0");
+});
+
+test("verified V3 principal can qualify while Moonbags remains unavailable", async () => {
   clearTreePowerEligibilityCache();
   const client = makeClient({
     lpBalance: "0",

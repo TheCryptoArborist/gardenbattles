@@ -13,6 +13,7 @@ import {
   displayTreeToRaw,
   getVerifiedV2FarmedLpRaw,
   rawTreeToDisplay,
+  reconstructV2FarmPrincipalFromEvents,
   serializeFifthMoveEligibility,
   sqrtPriceX64AtTick,
   type FifthMoveSourceResult,
@@ -79,6 +80,65 @@ test("V2 farmed LP combines with direct LP and ignores unrelated or inactive rec
       totalLpSupplyRaw: BigInt(100),
     }),
     BigInt(250),
+  );
+});
+
+test("V2 farm principal reconstruction supports deposits, withdrawals, rewards, duplicates, and unrelated events", () => {
+  const farmed = reconstructV2FarmPrincipalFromEvents({
+    wallet,
+    canonicalLpType: "0xlp",
+    positionId: "0xposition",
+    events: [
+      { eventId: "deposit-1", kind: "deposit", wallet, positionId: "0xposition", poolType: "0xlp", amountRaw: 100 },
+      { eventId: "deposit-2", kind: "deposit", wallet, positionId: "0xposition", poolType: "0xlp", amountRaw: 50 },
+      { eventId: "deposit-2", kind: "deposit", wallet, positionId: "0xposition", poolType: "0xlp", amountRaw: 50 },
+      { eventId: "withdraw-1", kind: "withdrawal", wallet, positionId: "0xposition", poolType: "0xlp", amountRaw: 25 },
+      { eventId: "reward", kind: "reward", wallet, positionId: "0xposition", poolType: "0xlp", amountRaw: 999 },
+      { eventId: "other-position", kind: "deposit", wallet, positionId: "0xother", poolType: "0xlp", amountRaw: 1000 },
+      { eventId: "other-lp", kind: "deposit", wallet, positionId: "0xposition", poolType: "0xother", amountRaw: 1000 },
+      { eventId: "other-wallet", kind: "deposit", wallet: "0x2222222222222222222222222222222222222222222222222222222222222222", positionId: "0xposition", poolType: "0xlp", amountRaw: 1000 },
+    ],
+  });
+
+  assert.equal(farmed.depositLpRaw, BigInt(150));
+  assert.equal(farmed.withdrawalLpRaw, BigInt(25));
+  assert.equal(farmed.principalLpRaw, BigInt(125));
+  assert.deepEqual(farmed.eventIds, ["deposit-1", "deposit-2", "withdraw-1"]);
+});
+
+test("V2 farm principal reconstruction handles full withdrawal and incomplete history conservatively", () => {
+  assert.equal(
+    reconstructV2FarmPrincipalFromEvents({
+      wallet,
+      canonicalLpType: "0xlp",
+      events: [
+        { eventId: "deposit", kind: "deposit", wallet, poolType: "0xlp", amountRaw: 100 },
+        { eventId: "withdraw", kind: "withdrawal", wallet, poolType: "0xlp", amountRaw: 100 },
+      ],
+    }).principalLpRaw,
+    BigInt(0),
+  );
+
+  const incomplete = reconstructV2FarmPrincipalFromEvents({
+    wallet,
+    canonicalLpType: "0xlp",
+    requireCompleteHistory: false,
+    events: [{ eventId: "deposit", kind: "deposit", wallet, poolType: "0xlp", amountRaw: 100 }],
+  });
+
+  assert.equal(incomplete.complete, false);
+  assert.equal(incomplete.depositLpRaw, BigInt(100));
+  assert.equal(incomplete.principalLpRaw, BigInt(0));
+});
+
+test("V2 farm principal fixture floors underlying TREE deterministically", () => {
+  assert.equal(
+    calculateV2UnderlyingTreeRaw({
+      playerLpRaw: BigInt("94369282575"),
+      poolTreeReserveRaw: BigInt("49293644613355"),
+      totalLpSupplyRaw: BigInt("8142055208088"),
+    }).toString(),
+    "571330672512",
   );
 });
 

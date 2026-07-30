@@ -44,8 +44,8 @@ All qualification math uses `bigint`.
 | SuiDex V2 LP coin type | `0xbfac...::pair::LPCoin<SUI,TREE>` | V2 pool `lp_supply` type | `getObject` field type | High for direct wallet LP | Yes |
 | SuiDex V2 TREE reserve | `reserve1` / `balance1` | V2 pool fields | `getObject` fields | High | Yes |
 | SuiDex V2 total LP supply | `total_supply` / `lp_supply.fields.value` | V2 pool fields | `getObject` fields | High | Yes |
-| SuiDex V2 farm ID | Unknown | Not found in repo | Needs verified farm object or example staked LP receipt | Low | No |
-| SuiDex V2 farm position type | Unknown | Not found in repo | Needs real staked LP position object | Low | No |
+| SuiDex V2 farm ID | `0xc9c6844deb5031e87f14a9869736874327e4f7b9e2aef51c47f4e004c5b1053c` | Fixture wallet transaction/object evidence | GraphQL object read, farm object type, and position history | High | Yes |
+| SuiDex V2 farm position type | `0xbfac...::farm::StakingPosition<...LPCoin<SUI,TREE>>` | Fixture wallet owned object | GraphQL object fields expose owner, pool type, amount, and vault ID | High | Yes |
 | SuiDex V3 TREE pool | `0x39d5ba22e01e45bc4129ec28a0bef52e8fee8db5d07d337adf9540e3cb9074cf` | Existing Tree Power constants | `getObject` type is `pool::Pool<SUI,TREE>` | High | Yes |
 | SuiDex V3 token ordering | TREE is `type_y` / token 1 | V3 pool fields | `type_y.fields.name` equals TREE type without `0x` | High | Yes |
 | SuiDex V3 current sqrt price | `sqrt_price` field | V3 pool fields | `getObject` fields | High | Yes |
@@ -65,7 +65,7 @@ underlying_tree_raw =
   floor(player_lp_raw * pool_tree_reserve_raw / total_lp_supply_raw)
 ```
 
-Current implementation counts direct wallet LP coins only because that representation is verified from the LP coin type. Farmed LP is intentionally unavailable until the farm ID and receipt shape are verified. A missing or unreadable farm representation is not treated as zero.
+Current implementation counts direct wallet LP coins and verified SuiDex V2 farmed LP principal.
 
 Phase 1B added deterministic farmed-LP candidate math:
 
@@ -74,7 +74,34 @@ Phase 1B added deterministic farmed-LP candidate math:
 - unrelated farms, zero deposits, withdrawn receipts, and rewards are excluded
 - direct LP and farmed LP aggregate before the V2 pool reserve formula
 
-Runtime farm detection remains disabled because the canonical TREE farm object ID and receipt/account object shape have not been verified from public Sui objects.
+Runtime farm detection is enabled after resolving the canonical farm and position/vault shape from public GraphQL objects.
+
+The fixture farm position calculation is:
+
+```text
+staking position = 0x698c1e7aae8837b70210bb2d285d13a3d2a25f007ab71cc9fb75c382c324e9ef
+shared farm = 0xc9c6844deb5031e87f14a9869736874327e4f7b9e2aef51c47f4e004c5b1053c
+staked-token vault = 0x19b9a4a24c3cdb69638e1b7f3d1af1c6ea4f66fab45a5de58c220f0f88a792c3
+current staked LP principal = 94369282575 LP raw
+
+deposit events:
+  22882886480 LP raw
+  71486396095 LP raw
+withdrawal events:
+  0 LP raw
+
+current_staked_lp_raw = 94369282575
+pool_tree_reserve_raw = 49293644613355
+total_lp_supply_raw = 8142055208088
+
+underlying_tree_raw =
+  floor(94369282575 * 49293644613355 / 8142055208088)
+
+underlying_tree_raw = 571330672512
+underlying_tree = 571,330.672512 TREE
+```
+
+The `RewardClaimed.amount` event in the same latest mutation is VICTORY rewards and is excluded.
 
 ## SuiDex V3 Underlying TREE
 
@@ -327,7 +354,6 @@ Threshold changes apply only to future queue entries and battles.
 
 ## Phase 2 Blockers
 
-- Verify SuiDex V2 farm current principal object/vault path.
 - Verify Moonbags active TREE staking object/API.
 - Decide whether eligibility will be proven fully on-chain, backend-attested, or pass-based.
 - Implement contract changes only after selecting the compatibility-safe queue/pass architecture.

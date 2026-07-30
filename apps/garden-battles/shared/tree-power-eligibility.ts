@@ -43,6 +43,15 @@ export type SuiDexV2FarmCandidate = {
   withdrawn?: boolean;
 };
 
+export type SuiDexV2FarmPrincipalEvent = {
+  eventId: string;
+  kind: "deposit" | "withdrawal" | "reward";
+  wallet?: string;
+  poolType?: string;
+  amountRaw?: bigint | number | string | null;
+  positionId?: string;
+};
+
 export type SuiDexV3PositionCandidate = {
   objectId?: string;
   poolId?: string;
@@ -156,6 +165,45 @@ export function getVerifiedV2FarmedLpRaw(input: {
   }
 
   return { farmedLpRaw, objectIds };
+}
+
+export function reconstructV2FarmPrincipalFromEvents(input: {
+  events: SuiDexV2FarmPrincipalEvent[];
+  wallet: string;
+  canonicalLpType: string;
+  positionId?: string;
+  requireCompleteHistory?: boolean;
+}): { principalLpRaw: bigint; depositLpRaw: bigint; withdrawalLpRaw: bigint; eventIds: string[]; complete: boolean } {
+  const wallet = input.wallet.toLowerCase();
+  const canonicalLpType = input.canonicalLpType.toLowerCase();
+  const positionId = input.positionId?.toLowerCase();
+  const seen = new Set<string>();
+  let depositLpRaw = BigInt(0);
+  let withdrawalLpRaw = BigInt(0);
+  const eventIds: string[] = [];
+
+  for (const event of input.events) {
+    if (!event.eventId || seen.has(event.eventId)) continue;
+    seen.add(event.eventId);
+    if (event.wallet && event.wallet.toLowerCase() !== wallet) continue;
+    if (event.positionId && positionId && event.positionId.toLowerCase() !== positionId) continue;
+    if (!event.poolType || event.poolType.toLowerCase() !== canonicalLpType) continue;
+    if (event.kind === "reward") continue;
+    const amount = toNonNegativeBigInt(event.amountRaw);
+    if (amount <= BigInt(0)) continue;
+    if (event.kind === "deposit") depositLpRaw += amount;
+    if (event.kind === "withdrawal") withdrawalLpRaw += amount;
+    eventIds.push(event.eventId);
+  }
+
+  const principalLpRaw = depositLpRaw > withdrawalLpRaw ? depositLpRaw - withdrawalLpRaw : BigInt(0);
+  return {
+    principalLpRaw: input.requireCompleteHistory === false ? BigInt(0) : principalLpRaw,
+    depositLpRaw,
+    withdrawalLpRaw,
+    eventIds,
+    complete: input.requireCompleteHistory !== false,
+  };
 }
 
 export function calculateV2TotalUnderlyingTreeRaw(input: {

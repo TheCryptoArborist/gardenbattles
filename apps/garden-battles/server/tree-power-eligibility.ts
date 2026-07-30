@@ -20,7 +20,11 @@ export const CANONICAL_TREE_SUIDEX_V3_POOL_ID =
   "0x39d5ba22e01e45bc4129ec28a0bef52e8fee8db5d07d337adf9540e3cb9074cf";
 export const CANONICAL_TREE_SUIDEX_V2_LP_COIN_TYPE =
   "0xbfac5e1c6bf6ef29b12f7723857695fd2f4da9a11a7d88162c15e9124c243a4a::pair::LPCoin<0x2::sui::SUI, 0x6c5a609f6d0288523ce4a6ed87d19ae127f62073ab75fd9b0b1c9b455d4895cf::tree::TREE>";
-export const CANONICAL_TREE_SUIDEX_V2_FARM_ID: string | null = null;
+export const CANONICAL_TREE_SUIDEX_V2_FARM_ID =
+  "0xc9c6844deb5031e87f14a9869736874327e4f7b9e2aef51c47f4e004c5b1053c";
+export const CANONICAL_TREE_SUIDEX_V2_FARM_POSITION_TYPE =
+  "0xbfac5e1c6bf6ef29b12f7723857695fd2f4da9a11a7d88162c15e9124c243a4a::farm::StakingPosition<0xbfac5e1c6bf6ef29b12f7723857695fd2f4da9a11a7d88162c15e9124c243a4a::pair::LPCoin<0x2::sui::SUI, 0x6c5a609f6d0288523ce4a6ed87d19ae127f62073ab75fd9b0b1c9b455d4895cf::tree::TREE>>";
+export const DEFAULT_SUI_GRAPHQL_URL = "https://graphql.mainnet.sui.io/graphql";
 export const CANONICAL_TREE_SUIDEX_V3_POSITION_TYPE =
   "0xb5f529c1dcda6580a61bf7ee9fbd524b50be62f11044d137c8202c8cbace9e56::position::Position";
 export const MOONBAGS_TREE_STAKING_POOL_ID: string | null = null;
@@ -32,6 +36,21 @@ const TREE_POWER_READ_TIMEOUT_MS = 8_000;
 type CacheEntry = {
   expiresAt: number;
   response: FifthMoveEligibilityResponse;
+};
+
+type GraphqlFarmPositionsResponse = {
+  objects: {
+    pageInfo: { hasNextPage: boolean; endCursor?: string | null };
+    nodes: Array<{
+      address: string;
+      asMoveObject?: {
+        contents?: {
+          type?: { repr?: string };
+          json?: Record<string, any>;
+        };
+      };
+    }>;
+  };
 };
 
 const eligibilityCache = new Map<string, CacheEntry>();
@@ -65,6 +84,116 @@ function readI32Bits(value: any): number | null {
 
 function isAddressOwner(owner: any, wallet: string): boolean {
   return typeof owner?.AddressOwner === "string" && owner.AddressOwner.toLowerCase() === wallet;
+}
+
+function normalizeMoveTypeName(typeName: string): string {
+  return typeName
+    .toLowerCase()
+    .replace(/\s+/g, "")
+    .replace(/0x/g, "")
+    .replace(/0{63}2/g, "2");
+}
+
+async function suiGraphql<T>(query: string, variables: Record<string, unknown>): Promise<T> {
+  const response = await fetch(process.env.SUI_GRAPHQL_URL || DEFAULT_SUI_GRAPHQL_URL, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ query, variables }),
+  });
+  if (!response.ok) throw new Error(`sui_graphql_http_${response.status}`);
+  const payload = await response.json() as { data?: T; errors?: Array<{ message?: string }> };
+  if (payload.errors?.length) {
+    throw new Error(payload.errors[0]?.message || "sui_graphql_error");
+  }
+  if (!payload.data) throw new Error("sui_graphql_empty_response");
+  return payload.data;
+}
+
+function graphqlMoveObjectJson(object: any): Record<string, any> | null {
+  return object?.asMoveObject?.contents?.json ?? null;
+}
+
+async function readGraphqlObjectJson(objectId: string): Promise<{ type: string; fields: Record<string, any> } | null> {
+  const data = await suiGraphql<{
+    object: {
+      asMoveObject?: {
+        contents?: {
+          type?: { repr?: string };
+          json?: Record<string, any>;
+        };
+      };
+    } | null;
+  }>(
+    `query($id:SuiAddress!) {
+      object(address: $id) {
+        asMoveObject {
+          contents {
+            type { repr }
+            json
+          }
+        }
+      }
+    }`,
+    { id: objectId },
+  );
+  const fields = graphqlMoveObjectJson(data.object);
+  const type = data.object?.asMoveObject?.contents?.type?.repr;
+  return fields && type ? { type, fields } : null;
+}
+
+async function readSuiDexV2FarmedLp(wallet: string): Promise<{ farmedLpRaw: bigint; objectIds: string[] }> {
+  let cursor: string | null = null;
+  let farmedLpRaw = BigInt(0);
+  const objectIds: string[] = [];
+  const canonicalPositionType = normalizeMoveTypeName(CANONICAL_TREE_SUIDEX_V2_FARM_POSITION_TYPE);
+  const canonicalLpType = normalizeMoveTypeName(CANONICAL_TREE_SUIDEX_V2_LP_COIN_TYPE);
+
+  do {
+    const data: GraphqlFarmPositionsResponse = await suiGraphql<GraphqlFarmPositionsResponse>(
+      `query($owner:SuiAddress!, $type:String!, $after:String) {
+        objects(first: 50, after: $after, filter: { owner: $owner, type: $type }) {
+          pageInfo { hasNextPage endCursor }
+          nodes {
+            address
+            asMoveObject {
+              contents {
+                type { repr }
+                json
+              }
+            }
+          }
+        }
+      }`,
+      { owner: wallet, type: CANONICAL_TREE_SUIDEX_V2_FARM_POSITION_TYPE, after: cursor },
+    );
+
+    for (const node of data.objects.nodes) {
+      const type = node.asMoveObject?.contents?.type?.repr;
+      const fields = graphqlMoveObjectJson(node);
+      if (!type || !fields) continue;
+      if (normalizeMoveTypeName(type) !== canonicalPositionType) continue;
+      if (String(fields.owner ?? "").toLowerCase() !== wallet) continue;
+      if (normalizeMoveTypeName(String(fields.pool_type ?? "")) !== canonicalLpType) continue;
+      const amount = BigInt(fields.amount ?? 0);
+      if (amount <= BigInt(0)) continue;
+
+      const vaultId = String(fields.vault_id ?? "");
+      const vault = vaultId ? await readGraphqlObjectJson(vaultId) : null;
+      if (!vault || !normalizeMoveTypeName(vault.type).includes("::farm::stakedtokenvault<")) continue;
+      if (String(vault.fields.owner ?? "").toLowerCase() !== wallet) continue;
+      if (normalizeMoveTypeName(String(vault.fields.pool_type ?? "")) !== canonicalLpType) continue;
+      const vaultAmount = BigInt(vault.fields.amount ?? vault.fields.balance ?? 0);
+      const vaultBalance = BigInt(vault.fields.balance ?? vault.fields.amount ?? 0);
+      if (vaultAmount !== amount || vaultBalance !== amount) continue;
+
+      farmedLpRaw += amount;
+      objectIds.push(node.address, vaultId);
+    }
+
+    cursor = data.objects.pageInfo.hasNextPage ? (data.objects.pageInfo.endCursor ?? null) : null;
+  } while (cursor);
+
+  return { farmedLpRaw, objectIds };
 }
 
 function isVerifiedTreeV2Pool(object: Awaited<ReturnType<SuiClient["getObject"]>>): boolean {
@@ -134,23 +263,26 @@ async function readSuiDexV2DirectLp(client: SuiClient, wallet: string): Promise<
     const poolTreeReserveRaw = BigInt(fields?.reserve1 ?? fields?.balance1 ?? 0);
     const totalLpSupplyRaw = BigInt(fields?.total_supply ?? fields?.lp_supply?.fields?.value ?? 0);
 
-    if (lpCoins.total <= BigInt(0)) {
+    const farmedLp = await readSuiDexV2FarmedLp(wallet);
+    const combinedLpRaw = lpCoins.total + farmedLp.farmedLpRaw;
+
+    if (combinedLpRaw <= BigInt(0)) {
       return {
         source: "suidex-v2",
-        status: "unavailable",
+        status: "verified-zero",
         underlyingTreeRaw: BigInt(0),
         evidence: {
           poolId: CANONICAL_TREE_SUIDEX_V2_POOL_ID,
           objectIds: [],
           positionCount: 0,
         },
-        reason: "direct_lp_zero_and_v2_farm_representation_unverified",
+        reason: "direct_wallet_lp_and_verified_farmed_lp_zero",
       };
     }
 
     const underlyingTreeRaw = calculateV2TotalUnderlyingTreeRaw({
       directLpRaw: lpCoins.total,
-      farmedLpRaw: BigInt(0),
+      farmedLpRaw: farmedLp.farmedLpRaw,
       poolTreeReserveRaw,
       totalLpSupplyRaw,
     });
@@ -161,13 +293,12 @@ async function readSuiDexV2DirectLp(client: SuiClient, wallet: string): Promise<
       underlyingTreeRaw,
       evidence: {
         poolId: CANONICAL_TREE_SUIDEX_V2_POOL_ID,
-        objectIds: lpCoins.objectIds,
-        positionCount: lpCoins.objectIds.length,
+        objectIds: [...lpCoins.objectIds, ...farmedLp.objectIds],
+        positionCount: lpCoins.objectIds.length + farmedLp.objectIds.length,
       },
-      reason:
-        CANONICAL_TREE_SUIDEX_V2_FARM_ID === null
-          ? "direct_wallet_lp_verified_v2_farm_unavailable_until_farm_id_and_receipt_shape_are_verified"
-          : "direct_wallet_lp_verified",
+      reason: farmedLp.farmedLpRaw > BigInt(0)
+        ? "direct_wallet_lp_and_verified_farmed_lp_principal"
+        : "direct_wallet_lp_verified",
     };
   } catch (err) {
     return {
