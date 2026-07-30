@@ -1,16 +1,52 @@
 import { readFile } from "node:fs/promises";
-import { SuiClient, getFullnodeUrl } from "@mysten/sui/client";
-import { getCachedFifthMoveEligibility } from "../../server/tree-power-eligibility";
-import { displayTreeToRaw } from "../../shared/tree-power-eligibility";
+import {
+  calculateV2UnderlyingTreeRaw,
+  calculateV3UnderlyingTreeForPositions,
+  displayTreeToRaw,
+  rawTreeToDisplay,
+  TREE_COIN_TYPE,
+  type FifthMoveEligibilityStatus,
+} from "../../shared/tree-power-eligibility";
+import {
+  CANONICAL_TREE_SUIDEX_V2_FARM_POSITION_TYPE,
+  CANONICAL_TREE_SUIDEX_V2_LP_COIN_TYPE,
+  CANONICAL_TREE_SUIDEX_V2_POOL_ID,
+  CANONICAL_TREE_SUIDEX_V3_POOL_ID,
+  CANONICAL_TREE_SUIDEX_V3_POSITION_TYPE,
+  DEFAULT_SUI_GRAPHQL_URL,
+} from "../../server/tree-power-eligibility";
+
+const TREE_THRESHOLD_LABEL = "1000000";
+const DIRECT_V2_COIN_TYPE = `0x2::coin::Coin<${CANONICAL_TREE_SUIDEX_V2_LP_COIN_TYPE}>`;
 
 type CensusOptions = {
   walletFile?: string;
-  rpcUrl: string;
+  graphqlUrl: string;
+};
+
+type MoveObjectJson = {
+  address?: string;
+  asMoveObject?: {
+    contents?: {
+      type?: { repr?: string };
+      json?: Record<string, any>;
+    };
+  };
+};
+
+type WalletEligibilitySnapshot = {
+  wallet: string;
+  status: FifthMoveEligibilityStatus;
+  directV2TreeRaw: bigint;
+  farmedV2TreeRaw: bigint;
+  v3TreeRaw: bigint;
+  totalVerifiedTreeRaw: bigint;
+  unavailableSources: string[];
 };
 
 function parseArgs(argv: string[]): CensusOptions {
   const options: CensusOptions = {
-    rpcUrl: process.env.SUI_RPC_URL || getFullnodeUrl("mainnet"),
+    graphqlUrl: process.env.SUI_GRAPHQL_URL || DEFAULT_SUI_GRAPHQL_URL,
   };
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -19,8 +55,8 @@ function parseArgs(argv: string[]): CensusOptions {
     if (arg === "--wallet-file") {
       options.walletFile = next;
       index += 1;
-    } else if (arg === "--rpc-url") {
-      options.rpcUrl = next;
+    } else if (arg === "--graphql-url") {
+      options.graphqlUrl = next;
       index += 1;
     }
   }
@@ -49,34 +85,269 @@ async function readWallets(path?: string): Promise<string[]> {
     .map((wallet) => wallet.toLowerCase());
 }
 
+async function suiGraphql<T>(
+  graphqlUrl: string,
+  query: string,
+  variables: Record<string, unknown>,
+): Promise<T> {
+  const response = await fetch(graphqlUrl, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ query, variables }),
+  });
+  if (!response.ok) throw new Error(`Sui GraphQL request failed with HTTP ${response.status}.`);
+  const payload = await response.json() as { data?: T; errors?: Array<{ message?: string }> };
+  if (payload.errors?.length) {
+    throw new Error(payload.errors.map((error) => error.message).filter(Boolean).join("; ") || "Sui GraphQL error");
+  }
+  if (!payload.data) throw new Error("Sui GraphQL returned an empty response.");
+  return payload.data;
+}
+
+function moveObjectJson(object: MoveObjectJson | null | undefined): Record<string, any> | null {
+  return object?.asMoveObject?.contents?.json ?? null;
+}
+
+function moveObjectType(object: MoveObjectJson | null | undefined): string | null {
+  return object?.asMoveObject?.contents?.type?.repr ?? null;
+}
+
+function normalizeMoveTypeName(typeName: string): string {
+  return typeName
+    .toLowerCase()
+    .replace(/\s+/g, "")
+    .replace(/0x/g, "")
+    .replace(/0{63}2/g, "2");
+}
+
+function typeNameToCanonical(typeName: any): string | null {
+  if (typeof typeName === "string") return `0x${typeName.replace(/^0x/, "")}`;
+  const name = typeName?.fields?.name;
+  return typeof name === "string" ? `0x${name}` : null;
+}
+
+function readI32Bits(value: any): number | null {
+  const bits = value?.fields?.bits ?? value?.bits ?? value;
+  if (bits === null || bits === undefined) return null;
+  const parsed = BigInt(bits);
+  const unsigned = parsed & BigInt(0xffffffff);
+  const signed = unsigned >= BigInt(0x80000000) ? unsigned - BigInt(0x100000000) : unsigned;
+  const asNumber = Number(signed);
+  return Number.isSafeInteger(asNumber) ? asNumber : null;
+}
+
+async function readObjectJson(graphqlUrl: string, objectId: string): Promise<{ type: string; fields: Record<string, any> } | null> {
+  const data = await suiGraphql<{ object: MoveObjectJson | null }>(
+    graphqlUrl,
+    `query($id:SuiAddress!) {
+      object(address: $id) {
+        address
+        asMoveObject {
+          contents {
+            type { repr }
+            json
+          }
+        }
+      }
+    }`,
+    { id: objectId },
+  );
+  const type = moveObjectType(data.object);
+  const fields = moveObjectJson(data.object);
+  return type && fields ? { type, fields } : null;
+}
+
+async function readOwnedObjectsByType(
+  graphqlUrl: string,
+  wallet: string,
+  type: string,
+): Promise<Array<{ objectId: string; type: string; fields: Record<string, any> }>> {
+  const objects: Array<{ objectId: string; type: string; fields: Record<string, any> }> = [];
+  let cursor: string | null = null;
+  do {
+    const data = await suiGraphql<{
+      objects: {
+        pageInfo: { hasNextPage: boolean; endCursor?: string | null };
+        nodes: MoveObjectJson[];
+      };
+    }>(
+      graphqlUrl,
+      `query($owner:SuiAddress!, $type:String!, $after:String) {
+        objects(first: 50, after: $after, filter: { owner: $owner, type: $type }) {
+          pageInfo { hasNextPage endCursor }
+          nodes {
+            address
+            asMoveObject {
+              contents {
+                type { repr }
+                json
+              }
+            }
+          }
+        }
+      }`,
+      { owner: wallet, type, after: cursor },
+    );
+    for (const node of data.objects.nodes) {
+      const objectId = node.address;
+      const objectType = moveObjectType(node);
+      const fields = moveObjectJson(node);
+      if (objectId && objectType && fields) objects.push({ objectId, type: objectType, fields });
+    }
+    cursor = data.objects.pageInfo.hasNextPage ? (data.objects.pageInfo.endCursor ?? null) : null;
+  } while (cursor);
+  return objects;
+}
+
+async function readV2PoolSnapshot(graphqlUrl: string): Promise<{ poolTreeReserveRaw: bigint; totalLpSupplyRaw: bigint }> {
+  const pool = await readObjectJson(graphqlUrl, CANONICAL_TREE_SUIDEX_V2_POOL_ID);
+  if (!pool || !pool.type.includes("::pair::Pair<") || !pool.type.includes(TREE_COIN_TYPE)) {
+    throw new Error("canonical_v2_pool_shape_mismatch");
+  }
+  return {
+    poolTreeReserveRaw: BigInt(pool.fields.reserve1 ?? pool.fields.balance1 ?? 0),
+    totalLpSupplyRaw: BigInt(pool.fields.total_supply ?? pool.fields.lp_supply?.fields?.value ?? 0),
+  };
+}
+
+async function readV3PoolSnapshot(graphqlUrl: string): Promise<{ sqrtPriceCurrent: bigint; treeTokenIndex: 0 | 1 }> {
+  const pool = await readObjectJson(graphqlUrl, CANONICAL_TREE_SUIDEX_V3_POOL_ID);
+  if (!pool || !pool.type.includes("::pool::Pool<") || !pool.type.includes(TREE_COIN_TYPE)) {
+    throw new Error("canonical_v3_pool_shape_mismatch");
+  }
+  const treeIsTokenY = typeNameToCanonical(pool.fields.type_y) === TREE_COIN_TYPE;
+  if (!treeIsTokenY) throw new Error("canonical_v3_tree_token_side_mismatch");
+  return {
+    sqrtPriceCurrent: BigInt(pool.fields.sqrt_price ?? 0),
+    treeTokenIndex: 1,
+  };
+}
+
+async function readWalletEligibility(
+  graphqlUrl: string,
+  wallet: string,
+  snapshots: {
+    v2Pool: Awaited<ReturnType<typeof readV2PoolSnapshot>>;
+    v3Pool: Awaited<ReturnType<typeof readV3PoolSnapshot>>;
+  },
+): Promise<WalletEligibilitySnapshot> {
+  const canonicalLpType = normalizeMoveTypeName(CANONICAL_TREE_SUIDEX_V2_LP_COIN_TYPE);
+  const canonicalPositionType = normalizeMoveTypeName(CANONICAL_TREE_SUIDEX_V2_FARM_POSITION_TYPE);
+  const [directLpCoins, farmPositions, v3Positions] = await Promise.all([
+    readOwnedObjectsByType(graphqlUrl, wallet, DIRECT_V2_COIN_TYPE),
+    readOwnedObjectsByType(graphqlUrl, wallet, CANONICAL_TREE_SUIDEX_V2_FARM_POSITION_TYPE),
+    readOwnedObjectsByType(graphqlUrl, wallet, CANONICAL_TREE_SUIDEX_V3_POSITION_TYPE),
+  ]);
+
+  const directLpRaw = directLpCoins.reduce((total, coin) => total + BigInt(coin.fields.balance ?? 0), BigInt(0));
+  let farmedLpRaw = BigInt(0);
+  for (const position of farmPositions) {
+    if (normalizeMoveTypeName(position.type) !== canonicalPositionType) continue;
+    if (String(position.fields.owner ?? "").toLowerCase() !== wallet) continue;
+    if (normalizeMoveTypeName(String(position.fields.pool_type ?? "")) !== canonicalLpType) continue;
+    const amount = BigInt(position.fields.amount ?? 0);
+    if (amount <= BigInt(0)) continue;
+    const vaultId = String(position.fields.vault_id ?? "");
+    const vault = vaultId ? await readObjectJson(graphqlUrl, vaultId) : null;
+    if (!vault || !normalizeMoveTypeName(vault.type).includes("::farm::stakedtokenvault<")) continue;
+    if (String(vault.fields.owner ?? "").toLowerCase() !== wallet) continue;
+    if (normalizeMoveTypeName(String(vault.fields.pool_type ?? "")) !== canonicalLpType) continue;
+    const vaultAmount = BigInt(vault.fields.amount ?? vault.fields.balance ?? 0);
+    const vaultBalance = BigInt(vault.fields.balance ?? vault.fields.amount ?? 0);
+    if (vaultAmount !== amount || vaultBalance !== amount) continue;
+    farmedLpRaw += amount;
+  }
+
+  const directV2TreeRaw = calculateV2UnderlyingTreeRaw({
+    playerLpRaw: directLpRaw,
+    poolTreeReserveRaw: snapshots.v2Pool.poolTreeReserveRaw,
+    totalLpSupplyRaw: snapshots.v2Pool.totalLpSupplyRaw,
+  });
+  const farmedV2TreeRaw = calculateV2UnderlyingTreeRaw({
+    playerLpRaw: farmedLpRaw,
+    poolTreeReserveRaw: snapshots.v2Pool.poolTreeReserveRaw,
+    totalLpSupplyRaw: snapshots.v2Pool.totalLpSupplyRaw,
+  });
+
+  const v3TreeRaw = calculateV3UnderlyingTreeForPositions({
+    pool: {
+      poolId: CANONICAL_TREE_SUIDEX_V3_POOL_ID,
+      sqrtPriceCurrent: snapshots.v3Pool.sqrtPriceCurrent,
+      treeTokenIndex: snapshots.v3Pool.treeTokenIndex,
+    },
+    positions: v3Positions.flatMap((position) => {
+      if (position.type !== CANONICAL_TREE_SUIDEX_V3_POSITION_TYPE) return [];
+      if (String(position.fields.pool_id ?? "").toLowerCase() !== CANONICAL_TREE_SUIDEX_V3_POOL_ID) return [];
+      if (typeNameToCanonical(position.fields.type_y) !== TREE_COIN_TYPE) return [];
+      const tickLower = readI32Bits(position.fields.tick_lower_index);
+      const tickUpper = readI32Bits(position.fields.tick_upper_index);
+      if (tickLower === null || tickUpper === null) return [];
+      return [{
+        objectId: position.objectId,
+        poolId: position.fields.pool_id,
+        liquidity: BigInt(position.fields.liquidity ?? 0),
+        tickLower,
+        tickUpper,
+        closed: Boolean(position.fields.closed),
+      }];
+    }),
+  }).underlyingTreeRaw;
+
+  const totalVerifiedTreeRaw = directV2TreeRaw + farmedV2TreeRaw + v3TreeRaw;
+  const thresholdRaw = displayTreeToRaw(TREE_THRESHOLD_LABEL);
+  const unavailableSources = ["moonbags-staking"];
+  const status: FifthMoveEligibilityStatus = totalVerifiedTreeRaw >= thresholdRaw
+    ? "qualified"
+    : "verification-incomplete";
+
+  return {
+    wallet,
+    status,
+    directV2TreeRaw,
+    farmedV2TreeRaw,
+    v3TreeRaw,
+    totalVerifiedTreeRaw,
+    unavailableSources,
+  };
+}
+
 async function main(): Promise<void> {
   const options = parseArgs(process.argv.slice(2));
   const wallets = await readWallets(options.walletFile);
-  const client = new SuiClient({ url: options.rpcUrl });
   const thresholds = ["500000", "1000000", "2500000", "5000000"].map((value) => ({
     label: value,
     raw: displayTreeToRaw(value),
   }));
+  const snapshots = {
+    v2Pool: await readV2PoolSnapshot(options.graphqlUrl),
+    v3Pool: await readV3PoolSnapshot(options.graphqlUrl),
+  };
   const report = {
+    generatedAt: new Date().toISOString(),
+    source: "Sui GraphQL read-only census",
+    graphqlEndpoint: options.graphqlUrl === DEFAULT_SUI_GRAPHQL_URL ? "default-mainnet-sui-graphql" : "custom",
     totalNftreeWalletsChecked: wallets.length,
     qualifiedAt1000000Tree: 0,
     notQualifiedAllSourcesVerified: 0,
     verificationIncomplete: 0,
     unavailable: 0,
     qualificationBySource: {
-      "suidex-v2": 0,
+      "suidex-v2-direct": 0,
+      "suidex-v2-farm": 0,
       "suidex-v3": 0,
       "moonbags-staking": 0,
     },
-    qualificationThroughCombinedSources: 0,
+    qualificationThroughCombinedSuiDexSources: 0,
     medianVerifiedUnderlyingTreeRaw: "0",
+    medianVerifiedUnderlyingTree: "0",
     distribution: Object.fromEntries(thresholds.map((threshold) => [threshold.label, 0])),
+    moonbagsStatus: "unavailable",
   };
   const totals: bigint[] = [];
 
   for (const wallet of wallets) {
-    const eligibility = await getCachedFifthMoveEligibility(client, wallet);
-    const total = BigInt(eligibility.verifiedUnderlyingTreeRaw);
+    const eligibility = await readWalletEligibility(options.graphqlUrl, wallet, snapshots);
+    const total = eligibility.totalVerifiedTreeRaw;
     totals.push(total);
 
     if (eligibility.status === "qualified") report.qualifiedAt1000000Tree += 1;
@@ -84,17 +355,24 @@ async function main(): Promise<void> {
     if (eligibility.status === "verification-incomplete") report.verificationIncomplete += 1;
     if (eligibility.status === "unavailable") report.unavailable += 1;
 
-    const qualifyingSources = eligibility.sources.filter((source) => BigInt(source.underlyingTreeRaw ?? "0") > BigInt(0));
-    for (const source of qualifyingSources) {
-      report.qualificationBySource[source.source] += 1;
+    if (eligibility.status === "qualified") {
+      const positiveSources = [
+        eligibility.directV2TreeRaw > BigInt(0) ? "suidex-v2-direct" : null,
+        eligibility.farmedV2TreeRaw > BigInt(0) ? "suidex-v2-farm" : null,
+        eligibility.v3TreeRaw > BigInt(0) ? "suidex-v3" : null,
+      ].filter(Boolean) as Array<keyof typeof report.qualificationBySource>;
+      for (const source of positiveSources) report.qualificationBySource[source] += 1;
+      if (positiveSources.length > 1) report.qualificationThroughCombinedSuiDexSources += 1;
     }
-    if (qualifyingSources.length > 1) report.qualificationThroughCombinedSources += 1;
+
     for (const threshold of thresholds) {
       if (total >= threshold.raw) report.distribution[threshold.label] += 1;
     }
   }
 
-  report.medianVerifiedUnderlyingTreeRaw = percentile(totals, 0.5).toString();
+  const medianRaw = percentile(totals, 0.5);
+  report.medianVerifiedUnderlyingTreeRaw = medianRaw.toString();
+  report.medianVerifiedUnderlyingTree = rawTreeToDisplay(medianRaw);
   console.log(JSON.stringify(report, null, 2));
 }
 
