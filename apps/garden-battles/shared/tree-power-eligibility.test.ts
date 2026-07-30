@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   FIFTH_MOVE_THRESHOLD_RAW,
   Q64,
+  TREE_COIN_TYPE,
   aggregateFifthMoveEligibility,
   calculateMoonbagsStakedTreeRaw,
   calculateV2TotalUnderlyingTreeRaw,
@@ -13,6 +14,7 @@ import {
   displayTreeToRaw,
   getVerifiedV2FarmedLpRaw,
   rawTreeToDisplay,
+  reconstructMoonbagsStakePrincipalFromEvents,
   reconstructV2FarmPrincipalFromEvents,
   serializeFifthMoveEligibility,
   sqrtPriceX64AtTick,
@@ -371,18 +373,36 @@ test("V3 CLMM TREE calculation respects token ordering, zero liquidity, and clos
 test("Moonbags active TREE stake counts principal only and excludes rewards and lock-like records", () => {
   const result = calculateMoonbagsStakedTreeRaw({
     wallet,
+    canonicalPoolId: "0xpool",
     candidates: [
       {
         objectId: "0xstake",
         owner: wallet,
+        poolId: "0xpool",
         coinType: "0x6c5a609f6d0288523ce4a6ed87d19ae127f62073ab75fd9b0b1c9b455d4895cf::tree::TREE",
         stakedAmountRaw: raw("1000000"),
         rewardsRaw: raw("5000000"),
         active: true,
       },
       {
+        objectId: "0xstake-two",
+        owner: wallet,
+        poolId: "0xpool",
+        coinType: "0x6c5a609f6d0288523ce4a6ed87d19ae127f62073ab75fd9b0b1c9b455d4895cf::tree::TREE",
+        stakedAmountRaw: raw("250000"),
+        active: true,
+      },
+      {
+        objectId: "0xother-pool",
+        owner: wallet,
+        poolId: "0xother",
+        coinType: "0x6c5a609f6d0288523ce4a6ed87d19ae127f62073ab75fd9b0b1c9b455d4895cf::tree::TREE",
+        stakedAmountRaw: raw("1000000"),
+      },
+      {
         objectId: "0xwithdrawn",
         owner: wallet,
+        poolId: "0xpool",
         coinType: "0x6c5a609f6d0288523ce4a6ed87d19ae127f62073ab75fd9b0b1c9b455d4895cf::tree::TREE",
         stakedAmountRaw: raw("1000000"),
         withdrawn: true,
@@ -390,6 +410,7 @@ test("Moonbags active TREE stake counts principal only and excludes rewards and 
       {
         objectId: "0xlock",
         owner: wallet,
+        poolId: "0xpool",
         coinType: "0x6c5a609f6d0288523ce4a6ed87d19ae127f62073ab75fd9b0b1c9b455d4895cf::tree::TREE",
         stakedAmountRaw: raw("1000000"),
         genericTokenLock: true,
@@ -397,6 +418,7 @@ test("Moonbags active TREE stake counts principal only and excludes rewards and 
       {
         objectId: "0xtreasury",
         owner: wallet,
+        poolId: "0xpool",
         coinType: "0x6c5a609f6d0288523ce4a6ed87d19ae127f62073ab75fd9b0b1c9b455d4895cf::tree::TREE",
         stakedAmountRaw: raw("1000000"),
         projectTreasuryLock: true,
@@ -404,14 +426,100 @@ test("Moonbags active TREE stake counts principal only and excludes rewards and 
       {
         objectId: "0xother-token",
         owner: wallet,
+        poolId: "0xpool",
         coinType: "0x2::sui::SUI",
+        stakedAmountRaw: raw("1000000"),
+      },
+      {
+        objectId: "0xwrong-wallet",
+        owner: "0x2222222222222222222222222222222222222222222222222222222222222222",
+        poolId: "0xpool",
+        coinType: "0x6c5a609f6d0288523ce4a6ed87d19ae127f62073ab75fd9b0b1c9b455d4895cf::tree::TREE",
         stakedAmountRaw: raw("1000000"),
       },
     ],
   });
 
-  assert.equal(result.stakedTreeRaw, raw("1000000"));
-  assert.deepEqual(result.objectIds, ["0xstake"]);
+  assert.equal(result.stakedTreeRaw, raw("1250000"));
+  assert.deepEqual(result.objectIds, ["0xstake", "0xstake-two"]);
+});
+
+test("Moonbags zero and inactive current stake candidates return verified-zero input amounts", () => {
+  const result = calculateMoonbagsStakedTreeRaw({
+    wallet,
+    canonicalPoolId: "0xpool",
+    candidates: [
+      {
+        objectId: "0xzero",
+        owner: wallet,
+        poolId: "0xpool",
+        coinType: "0x6c5a609f6d0288523ce4a6ed87d19ae127f62073ab75fd9b0b1c9b455d4895cf::tree::TREE",
+        stakedAmountRaw: 0,
+      },
+      {
+        objectId: "0xinactive",
+        owner: wallet,
+        poolId: "0xpool",
+        coinType: "0x6c5a609f6d0288523ce4a6ed87d19ae127f62073ab75fd9b0b1c9b455d4895cf::tree::TREE",
+        stakedAmountRaw: raw("100"),
+        active: false,
+      },
+    ],
+  });
+
+  assert.equal(result.stakedTreeRaw, BigInt(0));
+  assert.deepEqual(result.objectIds, []);
+});
+
+test("Moonbags event reconstruction supports partial/full withdrawal, reward claims, duplicates, and incomplete history", () => {
+  const reconstructed = reconstructMoonbagsStakePrincipalFromEvents({
+    wallet,
+    canonicalPoolId: "0xpool",
+    events: [
+      { eventId: "stake-1", kind: "stake", wallet, poolId: "0xpool", coinType: TREE_COIN_TYPE, amountRaw: raw("1000") },
+      { eventId: "stake-2", kind: "stake", wallet, poolId: "0xpool", coinType: TREE_COIN_TYPE, amountRaw: raw("500") },
+      { eventId: "stake-2", kind: "stake", wallet, poolId: "0xpool", coinType: TREE_COIN_TYPE, amountRaw: raw("500") },
+      { eventId: "unstake-1", kind: "unstake", wallet, poolId: "0xpool", coinType: TREE_COIN_TYPE, amountRaw: raw("250") },
+      { eventId: "reward", kind: "reward", wallet, poolId: "0xpool", coinType: TREE_COIN_TYPE, amountRaw: raw("999999") },
+      { eventId: "sui-reward", kind: "reward", wallet, poolId: "0xpool", coinType: "0x2::sui::SUI", amountRaw: raw("999999") },
+      { eventId: "wrong-token", kind: "stake", wallet, poolId: "0xpool", coinType: "0x2::sui::SUI", amountRaw: raw("1000") },
+      { eventId: "wrong-pool", kind: "stake", wallet, poolId: "0xother", coinType: TREE_COIN_TYPE, amountRaw: raw("1000") },
+      {
+        eventId: "wrong-wallet",
+        kind: "stake",
+        wallet: "0x2222222222222222222222222222222222222222222222222222222222222222",
+        poolId: "0xpool",
+        coinType: TREE_COIN_TYPE,
+        amountRaw: raw("1000"),
+      },
+    ],
+  });
+
+  assert.equal(reconstructed.depositTreeRaw, raw("1500"));
+  assert.equal(reconstructed.withdrawalTreeRaw, raw("250"));
+  assert.equal(reconstructed.stakedTreeRaw, raw("1250"));
+  assert.deepEqual(reconstructed.eventIds, ["stake-1", "stake-2", "unstake-1"]);
+
+  assert.equal(
+    reconstructMoonbagsStakePrincipalFromEvents({
+      wallet,
+      canonicalPoolId: "0xpool",
+      events: [
+        { eventId: "stake", kind: "stake", wallet, poolId: "0xpool", coinType: TREE_COIN_TYPE, amountRaw: raw("10") },
+        { eventId: "unstake", kind: "unstake", wallet, poolId: "0xpool", coinType: TREE_COIN_TYPE, amountRaw: raw("10") },
+      ],
+    }).stakedTreeRaw,
+    BigInt(0),
+  );
+
+  const incomplete = reconstructMoonbagsStakePrincipalFromEvents({
+    wallet,
+    canonicalPoolId: "0xpool",
+    requireCompleteHistory: false,
+    events: [{ eventId: "stake", kind: "stake", wallet, poolId: "0xpool", coinType: TREE_COIN_TYPE, amountRaw: raw("10") }],
+  });
+  assert.equal(incomplete.complete, false);
+  assert.equal(incomplete.stakedTreeRaw, BigInt(0));
 });
 
 test("aggregator qualifies exactly at threshold and combined sources", () => {

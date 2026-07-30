@@ -52,9 +52,10 @@ All qualification math uses `bigint`.
 | SuiDex V3 current tick | `tick_index.fields.bits` | V3 pool fields | `getObject` fields | High | Yes |
 | SuiDex V3 tick spacing | `tick_spacing` | V3 pool fields | `getObject` fields | High | Yes |
 | SuiDex V3 position type | `0xb5f529c1dcda6580a61bf7ee9fbd524b50be62f11044d137c8202c8cbace9e56::position::Position` | Fixture wallet object | Owned-object scan verified owner, pool, liquidity, tick bounds, and token Y | High | Yes |
-| Moonbags TREE staking package | Unknown | Not found in repo | Needs on-chain stake object/digest or documented API | Low | No |
-| Moonbags TREE staking pool | Unknown | Not found in repo | Needs on-chain pool/registry | Low | No |
-| Moonbags stake position type | Unknown | Not found in repo | Needs active TREE stake object | Low | No |
+| Moonbags TREE staking current package | `0x9bc9ddc5cd0220ef810489c73e770f8587a8aa09cad064a0d8e0d1ad903a9e0f` | Moonbags frontend / normalized module | Public package and transaction inspection | High | Yes |
+| Moonbags TREE staking type origin | `0x8f70ad5db84e1a99b542f86ccfb1a932ca7ba010a2fa12a1504d839ff4c111c6` | Sui object types / normalized module | Pool, account, and event type inspection | High | Yes |
+| Moonbags TREE staking pool | `0x65b92741de03a6889da61c17bccb6f1e27d3d2455b4701948d8571eab8744ece` | Moonbags API and Sui object | Verified as `StakingPool<TREE>` | High | Yes |
+| Moonbags stake account type | `moonbags_stake::StakingAccount` | Sui dynamic field under TREE pool | Wallet-keyed account field verification | High | Yes |
 
 ## SuiDex V2 Underlying TREE
 
@@ -156,17 +157,23 @@ The current server detector requires:
 
 ## Moonbags TREE Staking
 
-Moonbags cannot be counted yet. Needed evidence:
+Moonbags TREE staking can be counted read-only after Phase 1D evidence. The verified current transaction package is `0x9bc9ddc5cd0220ef810489c73e770f8587a8aa09cad064a0d8e0d1ad903a9e0f`; type-origin package and event types use `0x8f70ad5db84e1a99b542f86ccfb1a932ca7ba010a2fa12a1504d839ff4c111c6`.
 
-- Moonbags staking package ID
-- TREE staking pool or registry object
-- active stake position/receipt object type
-- owner representation
-- active staked principal field
-- withdrawn/inactive marker
-- evidence that Token Lock and treasury locks are excluded
+Canonical TREE staking pool:
 
-Until then, Moonbags status remains `unavailable`, not zero.
+```text
+0x65b92741de03a6889da61c17bccb6f1e27d3d2455b4701948d8571eab8744ece
+```
+
+User stake state is represented by a wallet-keyed dynamic object field under that pool. The field value is:
+
+```text
+0x8f70ad5db84e1a99b542f86ccfb1a932ca7ba010a2fa12a1504d839ff4c111c6::moonbags_stake::StakingAccount
+```
+
+Only `StakingAccount.balance` is counted as active TREE principal. `earned`, `reward_index`, SUI reward vaults, Token Lock objects, project treasury locks, and claimable rewards are excluded.
+
+If the canonical pool read succeeds and no wallet-keyed dynamic field exists, Moonbags returns `verified-zero`. RPC, shape, owner, or parsing failures return `unavailable`.
 
 Phase 1B added deterministic Moonbags candidate filtering for future verified stake fixtures:
 
@@ -175,7 +182,7 @@ Phase 1B added deterministic Moonbags candidate filtering for future verified st
 - rewards are ignored
 - withdrawn stakes, zero stakes, unrelated tokens, generic Token Lock records, and project treasury locks are excluded
 
-Runtime Moonbags detection remains disabled because no Moonbags TREE staking package ID, pool/registry ID, or stake position/account object shape has been verified from public Sui objects.
+Runtime Moonbags detection is enabled as a principal-only read-only provider. It performs a bounded pool object read and one wallet-keyed dynamic-field read; it does not run unbounded event-history scans per request.
 
 ## Read-Only Diagnostics
 

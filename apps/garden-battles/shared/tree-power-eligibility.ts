@@ -72,6 +72,7 @@ export type SuiDexV3PoolSnapshot = {
 export type MoonbagsTreeStakeCandidate = {
   objectId?: string;
   owner?: string;
+  poolId?: string;
   coinType?: string;
   stakedAmountRaw?: bigint | number | string | null;
   rewardsRaw?: bigint | number | string | null;
@@ -79,6 +80,15 @@ export type MoonbagsTreeStakeCandidate = {
   withdrawn?: boolean;
   genericTokenLock?: boolean;
   projectTreasuryLock?: boolean;
+};
+
+export type MoonbagsStakePrincipalEvent = {
+  eventId: string;
+  kind: "stake" | "unstake" | "reward";
+  wallet?: string;
+  poolId?: string;
+  coinType?: string;
+  amountRaw?: bigint | number | string | null;
 };
 
 export type FifthMoveEligibilityResult = {
@@ -371,14 +381,17 @@ export function calculateMoonbagsStakedTreeRaw(input: {
   wallet: string;
   candidates: MoonbagsTreeStakeCandidate[];
   treeCoinType?: string;
+  canonicalPoolId?: string;
 }): { stakedTreeRaw: bigint; objectIds: string[] } {
   const wallet = input.wallet.toLowerCase();
   const treeCoinType = (input.treeCoinType ?? TREE_COIN_TYPE).toLowerCase();
+  const canonicalPoolId = input.canonicalPoolId?.toLowerCase();
   let stakedTreeRaw = BigInt(0);
   const objectIds: string[] = [];
 
   for (const candidate of input.candidates) {
     if (candidate.owner && candidate.owner.toLowerCase() !== wallet) continue;
+    if (canonicalPoolId && candidate.poolId?.toLowerCase() !== canonicalPoolId) continue;
     if (!candidate.coinType || candidate.coinType.toLowerCase() !== treeCoinType) continue;
     if (candidate.withdrawn || candidate.active === false) continue;
     if (candidate.genericTokenLock || candidate.projectTreasuryLock) continue;
@@ -389,6 +402,51 @@ export function calculateMoonbagsStakedTreeRaw(input: {
   }
 
   return { stakedTreeRaw, objectIds };
+}
+
+export function reconstructMoonbagsStakePrincipalFromEvents(input: {
+  events: MoonbagsStakePrincipalEvent[];
+  wallet: string;
+  canonicalPoolId: string;
+  treeCoinType?: string;
+  requireCompleteHistory?: boolean;
+}): {
+  stakedTreeRaw: bigint;
+  depositTreeRaw: bigint;
+  withdrawalTreeRaw: bigint;
+  eventIds: string[];
+  complete: boolean;
+} {
+  const wallet = input.wallet.toLowerCase();
+  const canonicalPoolId = input.canonicalPoolId.toLowerCase();
+  const treeCoinType = (input.treeCoinType ?? TREE_COIN_TYPE).toLowerCase();
+  const seen = new Set<string>();
+  let depositTreeRaw = BigInt(0);
+  let withdrawalTreeRaw = BigInt(0);
+  const eventIds: string[] = [];
+
+  for (const event of input.events) {
+    if (!event.eventId || seen.has(event.eventId)) continue;
+    seen.add(event.eventId);
+    if (event.wallet && event.wallet.toLowerCase() !== wallet) continue;
+    if (event.poolId?.toLowerCase() !== canonicalPoolId) continue;
+    if (event.coinType?.toLowerCase() !== treeCoinType) continue;
+    if (event.kind === "reward") continue;
+    const amount = toNonNegativeBigInt(event.amountRaw);
+    if (amount <= BigInt(0)) continue;
+    if (event.kind === "stake") depositTreeRaw += amount;
+    if (event.kind === "unstake") withdrawalTreeRaw += amount;
+    eventIds.push(event.eventId);
+  }
+
+  const stakedTreeRaw = depositTreeRaw > withdrawalTreeRaw ? depositTreeRaw - withdrawalTreeRaw : BigInt(0);
+  return {
+    stakedTreeRaw: input.requireCompleteHistory === false ? BigInt(0) : stakedTreeRaw,
+    depositTreeRaw,
+    withdrawalTreeRaw,
+    eventIds,
+    complete: input.requireCompleteHistory !== false,
+  };
 }
 
 export function aggregateFifthMoveEligibility(input: {

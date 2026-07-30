@@ -11,6 +11,7 @@ import {
   getAllOwnedObjects,
   helpText,
   parseCliArgs,
+  readMoonbagsTreeStake,
   readV2DirectLp,
   sanitizedOutputPath,
   type DiagnosticClient,
@@ -57,6 +58,68 @@ function v3PoolObject() {
   });
 }
 
+const moonbagsPoolId = "0x65b92741de03a6889da61c17bccb6f1e27d3d2455b4701948d8571eab8744ece";
+const moonbagsConfigId = "0x245161e22ea04614628b56da68fe0474fff8c3c631292c2ee1a0bd669db57959";
+const moonbagsOriginPackage = "0x8f70ad5db84e1a99b542f86ccfb1a932ca7ba010a2fa12a1504d839ff4c111c6";
+const moonbagsAccountType = `${moonbagsOriginPackage}::moonbags_stake::StakingAccount`;
+
+function moonbagsPoolObject() {
+  return object({
+    objectId: moonbagsPoolId,
+    type: `${moonbagsOriginPackage}::moonbags_stake::StakingPool<${treeCoinType}>`,
+    owner: { ObjectOwner: "0xparent" },
+    previousTransaction: "pooltx",
+    content: {
+      fields: {
+        staking_token: {
+          type: `0x2::coin::Coin<${treeCoinType}>`,
+          fields: { balance: "33746700996112" },
+        },
+        sui_token: {
+          type: "0x2::coin::Coin<0x2::sui::SUI>",
+          fields: { balance: "22391427109" },
+        },
+        total_supply: "33746700996112",
+        reward_index: "8628653355448",
+        pending_initial_rewards: "0",
+      },
+    },
+  });
+}
+
+function moonbagsConfigObject() {
+  return object({
+    objectId: moonbagsConfigId,
+    type: `${moonbagsOriginPackage}::moonbags_stake::Configuration`,
+    owner: { Shared: { initial_shared_version: "531399707" } },
+    previousTransaction: "configtx",
+    content: {
+      fields: {
+        admin: "0x0b14e1e4b99ae114f4688c48758053c65575791159afdd8f2323781432ec79f1",
+        version: "1",
+      },
+    },
+  });
+}
+
+function moonbagsAccountObject(balance = "2000000000000") {
+  return object({
+    objectId: "0xstakeaccount",
+    type: moonbagsAccountType,
+    owner: { ObjectOwner: "0xdynamicfield" },
+    previousTransaction: "stakeaccttx",
+    content: {
+      fields: {
+        staker: wallet,
+        balance,
+        earned: "999999",
+        reward_index: "3939342406848",
+        unstake_deadline: "1753943181715",
+      },
+    },
+  });
+}
+
 function makeClient(): DiagnosticClient & { calls: Record<string, number> } {
   const calls: Record<string, number> = { getOwnedObjects: 0, getCoins: 0, getDynamicFields: 0, queryTransactionBlocks: 0 };
   return {
@@ -64,6 +127,8 @@ function makeClient(): DiagnosticClient & { calls: Record<string, number> } {
     async getObject({ id }: { id: string }) {
       if (id === CANONICAL_TREE_SUIDEX_V2_POOL_ID) return poolObject();
       if (id === CANONICAL_TREE_SUIDEX_V3_POOL_ID) return v3PoolObject();
+      if (id === moonbagsPoolId) return moonbagsPoolObject();
+      if (id === moonbagsConfigId) return moonbagsConfigObject();
       return object({
         objectId: id,
         type: "0x2::example::Thing",
@@ -148,6 +213,7 @@ function makeClient(): DiagnosticClient & { calls: Record<string, number> } {
       };
     },
     async getDynamicFieldObject({ name }: { name: { value: string } }) {
+      if (name.value === wallet) return moonbagsAccountObject();
       return object({
         objectId: `0x${name.value}`,
         type: "0x2::dynamic_field::Field<0x2::object::ID, u64>",
@@ -193,6 +259,28 @@ function makeClient(): DiagnosticClient & { calls: Record<string, number> } {
                         package: "0xb5f529c1dcda6580a61bf7ee9fbd524b50be62f11044d137c8202c8cbace9e56",
                         module: "position",
                         function: "add_liquidity",
+                        typeArguments: [treeCoinType],
+                      },
+                    },
+                  ],
+                },
+              },
+            },
+            objectChanges: [],
+            events: [],
+          },
+          {
+            digest: "moonbagsTx",
+            effects: { status: { status: "success" } },
+            transaction: {
+              data: {
+                transaction: {
+                  transactions: [
+                    {
+                      MoveCall: {
+                        package: "0x9bc9ddc5cd0220ef810489c73e770f8587a8aa09cad064a0d8e0d1ad903a9e0f",
+                        module: "moonbags_stake",
+                        function: "stake",
                         typeArguments: [treeCoinType],
                       },
                     },
@@ -275,6 +363,22 @@ test("classification excludes unrelated LP and detects possible farm receipts", 
     classifyOwnedObject("0xb5f529c1dcda6580a61bf7ee9fbd524b50be62f11044d137c8202c8cbace9e56::position::Position"),
     "potential-v3-position",
   );
+  assert.equal(classifyOwnedObject(moonbagsAccountType), "canonical-moonbags-tree-staking-account");
+  assert.equal(
+    classifyOwnedObject(`${moonbagsOriginPackage}::moonbags_token_lock::Lock<${treeCoinType}>`),
+    "excluded-moonbags-token-lock",
+  );
+});
+
+test("Moonbags diagnostic reads wallet-keyed principal and excludes rewards", async () => {
+  const client = makeClient();
+  const result = await readMoonbagsTreeStake(client, wallet);
+
+  assert.equal((result as any).canonicalTreePool.verified, true);
+  assert.equal((result as any).walletStake.status, "qualified-data");
+  assert.equal((result as any).walletStake.principalRaw, "2000000000000");
+  assert.equal((result as any).walletStake.principalDisplay, "2000000");
+  assert.equal((result as any).walletStake.rewardFieldsExcluded.earnedRaw, "999999");
 });
 
 test("full report omits private RPC URL and filters recent transactions", async () => {
@@ -287,6 +391,18 @@ test("full report omits private RPC URL and filters recent transactions", async 
   assert.equal((report as any).ownedObjectScan.dynamicFieldScan.objects.length, 1);
   assert.equal((report as any).recentTransactions.requestedLimit, 3);
   assert.equal((report as any).recentTransactions.matchingSuiDexTransactions.length, 1);
+});
+
+test("Moonbags report filters recent transactions to Moonbags staking activity", async () => {
+  const client = makeClient();
+  const options = parseCliArgs(["--wallet", wallet, "--rpc-url", "https://secret.example/token", "--recent-transactions", "3"]);
+  const report = await buildTreePowerDiagnosticReport("moonbags-tree-stake", options, client);
+
+  assert.equal((report as any).rpc, "custom");
+  assert.equal(JSON.stringify(report).includes("secret.example"), false);
+  assert.equal((report as any).moonbagsTreeStaking.walletStake.status, "qualified-data");
+  assert.equal((report as any).recentTransactions.matchingSuiDexTransactions.length, 1);
+  assert.equal((report as any).recentTransactions.matchingSuiDexTransactions[0].digest, "moonbagsTx");
 });
 
 test("sanitized output filename is deterministic and wallet-scoped", () => {

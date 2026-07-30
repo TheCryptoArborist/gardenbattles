@@ -16,6 +16,14 @@ export const CANONICAL_TREE_SUIDEX_V2_LP_COIN_TYPE =
 
 const SUIDEX_V2_PACKAGE_ID = "0xbfac5e1c6bf6ef29b12f7723857695fd2f4da9a11a7d88162c15e9124c243a4a";
 const SUIDEX_V3_PACKAGE_ID = "0xb5f529c1dcda6580a61bf7ee9fbd524b50be62f11044d137c8202c8cbace9e56";
+const MOONBAGS_CURRENT_STAKING_PACKAGE_ID = "0x9bc9ddc5cd0220ef810489c73e770f8587a8aa09cad064a0d8e0d1ad903a9e0f";
+const MOONBAGS_TYPE_ORIGIN_PACKAGE_ID = "0x8f70ad5db84e1a99b542f86ccfb1a932ca7ba010a2fa12a1504d839ff4c111c6";
+const MOONBAGS_STAKE_CONFIG_ID = "0x245161e22ea04614628b56da68fe0474fff8c3c631292c2ee1a0bd669db57959";
+const MOONBAGS_TREE_STAKING_POOL_ID = "0x65b92741de03a6889da61c17bccb6f1e27d3d2455b4701948d8571eab8744ece";
+const MOONBAGS_TREE_STAKING_ACCOUNT_TYPE =
+  `${MOONBAGS_TYPE_ORIGIN_PACKAGE_ID}::moonbags_stake::StakingAccount`;
+const MOONBAGS_TREE_STAKING_POOL_TYPE =
+  `${MOONBAGS_TYPE_ORIGIN_PACKAGE_ID}::moonbags_stake::StakingPool<${TREE_COIN_TYPE}>`;
 const DEFAULT_RECENT_TRANSACTION_LIMIT = 50;
 const MAX_RECENT_TRANSACTION_LIMIT = 200;
 
@@ -181,6 +189,13 @@ function selectedFields(fields: Record<string, unknown> | undefined): Record<str
     "type_y",
     "reward",
     "rewards",
+    "earned",
+    "reward_index",
+    "staking_token",
+    "sui_token",
+    "total_supply",
+    "staker",
+    "unstake_deadline",
     "fee",
     "fees",
     "closed",
@@ -216,6 +231,24 @@ export function classifyOwnedObject(type = "", fields?: Record<string, unknown>)
   if (lowerType.includes(SUIDEX_V2_PACKAGE_ID) || lowerType.includes(SUIDEX_V3_PACKAGE_ID) || lowerType.includes("suidex")) {
     return "unrelated-suidex-object";
   }
+  if (type === MOONBAGS_TREE_STAKING_ACCOUNT_TYPE) return "canonical-moonbags-tree-staking-account";
+  if (type === MOONBAGS_TREE_STAKING_POOL_TYPE) return "canonical-moonbags-tree-staking-pool";
+  if (lowerType.includes(MOONBAGS_TYPE_ORIGIN_PACKAGE_ID) && lowerType.includes("::moonbags_token_lock::")) {
+    return "excluded-moonbags-token-lock";
+  }
+  if (lowerType.includes(MOONBAGS_TYPE_ORIGIN_PACKAGE_ID) && lowerType.includes("::moonbags_stake::stakingaccount")) {
+    return "potential-moonbags-staking-account";
+  }
+  if (lowerType.includes(MOONBAGS_TYPE_ORIGIN_PACKAGE_ID) && lowerType.includes("::moonbags_stake::stakingpool")) {
+    return "potential-moonbags-staking-pool";
+  }
+  if (
+    lowerType.includes(MOONBAGS_CURRENT_STAKING_PACKAGE_ID) ||
+    lowerType.includes(MOONBAGS_TYPE_ORIGIN_PACKAGE_ID) ||
+    lowerType.includes("moonbags")
+  ) {
+    return "unrelated-moonbags-object";
+  }
   return "unrelated-object";
 }
 
@@ -237,7 +270,11 @@ function shouldScanDynamicFields(object: OwnedObjectSummary): boolean {
   return (
     object.classification === "potential-v2-farm-receipt" ||
     object.classification === "potential-v2-farm-account" ||
-    object.classification === "potential-v3-position"
+    object.classification === "potential-v3-position" ||
+    object.classification === "canonical-moonbags-tree-staking-account" ||
+    object.classification === "canonical-moonbags-tree-staking-pool" ||
+    object.classification === "potential-moonbags-staking-account" ||
+    object.classification === "potential-moonbags-staking-pool"
   );
 }
 
@@ -405,16 +442,156 @@ export async function readV3Pool(client: DiagnosticClient) {
   return extractV3PoolSnapshot(poolObject);
 }
 
+function isMissingDynamicFieldError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  return /dynamic field.*not.*found|object.*not.*exist|not exist|not found/i.test(message);
+}
+
+function summarizeMoonbagsStakeAccount(object: any, wallet: string) {
+  const summary = summarizeObject(object);
+  const fields = objectFields(object);
+  if (!object?.data) {
+    return {
+      status: "verified-zero",
+      reason: "wallet_keyed_staking_account_not_found",
+      principalRaw: "0",
+      principalDisplay: "0",
+      confidence: "high",
+      blockers: [],
+    };
+  }
+  if (object.data.type !== MOONBAGS_TREE_STAKING_ACCOUNT_TYPE) {
+    return {
+      status: "unavailable",
+      reason: "unexpected_wallet_keyed_staking_account_type",
+      object: summary,
+      confidence: "low",
+      blockers: ["Wallet-keyed dynamic field exists but does not have the verified Moonbags StakingAccount type."],
+    };
+  }
+  if (String(fields?.staker ?? "").toLowerCase() !== wallet) {
+    return {
+      status: "unavailable",
+      reason: "staking_account_staker_mismatch",
+      object: summary,
+      confidence: "low",
+      blockers: ["StakingAccount.staker does not match the requested wallet."],
+    };
+  }
+  const principalRaw = BigInt((fields?.balance ?? 0) as any);
+  return {
+    status: principalRaw > BigInt(0) ? "qualified-data" : "verified-zero",
+    reason: principalRaw > BigInt(0)
+      ? "wallet_keyed_staking_account_principal_verified"
+      : "wallet_keyed_staking_account_zero_principal",
+    accountObjectId: object.data.objectId,
+    accountObjectType: object.data.type,
+    principalRaw: principalRaw.toString(),
+    principalDisplay: rawTreeToDisplay(principalRaw),
+    active: principalRaw > BigInt(0),
+    withdrawn: principalRaw === BigInt(0),
+    rewardFieldsExcluded: {
+      earnedRaw: String(fields?.earned ?? "0"),
+      rewardIndex: String(fields?.reward_index ?? "0"),
+    },
+    evidence: {
+      staker: fields?.staker,
+      previousTransaction: object.data.previousTransaction,
+      unstakeDeadline: fields?.unstake_deadline,
+    },
+    confidence: "high",
+    blockers: [],
+  };
+}
+
+export async function readMoonbagsTreeStake(client: DiagnosticClient, wallet: string) {
+  const [poolObject, configObject] = await Promise.all([
+    client.getObject({
+      id: MOONBAGS_TREE_STAKING_POOL_ID,
+      options: { showType: true, showContent: true, showOwner: true, showPreviousTransaction: true },
+    }),
+    client.getObject({
+      id: MOONBAGS_STAKE_CONFIG_ID,
+      options: { showType: true, showContent: true, showOwner: true, showPreviousTransaction: true },
+    }),
+  ]);
+
+  let accountObject: any = null;
+  let accountReadError: string | undefined;
+  if (client.getDynamicFieldObject) {
+    try {
+      accountObject = await client.getDynamicFieldObject({
+        parentId: MOONBAGS_TREE_STAKING_POOL_ID,
+        name: { type: "address", value: wallet },
+      });
+    } catch (error) {
+      if (!isMissingDynamicFieldError(error)) {
+        accountReadError = error instanceof Error ? error.message : String(error);
+      }
+    }
+  } else {
+    accountReadError = "dynamic_field_object_read_not_supported_by_client";
+  }
+
+  const poolFields = objectFields(poolObject);
+  const poolType = poolObject?.data?.type;
+  const poolVerified =
+    poolObject?.data?.objectId === MOONBAGS_TREE_STAKING_POOL_ID &&
+    poolType === MOONBAGS_TREE_STAKING_POOL_TYPE &&
+    (poolFields?.staking_token as any)?.type === `0x2::coin::Coin<${TREE_COIN_TYPE}>`;
+
+  return {
+    discoveryStatus: accountReadError ? "unavailable" : "verified",
+    package: {
+      currentTransactionPackageId: MOONBAGS_CURRENT_STAKING_PACKAGE_ID,
+      typeOriginPackageId: MOONBAGS_TYPE_ORIGIN_PACKAGE_ID,
+      module: "moonbags_stake",
+      stakeFunction: "stake",
+      unstakeFunction: "unstake",
+      claimRewardFunction: "claim_staking_pool",
+    },
+    config: summarizeObject(configObject),
+    canonicalTreePool: {
+      object: summarizeObject(poolObject),
+      poolId: MOONBAGS_TREE_STAKING_POOL_ID,
+      expectedType: MOONBAGS_TREE_STAKING_POOL_TYPE,
+      canonicalTreeTypeStored: poolType === MOONBAGS_TREE_STAKING_POOL_TYPE,
+      stakingTokenVaultRaw: String((poolFields?.staking_token as any)?.fields?.balance ?? "0"),
+      totalStakedPrincipalRaw: String(poolFields?.total_supply ?? "0"),
+      rewardVaultRaw: String((poolFields?.sui_token as any)?.fields?.balance ?? "0"),
+      rewardFieldsExcluded: ["sui_token", "reward_index", "pending_initial_rewards"],
+      verified: poolVerified,
+    },
+    walletStake: accountReadError
+      ? {
+          status: "unavailable",
+          reason: accountReadError,
+          confidence: "low",
+          blockers: ["Unable to read the wallet-keyed StakingAccount dynamic field."],
+        }
+      : summarizeMoonbagsStakeAccount(accountObject, wallet),
+    excludedSources: ["moonbags_token_lock", "project_treasury_locks", "liquid_tree", "claimable_rewards"],
+  };
+}
+
 function summarizeTransaction(transaction: any) {
   const moveCalls = (transaction.transaction?.data?.transaction?.transactions ?? [])
     .map((item: any) => item.MoveCall ?? item.moveCall)
     .filter(Boolean);
   const packageIds = new Set<string>(moveCalls.map((call: any) => call.package));
+  const serialized = JSON.stringify(transaction).toLowerCase();
   const touchesSuiDex =
     [...packageIds].some((packageId) => packageId === SUIDEX_V2_PACKAGE_ID || packageId === SUIDEX_V3_PACKAGE_ID) ||
-    JSON.stringify(transaction).includes(SUIDEX_V2_PACKAGE_ID) ||
-    JSON.stringify(transaction).includes(SUIDEX_V3_PACKAGE_ID) ||
-    JSON.stringify(transaction).toLowerCase().includes("suidex");
+    serialized.includes(SUIDEX_V2_PACKAGE_ID) ||
+    serialized.includes(SUIDEX_V3_PACKAGE_ID) ||
+    serialized.includes("suidex");
+  const touchesMoonbags =
+    [...packageIds].some((packageId) =>
+      packageId === MOONBAGS_CURRENT_STAKING_PACKAGE_ID || packageId === MOONBAGS_TYPE_ORIGIN_PACKAGE_ID
+    ) ||
+    serialized.includes(MOONBAGS_CURRENT_STAKING_PACKAGE_ID) ||
+    serialized.includes(MOONBAGS_TYPE_ORIGIN_PACKAGE_ID) ||
+    serialized.includes("moonbags_stake");
 
   return {
     digest: transaction.digest,
@@ -438,10 +615,11 @@ function summarizeTransaction(transaction: any) {
       parsedJson: event.parsedJson,
     })),
     touchesSuiDex,
+    touchesMoonbags,
   };
 }
 
-export async function getRecentTransactions(client: DiagnosticClient, sender: string, limit: number) {
+export async function getRecentTransactions(client: DiagnosticClient, sender: string, limit: number, label: DiagnosticLabel) {
   if (limit <= 0) return [];
   const page = await client.queryTransactionBlocks({
     filter: { FromAddress: sender },
@@ -454,7 +632,9 @@ export async function getRecentTransactions(client: DiagnosticClient, sender: st
       showObjectChanges: true,
     },
   });
-  return (page.data ?? []).map(summarizeTransaction).filter((transaction: any) => transaction.touchesSuiDex);
+  return (page.data ?? [])
+    .map(summarizeTransaction)
+    .filter((transaction: any) => label === "moonbags-tree-stake" ? transaction.touchesMoonbags : transaction.touchesSuiDex);
 }
 
 export function sanitizedOutputPath(label: string, wallet?: string, timestamp = new Date()): string {
@@ -480,15 +660,21 @@ export async function buildTreePowerDiagnosticReport(label: DiagnosticLabel, opt
       v2LpCoinType: CANONICAL_TREE_SUIDEX_V2_LP_COIN_TYPE,
       v3PoolId: CANONICAL_TREE_SUIDEX_V3_POOL_ID,
       v3TreeTokenSide: "token_y",
+      moonbagsCurrentStakingPackageId: MOONBAGS_CURRENT_STAKING_PACKAGE_ID,
+      moonbagsTypeOriginPackageId: MOONBAGS_TYPE_ORIGIN_PACKAGE_ID,
+      moonbagsStakeConfigId: MOONBAGS_STAKE_CONFIG_ID,
+      moonbagsTreeStakingPoolId: MOONBAGS_TREE_STAKING_POOL_ID,
+      moonbagsTreeStakingAccountType: MOONBAGS_TREE_STAKING_ACCOUNT_TYPE,
     },
   };
 
   if (options.wallet) {
-    const [ownedObjects, directV2, v3Pool, recentTransactions] = await Promise.all([
+    const [ownedObjects, directV2, v3Pool, moonbags, recentTransactions] = await Promise.all([
       getAllOwnedObjects(client, options.wallet),
       readV2DirectLp(client, options.wallet),
       readV3Pool(client),
-      getRecentTransactions(client, options.wallet, options.recentTransactions),
+      readMoonbagsTreeStake(client, options.wallet),
+      getRecentTransactions(client, options.wallet, options.recentTransactions, label),
     ]);
     const candidates = ownedObjects.objects.filter((object) => object.classification !== "unrelated-object");
     const dynamicFieldScan = await getDynamicFieldSummaries(
@@ -507,6 +693,7 @@ export async function buildTreePowerDiagnosticReport(label: DiagnosticLabel, opt
     };
     report.v2DirectLp = directV2;
     report.v3Pool = v3Pool;
+    report.moonbagsTreeStaking = moonbags;
     report.recentTransactions = {
       requestedLimit: options.recentTransactions,
       matchingSuiDexTransactions: recentTransactions,
@@ -549,7 +736,7 @@ export async function buildTreePowerDiagnosticReport(label: DiagnosticLabel, opt
   } else if (label === "suidex-v3-position") {
     report.v3PositionDiscoveryStatus = "read-only discovery only; runtime V3 counting remains disabled until owned position fields are verified";
   } else {
-    report.moonbagsDiscoveryStatus = "read-only discovery only; runtime Moonbags counting remains disabled until stake object shape is verified";
+    report.moonbagsDiscoveryStatus = "Moonbags TREE staking account shape is verified; runtime principal-only counting reads the canonical pool wallet-keyed StakingAccount dynamic field";
   }
 
   return report;

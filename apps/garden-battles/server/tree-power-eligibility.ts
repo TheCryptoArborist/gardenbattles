@@ -27,8 +27,18 @@ export const CANONICAL_TREE_SUIDEX_V2_FARM_POSITION_TYPE =
 export const DEFAULT_SUI_GRAPHQL_URL = "https://graphql.mainnet.sui.io/graphql";
 export const CANONICAL_TREE_SUIDEX_V3_POSITION_TYPE =
   "0xb5f529c1dcda6580a61bf7ee9fbd524b50be62f11044d137c8202c8cbace9e56::position::Position";
-export const MOONBAGS_TREE_STAKING_POOL_ID: string | null = null;
-export const MOONBAGS_TREE_STAKE_POSITION_TYPE: string | null = null;
+export const MOONBAGS_CURRENT_STAKING_PACKAGE_ID =
+  "0x9bc9ddc5cd0220ef810489c73e770f8587a8aa09cad064a0d8e0d1ad903a9e0f";
+export const MOONBAGS_TYPE_ORIGIN_PACKAGE_ID =
+  "0x8f70ad5db84e1a99b542f86ccfb1a932ca7ba010a2fa12a1504d839ff4c111c6";
+export const MOONBAGS_STAKE_CONFIG_ID =
+  "0x245161e22ea04614628b56da68fe0474fff8c3c631292c2ee1a0bd669db57959";
+export const MOONBAGS_TREE_STAKING_POOL_ID =
+  "0x65b92741de03a6889da61c17bccb6f1e27d3d2455b4701948d8571eab8744ece";
+export const MOONBAGS_TREE_STAKING_ACCOUNT_TYPE =
+  `${MOONBAGS_TYPE_ORIGIN_PACKAGE_ID}::moonbags_stake::StakingAccount`;
+export const MOONBAGS_TREE_STAKING_POOL_TYPE =
+  `${MOONBAGS_TYPE_ORIGIN_PACKAGE_ID}::moonbags_stake::StakingPool<${TREE_COIN_TYPE}>`;
 
 const TREE_POWER_CACHE_MS = 60_000;
 const TREE_POWER_READ_TIMEOUT_MS = 8_000;
@@ -407,16 +417,115 @@ async function readSuiDexV3StatusForWallet(client: SuiClient, wallet: string): P
   }
 }
 
-function readMoonbagsStatus(): FifthMoveSourceResult {
-  return {
-    source: "moonbags-staking",
-    status: "unavailable",
-    reason:
-      MOONBAGS_TREE_STAKING_POOL_ID === null || MOONBAGS_TREE_STAKE_POSITION_TYPE === null
-        ? "moonbags_tree_staking_pool_and_position_shape_not_yet_verified"
-        : "moonbags_tree_staking_lookup_not_enabled",
-    evidence: { positionCount: 0 },
-  };
+function isVerifiedMoonbagsTreePool(object: Awaited<ReturnType<SuiClient["getObject"]>>): boolean {
+  const type = object.data?.type ?? "";
+  const fields = getFields(object);
+  const stakingTokenType = fields?.staking_token?.type ?? "";
+  return (
+    object.data?.objectId?.toLowerCase() === MOONBAGS_TREE_STAKING_POOL_ID &&
+    type === MOONBAGS_TREE_STAKING_POOL_TYPE &&
+    stakingTokenType === `0x2::coin::Coin<${TREE_COIN_TYPE}>`
+  );
+}
+
+function moonbagsMissingDynamicField(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  return /dynamic field.*not.*found|object.*not.*exist|not exist|not found/i.test(message);
+}
+
+async function readMoonbagsStatus(client: SuiClient, wallet: string): Promise<FifthMoveSourceResult> {
+  try {
+    const poolObject = await client.getObject({
+      id: MOONBAGS_TREE_STAKING_POOL_ID,
+      options: { showContent: true, showType: true, showOwner: true },
+    });
+    if (!isVerifiedMoonbagsTreePool(poolObject)) {
+      return {
+        source: "moonbags-staking",
+        status: "unavailable",
+        reason: "moonbags_tree_staking_pool_shape_mismatch",
+        evidence: { poolId: MOONBAGS_TREE_STAKING_POOL_ID, positionCount: 0 },
+      };
+    }
+
+    let accountObject: Awaited<ReturnType<SuiClient["getDynamicFieldObject"]>>;
+    try {
+      accountObject = await client.getDynamicFieldObject({
+        parentId: MOONBAGS_TREE_STAKING_POOL_ID,
+        name: { type: "address", value: wallet },
+      });
+    } catch (error) {
+      if (moonbagsMissingDynamicField(error)) {
+        return {
+          source: "moonbags-staking",
+          status: "verified-zero",
+          underlyingTreeRaw: BigInt(0),
+          reason: "moonbags_tree_staking_account_not_found",
+          evidence: { poolId: MOONBAGS_TREE_STAKING_POOL_ID, positionCount: 0 },
+        };
+      }
+      throw error;
+    }
+
+    if (!accountObject.data) {
+      return {
+        source: "moonbags-staking",
+        status: "verified-zero",
+        underlyingTreeRaw: BigInt(0),
+        reason: "moonbags_tree_staking_account_not_found",
+        evidence: { poolId: MOONBAGS_TREE_STAKING_POOL_ID, positionCount: 0 },
+      };
+    }
+
+    if (accountObject.data.type !== MOONBAGS_TREE_STAKING_ACCOUNT_TYPE) {
+      return {
+        source: "moonbags-staking",
+        status: "unavailable",
+        reason: "moonbags_tree_staking_account_shape_mismatch",
+        evidence: {
+          poolId: MOONBAGS_TREE_STAKING_POOL_ID,
+          objectIds: [accountObject.data.objectId],
+          positionCount: 1,
+        },
+      };
+    }
+
+    const fields = getFields(accountObject as any);
+    if (!fields || String(fields.staker ?? "").toLowerCase() !== wallet) {
+      return {
+        source: "moonbags-staking",
+        status: "unavailable",
+        reason: "moonbags_tree_staking_account_owner_mismatch",
+        evidence: {
+          poolId: MOONBAGS_TREE_STAKING_POOL_ID,
+          objectIds: [accountObject.data.objectId],
+          positionCount: 1,
+        },
+      };
+    }
+
+    const stakedTreeRaw = BigInt(fields.balance ?? 0);
+    return {
+      source: "moonbags-staking",
+      status: stakedTreeRaw > BigInt(0) ? "qualified-data" : "verified-zero",
+      underlyingTreeRaw: stakedTreeRaw,
+      reason: stakedTreeRaw > BigInt(0)
+        ? "moonbags_tree_staking_account_principal_verified"
+        : "moonbags_tree_staking_account_zero_principal",
+      evidence: {
+        poolId: MOONBAGS_TREE_STAKING_POOL_ID,
+        objectIds: [accountObject.data.objectId],
+        positionCount: stakedTreeRaw > BigInt(0) ? 1 : 0,
+      },
+    };
+  } catch (err) {
+    return {
+      source: "moonbags-staking",
+      status: "unavailable",
+      reason: err instanceof Error ? err.message : "moonbags_tree_staking_read_failed",
+      evidence: { poolId: MOONBAGS_TREE_STAKING_POOL_ID, positionCount: 0 },
+    };
+  }
 }
 
 export async function getFifthMoveEligibility(
@@ -430,15 +539,16 @@ export async function getFifthMoveEligibility(
 
   await verifyTreeMetadata(client);
 
-  const [v2, v3] = await Promise.all([
+  const [v2, v3, moonbags] = await Promise.all([
     readSuiDexV2DirectLp(client, wallet),
     readSuiDexV3StatusForWallet(client, wallet),
+    readMoonbagsStatus(client, wallet),
   ]);
 
   return aggregateFifthMoveEligibility({
     wallet,
     thresholdRaw: FIFTH_MOVE_THRESHOLD_RAW,
-    sources: [v2, v3, readMoonbagsStatus()],
+    sources: [v2, v3, moonbags],
   });
 }
 

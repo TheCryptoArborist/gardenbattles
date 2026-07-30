@@ -2,7 +2,9 @@
 
 Phase 1C is read-only evidence acquisition. Fifth Move remains inactive. No Move contracts, package IDs, queue IDs, transaction paths, or battle mechanics were changed.
 
-This checkpoint verified the canonical SuiDex V3 TREE position shape and bigint principal math well enough to enable the server-side read-only V3 eligibility provider. A follow-up read-only checkpoint resolved SuiDex V2 farmed LP principal through GraphQL object fields and event history. SuiDex V2 direct LP, SuiDex V2 farmed LP, and SuiDex V3 principal are now supported read-only; Moonbags TREE staking remains unavailable.
+This checkpoint verified the canonical SuiDex V3 TREE position shape and bigint principal math well enough to enable the server-side read-only V3 eligibility provider. A follow-up read-only checkpoint resolved SuiDex V2 farmed LP principal through GraphQL object fields and event history. SuiDex V2 direct LP, SuiDex V2 farmed LP, and SuiDex V3 principal are now supported read-only.
+
+Phase 1D later verified Moonbags TREE staking and enabled principal-only runtime detection. See `apps/garden-battles/docs/fifth-move-phase-1d-moonbags-evidence.md`.
 
 ## NFTree Holder Snapshot Logic
 

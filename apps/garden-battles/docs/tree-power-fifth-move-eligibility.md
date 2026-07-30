@@ -29,13 +29,13 @@ The SuiDex V2 farm provider verifies the owned `farm::StakingPosition<...LPCoin<
 
 The following are not yet verified in source and must be confirmed before live qualification detection:
 
-- Moonbags staking package ID
-- Moonbags TREE staking pool or registry object ID
-- Moonbags staking position object type
-- Moonbags wallet ownership representation
-- Moonbags active staked TREE amount field
+- Moonbags current staking package ID: `0x9bc9ddc5cd0220ef810489c73e770f8587a8aa09cad064a0d8e0d1ad903a9e0f`
+- Moonbags type-origin package ID: `0x8f70ad5db84e1a99b542f86ccfb1a932ca7ba010a2fa12a1504d839ff4c111c6`
+- Moonbags TREE staking pool: `0x65b92741de03a6889da61c17bccb6f1e27d3d2455b4701948d8571eab8744ece`
+- Moonbags wallet ownership representation: wallet-keyed dynamic field under the TREE staking pool
+- Moonbags active staked TREE amount field: `StakingAccount.balance`
 
-Historical `Staked.amount` events are not used alone as current principal. Farmed LP is counted only when the current staking-position amount and matching vault fields agree.
+Historical `Staked.amount` events are not used alone as current principal. Farmed LP is counted only when the current staking-position amount and matching vault fields agree. Moonbags staking is counted only from the current wallet-keyed `StakingAccount.balance` field after the canonical TREE staking pool and account shape are verified.
 
 ## Phase 1B Read-Only Evidence Tools
 

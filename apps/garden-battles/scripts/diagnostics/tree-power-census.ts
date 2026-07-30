@@ -14,6 +14,8 @@ import {
   CANONICAL_TREE_SUIDEX_V3_POOL_ID,
   CANONICAL_TREE_SUIDEX_V3_POSITION_TYPE,
   DEFAULT_SUI_GRAPHQL_URL,
+  MOONBAGS_TREE_STAKING_ACCOUNT_TYPE,
+  MOONBAGS_TREE_STAKING_POOL_ID,
 } from "../../server/tree-power-eligibility";
 
 const TREE_THRESHOLD_LABEL = "1000000";
@@ -40,6 +42,7 @@ type WalletEligibilitySnapshot = {
   directV2TreeRaw: bigint;
   farmedV2TreeRaw: bigint;
   v3TreeRaw: bigint;
+  moonbagsTreeRaw: bigint;
   totalVerifiedTreeRaw: bigint;
   unavailableSources: string[];
 };
@@ -223,12 +226,79 @@ async function readV3PoolSnapshot(graphqlUrl: string): Promise<{ sqrtPriceCurren
   };
 }
 
+async function readMoonbagsStakeSnapshot(graphqlUrl: string): Promise<Map<string, bigint>> {
+  const accounts = new Map<string, bigint>();
+  let cursor: string | null = null;
+
+  do {
+    const data = await suiGraphql<{
+      object: {
+        dynamicFields: {
+          pageInfo: { hasNextPage: boolean; endCursor?: string | null };
+          nodes: Array<{
+            name?: { type?: { repr?: string }; json?: string };
+            value?: {
+              address?: string;
+              contents?: {
+                type?: { repr?: string };
+                json?: Record<string, any>;
+              };
+            };
+          }>;
+        };
+      } | null;
+    }>(
+      graphqlUrl,
+      `query($id:SuiAddress!, $after:String) {
+        object(address: $id) {
+          dynamicFields(first: 50, after: $after) {
+            pageInfo { hasNextPage endCursor }
+            nodes {
+              name { type { repr } json }
+              value {
+                ... on MoveObject {
+                  address
+                  contents {
+                    type { repr }
+                    json
+                  }
+                }
+              }
+            }
+          }
+        }
+      }`,
+      { id: MOONBAGS_TREE_STAKING_POOL_ID, after: cursor },
+    );
+
+    const page = data.object?.dynamicFields;
+    if (!page) throw new Error("moonbags_tree_staking_pool_dynamic_fields_unavailable");
+
+    for (const node of page.nodes) {
+      const fields = node.value?.contents?.json;
+      const type = node.value?.contents?.type?.repr;
+      const wallet = String(node.name?.json ?? fields?.staker ?? "").toLowerCase();
+      if (node.name?.type?.repr !== "address") continue;
+      if (type !== MOONBAGS_TREE_STAKING_ACCOUNT_TYPE) continue;
+      if (!/^0x[0-9a-f]{64}$/.test(wallet)) continue;
+      if (String(fields?.staker ?? "").toLowerCase() !== wallet) continue;
+      const balance = BigInt(fields?.balance ?? 0);
+      accounts.set(wallet, balance > BigInt(0) ? balance : BigInt(0));
+    }
+
+    cursor = page.pageInfo.hasNextPage ? (page.pageInfo.endCursor ?? null) : null;
+  } while (cursor);
+
+  return accounts;
+}
+
 async function readWalletEligibility(
   graphqlUrl: string,
   wallet: string,
   snapshots: {
     v2Pool: Awaited<ReturnType<typeof readV2PoolSnapshot>>;
     v3Pool: Awaited<ReturnType<typeof readV3PoolSnapshot>>;
+    moonbagsAccounts: Map<string, bigint>;
   },
 ): Promise<WalletEligibilitySnapshot> {
   const canonicalLpType = normalizeMoveTypeName(CANONICAL_TREE_SUIDEX_V2_LP_COIN_TYPE);
@@ -293,12 +363,13 @@ async function readWalletEligibility(
     }),
   }).underlyingTreeRaw;
 
-  const totalVerifiedTreeRaw = directV2TreeRaw + farmedV2TreeRaw + v3TreeRaw;
+  const moonbagsTreeRaw = snapshots.moonbagsAccounts.get(wallet) ?? BigInt(0);
+  const totalVerifiedTreeRaw = directV2TreeRaw + farmedV2TreeRaw + v3TreeRaw + moonbagsTreeRaw;
   const thresholdRaw = displayTreeToRaw(TREE_THRESHOLD_LABEL);
-  const unavailableSources = ["moonbags-staking"];
+  const unavailableSources: string[] = [];
   const status: FifthMoveEligibilityStatus = totalVerifiedTreeRaw >= thresholdRaw
     ? "qualified"
-    : "verification-incomplete";
+    : "not-qualified";
 
   return {
     wallet,
@@ -306,6 +377,7 @@ async function readWalletEligibility(
     directV2TreeRaw,
     farmedV2TreeRaw,
     v3TreeRaw,
+    moonbagsTreeRaw,
     totalVerifiedTreeRaw,
     unavailableSources,
   };
@@ -321,6 +393,7 @@ async function main(): Promise<void> {
   const snapshots = {
     v2Pool: await readV2PoolSnapshot(options.graphqlUrl),
     v3Pool: await readV3PoolSnapshot(options.graphqlUrl),
+    moonbagsAccounts: await readMoonbagsStakeSnapshot(options.graphqlUrl),
   };
   const report = {
     generatedAt: new Date().toISOString(),
@@ -338,10 +411,11 @@ async function main(): Promise<void> {
       "moonbags-staking": 0,
     },
     qualificationThroughCombinedSuiDexSources: 0,
+    qualificationThroughCombinedSources: 0,
     medianVerifiedUnderlyingTreeRaw: "0",
     medianVerifiedUnderlyingTree: "0",
     distribution: Object.fromEntries(thresholds.map((threshold) => [threshold.label, 0])),
-    moonbagsStatus: "unavailable",
+    moonbagsStatus: "enabled",
   };
   const totals: bigint[] = [];
 
@@ -360,9 +434,12 @@ async function main(): Promise<void> {
         eligibility.directV2TreeRaw > BigInt(0) ? "suidex-v2-direct" : null,
         eligibility.farmedV2TreeRaw > BigInt(0) ? "suidex-v2-farm" : null,
         eligibility.v3TreeRaw > BigInt(0) ? "suidex-v3" : null,
+        eligibility.moonbagsTreeRaw > BigInt(0) ? "moonbags-staking" : null,
       ].filter(Boolean) as Array<keyof typeof report.qualificationBySource>;
       for (const source of positiveSources) report.qualificationBySource[source] += 1;
-      if (positiveSources.length > 1) report.qualificationThroughCombinedSuiDexSources += 1;
+      const positiveSuiDexSources = positiveSources.filter((source) => source !== "moonbags-staking");
+      if (positiveSuiDexSources.length > 1) report.qualificationThroughCombinedSuiDexSources += 1;
+      if (positiveSources.length > 1) report.qualificationThroughCombinedSources += 1;
     }
 
     for (const threshold of thresholds) {
