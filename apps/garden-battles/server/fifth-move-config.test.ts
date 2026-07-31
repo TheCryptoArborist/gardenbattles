@@ -1,0 +1,100 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import {
+  assertExpectedSignerPublicKey,
+  parseBattleEvent,
+  parseMoveTypeName,
+  parseMoveU64,
+  parseMoveU8Vector,
+} from "./routes";
+import { TREE_COIN_TYPE } from "../shared/tree-power-eligibility";
+
+const PLAYER_A = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+const PLAYER_B = "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+
+test("live FifthMoveConfig field parsers accept canonical Move shapes", () => {
+  assert.equal(parseMoveU64("1000000000000"), "1000000000000");
+  assert.equal(parseMoveU64(123), "123");
+  assert.equal(parseMoveU64(123n), "123");
+  assert.equal(parseMoveTypeName(TREE_COIN_TYPE), TREE_COIN_TYPE);
+  assert.equal(parseMoveTypeName({ fields: { name: TREE_COIN_TYPE } }), TREE_COIN_TYPE);
+  assert.deepEqual(Array.from(parseMoveU8Vector([1, 2, 3]) ?? []), [1, 2, 3]);
+  assert.deepEqual(
+    Array.from(parseMoveU8Vector({ fields: { contents: [4, 5, 6] } }) ?? []),
+    [4, 5, 6],
+  );
+});
+
+test("live FifthMoveConfig field parsers reject malformed values", () => {
+  assert.equal(parseMoveU64("-1"), null);
+  assert.equal(parseMoveU64(1.5), null);
+  assert.equal(parseMoveTypeName({ fields: { name: 1 } }), null);
+  assert.equal(parseMoveU8Vector([256]), null);
+  assert.equal(parseMoveU8Vector(["1"]), null);
+});
+
+test("signer public key validation catches malformed and mismatched keys", () => {
+  const key = Uint8Array.from(Array.from({ length: 32 }, (_, i) => i));
+  assert.doesNotThrow(() => assertExpectedSignerPublicKey(key, key));
+  assert.throws(
+    () => assertExpectedSignerPublicKey(Uint8Array.from([1, 2, 3]), key),
+    /fifth_move_config_malformed_signer/,
+  );
+  assert.throws(
+    () => assertExpectedSignerPublicKey(key, Uint8Array.from([1, 2, 3])),
+    /fifth_move_server_signer_malformed/,
+  );
+  assert.throws(
+    () => assertExpectedSignerPublicKey(key, Uint8Array.from(Array.from({ length: 32 }, () => 9))),
+    /fifth_move_signer_mismatch/,
+  );
+});
+
+test("PvpBattleV3Update parsing preserves target and ignores entitlement for scoring", () => {
+  const event = parseBattleEvent(
+    {
+      battle_id: "0xv3",
+      player1: PLAYER_A,
+      player2: PLAYER_B,
+      player1_growth: "50",
+      player2_growth: "44",
+      player1_moves: [1, 2, 20, 9, 29],
+      player2_moves: [3, 4, 21, 27],
+      winner: PLAYER_A,
+      target_growth: "50",
+      last_move_ms: "456",
+      p1_fifth_move_entitled: true,
+      p2_fifth_move_entitled: false,
+    },
+    "pvp-v3",
+  );
+
+  assert.equal(event?.battleVersion, "pvp-v3");
+  assert.equal(event?.targetGrowth, 50);
+  assert.equal(event?.winner, PLAYER_A);
+  assert.equal(event?.player1Moves.length, 5);
+});
+
+test("RankedBotBattleV2Update parsing stores bot mode and target growth", () => {
+  const event = parseBattleEvent(
+    {
+      battle_id: "0xbot",
+      player1: PLAYER_A,
+      player2: PLAYER_B,
+      player1_growth: "50",
+      player2_growth: "20",
+      player1_moves: [1, 2, 20, 9, 29],
+      player2_moves: [3, 4, 21, 27],
+      winner: PLAYER_A,
+      target_growth: "50",
+      last_move_ms: "789",
+      p1_fifth_move_entitled: true,
+    },
+    "bot-v2",
+  );
+
+  assert.equal(event?.battleVersion, "bot-v2");
+  assert.equal(event?.isBotBattle, true);
+  assert.equal(event?.targetGrowth, 50);
+  assert.equal(event?.player1Moves.length, 5);
+});

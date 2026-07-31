@@ -20,6 +20,15 @@ import {
 } from "./battle-storage";
 import { startPvpQueueTelegramNotifier } from "./pvp-queue-telegram";
 import { getCachedFifthMoveEligibility } from "./tree-power-eligibility";
+import {
+  TREE_COIN_TYPE,
+  normalizeSuiAddress,
+} from "../shared/tree-power-eligibility";
+import {
+  buildFifthMoveAttestationPayload,
+  encodeFifthMoveAttestationPayload,
+  serializeFifthMoveAttestationPayload,
+} from "../shared/fifth-move-attestation";
 
 // ─── Sui polling configuration ────────────────────────────────────────────────
 const SUI_RPC_URL =
@@ -40,9 +49,30 @@ const PVP_BATTLE_V2_EVENT_PACKAGE_ID =
   process.env.PACKAGE_ID ||
   PACKAGE_ID;
 const PVP_BATTLE_V2_UPDATE_EVENT = `${PVP_BATTLE_V2_EVENT_PACKAGE_ID}::${MODULE}::PvpBattleV2Update`;
+const PVP_BATTLE_V3_EVENT_PACKAGE_ID =
+  process.env.PVP_BATTLE_V3_EVENT_PACKAGE_ID ||
+  process.env.BATTLE_PACKAGE_ID ||
+  process.env.PACKAGE_ID ||
+  PACKAGE_ID;
+const PVP_BATTLE_V3_UPDATE_EVENT = `${PVP_BATTLE_V3_EVENT_PACKAGE_ID}::${MODULE}::PvpBattleV3Update`;
+const RANKED_BOT_BATTLE_V2_EVENT_PACKAGE_ID =
+  process.env.RANKED_BOT_BATTLE_V2_EVENT_PACKAGE_ID ||
+  process.env.BATTLE_PACKAGE_ID ||
+  process.env.PACKAGE_ID ||
+  PACKAGE_ID;
+const RANKED_BOT_BATTLE_V2_UPDATE_EVENT = `${RANKED_BOT_BATTLE_V2_EVENT_PACKAGE_ID}::${MODULE}::RankedBotBattleV2Update`;
 const POLL_INTERVAL_MS = 2_000; // poll every 2 s
 const RANDOM_OBJECT_ID = process.env.SUI_RANDOM_OBJECT_ID || "0x8";
 const LEADERBOARD_MODES = new Set<LeaderboardMode>(["pvp", "bot", "overall"]);
+const FIFTH_MOVE_ATTESTATION_PRIVATE_KEY = process.env.FIFTH_MOVE_ATTESTATION_PRIVATE_KEY;
+const FIFTH_MOVE_ATTESTATION_TTL_MS = Number(process.env.FIFTH_MOVE_ATTESTATION_TTL_MS ?? 180_000);
+const FIFTH_MOVE_CONFIG_ID = normalizeSuiAddress(process.env.FIFTH_MOVE_CONFIG_ID) ?? "";
+const FIFTH_MOVE_ATTESTATION_KEY_ID = process.env.FIFTH_MOVE_ATTESTATION_KEY_ID ?? "local-dev";
+const FIFTH_MOVE_ATTESTATION_RATE_LIMIT_MS = Number(
+  process.env.FIFTH_MOVE_ATTESTATION_RATE_LIMIT_MS ?? 5_000,
+);
+const FIFTH_MOVE_CONFIG_CACHE_MS = Number(process.env.FIFTH_MOVE_CONFIG_CACHE_MS ?? 30_000);
+const FIFTH_MOVE_CONFIG_READ_TIMEOUT_MS = Number(process.env.FIFTH_MOVE_CONFIG_READ_TIMEOUT_MS ?? 5_000);
 
 function isEnvEnabled(value: string | undefined): boolean {
   return ["true", "1", "yes", "on"].includes((value ?? "").trim().toLowerCase());
@@ -54,6 +84,15 @@ function getLeaderboardMode(value: unknown): LeaderboardMode {
   return typeof value === "string" && LEADERBOARD_MODES.has(value as LeaderboardMode)
     ? (value as LeaderboardMode)
     : "pvp";
+}
+
+function battleVersionForEventType(
+  eventType: string,
+): "legacy" | "pvp-v2" | "pvp-v3" | "bot-v2" {
+  if (eventType === PVP_BATTLE_V3_UPDATE_EVENT) return "pvp-v3";
+  if (eventType === RANKED_BOT_BATTLE_V2_UPDATE_EVENT) return "bot-v2";
+  if (eventType === PVP_BATTLE_V2_UPDATE_EVENT) return "pvp-v2";
+  return "legacy";
 }
 
 // ─── Bot configuration ───────────────────────────────────────────────────────
@@ -75,12 +114,208 @@ const BOT_ADDRESS =
   null;
 const processedBotTurns = new Set<string>();
 let suiVerificationClient: SuiClient | null = null;
+let fifthMoveSigner: Ed25519Keypair | null | undefined;
+const fifthMoveAttestationRequests = new Map<string, number>();
+type LiveFifthMoveConfig = {
+  id: string;
+  enabled: boolean;
+  utilityCoin: string;
+  minUnderlyingTreeRaw: string;
+  signerPublicKey: Uint8Array;
+  configVersion: string;
+  maxAttestationAgeMs: string;
+};
+let cachedFifthMoveConfig:
+  | { checkedAtMs: number; config: LiveFifthMoveConfig }
+  | null = null;
+let fifthMoveConfigReadInFlight: Promise<LiveFifthMoveConfig> | null = null;
 
 function getSuiVerificationClient(): SuiClient {
   if (!suiVerificationClient) {
     suiVerificationClient = new SuiClient({ url: SUI_RPC_URL });
   }
   return suiVerificationClient;
+}
+
+function getFifthMoveSigner(): Ed25519Keypair | null {
+  if (fifthMoveSigner !== undefined) return fifthMoveSigner;
+  if (!FIFTH_MOVE_ATTESTATION_PRIVATE_KEY) {
+    fifthMoveSigner = null;
+    return fifthMoveSigner;
+  }
+
+  const parsed = decodeSuiPrivateKey(FIFTH_MOVE_ATTESTATION_PRIVATE_KEY);
+  if (parsed.schema !== "ED25519") {
+    throw new Error("FIFTH_MOVE_ATTESTATION_PRIVATE_KEY must be an ED25519 Sui key");
+  }
+  fifthMoveSigner = Ed25519Keypair.fromSecretKey(parsed.secretKey);
+  return fifthMoveSigner;
+}
+
+function sourceBitmapFromEligibility(eligibility: Awaited<ReturnType<typeof getCachedFifthMoveEligibility>>): number {
+  let bitmap = 0;
+  for (const source of eligibility.sources ?? []) {
+    if (source.status !== "qualified-data") continue;
+    if (source.source === "suidex-v2" && source.reason?.includes("farmed")) {
+      bitmap |= 1 << 1;
+    } else if (source.source === "suidex-v2") {
+      bitmap |= 1 << 0;
+    } else if (source.source === "suidex-v3") {
+      bitmap |= 1 << 2;
+    } else if (source.source === "moonbags-staking") {
+      bitmap |= 1 << 3;
+    }
+  }
+  return bitmap;
+}
+
+export function parseMoveU64(value: unknown): string | null {
+  if (typeof value === "string" && /^\d+$/.test(value)) return value;
+  if (typeof value === "number" && Number.isSafeInteger(value) && value >= 0) return String(value);
+  if (typeof value === "bigint" && value >= BigInt(0)) return value.toString();
+  return null;
+}
+
+export function parseMoveTypeName(value: unknown): string | null {
+  if (typeof value === "string") return value;
+  if (!value || typeof value !== "object") return null;
+  const fields = (value as { fields?: Record<string, unknown> }).fields;
+  const directName = fields?.name;
+  if (typeof directName === "string") return directName;
+  const nestedName = (directName as { fields?: Record<string, unknown> } | undefined)?.fields?.name;
+  return typeof nestedName === "string" ? nestedName : null;
+}
+
+export function parseMoveU8Vector(value: unknown): Uint8Array | null {
+  const raw = Array.isArray(value)
+    ? value
+    : Array.isArray((value as { fields?: { contents?: unknown[] } } | undefined)?.fields?.contents)
+      ? (value as { fields: { contents: unknown[] } }).fields.contents
+      : null;
+  if (!raw) return null;
+  const bytes: number[] = [];
+  for (const item of raw) {
+    if (typeof item !== "number" || !Number.isInteger(item) || item < 0 || item > 255) {
+      return null;
+    }
+    bytes.push(item);
+  }
+  return Uint8Array.from(bytes);
+}
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
+  let timer: NodeJS.Timeout | null = null;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`${label}_timeout`)), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+export function assertExpectedSignerPublicKey(onChainKey: Uint8Array, serverKey: Uint8Array): void {
+  if (onChainKey.length !== 32) {
+    throw new Error("fifth_move_config_malformed_signer");
+  }
+  if (serverKey.length !== 32) {
+    throw new Error("fifth_move_server_signer_malformed");
+  }
+  if (!Buffer.from(onChainKey).equals(Buffer.from(serverKey))) {
+    throw new Error("fifth_move_signer_mismatch");
+  }
+}
+
+async function readLiveFifthMoveConfig(serverSignerPublicKey: Uint8Array): Promise<LiveFifthMoveConfig> {
+  if (!FIFTH_MOVE_CONFIG_ID) {
+    throw new Error("fifth_move_config_id_unconfigured");
+  }
+
+  const now = Date.now();
+  if (cachedFifthMoveConfig && now - cachedFifthMoveConfig.checkedAtMs < FIFTH_MOVE_CONFIG_CACHE_MS) {
+    assertExpectedSignerPublicKey(cachedFifthMoveConfig.config.signerPublicKey, serverSignerPublicKey);
+    return cachedFifthMoveConfig.config;
+  }
+
+  if (!fifthMoveConfigReadInFlight) {
+    fifthMoveConfigReadInFlight = (async () => {
+      const object = await withTimeout(
+        getSuiVerificationClient().getObject({
+          id: FIFTH_MOVE_CONFIG_ID,
+          options: { showType: true, showContent: true },
+        }),
+        FIFTH_MOVE_CONFIG_READ_TIMEOUT_MS,
+        "fifth_move_config_read",
+      );
+
+      if (object.error) {
+        throw new Error(`fifth_move_config_read_failed:${object.error.code}`);
+      }
+      const data = object.data;
+      if (!data || data.objectId.toLowerCase() !== FIFTH_MOVE_CONFIG_ID) {
+        throw new Error("fifth_move_config_id_mismatch");
+      }
+      if (!data.type?.endsWith("::fifth_move::FifthMoveConfig")) {
+        throw new Error("fifth_move_config_unexpected_type");
+      }
+      if (data.content?.dataType !== "moveObject") {
+        throw new Error("fifth_move_config_unexpected_content");
+      }
+
+      const fields = data.content.fields as Record<string, unknown>;
+      const enabled = fields.enabled === true;
+      const utilityCoin = parseMoveTypeName(fields.utility_coin);
+      const minUnderlyingTreeRaw = parseMoveU64(fields.min_underlying_tree_raw);
+      const configVersion = parseMoveU64(fields.config_version);
+      const maxAttestationAgeMs = parseMoveU64(fields.max_attestation_age_ms);
+      const signerPublicKey = parseMoveU8Vector(fields.signer_public_key);
+
+      if (!enabled) throw new Error("fifth_move_config_disabled");
+      if (utilityCoin !== TREE_COIN_TYPE) throw new Error("fifth_move_config_wrong_utility_coin");
+      if (!minUnderlyingTreeRaw || BigInt(minUnderlyingTreeRaw) <= BigInt(0)) {
+        throw new Error("fifth_move_config_invalid_threshold");
+      }
+      if (!configVersion || BigInt(configVersion) <= BigInt(0)) {
+        throw new Error("fifth_move_config_invalid_version");
+      }
+      if (!maxAttestationAgeMs || BigInt(maxAttestationAgeMs) <= BigInt(0)) {
+        throw new Error("fifth_move_config_invalid_max_age");
+      }
+      if (!signerPublicKey) {
+        throw new Error("fifth_move_config_malformed_signer");
+      }
+      assertExpectedSignerPublicKey(signerPublicKey, serverSignerPublicKey);
+
+      return {
+        id: data.objectId.toLowerCase(),
+        enabled,
+        utilityCoin,
+        minUnderlyingTreeRaw,
+        signerPublicKey,
+        configVersion,
+        maxAttestationAgeMs,
+      };
+    })().finally(() => {
+      fifthMoveConfigReadInFlight = null;
+    });
+  }
+
+  const config = await fifthMoveConfigReadInFlight;
+  cachedFifthMoveConfig = { checkedAtMs: Date.now(), config };
+  return config;
+}
+
+function checkFifthMoveRateLimit(key: string): boolean {
+  const now = Date.now();
+  const previous = fifthMoveAttestationRequests.get(key) ?? 0;
+  if (now - previous < FIFTH_MOVE_ATTESTATION_RATE_LIMIT_MS) {
+    return false;
+  }
+  fifthMoveAttestationRequests.set(key, now);
+  return true;
 }
 
 // ─── In-memory battle state ────────────────────────────────────────────────────
@@ -98,7 +333,7 @@ interface BattleState {
   isBotBattle?: boolean;
   lastMoveMs?: number;
   lastEventCursor?: string | null;
-  battleVersion?: "legacy" | "pvp-v2";
+  battleVersion?: "legacy" | "pvp-v2" | "pvp-v3" | "bot-v2";
   targetGrowth?: number | null;
 }
 
@@ -148,7 +383,7 @@ async function querySuiEvents(
 // ─── Parse a raw Sui event into our BattleState shape ─────────────────────────
 export function parseBattleEvent(
   parsedJson: any,
-  battleVersion: "legacy" | "pvp-v2" = "legacy",
+  battleVersion: "legacy" | "pvp-v2" | "pvp-v3" | "bot-v2" = "legacy",
 ): BattleState | null {
   try {
     if (
@@ -164,11 +399,12 @@ export function parseBattleEvent(
     const winner = normalizeWinner(parsedJson.winner);
     const parsedTurn = Number(parsedJson.turn);
     const isBotBattle =
-      battleVersion === "legacy" &&
-      (Boolean(parsedJson.is_bot_battle) ||
-        (!!BOT_ADDRESS && (player1 === BOT_ADDRESS || player2 === BOT_ADDRESS)));
+      battleVersion === "bot-v2" ||
+      (battleVersion === "legacy" &&
+        (Boolean(parsedJson.is_bot_battle) ||
+          (!!BOT_ADDRESS && (player1 === BOT_ADDRESS || player2 === BOT_ADDRESS))));
     const targetGrowth =
-      battleVersion === "pvp-v2"
+      battleVersion === "pvp-v2" || battleVersion === "pvp-v3" || battleVersion === "bot-v2"
         ? Number(parsedJson.target_growth)
         : isBotBattle
           ? 50
@@ -216,12 +452,14 @@ async function getVerifiedBattleStateFromTransaction(
       ?.filter(
         (event: any) =>
           event.type === BATTLE_UPDATE_EVENT ||
-          event.type === PVP_BATTLE_V2_UPDATE_EVENT,
+          event.type === PVP_BATTLE_V2_UPDATE_EVENT ||
+          event.type === PVP_BATTLE_V3_UPDATE_EVENT ||
+          event.type === RANKED_BOT_BATTLE_V2_UPDATE_EVENT,
       )
       .map((event: any) =>
         parseBattleEvent(
           event.parsedJson,
-          event.type === PVP_BATTLE_V2_UPDATE_EVENT ? "pvp-v2" : "legacy",
+          battleVersionForEventType(event.type),
         ),
       )
       .filter((state: BattleState | null): state is BattleState => !!state) ?? [];
@@ -262,7 +500,9 @@ async function hydrateBattleState(
       lastMoveMs: Number(fields.last_move_ms ?? 0),
       battleVersion: eventState.battleVersion,
       targetGrowth:
-        eventState.battleVersion === "pvp-v2"
+        eventState.battleVersion === "pvp-v2" ||
+        eventState.battleVersion === "pvp-v3" ||
+        eventState.battleVersion === "bot-v2"
           ? Number(fields.target_growth ?? eventState.targetGrowth ?? 0)
           : eventState.targetGrowth,
     };
@@ -382,6 +622,8 @@ async function pollSuiEvents() {
   try {
     // We only need the most recent page (descending).
     const eventPages = await Promise.all([
+      querySuiEvents(null, 50, RANKED_BOT_BATTLE_V2_UPDATE_EVENT),
+      querySuiEvents(null, 50, PVP_BATTLE_V3_UPDATE_EVENT),
       querySuiEvents(null, 50, PVP_BATTLE_V2_UPDATE_EVENT),
       querySuiEvents(null, 50, BATTLE_UPDATE_EVENT),
     ]);
@@ -394,7 +636,7 @@ async function pollSuiEvents() {
       const eventType = event.type ?? event.eventType ?? "";
       const eventState = parseBattleEvent(
         event.parsedJson,
-        eventType === PVP_BATTLE_V2_UPDATE_EVENT ? "pvp-v2" : "legacy",
+        battleVersionForEventType(eventType),
       );
       if (!eventState) continue;
       const parsed = await hydrateBattleState(eventState);
@@ -575,6 +817,103 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ── REST: verified battle record submission for leaderboard ingestion ─────
+  app.post("/api/tree-power/fifth-move-attestation", async (req, res) => {
+    const wallet = typeof req.body?.wallet === "string" ? req.body.wallet.trim().toLowerCase() : "";
+    if (!/^0x[a-f0-9]{64}$/.test(wallet)) {
+      return res.status(400).json({ ok: false, reason: "invalid_sui_address" });
+    }
+
+    const rateLimitKey = `${req.ip ?? "unknown"}:${wallet}`;
+    if (!checkFifthMoveRateLimit(rateLimitKey)) {
+      return res.status(429).json({ ok: false, reason: "rate_limited" });
+    }
+
+    let signer: Ed25519Keypair | null;
+    try {
+      signer = getFifthMoveSigner();
+    } catch (err) {
+      console.warn("[fifth-move] signer configuration error", {
+        message: err instanceof Error ? err.message : String(err),
+      });
+      return res.status(503).json({ ok: false, reason: "fifth_move_signer_invalid" });
+    }
+
+    try {
+      const eligibility = await getCachedFifthMoveEligibility(
+        getSuiVerificationClient(),
+        wallet,
+      );
+
+      if (eligibility.status !== "qualified") {
+        return res.json({
+          ok: true,
+          attestation: null,
+          eligibility,
+          reason: "wallet_not_qualified",
+        });
+      }
+
+      if (!signer) {
+        return res.status(503).json({
+          ok: false,
+          attestation: null,
+          eligibility,
+          reason: "fifth_move_signer_unconfigured",
+        });
+      }
+
+      const liveConfig = await readLiveFifthMoveConfig(signer.getPublicKey().toRawBytes());
+      const sourceBitmap = sourceBitmapFromEligibility(eligibility);
+      if (sourceBitmap <= 0 || sourceBitmap > 15) {
+        return res.status(503).json({
+          ok: false,
+          attestation: null,
+          eligibility,
+          reason: "fifth_move_source_bitmap_unavailable",
+        });
+      }
+
+      const issuedAtMs = Date.now();
+      const maxAgeMs = Number(liveConfig.maxAttestationAgeMs);
+      const requestedTtlMs = Number.isFinite(FIFTH_MOVE_ATTESTATION_TTL_MS) && FIFTH_MOVE_ATTESTATION_TTL_MS > 0
+        ? FIFTH_MOVE_ATTESTATION_TTL_MS
+        : 180_000;
+      const attestationTtlMs = Math.min(requestedTtlMs, maxAgeMs);
+      const expiresAtMs = issuedAtMs + attestationTtlMs;
+      const payload = buildFifthMoveAttestationPayload({
+        fifthMoveConfigId: liveConfig.id,
+        wallet,
+        qualified: true,
+        verifiedUnderlyingTreeRaw: eligibility.verifiedUnderlyingTreeRaw,
+        thresholdRaw: liveConfig.minUnderlyingTreeRaw,
+        sourceBitmap,
+        configVersion: liveConfig.configVersion,
+        issuedAtMs,
+        expiresAtMs,
+      });
+      const payloadBytes = serializeFifthMoveAttestationPayload(payload);
+      const signature = await signer.sign(payloadBytes);
+
+      return res.json({
+        ok: true,
+        eligibility,
+        attestation: {
+          payload,
+          payloadBytes: encodeFifthMoveAttestationPayload(payload),
+          signature: Buffer.from(signature).toString("base64"),
+          signerPublicKey: Buffer.from(signer.getPublicKey().toRawBytes()).toString("base64"),
+          keyId: FIFTH_MOVE_ATTESTATION_KEY_ID,
+          fifthMoveConfigId: liveConfig.id,
+          expiresAtMs,
+        },
+      });
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : "fifth_move_attestation_failed";
+      const status = reason === "invalid_sui_address" ? 400 : 503;
+      return res.status(status).json({ ok: false, reason });
+    }
+  });
+
   app.post("/api/battle-records/submit", async (req, res) => {
     const transactionDigest =
       typeof req.body?.transaction_digest === "string"

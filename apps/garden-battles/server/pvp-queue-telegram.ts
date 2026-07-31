@@ -26,14 +26,14 @@ export interface PendingQueueEntry {
   queueEntryKey: string;
   targetGrowth: 50 | 75 | 100;
   displayLabel: string;
-  queueType: "legacy" | "v2";
+  queueType: "legacy" | "v2" | "v3";
 }
 
 export interface PvpQueueDefinition {
   queueId: string;
   targetGrowth: 50 | 75 | 100;
   displayLabel: string;
-  queueType: "legacy" | "v2";
+  queueType: "legacy" | "v2" | "v3";
 }
 
 interface TelegramQueueNotifierOptions {
@@ -194,6 +194,8 @@ export function getConfiguredPvpQueueDefinitions(env: NodeJS.ProcessEnv = proces
     DEFAULT_MATCHMAKING_QUEUE_ID;
   const queue50Id = normalizeQueueId(env.MATCHMAKING_QUEUE_50_ID);
   const queue75Id = normalizeQueueId(env.MATCHMAKING_QUEUE_75_ID);
+  const queueV350Id = normalizeQueueId(env.MATCHMAKING_QUEUE_V3_50_ID);
+  const queueV375Id = normalizeQueueId(env.MATCHMAKING_QUEUE_V3_75_ID);
   const queues: PvpQueueDefinition[] = [];
 
   if (legacyQueueId) {
@@ -223,6 +225,24 @@ export function getConfiguredPvpQueueDefinitions(env: NodeJS.ProcessEnv = proces
     });
   }
 
+  if (queueV350Id) {
+    queues.push({
+      queueId: queueV350Id,
+      targetGrowth: 50,
+      displayLabel: "Quick Match",
+      queueType: "v3",
+    });
+  }
+
+  if (queueV375Id) {
+    queues.push({
+      queueId: queueV375Id,
+      targetGrowth: 75,
+      displayLabel: "Standard Match",
+      queueType: "v3",
+    });
+  }
+
   return queues;
 }
 
@@ -236,7 +256,7 @@ export function parsePendingQueueEntry(
   obj: any,
   queue: PvpQueueDefinition,
 ): PendingQueueEntry | null {
-  if (queue.queueType === "v2") {
+  if (queue.queueType === "v2" || queue.queueType === "v3") {
     const onChainTarget = readQueueTargetGrowth(obj);
     if (onChainTarget !== queue.targetGrowth) {
       throw new Error(

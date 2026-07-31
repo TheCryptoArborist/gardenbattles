@@ -45,6 +45,14 @@ const standardOption: PvpMatchOption = {
   queueType: "v2",
 };
 
+const quickV3Option: PvpMatchOption = {
+  targetGrowth: 50,
+  label: "Quick Match",
+  shortLabel: "50 Growth",
+  queueId: "0x1111111111111111111111111111111111111111111111111111111111111111",
+  queueType: "v3",
+};
+
 function queueObject(
   fields: Record<string, unknown>,
   meta: { previousTransaction?: string; version?: string } = {},
@@ -130,6 +138,27 @@ describe("parsePvpQueueStateFromObject", () => {
     assert.deepEqual(getPvpQueueCancelMoveCall(packageId, state!), {
       target: `${packageId}::matchmaking::cancel_queue`,
       queueObjectId: legacyQueue,
+    });
+  });
+
+  it("parses a recovered v3 queue entry and routes refunds to cancel_queue_v3", () => {
+    const state = parsePvpQueueStateFromObject(
+      queueObject({
+        bank: "3000000000",
+        target_growth: "50",
+        waiting: pending(),
+      }),
+      wallet,
+      quickV3Option,
+    );
+
+    assert.equal(state?.queueId, quickV3Option.queueId);
+    assert.equal(state?.queueType, "v3");
+    assert.equal(state?.targetGrowth, 50);
+    assert.equal(getPvpQueueCancelFunctionName(state!.queueType), "cancel_queue_v3");
+    assert.deepEqual(getPvpQueueCancelMoveCall(packageId, state!), {
+      target: `${packageId}::matchmaking::cancel_queue_v3`,
+      queueObjectId: quickV3Option.queueId,
     });
   });
 

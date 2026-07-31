@@ -151,6 +151,35 @@ export type FifthMoveEligibilityResponse = {
   sources: FifthMoveSourceResult[];
 };
 
+export type FifthMoveAttestationPayload = {
+  version: number;
+  domain: number[];
+  network: number[];
+  fifth_move_config_id: string;
+  wallet: string;
+  qualified: boolean;
+  verified_underlying_tree_raw: string;
+  threshold_raw: string;
+  source_bitmap: number;
+  config_version: string;
+  issued_at_ms: string;
+  expires_at_ms: string;
+};
+
+export type FifthMoveAttestationResponse = {
+  ok: boolean;
+  reason?: string;
+  eligibility?: FifthMoveEligibilityResponse;
+  attestation: null | {
+    payload: FifthMoveAttestationPayload;
+    payloadBytes: string;
+    signature: string;
+    signerPublicKey: string;
+    keyId: string;
+    expiresAtMs: number;
+  };
+};
+
 interface LeaderboardResponse {
   leaderboard: LeaderboardEntry[];
   total: number;
@@ -213,5 +242,15 @@ export async function fetchFifthMoveEligibility(
   return fetchJson<FifthMoveEligibilityResponse>(
     `/api/tree-power/eligibility/${address.toLowerCase()}`,
     "Fifth Move eligibility verification is temporarily unavailable.",
+  );
+}
+
+export async function requestFifthMoveAttestation(
+  address: string,
+): Promise<FifthMoveAttestationResponse> {
+  return postJson<FifthMoveAttestationResponse>(
+    "/api/tree-power/fifth-move-attestation",
+    { wallet: address.toLowerCase() },
+    "Fifth Move proof is temporarily unavailable.",
   );
 }

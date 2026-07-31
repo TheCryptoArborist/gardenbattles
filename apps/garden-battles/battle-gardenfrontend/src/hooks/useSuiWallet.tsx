@@ -24,6 +24,7 @@ import {
   useSuiClient,
 } from "@mysten/dapp-kit";
 import { Transaction } from "@mysten/sui/transactions";
+import { fromBase64 } from "@mysten/sui/utils";
 import {
   MOVE_LABELS,
   MOVE_META,
@@ -32,13 +33,19 @@ import {
   getBattleUpdateEvent,
   getBotMoveResolvedEvent,
   getPvpBattleV2UpdateEvent,
+  getPvpBattleV3UpdateEvent,
+  getRankedBotBattleV2UpdateEvent,
   getPvpMatchDisplayLabel,
   getPvpMatchOption,
   type PvpBattleVersion,
   type PvpMatchOption,
   type PvpMatchTarget,
 } from "@/lib/sui-config";
-import { submitBattleRecord } from "@/lib/api";
+import {
+  requestFifthMoveAttestation,
+  submitBattleRecord,
+  type FifthMoveAttestationPayload,
+} from "@/lib/api";
 import type { ActionEntry } from "@/components/BattleLog";
 import {
   classifyPostRefundQueueSnapshot,
@@ -57,6 +64,7 @@ import {
   shouldRunQueueClearDiscovery,
   shouldSuppressQueueRecovery,
 } from "@/lib/pvpQueueLifecycle";
+import { isUsableFifthMoveProof } from "@/lib/fifthMoveRouting";
 import { readSuiObjectWithRetry, SuiRpcReadError } from "@/lib/suiRpc";
 
 const POST_REFUND_VERIFICATION_RETRY_DELAYS_MS = [
@@ -112,7 +120,7 @@ export interface PvpQueueState {
   entryFeeMist: number;
   targetGrowth: PvpMatchTarget;
   matchLabel: string;
-  queueType: "legacy" | "v2";
+  queueType: "legacy" | "v2" | "v3";
 }
 
 export type MoveLifecycleStage =
@@ -309,7 +317,9 @@ function resolveBattleTargetGrowth(state: Pick<BattleState, "isBotBattle" | "tar
   }
 
   if (state.isBotBattle) return 50;
-  return state.battleVersion === "pvp-v2" ? 50 : 100;
+  return state.battleVersion === "pvp-v2" || state.battleVersion === "pvp-v3"
+    ? 50
+    : 100;
 }
 
 function resolveBattleMatchLabel(state: Pick<BattleState, "isBotBattle" | "targetGrowth" | "battleVersion">): string {
@@ -324,8 +334,23 @@ function isPvpBattleV2ObjectType(type: unknown): boolean {
   return typeof type === "string" && type.endsWith(`::${SUI_CONFIG.MODULE}::PvpBattleV2`);
 }
 
+function isPvpBattleV3ObjectType(type: unknown): boolean {
+  return typeof type === "string" && type.endsWith(`::${SUI_CONFIG.MODULE}::PvpBattleV3`);
+}
+
+function isRankedBotBattleV2ObjectType(type: unknown): boolean {
+  return typeof type === "string" && type.endsWith(`::${SUI_CONFIG.MODULE}::RankedBotBattleV2`);
+}
+
 function isLegacyBattleObjectType(type: unknown): boolean {
   return typeof type === "string" && type.endsWith(`::${SUI_CONFIG.MODULE}::Battle`);
+}
+
+function battleVersionForEventType(eventType: string): PvpBattleVersion {
+  if (eventType === getPvpBattleV3UpdateEvent()) return "pvp-v3";
+  if (eventType === getRankedBotBattleV2UpdateEvent()) return "bot-v2";
+  if (eventType === getPvpBattleV2UpdateEvent()) return "pvp-v2";
+  return "legacy";
 }
 
 function isActivePvpBattleForAddress(
@@ -377,11 +402,13 @@ function parseBattleStateFromEvent(
   const player1 = json.player1.toLowerCase();
   const player2 = json.player2.toLowerCase();
   const isBotBattle =
-    battleVersion === "legacy"
+    battleVersion === "bot-v2"
+      ? true
+      : battleVersion === "legacy"
       ? inferIsBotBattle(json.is_bot_battle, player1, player2)
       : false;
   const targetGrowth =
-    battleVersion === "pvp-v2"
+    battleVersion === "pvp-v2" || battleVersion === "pvp-v3" || battleVersion === "bot-v2"
       ? readTargetGrowth(json.target_growth)
       : isBotBattle
         ? 50
@@ -489,6 +516,40 @@ function parsePositiveMoveId(value: unknown): number | null {
   return Number.isFinite(moveId) && moveId > 0 ? moveId : null;
 }
 
+async function getOptionalFifthMoveProof(address: string): Promise<{
+  payload: FifthMoveAttestationPayload;
+  signatureBytes: number[];
+} | null> {
+  if (!SUI_CONFIG.FIFTH_MOVE_CONFIG_ID.trim()) return null;
+  try {
+    const response = await requestFifthMoveAttestation(address);
+    if (!response.attestation?.payload || !response.attestation.signature) {
+      console.info("[fifth-move] standard four-move entry", {
+        reason: response.reason ?? response.eligibility?.status ?? "not-qualified",
+      });
+      return null;
+    }
+
+    const proof = {
+      payload: response.attestation.payload,
+      signatureBytes: Array.from(fromBase64(response.attestation.signature)) as number[],
+    };
+    if (!isUsableFifthMoveProof(proof, SUI_CONFIG.FIFTH_MOVE_CONFIG_ID)) {
+      console.warn("[fifth-move] proof rejected before transaction selection");
+      return null;
+    }
+
+    console.info("[fifth-move] proof ready", {
+      keyId: response.attestation.keyId,
+      expiresAtMs: response.attestation.expiresAtMs,
+    });
+    return proof;
+  } catch (err) {
+    console.warn("[fifth-move] verification unavailable - continuing with four moves", err);
+    return null;
+  }
+}
+
 function resolveBotMoveId(
   previousState: BattleState,
   nextState: BattleState,
@@ -517,11 +578,13 @@ function parseBattleStateFromObjectFields(
   const player1 = String(fields.player1).toLowerCase();
   const player2 = String(fields.player2).toLowerCase();
   const isBotBattle =
-    battleVersion === "legacy"
+    battleVersion === "bot-v2"
+      ? true
+      : battleVersion === "legacy"
       ? inferIsBotBattle(fields.is_bot_battle, player1, player2)
       : false;
   const targetGrowth =
-    battleVersion === "pvp-v2"
+    battleVersion === "pvp-v2" || battleVersion === "pvp-v3" || battleVersion === "bot-v2"
       ? readTargetGrowth(fields.target_growth)
       : isBotBattle
         ? 50
@@ -713,9 +776,13 @@ async function getLiveBattleState(
     const content = obj?.data?.content as any;
     const type = obj?.data?.type ?? content?.type;
     const fields = content?.fields;
-    const battleVersion: PvpBattleVersion = isPvpBattleV2ObjectType(type)
-      ? "pvp-v2"
-      : "legacy";
+    const battleVersion: PvpBattleVersion = isPvpBattleV3ObjectType(type)
+      ? "pvp-v3"
+      : isRankedBotBattleV2ObjectType(type)
+        ? "bot-v2"
+        : isPvpBattleV2ObjectType(type)
+          ? "pvp-v2"
+          : "legacy";
     const state = parseBattleStateFromObjectFields(battleId, fields, battleVersion);
     return state
       ? {
@@ -753,12 +820,20 @@ async function getBattleStateFromTransaction(
     ?.filter(
       (event: any) =>
         event.type === getBattleUpdateEvent() ||
-        event.type === getPvpBattleV2UpdateEvent(),
+        event.type === getPvpBattleV2UpdateEvent() ||
+        event.type === getPvpBattleV3UpdateEvent() ||
+        event.type === getRankedBotBattleV2UpdateEvent(),
     )
     .map((event: any) =>
       parseBattleStateFromEvent(
         event.parsedJson,
-        event.type === getPvpBattleV2UpdateEvent() ? "pvp-v2" : "legacy",
+        event.type === getPvpBattleV3UpdateEvent()
+          ? "pvp-v3"
+          : event.type === getRankedBotBattleV2UpdateEvent()
+            ? "bot-v2"
+            : event.type === getPvpBattleV2UpdateEvent()
+              ? "pvp-v2"
+              : "legacy",
         event.id?.txDigest,
       ),
     )
@@ -795,6 +870,7 @@ async function findActivePvpBattleState(
 ): Promise<BattleState | null> {
   console.info("[pvp-match] checking active battle", { address });
   const eventQueries = [
+    { eventType: getPvpBattleV3UpdateEvent(), battleVersion: "pvp-v3" as const },
     { eventType: getPvpBattleV2UpdateEvent(), battleVersion: "pvp-v2" as const },
     { eventType: getBattleUpdateEvent(), battleVersion: "legacy" as const },
   ];
@@ -866,12 +942,14 @@ async function getBattleUpdateStateFromTransaction(
       ?.filter(
         (event: any) =>
           event.type === getBattleUpdateEvent() ||
-          event.type === getPvpBattleV2UpdateEvent(),
+          event.type === getPvpBattleV2UpdateEvent() ||
+          event.type === getPvpBattleV3UpdateEvent() ||
+          event.type === getRankedBotBattleV2UpdateEvent(),
       )
       .map((event: any) =>
         parseBattleStateFromEvent(
           event.parsedJson,
-          event.type === getPvpBattleV2UpdateEvent() ? "pvp-v2" : "legacy",
+          battleVersionForEventType(event.type),
           event.id?.txDigest ?? digest,
         ),
       )
@@ -1494,6 +1572,8 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
           }
 
           const eventQueries = [
+            { eventType: getPvpBattleV3UpdateEvent(), battleVersion: "pvp-v3" as const },
+            { eventType: getRankedBotBattleV2UpdateEvent(), battleVersion: "bot-v2" as const },
             { eventType: getPvpBattleV2UpdateEvent(), battleVersion: "pvp-v2" as const },
             { eventType: getBattleUpdateEvent(), battleVersion: "legacy" as const },
           ];
@@ -1721,7 +1801,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
       }
 
       const matchOption = getPvpMatchOption(targetGrowth);
-      if (matchOption.queueType === "v2" && !matchOption.queueId.trim()) {
+      if (matchOption.queueType !== "legacy" && !matchOption.queueId.trim()) {
         throw new Error("This match type is not active yet.");
       }
 
@@ -1752,38 +1832,92 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
               }),
             ]
           : tx.splitCoins(tx.gas, [tx.pure.u64(liveEntryFeeMist)]);
+      const fifthMoveProof =
+        matchOption.queueType === "v3" ? await getOptionalFifthMoveProof(address) : null;
 
       if (nftData.location === "wallet") {
+        const joinFunction =
+          matchOption.queueType === "v3"
+            ? fifthMoveProof
+              ? "join_queue_v3_with_fifth_move"
+              : "join_queue_v3"
+            : matchOption.queueType === "v2"
+              ? "join_queue_v2"
+              : "join_queue";
+        const args =
+          matchOption.queueType === "v3" && fifthMoveProof
+            ? [
+                tx.object(SUI_CONFIG.CONFIG_ID),
+                tx.object(SUI_CONFIG.FIFTH_MOVE_CONFIG_ID),
+                tx.object(matchOption.queueId),
+                tx.object(nftData.nftId),
+                fee,
+                tx.pure.vector("u8", fifthMoveProof.signatureBytes),
+                tx.pure.bool(fifthMoveProof.payload.qualified),
+                tx.pure.u64(fifthMoveProof.payload.verified_underlying_tree_raw),
+                tx.pure.u64(fifthMoveProof.payload.threshold_raw),
+                tx.pure.u8(fifthMoveProof.payload.source_bitmap),
+                tx.pure.u64(fifthMoveProof.payload.config_version),
+                tx.pure.u64(fifthMoveProof.payload.issued_at_ms),
+                tx.pure.u64(fifthMoveProof.payload.expires_at_ms),
+                tx.object("0x6"),
+                tx.object(randomObjectId),
+              ]
+            : [
+                tx.object(SUI_CONFIG.CONFIG_ID),
+                tx.object(matchOption.queueId),
+                tx.object(nftData.nftId),
+                fee,
+                tx.object(randomObjectId),
+              ];
         tx.moveCall({
-          target: `${SUI_CONFIG.PACKAGE_ID}::matchmaking::${
-            matchOption.queueType === "v2" ? "join_queue_v2" : "join_queue"
-          }`,
+          target: `${SUI_CONFIG.PACKAGE_ID}::matchmaking::${joinFunction}`,
           typeArguments: [nftData.nftType],
-          arguments: [
-            tx.object(SUI_CONFIG.CONFIG_ID),
-            tx.object(matchOption.queueId),
-            tx.object(nftData.nftId),
-            fee,
-            tx.object(randomObjectId),
-          ],
+          arguments: args,
         });
       } else if (nftData.kioskId && nftData.kioskCapId) {
-        tx.moveCall({
-          target: `${SUI_CONFIG.PACKAGE_ID}::matchmaking::${
-            matchOption.queueType === "v2"
+        const joinFunction =
+          matchOption.queueType === "v3"
+            ? fifthMoveProof
+              ? "join_queue_v3_with_fifth_move_from_kiosk"
+              : "join_queue_v3_from_kiosk"
+            : matchOption.queueType === "v2"
               ? "join_queue_v2_from_kiosk"
-              : "join_queue_from_kiosk"
-          }`,
+              : "join_queue_from_kiosk";
+        const args =
+          matchOption.queueType === "v3" && fifthMoveProof
+            ? [
+                tx.object(SUI_CONFIG.CONFIG_ID),
+                tx.object(SUI_CONFIG.FIFTH_MOVE_CONFIG_ID),
+                tx.object(matchOption.queueId),
+                tx.object(nftData.kioskId),
+                tx.object(nftData.kioskCapId),
+                tx.pure.address(nftData.nftId),
+                fee,
+                tx.pure.vector("u8", fifthMoveProof.signatureBytes),
+                tx.pure.bool(fifthMoveProof.payload.qualified),
+                tx.pure.u64(fifthMoveProof.payload.verified_underlying_tree_raw),
+                tx.pure.u64(fifthMoveProof.payload.threshold_raw),
+                tx.pure.u8(fifthMoveProof.payload.source_bitmap),
+                tx.pure.u64(fifthMoveProof.payload.config_version),
+                tx.pure.u64(fifthMoveProof.payload.issued_at_ms),
+                tx.pure.u64(fifthMoveProof.payload.expires_at_ms),
+                tx.object("0x6"),
+                tx.object(randomObjectId),
+              ]
+            : [
+                tx.object(SUI_CONFIG.CONFIG_ID),
+                tx.object(matchOption.queueId),
+                tx.object(nftData.kioskId),
+                tx.object(nftData.kioskCapId),
+                tx.pure.address(nftData.nftId),
+                fee,
+                tx.object(randomObjectId),
+              ];
+        tx.moveCall({
+          target: `${SUI_CONFIG.PACKAGE_ID}::matchmaking::${joinFunction}`,
           typeArguments: [nftData.nftType],
-          arguments: [
-            tx.object(SUI_CONFIG.CONFIG_ID),
-            tx.object(matchOption.queueId),
-            tx.object(nftData.kioskId),
-            tx.object(nftData.kioskCapId),
-            tx.pure.address(nftData.nftId),
-            fee,
-            tx.object(randomObjectId),
-          ],
+          arguments: args,
         });
       } else {
         throw new Error("Invalid NFT location data");
@@ -1861,30 +1995,79 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
 
       const tx = new Transaction();
       const botAddress = SUI_CONFIG.BOT_ADDRESS;
+      const fifthMoveProof = await getOptionalFifthMoveProof(address);
 
       if (nftData.location === "wallet") {
+        const createBotFunction = fifthMoveProof
+          ? "create_ranked_bot_battle_v2_with_fifth_move"
+          : SUI_CONFIG.FIFTH_MOVE_CONFIG_ID
+            ? "create_ranked_bot_battle_v2_standard"
+            : "create_bot_battle";
+        const args = fifthMoveProof
+          ? [
+              tx.object(SUI_CONFIG.CONFIG_ID),
+              tx.object(SUI_CONFIG.FIFTH_MOVE_CONFIG_ID),
+              tx.object(nftData.nftId),
+              tx.pure.address(botAddress),
+              tx.pure.vector("u8", fifthMoveProof.signatureBytes),
+              tx.pure.bool(fifthMoveProof.payload.qualified),
+              tx.pure.u64(fifthMoveProof.payload.verified_underlying_tree_raw),
+              tx.pure.u64(fifthMoveProof.payload.threshold_raw),
+              tx.pure.u8(fifthMoveProof.payload.source_bitmap),
+              tx.pure.u64(fifthMoveProof.payload.config_version),
+              tx.pure.u64(fifthMoveProof.payload.issued_at_ms),
+              tx.pure.u64(fifthMoveProof.payload.expires_at_ms),
+              tx.object("0x6"),
+              tx.object(randomObjectId),
+            ]
+          : [
+              tx.object(SUI_CONFIG.CONFIG_ID),
+              tx.object(nftData.nftId),
+              tx.pure.address(botAddress),
+              tx.object(randomObjectId),
+            ];
         tx.moveCall({
-          target: `${SUI_CONFIG.PACKAGE_ID}::${SUI_CONFIG.MODULE}::create_bot_battle`,
+          target: `${SUI_CONFIG.PACKAGE_ID}::${SUI_CONFIG.MODULE}::${createBotFunction}`,
           typeArguments: [nftData.nftType],
-          arguments: [
-            tx.object(SUI_CONFIG.CONFIG_ID),
-            tx.object(nftData.nftId),
-            tx.pure.address(botAddress),
-            tx.object(randomObjectId),
-          ],
+          arguments: args,
         });
       } else if (nftData.kioskId && nftData.kioskCapId) {
+        const createBotFunction = fifthMoveProof
+          ? "create_ranked_bot_battle_v2_with_fifth_move_from_kiosk"
+          : SUI_CONFIG.FIFTH_MOVE_CONFIG_ID
+            ? "create_ranked_bot_battle_v2_standard_from_kiosk"
+            : "create_bot_battle_from_kiosk";
+        const args = fifthMoveProof
+          ? [
+              tx.object(SUI_CONFIG.CONFIG_ID),
+              tx.object(SUI_CONFIG.FIFTH_MOVE_CONFIG_ID),
+              tx.object(nftData.kioskId),
+              tx.object(nftData.kioskCapId),
+              tx.pure.address(nftData.nftId),
+              tx.pure.address(botAddress),
+              tx.pure.vector("u8", fifthMoveProof.signatureBytes),
+              tx.pure.bool(fifthMoveProof.payload.qualified),
+              tx.pure.u64(fifthMoveProof.payload.verified_underlying_tree_raw),
+              tx.pure.u64(fifthMoveProof.payload.threshold_raw),
+              tx.pure.u8(fifthMoveProof.payload.source_bitmap),
+              tx.pure.u64(fifthMoveProof.payload.config_version),
+              tx.pure.u64(fifthMoveProof.payload.issued_at_ms),
+              tx.pure.u64(fifthMoveProof.payload.expires_at_ms),
+              tx.object("0x6"),
+              tx.object(randomObjectId),
+            ]
+          : [
+              tx.object(SUI_CONFIG.CONFIG_ID),
+              tx.object(nftData.kioskId),
+              tx.object(nftData.kioskCapId),
+              tx.pure.address(nftData.nftId),
+              tx.pure.address(botAddress),
+              tx.object(randomObjectId),
+            ];
         tx.moveCall({
-          target: `${SUI_CONFIG.PACKAGE_ID}::${SUI_CONFIG.MODULE}::create_bot_battle_from_kiosk`,
+          target: `${SUI_CONFIG.PACKAGE_ID}::${SUI_CONFIG.MODULE}::${createBotFunction}`,
           typeArguments: [nftData.nftType],
-          arguments: [
-            tx.object(SUI_CONFIG.CONFIG_ID),
-            tx.object(nftData.kioskId),
-            tx.object(nftData.kioskCapId),
-            tx.pure.address(nftData.nftId),
-            tx.pure.address(botAddress),
-            tx.object(randomObjectId),
-          ],
+          arguments: args,
         });
       } else {
         throw new Error("Invalid NFT location data");
@@ -2051,12 +2234,16 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
 
       const tx = new Transaction();
       lastMoveIdRef.current = abilityId; // track for action log
-      tx.moveCall({
-        target: `${SUI_CONFIG.PACKAGE_ID}::${SUI_CONFIG.MODULE}::${
-          activeState.battleVersion === "pvp-v2"
+      const moveFunction =
+        activeState.battleVersion === "pvp-v3"
+          ? "use_ability_id_pvp_v3"
+          : activeState.battleVersion === "pvp-v2"
             ? "use_ability_id_pvp_v2"
-            : "use_ability_id"
-        }`,
+            : activeState.battleVersion === "bot-v2"
+              ? "use_ability_id_ranked_bot_v2"
+              : "use_ability_id";
+      tx.moveCall({
+        target: `${SUI_CONFIG.PACKAGE_ID}::${SUI_CONFIG.MODULE}::${moveFunction}`,
         arguments: [
           tx.object(battleId),
           tx.pure.u8(abilityId),
@@ -2277,9 +2464,13 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
     const tx = new Transaction();
     tx.moveCall({
       target: `${SUI_CONFIG.PACKAGE_ID}::${SUI_CONFIG.MODULE}::${
-        battleState.battleVersion === "pvp-v2"
-          ? "claim_timeout_win_pvp_v2"
-          : "claim_timeout_win"
+        battleState.battleVersion === "pvp-v3"
+          ? "claim_timeout_win_pvp_v3"
+          : battleState.battleVersion === "pvp-v2"
+            ? "claim_timeout_win_pvp_v2"
+            : battleState.battleVersion === "bot-v2"
+              ? "claim_timeout_win_ranked_bot_v2"
+              : "claim_timeout_win"
       }`,
       arguments: [tx.object(battleId)],
     });
@@ -2320,10 +2511,16 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
 
     const battleId = battleState.battleId;
     const tx = new Transaction();
+    const surrenderFunction =
+      battleState.battleVersion === "pvp-v3"
+        ? "surrender_pvp_v3"
+        : battleState.battleVersion === "pvp-v2"
+          ? "surrender_pvp_v2"
+          : battleState.battleVersion === "bot-v2"
+            ? "surrender_ranked_bot_v2"
+            : "surrender";
     tx.moveCall({
-      target: `${SUI_CONFIG.PACKAGE_ID}::${SUI_CONFIG.MODULE}::${
-        battleState.battleVersion === "pvp-v2" ? "surrender_pvp_v2" : "surrender"
-      }`,
+      target: `${SUI_CONFIG.PACKAGE_ID}::${SUI_CONFIG.MODULE}::${surrenderFunction}`,
       arguments: [tx.object(battleId)],
     });
     tx.setSender(address);
@@ -2365,12 +2562,14 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
       const battleId = battleState.battleId;
       const tx = new Transaction();
       if (winner) {
-        tx.moveCall({
-          target: `${SUI_CONFIG.PACKAGE_ID}::${SUI_CONFIG.MODULE}::${
-            battleState.battleVersion === "pvp-v2"
+        const adminCloseWithWinnerFunction =
+          battleState.battleVersion === "pvp-v3"
+            ? "admin_force_close_pvp_v3_with_winner"
+            : battleState.battleVersion === "pvp-v2"
               ? "admin_force_close_pvp_v2_with_winner"
-              : "admin_force_close_with_winner"
-          }`,
+              : "admin_force_close_with_winner";
+        tx.moveCall({
+          target: `${SUI_CONFIG.PACKAGE_ID}::${SUI_CONFIG.MODULE}::${adminCloseWithWinnerFunction}`,
           arguments: [
             tx.object(battleId),
             tx.object(SUI_CONFIG.CONFIG_ID),
@@ -2378,12 +2577,16 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
           ],
         });
       } else {
-        tx.moveCall({
-          target: `${SUI_CONFIG.PACKAGE_ID}::${SUI_CONFIG.MODULE}::${
-            battleState.battleVersion === "pvp-v2"
+        const adminCloseFunction =
+          battleState.battleVersion === "pvp-v3"
+            ? "admin_force_close_pvp_v3"
+            : battleState.battleVersion === "pvp-v2"
               ? "admin_force_close_pvp_v2"
-              : "admin_force_close"
-          }`,
+              : battleState.battleVersion === "bot-v2"
+                ? "admin_force_close_ranked_bot_v2"
+                : "admin_force_close";
+        tx.moveCall({
+          target: `${SUI_CONFIG.PACKAGE_ID}::${SUI_CONFIG.MODULE}::${adminCloseFunction}`,
           arguments: [tx.object(battleId), tx.object(SUI_CONFIG.CONFIG_ID)],
         });
       }

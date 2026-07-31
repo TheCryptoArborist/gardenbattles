@@ -54,6 +54,44 @@ function queueObject(
   };
 }
 
+function v3QueueObject(
+  player: string | null,
+  version: string,
+  previousTransaction: string,
+  targetGrowth: 50 | 75,
+  queueId = targetGrowth === 50 ? QUEUE_50_ID : QUEUE_75_ID,
+) {
+  return {
+    data: {
+      objectId: queueId,
+      version,
+      previousTransaction,
+      type: "0xpackage::matchmaking::MatchmakingQueueV3",
+      content: {
+        type: "0xpackage::matchmaking::MatchmakingQueueV3",
+        fields: {
+          bank: player ? "3000000000" : "0",
+          target_growth: String(targetGrowth),
+          waiting: player
+            ? {
+                type: "0xpackage::matchmaking::PendingV3",
+                fields: {
+                  attestation_digest: [1, 2, 3, 4],
+                  eligibility_config_version: "2",
+                  entry_fee_snapshot: "3000000000",
+                  fifth_move_entitled: true,
+                  player,
+                  source_bitmap: 5,
+                  verified_underlying_tree_raw: "1000000000000",
+                },
+              }
+            : null,
+        },
+      },
+    },
+  };
+}
+
 class FakeSuiClient {
   objects: any[] = [];
   objectsById = new Map<string, any[]>();
@@ -291,12 +329,113 @@ test("empty v2 queue IDs are ignored in queue configuration", () => {
     MATCHMAKING_QUEUE_ID: QUEUE_ID,
     MATCHMAKING_QUEUE_50_ID: "",
     MATCHMAKING_QUEUE_75_ID: "   ",
+    MATCHMAKING_QUEUE_V3_50_ID: "",
+    MATCHMAKING_QUEUE_V3_75_ID: "   ",
   } as any);
 
   assert.deepEqual(
     queues.map((queue) => [queue.queueId, queue.targetGrowth, queue.displayLabel]),
     [[QUEUE_ID, 100, "Legacy Match"]],
   );
+});
+
+test("configured v3 queues are polled as target-specific Quick and Standard matches", () => {
+  const queues = getConfiguredPvpQueueDefinitions({
+    MATCHMAKING_QUEUE_ID: QUEUE_ID,
+    MATCHMAKING_QUEUE_50_ID: "",
+    MATCHMAKING_QUEUE_75_ID: "",
+    MATCHMAKING_QUEUE_V3_50_ID: "0xv3quick",
+    MATCHMAKING_QUEUE_V3_75_ID: "0xv3standard",
+  } as any);
+
+  assert.deepEqual(
+    queues.map((queue) => [queue.queueId, queue.targetGrowth, queue.displayLabel, queue.queueType]),
+    [
+      [QUEUE_ID, 100, "Legacy Match", "legacy"],
+      ["0xv3quick", 50, "Quick Match", "v3"],
+      ["0xv3standard", 75, "Standard Match", "v3"],
+    ],
+  );
+});
+
+test("V3 50-Growth waiting object notifies as Quick Match", async () => {
+  const queue50: PvpQueueDefinition = {
+    queueId: QUEUE_50_ID,
+    targetGrowth: 50,
+    displayLabel: "Quick Match",
+    queueType: "v3",
+  };
+  const { poller, telegramClient } = makePoller(
+    { [QUEUE_50_ID]: [v3QueueObject(PLAYER_A, "7", "tx-v3-a-50", 50)] },
+    new MemoryStore(),
+    123,
+    [queue50],
+  );
+
+  assert.equal((await poller.pollOnce()).status, "notified");
+  assert.match(telegramClient.sent[0].text, /Match target: <b>50 Growth<\/b>/);
+  assert.match(telegramClient.sent[0].text, /<b>Quick Match<\/b>/);
+});
+
+test("V3 75-Growth waiting object notifies as Standard Match", async () => {
+  const queue75: PvpQueueDefinition = {
+    queueId: QUEUE_75_ID,
+    targetGrowth: 75,
+    displayLabel: "Standard Match",
+    queueType: "v3",
+  };
+  const { poller, telegramClient } = makePoller(
+    { [QUEUE_75_ID]: [v3QueueObject(PLAYER_A, "8", "tx-v3-a-75", 75)] },
+    new MemoryStore(),
+    123,
+    [queue75],
+  );
+
+  assert.equal((await poller.pollOnce()).status, "notified");
+  assert.match(telegramClient.sent[0].text, /Match target: <b>75 Growth<\/b>/);
+  assert.match(telegramClient.sent[0].text, /<b>Standard Match<\/b>/);
+});
+
+test("V3 fifth-move entitlement fields do not break parsing or deduplication", async () => {
+  const queue50: PvpQueueDefinition = {
+    queueId: QUEUE_50_ID,
+    targetGrowth: 50,
+    displayLabel: "Quick Match",
+    queueType: "v3",
+  };
+  const { poller, telegramClient } = makePoller(
+    {
+      [QUEUE_50_ID]: [
+        v3QueueObject(PLAYER_A, "7", "tx-v3-a-50", 50),
+        v3QueueObject(PLAYER_A, "7", "tx-v3-a-50", 50),
+      ],
+    },
+    new MemoryStore(),
+    123,
+    [queue50],
+  );
+
+  assert.equal((await poller.pollOnce()).status, "notified");
+  assert.equal((await poller.pollOnce()).reason, "already_notified");
+  assert.equal(telegramClient.sent.length, 1);
+});
+
+test("cleared V3 queue does not notify", async () => {
+  const queue50: PvpQueueDefinition = {
+    queueId: QUEUE_50_ID,
+    targetGrowth: 50,
+    displayLabel: "Quick Match",
+    queueType: "v3",
+  };
+  const { poller, telegramClient } = makePoller(
+    { [QUEUE_50_ID]: [v3QueueObject(null, "9", "tx-v3-empty-50", 50)] },
+    new MemoryStore(),
+    123,
+    [queue50],
+  );
+
+  assert.equal((await poller.pollOnce()).status, "empty");
+  assert.equal(telegramClient.sent.length, 0);
 });
 
 test("queue-ID-separated dedupe lets same wallet alert separately in 50 and 75 queues", async () => {

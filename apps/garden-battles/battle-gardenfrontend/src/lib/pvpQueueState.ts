@@ -10,7 +10,7 @@ export interface ParsedPvpQueueState {
   entryFeeMist: number;
   targetGrowth: PvpMatchTarget;
   matchLabel: string;
-  queueType: "legacy" | "v2";
+  queueType: "legacy" | "v2" | "v3";
 }
 
 export interface ParsedPvpQueueObjectSnapshot {
@@ -25,7 +25,8 @@ export type PostRefundQueueVerificationStatus =
   | "stale"
   | "still-waiting";
 
-export function getPvpQueueCancelFunctionName(queueType: "legacy" | "v2") {
+export function getPvpQueueCancelFunctionName(queueType: "legacy" | "v2" | "v3") {
+  if (queueType === "v3") return "cancel_queue_v3";
   return queueType === "v2" ? "cancel_queue_v2" : "cancel_queue";
 }
 
@@ -112,7 +113,7 @@ export function parsePvpQueueStateFromObject(
 
   const objectTargetGrowth = readObjectTargetGrowth(fields?.target_growth);
   if (
-    option.queueType === "v2" &&
+    option.queueType !== "legacy" &&
     objectTargetGrowth &&
     objectTargetGrowth !== option.targetGrowth
   ) {
@@ -129,7 +130,7 @@ export function parsePvpQueueStateFromObject(
     player,
     entryFeeMist,
     targetGrowth:
-      option.queueType === "v2" && objectTargetGrowth
+      option.queueType !== "legacy" && objectTargetGrowth
         ? (objectTargetGrowth as PvpMatchTarget)
         : option.targetGrowth,
     matchLabel: getPvpMatchDisplayLabel(option.targetGrowth),

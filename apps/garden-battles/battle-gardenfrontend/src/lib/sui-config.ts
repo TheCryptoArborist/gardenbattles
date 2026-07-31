@@ -24,6 +24,12 @@ export const SUI_CONFIG = {
     "0x469a5da237047f4c78223e3a2fac6bf42427ba488fd1e26f2233b65f01a31960",
   MATCHMAKING_QUEUE_75_ID:
     "0x9d805e74d3a4412e4bb935ed383ad8f9dde00715632ea61704ccc4af804666cd",
+  MATCHMAKING_QUEUE_V3_50_ID:
+    ((import.meta as any).env?.VITE_MATCHMAKING_QUEUE_V3_50_ID as string | undefined) || "",
+  MATCHMAKING_QUEUE_V3_75_ID:
+    ((import.meta as any).env?.VITE_MATCHMAKING_QUEUE_V3_75_ID as string | undefined) || "",
+  FIFTH_MOVE_CONFIG_ID:
+    ((import.meta as any).env?.VITE_FIFTH_MOVE_CONFIG_ID as string | undefined) || "",
   BOT_ADDRESS:
     "0xbbe518c2a2025d2d95b9e5b6435911771f64d7d9fe037fbf2ec661981890d5b4",
   SAPLING_STRUCT:
@@ -45,9 +51,9 @@ export const SUI_CONFIG = {
   ],
 } as const;
 
-export type PvpBattleVersion = "legacy" | "pvp-v2";
+export type PvpBattleVersion = "legacy" | "pvp-v2" | "pvp-v3" | "bot-v2";
 export type PvpMatchTarget = 50 | 75 | 100;
-export type PvpQueueType = "legacy" | "v2";
+export type PvpQueueType = "legacy" | "v2" | "v3";
 
 export interface PvpMatchOption {
   targetGrowth: PvpMatchTarget;
@@ -59,22 +65,24 @@ export interface PvpMatchOption {
 
 export function getPvpMatchOption(targetGrowth: PvpMatchTarget): PvpMatchOption {
   if (targetGrowth === 50) {
+    const v3QueueId = SUI_CONFIG.MATCHMAKING_QUEUE_V3_50_ID.trim();
     return {
       targetGrowth,
       label: "Quick Match",
       shortLabel: "50 Growth",
-      queueId: SUI_CONFIG.MATCHMAKING_QUEUE_50_ID,
-      queueType: "v2",
+      queueId: v3QueueId || SUI_CONFIG.MATCHMAKING_QUEUE_50_ID,
+      queueType: v3QueueId ? "v3" : "v2",
     };
   }
 
   if (targetGrowth === 75) {
+    const v3QueueId = SUI_CONFIG.MATCHMAKING_QUEUE_V3_75_ID.trim();
     return {
       targetGrowth,
       label: "Standard Match",
       shortLabel: "75 Growth",
-      queueId: SUI_CONFIG.MATCHMAKING_QUEUE_75_ID,
-      queueType: "v2",
+      queueId: v3QueueId || SUI_CONFIG.MATCHMAKING_QUEUE_75_ID,
+      queueType: v3QueueId ? "v3" : "v2",
     };
   }
 
@@ -181,6 +189,14 @@ export function getBattleUpdateEvent() {
 
 export function getPvpBattleV2UpdateEvent() {
   return `${SUI_CONFIG.PACKAGE_ID}::${SUI_CONFIG.MODULE}::PvpBattleV2Update`;
+}
+
+export function getPvpBattleV3UpdateEvent() {
+  return `${SUI_CONFIG.PACKAGE_ID}::${SUI_CONFIG.MODULE}::PvpBattleV3Update`;
+}
+
+export function getRankedBotBattleV2UpdateEvent() {
+  return `${SUI_CONFIG.PACKAGE_ID}::${SUI_CONFIG.MODULE}::RankedBotBattleV2Update`;
 }
 
 export function getBotMoveResolvedEvent() {

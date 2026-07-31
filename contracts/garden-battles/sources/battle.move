@@ -5,10 +5,12 @@ module battle_garden::battle {
     use sui::coin;
     use sui::sui::SUI;
     use sui::random::{Self, Random};
+    use sui::clock::Clock;
     use sui::kiosk::{Self, Kiosk, KioskOwnerCap};
     use battle_garden::utils;
     use battle_garden::errors;
     use battle_garden::config::{Self, Config, TreeConfig};
+    use battle_garden::fifth_move::{Self, FifthMoveConfig, FifthMoveEligibility};
 
     public struct Status has copy, drop, store {
         block_turns: u8,
@@ -98,6 +100,91 @@ module battle_garden::battle {
         target_growth: u64,
     }
 
+    public struct PvpBattleV3 has key {
+        id: UID,
+        player1: address,
+        player2: address,
+        p1_growth: u64,
+        p2_growth: u64,
+        turn: u8,
+        finished: bool,
+        winner: Option<address>,
+        p1_moves: vector<u8>,
+        p2_moves: vector<u8>,
+        p1_status: Status,
+        p2_status: Status,
+        vault: Balance<SUI>,
+        battle_entry_fee: u64,
+        winner_payout: u64,
+        treasury_share: u64,
+        treasury_addr: address,
+        last_move_ms: u64,
+        target_growth: u64,
+        p1_fifth_move_entitled: bool,
+        p2_fifth_move_entitled: bool,
+        p1_eligibility_digest: vector<u8>,
+        p2_eligibility_digest: vector<u8>,
+        p1_reroll_used: bool,
+        p2_reroll_used: bool,
+    }
+
+    public struct RankedBotBattleV2 has key {
+        id: UID,
+        player1: address,
+        player2: address,
+        p1_growth: u64,
+        p2_growth: u64,
+        turn: u8,
+        finished: bool,
+        winner: Option<address>,
+        p1_moves: vector<u8>,
+        p2_moves: vector<u8>,
+        p1_status: Status,
+        p2_status: Status,
+        vault: Balance<SUI>,
+        battle_entry_fee: u64,
+        winner_payout: u64,
+        treasury_share: u64,
+        treasury_addr: address,
+        last_move_ms: u64,
+        target_growth: u64,
+        p1_fifth_move_entitled: bool,
+        p1_eligibility_digest: vector<u8>,
+        p1_reroll_used: bool,
+    }
+
+    public struct PvpBattleV3Update has copy, drop {
+        battle_id: ID,
+        player1: address,
+        player2: address,
+        player1_moves: vector<u8>,
+        player2_moves: vector<u8>,
+        player1_growth: u64,
+        player2_growth: u64,
+        winner: Option<address>,
+        last_move_ms: u64,
+        target_growth: u64,
+        p1_fifth_move_entitled: bool,
+        p2_fifth_move_entitled: bool,
+        p1_reroll_used: bool,
+        p2_reroll_used: bool,
+    }
+
+    public struct RankedBotBattleV2Update has copy, drop {
+        battle_id: ID,
+        player1: address,
+        player2: address,
+        player1_moves: vector<u8>,
+        player2_moves: vector<u8>,
+        player1_growth: u64,
+        player2_growth: u64,
+        winner: Option<address>,
+        last_move_ms: u64,
+        target_growth: u64,
+        p1_fifth_move_entitled: bool,
+        p1_reroll_used: bool,
+    }
+
     // ═══════════════════════════════════════════════════════════════════════════
     //  Core battle functions (unchanged)
     // ═══════════════════════════════════════════════════════════════════════════
@@ -152,6 +239,60 @@ module battle_garden::battle {
         moves
     }
 
+    fun all_hand_candidate_moves(): vector<u8> {
+        let mut moves = vector::empty<u8>();
+        vector::push_back(&mut moves, 1);
+        vector::push_back(&mut moves, 2);
+        vector::push_back(&mut moves, 3);
+        vector::push_back(&mut moves, 4);
+        vector::push_back(&mut moves, 5);
+        vector::push_back(&mut moves, 6);
+        vector::push_back(&mut moves, 7);
+        vector::push_back(&mut moves, 10);
+        vector::push_back(&mut moves, 11);
+        vector::push_back(&mut moves, 12);
+        vector::push_back(&mut moves, 13);
+        vector::push_back(&mut moves, 20);
+        vector::push_back(&mut moves, 21);
+        vector::push_back(&mut moves, 22);
+        vector::push_back(&mut moves, 23);
+        vector::push_back(&mut moves, 24);
+        vector::push_back(&mut moves, 25);
+        vector::push_back(&mut moves, 26);
+        vector::push_back(&mut moves, 28);
+        vector::push_back(&mut moves, 30);
+        vector::push_back(&mut moves, 9);
+        vector::push_back(&mut moves, 27);
+        vector::push_back(&mut moves, 29);
+        moves
+    }
+
+    fun gen_moves_for_entitlement(entitled: bool, rand: &Random, ctx: &mut TxContext): vector<u8> {
+        let mut moves = gen_moves(rand, ctx);
+        if (!entitled) {
+            return moves
+        };
+
+        let legal = all_hand_candidate_moves();
+        let mut remaining = vector::empty<u8>();
+        let mut i = 0;
+        let legal_len = vector::length(&legal);
+        while (i < legal_len) {
+            let move_id = *vector::borrow(&legal, i);
+            if (!utils::contains_u8(&moves, move_id)) {
+                vector::push_back(&mut remaining, move_id);
+            };
+            i = i + 1;
+        };
+
+        let remaining_len = vector::length(&remaining);
+        assert!(remaining_len > 0, errors::e_invalid_move());
+        let mut rng = random::new_generator(rand, ctx);
+        let idx = random::generate_u64(&mut rng) % remaining_len;
+        vector::push_back(&mut moves, *vector::borrow(&remaining, idx));
+        moves
+    }
+
     fun emit_update(arg0: &Battle) {
         let update = BattleUpdate {
             battle_id: object::uid_to_inner(&arg0.id),
@@ -169,6 +310,14 @@ module battle_garden::battle {
     }
 
     fun emit_bot_move_resolved(battle: &Battle, move_id: u8) {
+        event::emit(BotMoveResolved {
+            battle_id: object::uid_to_inner(&battle.id),
+            bot_player: battle.player2,
+            move_id,
+        });
+    }
+
+    fun emit_ranked_bot_v2_move_resolved(battle: &RankedBotBattleV2, move_id: u8) {
         event::emit(BotMoveResolved {
             battle_id: object::uid_to_inner(&battle.id),
             bot_player: battle.player2,
@@ -196,6 +345,44 @@ module battle_garden::battle {
             winner: battle.winner,
             last_move_ms: battle.last_move_ms,
             target_growth: battle.target_growth,
+        };
+        event::emit(update);
+    }
+
+    fun emit_update_v3(battle: &PvpBattleV3) {
+        let update = PvpBattleV3Update {
+            battle_id: object::uid_to_inner(&battle.id),
+            player1: battle.player1,
+            player2: battle.player2,
+            player1_moves: utils::clone_vec_u8(&battle.p1_moves),
+            player2_moves: utils::clone_vec_u8(&battle.p2_moves),
+            player1_growth: battle.p1_growth,
+            player2_growth: battle.p2_growth,
+            winner: battle.winner,
+            last_move_ms: battle.last_move_ms,
+            target_growth: battle.target_growth,
+            p1_fifth_move_entitled: battle.p1_fifth_move_entitled,
+            p2_fifth_move_entitled: battle.p2_fifth_move_entitled,
+            p1_reroll_used: battle.p1_reroll_used,
+            p2_reroll_used: battle.p2_reroll_used,
+        };
+        event::emit(update);
+    }
+
+    fun emit_update_ranked_bot_v2(battle: &RankedBotBattleV2) {
+        let update = RankedBotBattleV2Update {
+            battle_id: object::uid_to_inner(&battle.id),
+            player1: battle.player1,
+            player2: battle.player2,
+            player1_moves: utils::clone_vec_u8(&battle.p1_moves),
+            player2_moves: utils::clone_vec_u8(&battle.p2_moves),
+            player1_growth: battle.p1_growth,
+            player2_growth: battle.p2_growth,
+            winner: battle.winner,
+            last_move_ms: battle.last_move_ms,
+            target_growth: battle.target_growth,
+            p1_fifth_move_entitled: battle.p1_fifth_move_entitled,
+            p1_reroll_used: battle.p1_reroll_used,
         };
         event::emit(update);
     }
@@ -240,6 +427,48 @@ module battle_garden::battle {
             transfer::public_transfer(coin::from_balance(rem, ctx), winner);
         };
         emit_update_v2(battle);
+    }
+
+    fun finish_and_payout_v3(battle: &mut PvpBattleV3, winner: address, ctx: &mut TxContext) {
+        assert!(!battle.finished, errors::e_battle_finished());
+        battle.finished = true;
+        battle.winner = option::some(winner);
+        assert!(balance::value(&battle.vault) >= battle.winner_payout + battle.treasury_share, errors::e_insufficient_vault());
+        if (battle.winner_payout > 0) {
+            let payout = balance::split(&mut battle.vault, battle.winner_payout);
+            transfer::public_transfer(coin::from_balance(payout, ctx), winner);
+        };
+        if (battle.treasury_share > 0) {
+            let treasury_cut = balance::split(&mut battle.vault, battle.treasury_share);
+            transfer::public_transfer(coin::from_balance(treasury_cut, ctx), battle.treasury_addr);
+        };
+        let remaining = balance::value(&battle.vault);
+        if (remaining > 0) {
+            let rem = balance::split(&mut battle.vault, remaining);
+            transfer::public_transfer(coin::from_balance(rem, ctx), winner);
+        };
+        emit_update_v3(battle);
+    }
+
+    fun finish_and_payout_ranked_bot_v2(battle: &mut RankedBotBattleV2, winner: address, ctx: &mut TxContext) {
+        assert!(!battle.finished, errors::e_battle_finished());
+        battle.finished = true;
+        battle.winner = option::some(winner);
+        assert!(balance::value(&battle.vault) >= battle.winner_payout + battle.treasury_share, errors::e_insufficient_vault());
+        if (battle.winner_payout > 0) {
+            let payout = balance::split(&mut battle.vault, battle.winner_payout);
+            transfer::public_transfer(coin::from_balance(payout, ctx), winner);
+        };
+        if (battle.treasury_share > 0) {
+            let treasury_cut = balance::split(&mut battle.vault, battle.treasury_share);
+            transfer::public_transfer(coin::from_balance(treasury_cut, ctx), battle.treasury_addr);
+        };
+        let remaining = balance::value(&battle.vault);
+        if (remaining > 0) {
+            let rem = balance::split(&mut battle.vault, remaining);
+            transfer::public_transfer(coin::from_balance(rem, ctx), winner);
+        };
+        emit_update_ranked_bot_v2(battle);
     }
 
     public fun create_battle(
@@ -315,6 +544,55 @@ module battle_garden::battle {
             target_growth,
         };
         emit_update_v2(&battle);
+        transfer::share_object(battle);
+    }
+
+    public fun create_pvp_battle_v3(
+        player1: address,
+        player2: address,
+        entry_fee: u64,
+        config: &Config,
+        vault_balance: Balance<SUI>,
+        target_growth: u64,
+        p1_eligibility: FifthMoveEligibility,
+        p2_eligibility: FifthMoveEligibility,
+        rand: &Random,
+        ctx: &mut TxContext
+    ) {
+        assert_valid_pvp_v2_target(target_growth);
+        assert!(player1 != player2, errors::e_invalid_address());
+        let p1_status = Status { block_turns: 0, next_turn_penalty: 0, poison_ticks: 0, poison_dpt: 0 };
+        let p2_status = Status { block_turns: 0, next_turn_penalty: 0, poison_ticks: 0, poison_dpt: 0 };
+        let p1_entitled = fifth_move::entitled(&p1_eligibility);
+        let p2_entitled = fifth_move::entitled(&p2_eligibility);
+        let battle = PvpBattleV3 {
+            id: object::new(ctx),
+            player1,
+            player2,
+            p1_growth: 0,
+            p2_growth: 0,
+            turn: 0,
+            finished: false,
+            winner: option::none(),
+            p1_moves: gen_moves_for_entitlement(p1_entitled, rand, ctx),
+            p2_moves: gen_moves_for_entitlement(p2_entitled, rand, ctx),
+            p1_status,
+            p2_status,
+            vault: vault_balance,
+            battle_entry_fee: entry_fee,
+            winner_payout: config::winner_payout(config),
+            treasury_share: config::treasury_share(config),
+            treasury_addr: config::treasury(config),
+            last_move_ms: tx_context::epoch_timestamp_ms(ctx),
+            target_growth,
+            p1_fifth_move_entitled: p1_entitled,
+            p2_fifth_move_entitled: p2_entitled,
+            p1_eligibility_digest: fifth_move::attestation_digest(&p1_eligibility),
+            p2_eligibility_digest: fifth_move::attestation_digest(&p2_eligibility),
+            p1_reroll_used: false,
+            p2_reroll_used: false,
+        };
+        emit_update_v3(&battle);
         transfer::share_object(battle);
     }
 
@@ -425,6 +703,169 @@ module battle_garden::battle {
     ) {
         let (nft, borrow) = kiosk::borrow_val<T>(kiosk, cap, nft_id);
         create_paid_bot_battle<T>(config, &nft, bot_player, payment, rand, ctx);
+        kiosk::return_val(kiosk, nft, borrow);
+    }
+
+    public entry fun create_ranked_bot_battle_v2<T: key + store>(
+        config: &Config,
+        _nft: &T,
+        bot_player: address,
+        eligibility: FifthMoveEligibility,
+        rand: &Random,
+        ctx: &mut TxContext
+    ) {
+        assert!(!config::paused(config), errors::e_paused());
+        assert!(config::is_collection_whitelisted<T>(config), errors::e_nft_not_whitelisted());
+
+        let player = tx_context::sender(ctx);
+        assert!(bot_player != @0x0 && bot_player != player, errors::e_invalid_address());
+        let entitled = fifth_move::entitled(&eligibility);
+
+        let p1_status = Status { block_turns: 0, next_turn_penalty: 0, poison_ticks: 0, poison_dpt: 0 };
+        let p2_status = Status { block_turns: 0, next_turn_penalty: 0, poison_ticks: 0, poison_dpt: 0 };
+        let battle = RankedBotBattleV2 {
+            id: object::new(ctx),
+            player1: player,
+            player2: bot_player,
+            p1_growth: 0,
+            p2_growth: 0,
+            turn: 0,
+            finished: false,
+            winner: option::none(),
+            p1_moves: gen_moves_for_entitlement(entitled, rand, ctx),
+            p2_moves: gen_moves(rand, ctx),
+            p1_status,
+            p2_status,
+            vault: balance::zero(),
+            battle_entry_fee: 0,
+            winner_payout: 0,
+            treasury_share: 0,
+            treasury_addr: config::treasury(config),
+            last_move_ms: tx_context::epoch_timestamp_ms(ctx),
+            target_growth: 50,
+            p1_fifth_move_entitled: entitled,
+            p1_eligibility_digest: fifth_move::attestation_digest(&eligibility),
+            p1_reroll_used: false,
+        };
+        emit_update_ranked_bot_v2(&battle);
+        transfer::share_object(battle);
+    }
+
+    public entry fun create_ranked_bot_battle_v2_from_kiosk<T: key + store>(
+        config: &Config,
+        kiosk: &mut Kiosk,
+        cap: &KioskOwnerCap,
+        nft_id: ID,
+        bot_player: address,
+        eligibility: FifthMoveEligibility,
+        rand: &Random,
+        ctx: &mut TxContext
+    ) {
+        let (nft, borrow) = kiosk::borrow_val<T>(kiosk, cap, nft_id);
+        create_ranked_bot_battle_v2<T>(config, &nft, bot_player, eligibility, rand, ctx);
+        kiosk::return_val(kiosk, nft, borrow);
+    }
+
+    public entry fun create_ranked_bot_battle_v2_standard<T: key + store>(
+        config: &Config,
+        _nft: &T,
+        bot_player: address,
+        rand: &Random,
+        ctx: &mut TxContext
+    ) {
+        create_ranked_bot_battle_v2<T>(
+            config,
+            _nft,
+            bot_player,
+            fifth_move::standard_eligibility(),
+            rand,
+            ctx,
+        );
+    }
+
+    public entry fun create_ranked_bot_battle_v2_with_fifth_move<T: key + store>(
+        config: &Config,
+        fifth_move_config: &FifthMoveConfig,
+        _nft: &T,
+        bot_player: address,
+        signature: vector<u8>,
+        qualified: bool,
+        verified_underlying_tree_raw: u64,
+        threshold_raw: u64,
+        source_bitmap: u8,
+        config_version: u64,
+        issued_at_ms: u64,
+        expires_at_ms: u64,
+        clock: &Clock,
+        rand: &Random,
+        ctx: &mut TxContext
+    ) {
+        let payload = fifth_move::payload(
+            fifth_move::config_id(fifth_move_config),
+            tx_context::sender(ctx),
+            qualified,
+            verified_underlying_tree_raw,
+            threshold_raw,
+            source_bitmap,
+            config_version,
+            issued_at_ms,
+            expires_at_ms,
+        );
+        let eligibility = fifth_move::verify_attestation(fifth_move_config, payload, signature, clock, ctx);
+        create_ranked_bot_battle_v2<T>(config, _nft, bot_player, eligibility, rand, ctx);
+    }
+
+    public entry fun create_ranked_bot_battle_v2_standard_from_kiosk<T: key + store>(
+        config: &Config,
+        kiosk: &mut Kiosk,
+        cap: &KioskOwnerCap,
+        nft_id: ID,
+        bot_player: address,
+        rand: &Random,
+        ctx: &mut TxContext
+    ) {
+        let (nft, borrow) = kiosk::borrow_val<T>(kiosk, cap, nft_id);
+        create_ranked_bot_battle_v2_standard<T>(config, &nft, bot_player, rand, ctx);
+        kiosk::return_val(kiosk, nft, borrow);
+    }
+
+    public entry fun create_ranked_bot_battle_v2_with_fifth_move_from_kiosk<T: key + store>(
+        config: &Config,
+        fifth_move_config: &FifthMoveConfig,
+        kiosk: &mut Kiosk,
+        cap: &KioskOwnerCap,
+        nft_id: ID,
+        bot_player: address,
+        signature: vector<u8>,
+        qualified: bool,
+        verified_underlying_tree_raw: u64,
+        threshold_raw: u64,
+        source_bitmap: u8,
+        config_version: u64,
+        issued_at_ms: u64,
+        expires_at_ms: u64,
+        clock: &Clock,
+        rand: &Random,
+        ctx: &mut TxContext
+    ) {
+        let (nft, borrow) = kiosk::borrow_val<T>(kiosk, cap, nft_id);
+        create_ranked_bot_battle_v2_with_fifth_move<T>(
+            config,
+            fifth_move_config,
+            &nft,
+            bot_player,
+            signature,
+            qualified,
+            verified_underlying_tree_raw,
+            threshold_raw,
+            source_bitmap,
+            config_version,
+            issued_at_ms,
+            expires_at_ms,
+            clock,
+            rand,
+            ctx,
+        );
         kiosk::return_val(kiosk, nft, borrow);
     }
 
@@ -556,6 +997,97 @@ module battle_garden::battle {
         assert!(tx_context::sender(ctx) == config::admin(config), errors::e_admin_only());
         assert!(!battle.finished, errors::e_battle_finished());
         finish_and_payout_v2(battle, winner, ctx);
+    }
+
+    public fun surrender_pvp_v3(battle: &mut PvpBattleV3, ctx: &mut TxContext) {
+        assert!(!battle.finished, errors::e_battle_finished());
+        let sender = tx_context::sender(ctx);
+        let winner = if (sender == battle.player1) {
+            battle.player2
+        } else if (sender == battle.player2) {
+            battle.player1
+        } else {
+            abort errors::e_unauthorized_player()
+        };
+        finish_and_payout_v3(battle, winner, ctx);
+    }
+
+    public fun claim_timeout_win_pvp_v3(battle: &mut PvpBattleV3, ctx: &mut TxContext) {
+        assert!(!battle.finished, errors::e_battle_finished());
+        let sender = tx_context::sender(ctx);
+        let is_player1 = sender == battle.player1;
+        let is_player2 = sender == battle.player2;
+        assert!(is_player1 || is_player2, errors::e_unauthorized_player());
+
+        let is_opponent_turn = if (battle.turn == 0) {
+            sender == battle.player2
+        } else {
+            sender == battle.player1
+        };
+        assert!(is_opponent_turn, errors::e_unauthorized_player());
+
+        let now = tx_context::epoch_timestamp_ms(ctx);
+        assert!(now >= battle.last_move_ms + TIMEOUT_MS, errors::e_unauthorized_player());
+        finish_and_payout_v3(battle, sender, ctx);
+    }
+
+    public fun admin_force_close_pvp_v3(battle: &mut PvpBattleV3, config: &Config, ctx: &mut TxContext) {
+        assert!(tx_context::sender(ctx) == config::admin(config), errors::e_admin_only());
+        assert!(!battle.finished, errors::e_battle_finished());
+        battle.finished = true;
+        battle.winner = option::none();
+        let total = balance::value(&battle.vault);
+        let half = total / 2;
+        let p1_refund = balance::split(&mut battle.vault, half);
+        transfer::public_transfer(coin::from_balance(p1_refund, ctx), battle.player1);
+        let p2_refund = balance::split(&mut battle.vault, half);
+        transfer::public_transfer(coin::from_balance(p2_refund, ctx), battle.player2);
+        let remaining = balance::value(&battle.vault);
+        if (remaining > 0) {
+            let rem = balance::split(&mut battle.vault, remaining);
+            transfer::public_transfer(coin::from_balance(rem, ctx), battle.player1);
+        };
+        emit_update_v3(battle);
+    }
+
+    public fun admin_force_close_pvp_v3_with_winner(
+        battle: &mut PvpBattleV3,
+        config: &Config,
+        winner: address,
+        ctx: &mut TxContext,
+    ) {
+        assert!(tx_context::sender(ctx) == config::admin(config), errors::e_admin_only());
+        assert!(!battle.finished, errors::e_battle_finished());
+        finish_and_payout_v3(battle, winner, ctx);
+    }
+
+    public fun surrender_ranked_bot_v2(battle: &mut RankedBotBattleV2, ctx: &mut TxContext) {
+        assert!(!battle.finished, errors::e_battle_finished());
+        assert!(tx_context::sender(ctx) == battle.player1, errors::e_unauthorized_player());
+        let winner = battle.player2;
+        finish_and_payout_ranked_bot_v2(battle, winner, ctx);
+    }
+
+    public fun claim_timeout_win_ranked_bot_v2(battle: &mut RankedBotBattleV2, ctx: &mut TxContext) {
+        assert!(!battle.finished, errors::e_battle_finished());
+        assert!(tx_context::sender(ctx) == battle.player1, errors::e_unauthorized_player());
+        let now = tx_context::epoch_timestamp_ms(ctx);
+        assert!(now >= battle.last_move_ms + BOT_TIMEOUT_MS, errors::e_unauthorized_player());
+        let winner = battle.player1;
+        finish_and_payout_ranked_bot_v2(battle, winner, ctx);
+    }
+
+    public fun admin_force_close_ranked_bot_v2(battle: &mut RankedBotBattleV2, config: &Config, ctx: &mut TxContext) {
+        assert!(tx_context::sender(ctx) == config::admin(config), errors::e_admin_only());
+        assert!(!battle.finished, errors::e_battle_finished());
+        battle.finished = true;
+        battle.winner = option::none();
+        let total = balance::value(&battle.vault);
+        if (total > 0) {
+            let refund = balance::split(&mut battle.vault, total);
+            transfer::public_transfer(coin::from_balance(refund, ctx), battle.player1);
+        };
+        emit_update_ranked_bot_v2(battle);
     }
 
     fun apply_damage(arg0: u64, arg1: &mut Status): u64 {
@@ -732,6 +1264,71 @@ module battle_garden::battle {
         };
     }
 
+    fun choose_ranked_bot_v2_move(battle: &RankedBotBattleV2, rand: &Random, ctx: &mut TxContext): u8 {
+        let moves_len = vector::length(&battle.p2_moves);
+        assert!(moves_len > 0, errors::e_invalid_move());
+        let recent_move = *vector::borrow(&battle.p2_moves, moves_len - 1);
+
+        let mut max_score = 0;
+        let mut i = 0;
+        while (i < moves_len) {
+            let move_id = *vector::borrow(&battle.p2_moves, i);
+            let score = bot_move_score(move_id, battle.p2_growth, battle.p1_growth, &battle.p2_status, &battle.p1_status);
+            if (score > max_score) {
+                max_score = score;
+            };
+            i = i + 1;
+        };
+
+        let mut candidate_count = 0;
+        let mut alternate_candidate_count = 0;
+        i = 0;
+        while (i < moves_len) {
+            let move_id = *vector::borrow(&battle.p2_moves, i);
+            let score = bot_move_score(move_id, battle.p2_growth, battle.p1_growth, &battle.p2_status, &battle.p1_status);
+            if (bot_score_is_viable(score, max_score)) {
+                candidate_count = candidate_count + 1;
+                if (move_id != recent_move) {
+                    alternate_candidate_count = alternate_candidate_count + 1;
+                };
+            };
+            i = i + 1;
+        };
+
+        let avoid_recent = alternate_candidate_count > 0;
+        let selection_count = if (avoid_recent) { alternate_candidate_count } else { candidate_count };
+        let mut rng = random::new_generator(rand, ctx);
+        let selected_candidate = random::generate_u64(&mut rng) % selection_count;
+        let mut seen_candidates = 0;
+        i = 0;
+        while (i < moves_len) {
+            let move_id = *vector::borrow(&battle.p2_moves, i);
+            let score = bot_move_score(move_id, battle.p2_growth, battle.p1_growth, &battle.p2_status, &battle.p1_status);
+            if (bot_score_is_viable(score, max_score) && (!avoid_recent || move_id != recent_move)) {
+                if (seen_candidates == selected_candidate) {
+                    return move_id
+                };
+                seen_candidates = seen_candidates + 1;
+            };
+            i = i + 1;
+        };
+
+        *vector::borrow(&battle.p2_moves, 0)
+    }
+
+    fun rotate_ranked_bot_v2_move_to_end(battle: &mut RankedBotBattleV2, move_id: u8) {
+        let moves_len = vector::length(&battle.p2_moves);
+        let mut i = 0;
+        while (i < moves_len) {
+            if (*vector::borrow(&battle.p2_moves, i) == move_id) {
+                let selected = vector::remove(&mut battle.p2_moves, i);
+                vector::push_back(&mut battle.p2_moves, selected);
+                return
+            };
+            i = i + 1;
+        };
+    }
+
     fun apply_player1_move(battle: &mut Battle, move_id: u8, rand: &Random, ctx: &mut TxContext) {
         if (battle.p1_status.next_turn_penalty > 0) {
             battle.p1_growth = utils::sub_growth(battle.p1_growth, battle.p1_status.next_turn_penalty);
@@ -795,6 +1392,70 @@ module battle_garden::battle {
 
         resolve_move(move_id, &mut battle.p2_growth, &mut battle.p1_growth, &mut battle.p2_status, &mut battle.p1_status, rand, ctx);
 
+        battle.p2_growth = utils::clamp(battle.p2_growth, 0, 100);
+        battle.p1_growth = utils::clamp(battle.p1_growth, 0, 100);
+        battle.last_move_ms = tx_context::epoch_timestamp_ms(ctx);
+    }
+
+    fun apply_player1_move_v3(battle: &mut PvpBattleV3, move_id: u8, rand: &Random, ctx: &mut TxContext) {
+        if (battle.p1_status.next_turn_penalty > 0) {
+            battle.p1_growth = utils::sub_growth(battle.p1_growth, battle.p1_status.next_turn_penalty);
+            battle.p1_status.next_turn_penalty = 0;
+        };
+        if (battle.p1_status.poison_ticks > 0) {
+            battle.p1_growth = utils::sub_growth(battle.p1_growth, battle.p1_status.poison_dpt);
+            battle.p1_status.poison_ticks = battle.p1_status.poison_ticks - 1;
+        };
+
+        resolve_move(move_id, &mut battle.p1_growth, &mut battle.p2_growth, &mut battle.p1_status, &mut battle.p2_status, rand, ctx);
+        battle.p1_growth = utils::clamp(battle.p1_growth, 0, 100);
+        battle.p2_growth = utils::clamp(battle.p2_growth, 0, 100);
+        battle.last_move_ms = tx_context::epoch_timestamp_ms(ctx);
+    }
+
+    fun apply_player2_move_v3(battle: &mut PvpBattleV3, move_id: u8, rand: &Random, ctx: &mut TxContext) {
+        if (battle.p2_status.next_turn_penalty > 0) {
+            battle.p2_growth = utils::sub_growth(battle.p2_growth, battle.p2_status.next_turn_penalty);
+            battle.p2_status.next_turn_penalty = 0;
+        };
+        if (battle.p2_status.poison_ticks > 0) {
+            battle.p2_growth = utils::sub_growth(battle.p2_growth, battle.p2_status.poison_dpt);
+            battle.p2_status.poison_ticks = battle.p2_status.poison_ticks - 1;
+        };
+
+        resolve_move(move_id, &mut battle.p2_growth, &mut battle.p1_growth, &mut battle.p2_status, &mut battle.p1_status, rand, ctx);
+        battle.p2_growth = utils::clamp(battle.p2_growth, 0, 100);
+        battle.p1_growth = utils::clamp(battle.p1_growth, 0, 100);
+        battle.last_move_ms = tx_context::epoch_timestamp_ms(ctx);
+    }
+
+    fun apply_player1_move_ranked_bot_v2(battle: &mut RankedBotBattleV2, move_id: u8, rand: &Random, ctx: &mut TxContext) {
+        if (battle.p1_status.next_turn_penalty > 0) {
+            battle.p1_growth = utils::sub_growth(battle.p1_growth, battle.p1_status.next_turn_penalty);
+            battle.p1_status.next_turn_penalty = 0;
+        };
+        if (battle.p1_status.poison_ticks > 0) {
+            battle.p1_growth = utils::sub_growth(battle.p1_growth, battle.p1_status.poison_dpt);
+            battle.p1_status.poison_ticks = battle.p1_status.poison_ticks - 1;
+        };
+
+        resolve_move(move_id, &mut battle.p1_growth, &mut battle.p2_growth, &mut battle.p1_status, &mut battle.p2_status, rand, ctx);
+        battle.p1_growth = utils::clamp(battle.p1_growth, 0, 100);
+        battle.p2_growth = utils::clamp(battle.p2_growth, 0, 100);
+        battle.last_move_ms = tx_context::epoch_timestamp_ms(ctx);
+    }
+
+    fun apply_player2_move_ranked_bot_v2(battle: &mut RankedBotBattleV2, move_id: u8, rand: &Random, ctx: &mut TxContext) {
+        if (battle.p2_status.next_turn_penalty > 0) {
+            battle.p2_growth = utils::sub_growth(battle.p2_growth, battle.p2_status.next_turn_penalty);
+            battle.p2_status.next_turn_penalty = 0;
+        };
+        if (battle.p2_status.poison_ticks > 0) {
+            battle.p2_growth = utils::sub_growth(battle.p2_growth, battle.p2_status.poison_dpt);
+            battle.p2_status.poison_ticks = battle.p2_status.poison_ticks - 1;
+        };
+
+        resolve_move(move_id, &mut battle.p2_growth, &mut battle.p1_growth, &mut battle.p2_status, &mut battle.p1_status, rand, ctx);
         battle.p2_growth = utils::clamp(battle.p2_growth, 0, 100);
         battle.p1_growth = utils::clamp(battle.p1_growth, 0, 100);
         battle.last_move_ms = tx_context::epoch_timestamp_ms(ctx);
@@ -886,6 +1547,73 @@ module battle_garden::battle {
             } else {
                 battle.turn = 0;
                 emit_update_v2(battle);
+            };
+        };
+    }
+
+    public fun use_ability_id_pvp_v3(battle: &mut PvpBattleV3, move_id: u8, rand: &Random, ctx: &mut TxContext) {
+        assert!(!battle.finished, errors::e_battle_finished());
+        let sender = tx_context::sender(ctx);
+        let is_player_turn = if (battle.turn == 0) {
+            assert!(sender == battle.player1, errors::e_unauthorized_player());
+            utils::contains_u8(&battle.p1_moves, move_id)
+        } else {
+            assert!(sender == battle.player2, errors::e_unauthorized_player());
+            utils::contains_u8(&battle.p2_moves, move_id)
+        };
+        assert!(is_player_turn, errors::e_invalid_move());
+
+        if (battle.turn == 0) {
+            apply_player1_move_v3(battle, move_id, rand, ctx);
+
+            if (battle.p1_growth >= battle.target_growth) {
+                let winner = battle.player1;
+                finish_and_payout_v3(battle, winner, ctx);
+            } else {
+                battle.turn = 1;
+                emit_update_v3(battle);
+            };
+        } else {
+            apply_player2_move_v3(battle, move_id, rand, ctx);
+
+            if (battle.p2_growth >= battle.target_growth) {
+                let winner = battle.player2;
+                finish_and_payout_v3(battle, winner, ctx);
+            } else {
+                battle.turn = 0;
+                emit_update_v3(battle);
+            };
+        };
+    }
+
+    public fun use_ability_id_ranked_bot_v2(
+        battle: &mut RankedBotBattleV2,
+        move_id: u8,
+        rand: &Random,
+        ctx: &mut TxContext,
+    ) {
+        assert!(!battle.finished, errors::e_battle_finished());
+        let sender = tx_context::sender(ctx);
+        assert!(sender == battle.player1, errors::e_unauthorized_player());
+        assert!(utils::contains_u8(&battle.p1_moves, move_id), errors::e_invalid_move());
+
+        apply_player1_move_ranked_bot_v2(battle, move_id, rand, ctx);
+
+        if (battle.p1_growth >= battle.target_growth) {
+            let winner = battle.player1;
+            finish_and_payout_ranked_bot_v2(battle, winner, ctx);
+        } else {
+            let bot_move = choose_ranked_bot_v2_move(battle, rand, ctx);
+            emit_ranked_bot_v2_move_resolved(battle, bot_move);
+            rotate_ranked_bot_v2_move_to_end(battle, bot_move);
+            apply_player2_move_ranked_bot_v2(battle, bot_move, rand, ctx);
+
+            if (battle.p2_growth >= battle.target_growth) {
+                let winner = battle.player2;
+                finish_and_payout_ranked_bot_v2(battle, winner, ctx);
+            } else {
+                battle.turn = 0;
+                emit_update_ranked_bot_v2(battle);
             };
         };
     }
@@ -1208,4 +1936,94 @@ module battle_garden::battle {
     public fun pvp_v2_player2(battle: &PvpBattleV2): address { battle.player2 }
     #[test_only]
     public fun pvp_v2_turn(battle: &PvpBattleV2): u8 { battle.turn }
+
+    #[test_only]
+    public fun pvp_v3_p1_moves(battle: &PvpBattleV3): &vector<u8> { &battle.p1_moves }
+    #[test_only]
+    public fun pvp_v3_p2_moves(battle: &PvpBattleV3): &vector<u8> { &battle.p2_moves }
+    #[test_only]
+    public fun set_pvp_v3_p1_moves_for_testing(battle: &mut PvpBattleV3, moves: vector<u8>) {
+        battle.p1_moves = moves;
+    }
+    #[test_only]
+    public fun set_pvp_v3_p1_growth_for_testing(battle: &mut PvpBattleV3, growth: u64) {
+        battle.p1_growth = growth;
+    }
+    #[test_only]
+    public fun set_pvp_v3_p2_growth_for_testing(battle: &mut PvpBattleV3, growth: u64) {
+        battle.p2_growth = growth;
+    }
+    #[test_only]
+    public fun set_pvp_v3_last_move_ms_for_testing(battle: &mut PvpBattleV3, last_move_ms: u64) {
+        battle.last_move_ms = last_move_ms;
+    }
+    #[test_only]
+    public fun pvp_v3_p1_growth(battle: &PvpBattleV3): u64 { battle.p1_growth }
+    #[test_only]
+    public fun pvp_v3_p2_growth(battle: &PvpBattleV3): u64 { battle.p2_growth }
+    #[test_only]
+    public fun pvp_v3_target_growth(battle: &PvpBattleV3): u64 { battle.target_growth }
+    #[test_only]
+    public fun pvp_v3_vault_value(battle: &PvpBattleV3): u64 { balance::value(&battle.vault) }
+    #[test_only]
+    public fun pvp_v3_battle_entry_fee(battle: &PvpBattleV3): u64 { battle.battle_entry_fee }
+    #[test_only]
+    public fun pvp_v3_winner_payout(battle: &PvpBattleV3): u64 { battle.winner_payout }
+    #[test_only]
+    public fun pvp_v3_treasury_share(battle: &PvpBattleV3): u64 { battle.treasury_share }
+    #[test_only]
+    public fun pvp_v3_is_finished(battle: &PvpBattleV3): bool { battle.finished }
+    #[test_only]
+    public fun pvp_v3_winner(battle: &PvpBattleV3): Option<address> { battle.winner }
+    #[test_only]
+    public fun pvp_v3_player1(battle: &PvpBattleV3): address { battle.player1 }
+    #[test_only]
+    public fun pvp_v3_player2(battle: &PvpBattleV3): address { battle.player2 }
+    #[test_only]
+    public fun pvp_v3_turn(battle: &PvpBattleV3): u8 { battle.turn }
+    #[test_only]
+    public fun pvp_v3_p1_fifth_move_entitled(battle: &PvpBattleV3): bool { battle.p1_fifth_move_entitled }
+    #[test_only]
+    public fun pvp_v3_p2_fifth_move_entitled(battle: &PvpBattleV3): bool { battle.p2_fifth_move_entitled }
+    #[test_only]
+    public fun pvp_v3_p1_eligibility_digest_len(battle: &PvpBattleV3): u64 { vector::length(&battle.p1_eligibility_digest) }
+    #[test_only]
+    public fun pvp_v3_p2_eligibility_digest_len(battle: &PvpBattleV3): u64 { vector::length(&battle.p2_eligibility_digest) }
+
+    #[test_only]
+    public fun ranked_bot_v2_p1_moves(battle: &RankedBotBattleV2): &vector<u8> { &battle.p1_moves }
+    #[test_only]
+    public fun ranked_bot_v2_p2_moves(battle: &RankedBotBattleV2): &vector<u8> { &battle.p2_moves }
+    #[test_only]
+    public fun ranked_bot_v2_p1_fifth_move_entitled(battle: &RankedBotBattleV2): bool { battle.p1_fifth_move_entitled }
+    #[test_only]
+    public fun ranked_bot_v2_target_growth(battle: &RankedBotBattleV2): u64 { battle.target_growth }
+    #[test_only]
+    public fun ranked_bot_v2_is_finished(battle: &RankedBotBattleV2): bool { battle.finished }
+    #[test_only]
+    public fun ranked_bot_v2_winner(battle: &RankedBotBattleV2): Option<address> { battle.winner }
+    #[test_only]
+    public fun ranked_bot_v2_vault_value(battle: &RankedBotBattleV2): u64 { balance::value(&battle.vault) }
+    #[test_only]
+    public fun ranked_bot_v2_battle_entry_fee(battle: &RankedBotBattleV2): u64 { battle.battle_entry_fee }
+    #[test_only]
+    public fun ranked_bot_v2_winner_payout(battle: &RankedBotBattleV2): u64 { battle.winner_payout }
+    #[test_only]
+    public fun ranked_bot_v2_treasury_share(battle: &RankedBotBattleV2): u64 { battle.treasury_share }
+    #[test_only]
+    public fun ranked_bot_v2_eligibility_digest_len(battle: &RankedBotBattleV2): u64 {
+        vector::length(&battle.p1_eligibility_digest)
+    }
+    #[test_only]
+    public fun set_ranked_bot_v2_p1_moves_for_testing(battle: &mut RankedBotBattleV2, moves: vector<u8>) {
+        battle.p1_moves = moves;
+    }
+    #[test_only]
+    public fun set_ranked_bot_v2_p1_growth_for_testing(battle: &mut RankedBotBattleV2, growth: u64) {
+        battle.p1_growth = growth;
+    }
+    #[test_only]
+    public fun set_ranked_bot_v2_last_move_ms_for_testing(battle: &mut RankedBotBattleV2, last_move_ms: u64) {
+        battle.last_move_ms = last_move_ms;
+    }
 }
