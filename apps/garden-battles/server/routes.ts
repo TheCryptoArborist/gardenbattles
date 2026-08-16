@@ -1,4 +1,4 @@
-import type { Express } from "express";
+import type { Express, RequestHandler } from "express";
 import { createServer, type Server } from "http";
 import { Server as SocketIOServer, type Socket } from "socket.io";
 import { SuiClient } from "@mysten/sui/client";
@@ -125,6 +125,19 @@ type LiveFifthMoveConfig = {
   configVersion: string;
   maxAttestationAgeMs: string;
 };
+
+type FifthMoveEligibilityForAttestation = Awaited<ReturnType<typeof getCachedFifthMoveEligibility>>;
+
+export type FifthMoveAttestationRouteOptions = {
+  getEligibility?: (wallet: string) => Promise<FifthMoveEligibilityForAttestation>;
+  getSigner?: () => Ed25519Keypair | null;
+  readConfig?: (serverSignerPublicKey: Uint8Array) => Promise<LiveFifthMoveConfig>;
+  checkRateLimit?: (key: string) => boolean;
+  nowMs?: () => number;
+  ttlMs?: number;
+  keyId?: string;
+  expectedUtilityCoin?: string;
+};
 let cachedFifthMoveConfig:
   | { checkedAtMs: number; config: LiveFifthMoveConfig }
   | null = null;
@@ -184,6 +197,14 @@ export function parseMoveTypeName(value: unknown): string | null {
   if (typeof directName === "string") return directName;
   const nestedName = (directName as { fields?: Record<string, unknown> } | undefined)?.fields?.name;
   return typeof nestedName === "string" ? nestedName : null;
+}
+
+function normalizeMoveTypeName(value: string): string {
+  const parts = value.split("::");
+  if (parts.length < 3) return value;
+  const [address, ...rest] = parts;
+  const normalizedAddress = `0x${address.replace(/^0x/i, "").toLowerCase().padStart(64, "0")}`;
+  return [normalizedAddress, ...rest].join("::");
 }
 
 export function parseMoveU8Vector(value: unknown): Uint8Array | null {
@@ -316,6 +337,122 @@ function checkFifthMoveRateLimit(key: string): boolean {
   }
   fifthMoveAttestationRequests.set(key, now);
   return true;
+}
+
+export function createFifthMoveAttestationHandler(
+  options: FifthMoveAttestationRouteOptions = {},
+): RequestHandler {
+  const getEligibility = options.getEligibility ?? ((wallet: string) =>
+    getCachedFifthMoveEligibility(getSuiVerificationClient(), wallet));
+  const getSigner = options.getSigner ?? getFifthMoveSigner;
+  const readConfig = options.readConfig ?? readLiveFifthMoveConfig;
+  const checkRateLimit = options.checkRateLimit ?? checkFifthMoveRateLimit;
+  const nowMs = options.nowMs ?? Date.now;
+  const ttlMs = options.ttlMs ?? FIFTH_MOVE_ATTESTATION_TTL_MS;
+  const keyId = options.keyId ?? FIFTH_MOVE_ATTESTATION_KEY_ID;
+
+  return async (req, res) => {
+    const wallet = typeof req.body?.wallet === "string" ? req.body.wallet.trim().toLowerCase() : "";
+    if (!/^0x[a-f0-9]{64}$/.test(wallet)) {
+      return res.status(400).json({ ok: false, reason: "invalid_sui_address" });
+    }
+
+    const rateLimitKey = `${req.ip ?? "unknown"}:${wallet}`;
+    if (!checkRateLimit(rateLimitKey)) {
+      return res.status(429).json({ ok: false, reason: "rate_limited" });
+    }
+
+    let signer: Ed25519Keypair | null;
+    try {
+      signer = getSigner();
+    } catch (err) {
+      console.warn("[fifth-move] signer configuration error", {
+        message: err instanceof Error ? err.message : String(err),
+      });
+      return res.status(503).json({ ok: false, reason: "fifth_move_signer_invalid" });
+    }
+
+    try {
+      const eligibility = await getEligibility(wallet);
+
+      if (eligibility.status !== "qualified") {
+        return res.json({
+          ok: true,
+          attestation: null,
+          eligibility,
+          reason: "wallet_not_qualified",
+        });
+      }
+
+      if (!signer) {
+        return res.status(503).json({
+          ok: false,
+          attestation: null,
+          eligibility,
+          reason: "fifth_move_signer_unconfigured",
+        });
+      }
+
+      const liveConfig = await readConfig(signer.getPublicKey().toRawBytes());
+      const expectedUtilityCoin = options.expectedUtilityCoin ?? TREE_COIN_TYPE;
+      if (normalizeMoveTypeName(liveConfig.utilityCoin) !== normalizeMoveTypeName(expectedUtilityCoin)) {
+        return res.status(503).json({
+          ok: false,
+          attestation: null,
+          eligibility,
+          reason: "fifth_move_config_wrong_utility_coin",
+        });
+      }
+      const sourceBitmap = sourceBitmapFromEligibility(eligibility);
+      if (sourceBitmap <= 0 || sourceBitmap > 15) {
+        return res.status(503).json({
+          ok: false,
+          attestation: null,
+          eligibility,
+          reason: "fifth_move_source_bitmap_unavailable",
+        });
+      }
+
+      const issuedAtMs = nowMs();
+      const maxAgeMs = Number(liveConfig.maxAttestationAgeMs);
+      const requestedTtlMs = Number.isFinite(ttlMs) && ttlMs > 0
+        ? ttlMs
+        : 180_000;
+      const attestationTtlMs = Math.min(requestedTtlMs, maxAgeMs);
+      const expiresAtMs = issuedAtMs + attestationTtlMs;
+      const payload = buildFifthMoveAttestationPayload({
+        fifthMoveConfigId: liveConfig.id,
+        wallet,
+        qualified: true,
+        verifiedUnderlyingTreeRaw: eligibility.verifiedUnderlyingTreeRaw,
+        thresholdRaw: liveConfig.minUnderlyingTreeRaw,
+        sourceBitmap,
+        configVersion: liveConfig.configVersion,
+        issuedAtMs,
+        expiresAtMs,
+      });
+      const payloadBytes = serializeFifthMoveAttestationPayload(payload);
+      const signature = await signer.sign(payloadBytes);
+
+      return res.json({
+        ok: true,
+        eligibility,
+        attestation: {
+          payload,
+          payloadBytes: encodeFifthMoveAttestationPayload(payload),
+          signature: Buffer.from(signature).toString("base64"),
+          signerPublicKey: Buffer.from(signer.getPublicKey().toRawBytes()).toString("base64"),
+          keyId,
+          fifthMoveConfigId: liveConfig.id,
+          expiresAtMs,
+        },
+      });
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : "fifth_move_attestation_failed";
+      const status = reason === "invalid_sui_address" ? 400 : 503;
+      return res.status(status).json({ ok: false, reason });
+    }
+  };
 }
 
 // ─── In-memory battle state ────────────────────────────────────────────────────
@@ -817,102 +954,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ── REST: verified battle record submission for leaderboard ingestion ─────
-  app.post("/api/tree-power/fifth-move-attestation", async (req, res) => {
-    const wallet = typeof req.body?.wallet === "string" ? req.body.wallet.trim().toLowerCase() : "";
-    if (!/^0x[a-f0-9]{64}$/.test(wallet)) {
-      return res.status(400).json({ ok: false, reason: "invalid_sui_address" });
-    }
-
-    const rateLimitKey = `${req.ip ?? "unknown"}:${wallet}`;
-    if (!checkFifthMoveRateLimit(rateLimitKey)) {
-      return res.status(429).json({ ok: false, reason: "rate_limited" });
-    }
-
-    let signer: Ed25519Keypair | null;
-    try {
-      signer = getFifthMoveSigner();
-    } catch (err) {
-      console.warn("[fifth-move] signer configuration error", {
-        message: err instanceof Error ? err.message : String(err),
-      });
-      return res.status(503).json({ ok: false, reason: "fifth_move_signer_invalid" });
-    }
-
-    try {
-      const eligibility = await getCachedFifthMoveEligibility(
-        getSuiVerificationClient(),
-        wallet,
-      );
-
-      if (eligibility.status !== "qualified") {
-        return res.json({
-          ok: true,
-          attestation: null,
-          eligibility,
-          reason: "wallet_not_qualified",
-        });
-      }
-
-      if (!signer) {
-        return res.status(503).json({
-          ok: false,
-          attestation: null,
-          eligibility,
-          reason: "fifth_move_signer_unconfigured",
-        });
-      }
-
-      const liveConfig = await readLiveFifthMoveConfig(signer.getPublicKey().toRawBytes());
-      const sourceBitmap = sourceBitmapFromEligibility(eligibility);
-      if (sourceBitmap <= 0 || sourceBitmap > 15) {
-        return res.status(503).json({
-          ok: false,
-          attestation: null,
-          eligibility,
-          reason: "fifth_move_source_bitmap_unavailable",
-        });
-      }
-
-      const issuedAtMs = Date.now();
-      const maxAgeMs = Number(liveConfig.maxAttestationAgeMs);
-      const requestedTtlMs = Number.isFinite(FIFTH_MOVE_ATTESTATION_TTL_MS) && FIFTH_MOVE_ATTESTATION_TTL_MS > 0
-        ? FIFTH_MOVE_ATTESTATION_TTL_MS
-        : 180_000;
-      const attestationTtlMs = Math.min(requestedTtlMs, maxAgeMs);
-      const expiresAtMs = issuedAtMs + attestationTtlMs;
-      const payload = buildFifthMoveAttestationPayload({
-        fifthMoveConfigId: liveConfig.id,
-        wallet,
-        qualified: true,
-        verifiedUnderlyingTreeRaw: eligibility.verifiedUnderlyingTreeRaw,
-        thresholdRaw: liveConfig.minUnderlyingTreeRaw,
-        sourceBitmap,
-        configVersion: liveConfig.configVersion,
-        issuedAtMs,
-        expiresAtMs,
-      });
-      const payloadBytes = serializeFifthMoveAttestationPayload(payload);
-      const signature = await signer.sign(payloadBytes);
-
-      return res.json({
-        ok: true,
-        eligibility,
-        attestation: {
-          payload,
-          payloadBytes: encodeFifthMoveAttestationPayload(payload),
-          signature: Buffer.from(signature).toString("base64"),
-          signerPublicKey: Buffer.from(signer.getPublicKey().toRawBytes()).toString("base64"),
-          keyId: FIFTH_MOVE_ATTESTATION_KEY_ID,
-          fifthMoveConfigId: liveConfig.id,
-          expiresAtMs,
-        },
-      });
-    } catch (err) {
-      const reason = err instanceof Error ? err.message : "fifth_move_attestation_failed";
-      const status = reason === "invalid_sui_address" ? 400 : 503;
-      return res.status(status).json({ ok: false, reason });
-    }
-  });
+  app.post("/api/tree-power/fifth-move-attestation", createFifthMoveAttestationHandler());
 
   app.post("/api/battle-records/submit", async (req, res) => {
     const transactionDigest =
