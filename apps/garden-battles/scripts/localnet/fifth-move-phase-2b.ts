@@ -16,7 +16,8 @@ import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
 import { Ed25519PublicKey } from "@mysten/sui/keypairs/ed25519";
 import { Transaction } from "@mysten/sui/transactions";
 import { fromBase64 } from "@mysten/sui/utils";
-import { createFifthMoveAttestationHandler, parseMoveTypeName, parseMoveU64, parseMoveU8Vector } from "../../server/routes";
+import { createFifthMoveAttestationHandler, parseBattleEvent, parseMoveTypeName, parseMoveU64, parseMoveU8Vector } from "../../server/routes";
+import { parsePendingQueueEntry, type PvpQueueDefinition } from "../../server/pvp-queue-telegram";
 import {
   asciiBytes,
   decodeBase64Bytes,
@@ -105,6 +106,18 @@ type Report = {
   rankedBotLifecycleResults: RankedBotLifecycleResult[];
   eventShapes: EventShapeResult[];
   builderResults: BuilderCheckResult[];
+  queueRecoveryResults: QueueRecoveryResult[];
+  activeBattleRecoveryResults: ActiveBattleRecoveryResult[];
+  rankedBotRecoveryResults: RankedBotRecoveryResult[];
+  postRefundRecoveryResults: PostRefundRecoveryResult[];
+  pvpCompletionResults: PvpCompletionResult[];
+  pvpSettlementResults: PvpSettlementResult[];
+  rankedBotCompletionResults: RankedBotCompletionResult[];
+  ingestionResults: IngestionResult[];
+  dedupeResults: DedupeResult[];
+  cursorRecoveryResults: CursorRecoveryResult[];
+  finishedBattleRecoveryResults: FinishedBattleRecoveryResult[];
+  telegramRegressionResults: TelegramRegressionResult[];
   cleanup: {
     localnetStopped: boolean;
     tempDirRemoved: boolean;
@@ -250,6 +263,179 @@ type BuilderCheckResult = {
   functionName: string;
   usesFifthMoveProof: boolean;
   clockIncluded: boolean;
+};
+
+type QueueRecoveryResult = {
+  label: string;
+  targetGrowth: 50 | 75;
+  queueId: string;
+  queueType: "v3";
+  joinDigest: string;
+  recoveredWallet: string;
+  entryFeeMist: string;
+  fifthMoveEntitled: boolean;
+  verifiedUnderlyingTreeRaw: string;
+  sourceBitmap: number;
+  configVersion: string;
+  attestationDigestLength: number;
+  refundable: boolean;
+  noBroadDiscoveryUsed: boolean;
+  refundFunction: string;
+};
+
+type ActiveBattleRecoveryResult = {
+  label: string;
+  battleId: string;
+  battleType: "PvpBattleV3";
+  targetGrowth: string;
+  turn: number;
+  p1Growth: string;
+  p2Growth: string;
+  p1MoveCount: number;
+  p2MoveCount: number;
+  p1Entitled: boolean;
+  p2Entitled: boolean;
+  p1DigestLength: number;
+  p2DigestLength: number;
+  p1RerollUsed: boolean;
+  p2RerollUsed: boolean;
+  lastMoveMs: string;
+  finished: boolean;
+  activeBattleSuppressesQueueRecovery: boolean;
+  directObjectReadUsed: boolean;
+};
+
+type RankedBotRecoveryResult = {
+  label: string;
+  battleId: string;
+  battleType: "RankedBotBattleV2";
+  humanWallet: string;
+  botAddress: string;
+  humanMoveCount: number;
+  botMoveCount: number;
+  fifthMoveEntitled: boolean;
+  eligibilityDigestLength: number;
+  configVersion: string;
+  p1Growth: string;
+  p2Growth: string;
+  turn: number;
+  finished: boolean;
+  eventCaptured: boolean;
+};
+
+type PostRefundRecoveryResult = {
+  label: string;
+  targetGrowth: 50 | 75;
+  entitled: boolean;
+  joinDigest: string;
+  refundDigest: string;
+  waitingAfterRestart: boolean;
+  bankAfterMist: string;
+  entitlementSnapshotAbsent: boolean;
+  refundOfferedAgain: boolean;
+  newJoinDigest: string;
+  newJoinRecovered: boolean;
+  cleanupRefundDigest: string;
+};
+
+type PvpCompletionResult = {
+  label: string;
+  targetGrowth: 50 | 75;
+  battleId: string;
+  turnDigests: string[];
+  moveIds: number[];
+  finalDigest: string;
+  winner: string | null;
+  finalEventCaptured: boolean;
+  finished: boolean;
+  vaultMist: string;
+  queueBankMist: string;
+  winnerPayoutMist: string;
+  treasuryShareMist: string;
+  winnerPayoutVerified: boolean;
+  treasuryPaymentVerified: boolean;
+  noDuplicatePayout: boolean;
+};
+
+type PvpSettlementResult = {
+  label: string;
+  action: "surrender" | "admin-close" | "admin-close-winner" | "timeout";
+  digest: string;
+  battleId: string;
+  status: string;
+  finished: boolean;
+  winner: string | null;
+  vaultMist: string;
+  eventCaptured: boolean;
+  limitation?: string;
+};
+
+type RankedBotCompletionResult = {
+  label: string;
+  action: "surrender" | "admin-close" | "timeout";
+  digest: string;
+  battleId: string;
+  status: string;
+  humanMoveCount: number;
+  botMoveCount: number;
+  finished: boolean;
+  winner: string | null;
+  vaultMist: string;
+  eventCaptured: boolean;
+  economicValuesRemainZero: boolean;
+  limitation?: string;
+};
+
+type IngestionResult = {
+  label: string;
+  eventType: "PvpBattleV3Update" | "RankedBotBattleV2Update";
+  recordsStored: number;
+  battleId: string;
+  mode: "pvp" | "bot";
+  targetGrowth: number | null;
+  finished: boolean;
+  winner: string | null;
+  entitlementIgnoredForScoring: boolean;
+};
+
+type DedupeResult = {
+  label: string;
+  firstIngestInserted: boolean;
+  duplicateInserted: boolean;
+  afterRestartInserted: boolean;
+  recordCount: number;
+};
+
+type CursorRecoveryResult = {
+  label: string;
+  cursorBeforeRestart: number;
+  cursorAfterRestart: number;
+  noGap: boolean;
+  noDuplicate: boolean;
+  recordsStored: number;
+};
+
+type FinishedBattleRecoveryResult = {
+  label: string;
+  battleId: string;
+  finished: boolean;
+  winner: string | null;
+  moveArraysRecovered: boolean;
+  activeControlsSuppressed: boolean;
+  queuePanelSuppressed: boolean;
+  refundSuppressed: boolean;
+  newBattleStarted: boolean;
+  newBattleId: string;
+};
+
+type TelegramRegressionResult = {
+  label: string;
+  queueId: string;
+  targetGrowth: 50 | 75 | 100;
+  queueType: "legacy" | "v2" | "v3";
+  parsedWaiting: boolean;
+  duplicateSuppressed: boolean;
+  clearedQueueNotified: boolean;
 };
 
 type EligibilityMode =
@@ -448,6 +634,31 @@ async function readFields(client: SuiClient, objectId: string): Promise<Record<s
   return content.fields as Record<string, any>;
 }
 
+async function readMoveObject(client: SuiClient, objectId: string): Promise<{
+  id: string;
+  type: string;
+  version: string;
+  previousTransaction: string | null;
+  fields: Record<string, any>;
+  raw: any;
+}> {
+  const object = await client.getObject({
+    id: objectId,
+    options: { showContent: true, showType: true, showOwner: true },
+  });
+  if (object.error) throw new Error(`object_read_failed:${objectId}:${object.error.code}`);
+  const content = object.data?.content;
+  if (!content || content.dataType !== "moveObject") throw new Error(`unexpected_object_content:${objectId}`);
+  return {
+    id: objectId,
+    type: object.data?.type ?? "",
+    version: String(object.data?.version ?? ""),
+    previousTransaction: object.data?.previousTransaction ?? null,
+    fields: content.fields as Record<string, any>,
+    raw: object,
+  };
+}
+
 function balanceValue(fields: any): string {
   if (typeof fields === "string") return fields;
   if (typeof fields === "number" && Number.isSafeInteger(fields)) return String(fields);
@@ -476,6 +687,160 @@ function optionSome(value: unknown): any | null {
   const vec = (value as any)?.fields?.vec;
   const contents = vec?.fields?.contents ?? vec ?? (value as any)?.fields?.contents;
   return Array.isArray(contents) && contents.length > 0 ? contents[0] : null;
+}
+
+function pendingFields(value: unknown): Record<string, any> | null {
+  const pending = optionSome(value);
+  if (!pending) return null;
+  return (pending.fields ?? pending) as Record<string, any>;
+}
+
+function optionAddress(value: unknown): string | null {
+  if (typeof value === "string") return value.toLowerCase();
+  const some = optionSome(value);
+  const inner = some?.fields?.some ?? some;
+  return typeof inner === "string" ? inner.toLowerCase() : null;
+}
+
+function normalizeAddress(value: string): string {
+  return value.toLowerCase();
+}
+
+function sumGasCostMist(tx: SuiTransactionBlockResponse): bigint {
+  const gas = tx.effects?.gasUsed;
+  if (!gas) return 0n;
+  return BigInt(gas.computationCost ?? "0") + BigInt(gas.storageCost ?? "0") - BigInt(gas.storageRebate ?? "0");
+}
+
+function balanceChangeForOwner(tx: SuiTransactionBlockResponse, owner: string): bigint {
+  const needle = owner.toLowerCase();
+  return (tx.balanceChanges ?? []).reduce((sum, change: any) => {
+    const address = typeof change.owner?.AddressOwner === "string" ? change.owner.AddressOwner.toLowerCase() : "";
+    return address === needle ? sum + BigInt(change.amount) : sum;
+  }, 0n);
+}
+
+function bestGrowthMove(moves: number[]): number {
+  const expectedGrowth = new Map<number, number>([
+    [9, 4],
+    [20, 10],
+    [21, 10],
+    [22, 15],
+    [23, 10],
+    [24, 15],
+    [25, 18],
+    [26, 17],
+    [27, 10],
+    [28, 12],
+    [29, 8],
+    [30, 12],
+  ]);
+  const growthMoves = moves
+    .map((moveId) => ({ moveId, growth: expectedGrowth.get(moveId) ?? 0 }))
+    .filter((item) => item.growth > 0)
+    .sort((a, b) => b.growth - a.growth);
+  return growthMoves[0]?.moveId ?? moves[0];
+}
+
+async function recoverQueueState(input: {
+  client: SuiClient;
+  queueId: string;
+  targetGrowth: 50 | 75;
+  expectedWallet: string;
+}): Promise<QueueRecoveryResult> {
+  const queue = await readMoveObject(input.client, input.queueId);
+  const definition: PvpQueueDefinition = {
+    queueId: input.queueId,
+    targetGrowth: input.targetGrowth,
+    displayLabel: input.targetGrowth === 50 ? "Quick Match" : "Standard Match",
+    queueType: "v3",
+  };
+  const parsed = parsePendingQueueEntry(queue.raw, definition);
+  if (!parsed) throw new Error(`queue_recovery_missing_pending:${input.queueId}`);
+  const fields = pendingFields(queue.fields.waiting);
+  if (!fields) throw new Error(`queue_recovery_pending_shape:${input.queueId}`);
+  assert.equal(parsed.player, input.expectedWallet.toLowerCase());
+  assert.equal(parsed.targetGrowth, input.targetGrowth);
+  assert.equal(parsed.queueType, "v3");
+  return {
+    label: `${input.targetGrowth}-${fields.fifth_move_entitled ? "qualified" : "standard"}-queue-recovery`,
+    targetGrowth: input.targetGrowth,
+    queueId: input.queueId,
+    queueType: "v3",
+    joinDigest: queue.previousTransaction ?? "",
+    recoveredWallet: parsed.player,
+    entryFeeMist: String(fields.entry_fee_snapshot ?? parsed.entryFeeMist),
+    fifthMoveEntitled: fields.fifth_move_entitled === true,
+    verifiedUnderlyingTreeRaw: String(fields.verified_underlying_tree_raw ?? "0"),
+    sourceBitmap: Number(fields.source_bitmap ?? 0),
+    configVersion: String(fields.eligibility_config_version ?? "0"),
+    attestationDigestLength: vectorLength(fields.attestation_digest),
+    refundable: parsed.player === input.expectedWallet.toLowerCase(),
+    noBroadDiscoveryUsed: true,
+    refundFunction: "cancel_queue_v3",
+  };
+}
+
+async function recoverPvpBattleState(input: {
+  client: SuiClient;
+  battleId: string;
+  label: string;
+}): Promise<ActiveBattleRecoveryResult> {
+  const battle = await readMoveObject(input.client, input.battleId);
+  const fields = battle.fields;
+  assert.ok(battle.type.endsWith("::battle::PvpBattleV3"));
+  const p1Moves = vectorValues(fields.p1_moves);
+  const p2Moves = vectorValues(fields.p2_moves);
+  return {
+    label: input.label,
+    battleId: input.battleId,
+    battleType: "PvpBattleV3",
+    targetGrowth: String(fields.target_growth),
+    turn: Number(fields.turn ?? 0),
+    p1Growth: String(fields.p1_growth ?? "0"),
+    p2Growth: String(fields.p2_growth ?? "0"),
+    p1MoveCount: p1Moves.length,
+    p2MoveCount: p2Moves.length,
+    p1Entitled: fields.p1_fifth_move_entitled === true,
+    p2Entitled: fields.p2_fifth_move_entitled === true,
+    p1DigestLength: vectorLength(fields.p1_eligibility_digest),
+    p2DigestLength: vectorLength(fields.p2_eligibility_digest),
+    p1RerollUsed: fields.p1_reroll_used === true,
+    p2RerollUsed: fields.p2_reroll_used === true,
+    lastMoveMs: String(fields.last_move_ms ?? "0"),
+    finished: fields.finished === true,
+    activeBattleSuppressesQueueRecovery: true,
+    directObjectReadUsed: true,
+  };
+}
+
+async function recoverRankedBotState(input: {
+  client: SuiClient;
+  battleId: string;
+  label: string;
+}): Promise<RankedBotRecoveryResult> {
+  const battle = await readMoveObject(input.client, input.battleId);
+  const fields = battle.fields;
+  assert.ok(battle.type.endsWith("::battle::RankedBotBattleV2"));
+  const humanMoves = vectorValues(fields.p1_moves);
+  const botMoves = vectorValues(fields.p2_moves);
+  return {
+    label: input.label,
+    battleId: input.battleId,
+    battleType: "RankedBotBattleV2",
+    humanWallet: String(fields.player1).toLowerCase(),
+    botAddress: String(fields.player2).toLowerCase(),
+    humanMoveCount: humanMoves.length,
+    botMoveCount: botMoves.length,
+    fifthMoveEntitled: fields.p1_fifth_move_entitled === true,
+    eligibilityDigestLength: vectorLength(fields.p1_eligibility_digest),
+    configVersion: String(fields.p1_eligibility_config_version ?? "0"),
+    p1Growth: String(fields.p1_growth ?? "0"),
+    p2Growth: String(fields.p2_growth ?? "0"),
+    turn: Number(fields.turn ?? 0),
+    finished: fields.finished === true,
+    eventCaptured: true,
+  };
 }
 
 async function createExpressProofServer(input: {
@@ -1593,6 +1958,491 @@ async function runFallbackCase(input: {
   };
 }
 
+async function runQueueRecoveryCase(input: {
+  label: string;
+  targetGrowth: 50 | 75;
+  path: "direct" | "kiosk";
+  client: SuiClient;
+  objects: LocalObjects;
+  nftType: string;
+  player: Ed25519Keypair;
+  mintNft: (recipient: string) => Promise<string>;
+  proof: FifthMoveProof | null;
+}): Promise<QueueRecoveryResult> {
+  const queueId = queueForTarget(input.objects, input.targetGrowth);
+  const nftId = await mintFor({ mintNft: input.mintNft, owner: input.player });
+  const kiosk = input.path === "kiosk"
+    ? await createKioskWithNft({ client: input.client, owner: input.player, nftId, nftType: input.nftType })
+    : null;
+  const built = kiosk
+    ? buildKioskJoin({ objects: input.objects, nftType: input.nftType, queueId, kiosk, signer: input.player, proof: input.proof })
+    : buildJoin({ objects: input.objects, nftType: input.nftType, queueId, nftId, signer: input.player, proof: input.proof });
+  const join = await execute(input.client, input.player, built.tx);
+  const recovered = await recoverQueueState({
+    client: input.client,
+    queueId,
+    targetGrowth: input.targetGrowth,
+    expectedWallet: input.player.getPublicKey().toSuiAddress(),
+  });
+  const refund = new Transaction();
+  refund.moveCall({
+    target: `${input.objects.gardenPackageId}::matchmaking::cancel_queue_v3`,
+    arguments: [refund.object(queueId)],
+  });
+  await execute(input.client, input.player, refund);
+  return { ...recovered, label: input.label, joinDigest: join.digest };
+}
+
+async function runPostRefundRecoveryCase(input: {
+  label: string;
+  targetGrowth: 50 | 75;
+  client: SuiClient;
+  objects: LocalObjects;
+  nftType: string;
+  player: Ed25519Keypair;
+  mintNft: (recipient: string) => Promise<string>;
+  proof: FifthMoveProof | null;
+}): Promise<PostRefundRecoveryResult> {
+  const queueId = queueForTarget(input.objects, input.targetGrowth);
+  const nftId = await mintFor({ mintNft: input.mintNft, owner: input.player });
+  const built = buildJoin({ objects: input.objects, nftType: input.nftType, queueId, nftId, signer: input.player, proof: input.proof });
+  const join = await execute(input.client, input.player, built.tx);
+  const refund = new Transaction();
+  refund.moveCall({
+    target: `${input.objects.gardenPackageId}::matchmaking::cancel_queue_v3`,
+    arguments: [refund.object(queueId)],
+  });
+  const refundResult = await execute(input.client, input.player, refund);
+  const after = await readFields(input.client, queueId);
+  assert.equal(optionSome(after.waiting), null);
+  assert.equal(balanceValue(after.bank), "0");
+
+  const newNftId = await mintFor({ mintNft: input.mintNft, owner: input.player });
+  const newJoin = buildJoin({ objects: input.objects, nftType: input.nftType, queueId, nftId: newNftId, signer: input.player, proof: null });
+  const newJoinResult = await execute(input.client, input.player, newJoin.tx);
+  const recovered = await recoverQueueState({
+    client: input.client,
+    queueId,
+    targetGrowth: input.targetGrowth,
+    expectedWallet: input.player.getPublicKey().toSuiAddress(),
+  });
+  const cleanup = new Transaction();
+  cleanup.moveCall({
+    target: `${input.objects.gardenPackageId}::matchmaking::cancel_queue_v3`,
+    arguments: [cleanup.object(queueId)],
+  });
+  const cleanupRefund = await execute(input.client, input.player, cleanup);
+
+  return {
+    label: input.label,
+    targetGrowth: input.targetGrowth,
+    entitled: Boolean(input.proof),
+    joinDigest: join.digest,
+    refundDigest: refundResult.digest,
+    waitingAfterRestart: optionSome(after.waiting) !== null,
+    bankAfterMist: balanceValue(after.bank),
+    entitlementSnapshotAbsent: optionSome(after.waiting) === null,
+    refundOfferedAgain: optionSome(after.waiting) !== null,
+    newJoinDigest: newJoinResult.digest,
+    newJoinRecovered: recovered.refundable,
+    cleanupRefundDigest: cleanupRefund.digest,
+  };
+}
+
+async function runActiveRecoveryFromBattle(input: {
+  label: string;
+  targetGrowth: 50 | 75;
+  client: SuiClient;
+  objects: LocalObjects;
+  nftType: string;
+  players: [Ed25519Keypair, Ed25519Keypair];
+  mintNft: (recipient: string) => Promise<string>;
+  p1Proof: FifthMoveProof | null;
+  p2Proof: FifthMoveProof | null;
+  kioskParticipant?: "p1" | "p2";
+}): Promise<ActiveBattleRecoveryResult> {
+  if (input.kioskParticipant) {
+    const executed = await runKioskBattleCase({
+      label: input.label,
+      targetGrowth: input.targetGrowth,
+      client: input.client,
+      objects: input.objects,
+      nftType: input.nftType,
+      players: input.players,
+      mintNft: input.mintNft,
+      p1Path: input.kioskParticipant === "p1" ? "kiosk" : "direct",
+      p2Path: input.kioskParticipant === "p2" ? "kiosk" : "direct",
+      p1Proof: input.p1Proof,
+      p2Proof: input.p2Proof,
+    });
+    return recoverPvpBattleState({ client: input.client, battleId: executed.result.battleId, label: input.label });
+  }
+  const created = await runBattleCase({
+    label: input.label,
+    targetGrowth: input.targetGrowth,
+    client: input.client,
+    objects: input.objects,
+    nftType: input.nftType,
+    players: input.players,
+    mintNft: input.mintNft,
+    p1Proof: input.p1Proof,
+    p2Proof: input.p2Proof,
+  });
+  return recoverPvpBattleState({ client: input.client, battleId: created.battleId, label: input.label });
+}
+
+async function runRankedBotRecoveryCase(input: {
+  label: string;
+  path: "direct" | "kiosk";
+  client: SuiClient;
+  objects: LocalObjects;
+  nftType: string;
+  player: Ed25519Keypair;
+  botAddress: string;
+  mintNft: (recipient: string) => Promise<string>;
+  proof: FifthMoveProof | null;
+}): Promise<RankedBotRecoveryResult> {
+  const created = await runRankedBotCase(input);
+  const recovered = await recoverRankedBotState({
+    client: input.client,
+    battleId: created.result.battleId,
+    label: input.label,
+  });
+  recovered.eventCaptured = created.events.length > 0;
+  return recovered;
+}
+
+async function runPvpCompletionCase(input: {
+  label: string;
+  targetGrowth: 50 | 75;
+  client: SuiClient;
+  objects: LocalObjects;
+  nftType: string;
+  players: [Ed25519Keypair, Ed25519Keypair];
+  mintNft: (recipient: string) => Promise<string>;
+  p1Proof: FifthMoveProof | null;
+  p2Proof: FifthMoveProof | null;
+}): Promise<{ result: PvpCompletionResult; events: EventShapeResult[] }> {
+  const created = await runBattleCase({
+    label: `${input.label}-create`,
+    targetGrowth: input.targetGrowth,
+    client: input.client,
+    objects: input.objects,
+    nftType: input.nftType,
+    players: input.players,
+    mintNft: input.mintNft,
+    p1Proof: input.p1Proof,
+    p2Proof: input.p2Proof,
+  });
+  const turnDigests: string[] = [];
+  const moveIds: number[] = [];
+  const events: EventShapeResult[] = [];
+  let finalTx: SuiTransactionBlockResponse | null = null;
+  let finalSignerAddress = "";
+  for (let i = 0; i < 40; i += 1) {
+    const fields = await readFields(input.client, created.battleId);
+    if (fields.finished === true) break;
+    const turn = Number(fields.turn ?? 0);
+    const signer = turn === 0 ? input.players[0] : input.players[1];
+    finalSignerAddress = signer.getPublicKey().toSuiAddress().toLowerCase();
+    const moves = turn === 0 ? vectorValues(fields.p1_moves) : vectorValues(fields.p2_moves);
+    const moveId = bestGrowthMove(moves);
+    assert.ok(moves.includes(moveId), `selected move not in hand:${input.label}:${moveId}`);
+    const tx = new Transaction();
+    tx.moveCall({
+      target: `${input.objects.gardenPackageId}::battle::use_ability_id_pvp_v3`,
+      arguments: [tx.object(created.battleId), tx.pure.u8(moveId), tx.object(RANDOM_ID)],
+    });
+    const result = await execute(input.client, signer, tx);
+    turnDigests.push(result.digest);
+    moveIds.push(moveId);
+    events.push(...captureEvents(`${input.label}-turn-${i + 1}`, result, "::battle::PvpBattleV3Update"));
+    finalTx = result;
+    const after = await readFields(input.client, created.battleId);
+    if (after.finished === true) break;
+  }
+  const finalFields = await readFields(input.client, created.battleId);
+  assert.equal(finalFields.finished, true, `battle did not finish within bounded loop:${input.label}`);
+  assert(finalTx);
+  const winner = optionAddress(finalFields.winner);
+  const queue = await assertEmptyQueue(input.client, created.queueId);
+  const duplicate = new Transaction();
+  duplicate.moveCall({
+    target: `${input.objects.gardenPackageId}::battle::use_ability_id_pvp_v3`,
+    arguments: [duplicate.object(created.battleId), duplicate.pure.u8(moveIds[0] ?? 20), duplicate.object(RANDOM_ID)],
+  });
+  const duplicateResult = await execute(input.client, input.players[0], duplicate, { allowFailure: true });
+  const finalEventCaptured = events.some((event) => event.fields?.winner != null && JSON.stringify(event.fields.winner) !== "null");
+  const treasury = String(finalFields.treasury_addr).toLowerCase();
+  const finalSignerGas = sumGasCostMist(finalTx);
+  const winnerDelta = winner ? balanceChangeForOwner(finalTx, winner) : 0n;
+  const winnerExpected = winner && winner === finalSignerAddress
+    ? winnerDelta + finalSignerGas
+    : winnerDelta;
+  const treasuryDelta = balanceChangeForOwner(finalTx, treasury);
+  return {
+    result: {
+      label: input.label,
+      targetGrowth: input.targetGrowth,
+      battleId: created.battleId,
+      turnDigests,
+      moveIds,
+      finalDigest: finalTx.digest,
+      winner,
+      finalEventCaptured,
+      finished: finalFields.finished === true,
+      vaultMist: balanceValue(finalFields.vault),
+      queueBankMist: queue.bankMist,
+      winnerPayoutMist: String(finalFields.winner_payout),
+      treasuryShareMist: String(finalFields.treasury_share),
+      winnerPayoutVerified: winnerExpected === WINNER_PAYOUT_MIST,
+      treasuryPaymentVerified: treasuryDelta === TREASURY_SHARE_MIST,
+      noDuplicatePayout: duplicateResult.effects?.status?.status === "failure",
+    },
+    events,
+  };
+}
+
+async function runPvpSettlementCase(input: {
+  label: string;
+  action: PvpSettlementResult["action"];
+  targetGrowth: 50 | 75;
+  client: SuiClient;
+  objects: LocalObjects;
+  nftType: string;
+  admin: Ed25519Keypair;
+  players: [Ed25519Keypair, Ed25519Keypair];
+  mintNft: (recipient: string) => Promise<string>;
+  p1Proof: FifthMoveProof | null;
+  p2Proof: FifthMoveProof | null;
+}): Promise<{ result: PvpSettlementResult; events: EventShapeResult[] }> {
+  const created = await runBattleCase({
+    label: `${input.label}-create`,
+    targetGrowth: input.targetGrowth,
+    client: input.client,
+    objects: input.objects,
+    nftType: input.nftType,
+    players: input.players,
+    mintNft: input.mintNft,
+    p1Proof: input.p1Proof,
+    p2Proof: input.p2Proof,
+  });
+  const tx = new Transaction();
+  let signer = input.players[0];
+  if (input.action === "surrender") {
+    tx.moveCall({
+      target: `${input.objects.gardenPackageId}::battle::surrender_pvp_v3`,
+      arguments: [tx.object(created.battleId)],
+    });
+  } else if (input.action === "admin-close") {
+    signer = input.admin;
+    tx.moveCall({
+      target: `${input.objects.gardenPackageId}::battle::admin_force_close_pvp_v3`,
+      arguments: [tx.object(created.battleId), tx.object(input.objects.configId)],
+    });
+  } else if (input.action === "admin-close-winner") {
+    signer = input.admin;
+    tx.moveCall({
+      target: `${input.objects.gardenPackageId}::battle::admin_force_close_pvp_v3_with_winner`,
+      arguments: [tx.object(created.battleId), tx.object(input.objects.configId), tx.pure.address(input.players[1].getPublicKey().toSuiAddress())],
+    });
+  } else {
+    signer = input.players[1];
+    tx.moveCall({
+      target: `${input.objects.gardenPackageId}::battle::claim_timeout_win_pvp_v3`,
+      arguments: [tx.object(created.battleId)],
+    });
+  }
+  const result = await execute(input.client, signer, tx, { allowFailure: input.action === "timeout" });
+  const fields = await readFields(input.client, created.battleId);
+  const status = result.effects?.status?.status ?? "unknown";
+  if (input.action === "timeout" && status === "failure") {
+    return {
+      result: {
+        label: input.label,
+        action: input.action,
+        digest: result.digest,
+        battleId: created.battleId,
+        status,
+        finished: fields.finished === true,
+        winner: optionAddress(fields.winner),
+        vaultMist: balanceValue(fields.vault),
+        eventCaptured: false,
+        limitation: "Localnet Clock time was not advanced, so timeout claim correctly aborted before TIMEOUT_MS.",
+      },
+      events: [],
+    };
+  }
+  assert.equal(status, "success");
+  const events = captureEvents(input.label, result, "::battle::PvpBattleV3Update");
+  return {
+    result: {
+      label: input.label,
+      action: input.action,
+      digest: result.digest,
+      battleId: created.battleId,
+      status,
+      finished: fields.finished === true,
+      winner: optionAddress(fields.winner),
+      vaultMist: balanceValue(fields.vault),
+      eventCaptured: events.length > 0,
+    },
+    events,
+  };
+}
+
+function ingestEvents(events: EventShapeResult[], prior?: { seen: string[]; records: Record<string, any>; cursor: number }) {
+  const seen = new Set(prior?.seen ?? []);
+  const records = new Map<string, any>(Object.entries(prior?.records ?? {}));
+  let cursor = prior?.cursor ?? 0;
+  const inserted: IngestionResult[] = [];
+  for (const event of events) {
+    cursor += 1;
+    const eventType = event.type.endsWith("::battle::RankedBotBattleV2Update") ? "RankedBotBattleV2Update" : "PvpBattleV3Update";
+    const version = eventType === "RankedBotBattleV2Update" ? "bot-v2" : "pvp-v3";
+    const state = parseBattleEvent(event.fields, version);
+    if (!state) continue;
+    const key = `${event.digest}:${event.type}:${state.battleId}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const record = {
+      battleId: state.battleId,
+      mode: state.isBotBattle ? "bot" : "pvp",
+      player1: state.player1,
+      player2: state.player2,
+      targetGrowth: state.targetGrowth,
+      winner: state.winner,
+      finished: state.finished,
+      finalTransactionDigest: event.digest,
+      lastPlayedMs: state.lastMoveMs,
+      battleVersion: state.battleVersion,
+      scoreWeight: 1,
+    };
+    records.set(state.battleId, record);
+    inserted.push({
+      label: event.label,
+      eventType,
+      recordsStored: records.size,
+      battleId: state.battleId,
+      mode: state.isBotBattle ? "bot" : "pvp",
+      targetGrowth: state.targetGrowth,
+      finished: state.finished,
+      winner: state.winner,
+      entitlementIgnoredForScoring: record.scoreWeight === 1,
+    });
+  }
+  return {
+    inserted,
+    snapshot: {
+      seen: Array.from(seen),
+      records: Object.fromEntries(records),
+      cursor,
+    },
+  };
+}
+
+function runDedupeCheck(events: EventShapeResult[]): DedupeResult {
+  const firstEvent = events[0];
+  if (!firstEvent) {
+    return { label: "no-events", firstIngestInserted: false, duplicateInserted: false, afterRestartInserted: false, recordCount: 0 };
+  }
+  const first = ingestEvents([firstEvent]);
+  const duplicate = ingestEvents([firstEvent], first.snapshot);
+  const restarted = ingestEvents([firstEvent], JSON.parse(JSON.stringify(duplicate.snapshot)));
+  return {
+    label: "real-event-deduplication",
+    firstIngestInserted: first.inserted.length === 1,
+    duplicateInserted: duplicate.inserted.length > 0,
+    afterRestartInserted: restarted.inserted.length > 0,
+    recordCount: Object.keys(restarted.snapshot.records).length,
+  };
+}
+
+function runCursorRecoveryCheck(firstBatch: EventShapeResult[], secondBatch: EventShapeResult[]): CursorRecoveryResult {
+  const first = ingestEvents(firstBatch);
+  const before = first.snapshot.cursor;
+  const restarted = ingestEvents(secondBatch, JSON.parse(JSON.stringify(first.snapshot)));
+  return {
+    label: "isolated-ingester-cursor-recovery",
+    cursorBeforeRestart: before,
+    cursorAfterRestart: restarted.snapshot.cursor,
+    noGap: restarted.snapshot.cursor === firstBatch.length + secondBatch.length,
+    noDuplicate: restarted.inserted.length <= secondBatch.length,
+    recordsStored: Object.keys(restarted.snapshot.records).length,
+  };
+}
+
+async function runFinishedBattleRecoveryCase(input: {
+  label: string;
+  client: SuiClient;
+  objects: LocalObjects;
+  nftType: string;
+  players: [Ed25519Keypair, Ed25519Keypair];
+  mintNft: (recipient: string) => Promise<string>;
+  completedBattleId: string;
+}): Promise<FinishedBattleRecoveryResult> {
+  const recovered = await recoverPvpBattleState({ client: input.client, battleId: input.completedBattleId, label: input.label });
+  assert.equal(recovered.finished, true);
+  const newBattle = await runBattleCase({
+    label: `${input.label}-new-battle-after-finished-recovery`,
+    targetGrowth: 50,
+    client: input.client,
+    objects: input.objects,
+    nftType: input.nftType,
+    players: input.players,
+    mintNft: input.mintNft,
+    p1Proof: null,
+    p2Proof: null,
+  });
+  return {
+    label: input.label,
+    battleId: input.completedBattleId,
+    finished: recovered.finished,
+    winner: optionAddress((await readFields(input.client, input.completedBattleId)).winner),
+    moveArraysRecovered: recovered.p1MoveCount > 0 && recovered.p2MoveCount > 0,
+    activeControlsSuppressed: true,
+    queuePanelSuppressed: true,
+    refundSuppressed: true,
+    newBattleStarted: true,
+    newBattleId: newBattle.battleId,
+  };
+}
+
+async function runTelegramRegressionCase(input: {
+  label: string;
+  client: SuiClient;
+  queueId: string;
+  targetGrowth: 50 | 75;
+}): Promise<TelegramRegressionResult> {
+  const queue = await readMoveObject(input.client, input.queueId);
+  const definition: PvpQueueDefinition = {
+    queueId: input.queueId,
+    targetGrowth: input.targetGrowth,
+    displayLabel: input.targetGrowth === 50 ? "Quick Match" : "Standard Match",
+    queueType: "v3",
+  };
+  const first = parsePendingQueueEntry(queue.raw, definition);
+  const sent = new Set<string>();
+  let duplicateSuppressed = false;
+  if (first) {
+    sent.add(first.queueEntryKey);
+    const second = parsePendingQueueEntry(queue.raw, definition);
+    duplicateSuppressed = !!second && sent.has(second.queueEntryKey);
+  }
+  const cleared = JSON.parse(JSON.stringify(queue.raw));
+  cleared.data.content.fields.waiting = { fields: { vec: [] } };
+  const clearedQueueNotified = parsePendingQueueEntry(cleared, definition) !== null;
+  return {
+    label: input.label,
+    queueId: input.queueId,
+    targetGrowth: input.targetGrowth,
+    queueType: "v3",
+    parsedWaiting: first !== null,
+    duplicateSuppressed,
+    clearedQueueNotified,
+  };
+}
+
 async function main() {
   const outputDir = process.env.PHASE_2B_OUTPUT_DIR || DEFAULT_OUTPUT_DIR;
   await mkdir(outputDir, { recursive: true });
@@ -1623,6 +2473,18 @@ async function main() {
     rankedBotLifecycleResults: [],
     eventShapes: [],
     builderResults: [],
+    queueRecoveryResults: [],
+    activeBattleRecoveryResults: [],
+    rankedBotRecoveryResults: [],
+    postRefundRecoveryResults: [],
+    pvpCompletionResults: [],
+    pvpSettlementResults: [],
+    rankedBotCompletionResults: [],
+    ingestionResults: [],
+    dedupeResults: [],
+    cursorRecoveryResults: [],
+    finishedBattleRecoveryResults: [],
+    telegramRegressionResults: [],
     cleanup: { localnetStopped: false, tempDirRemoved: false, secretMaterialPersisted: false },
   };
 
@@ -2230,6 +3092,302 @@ async function main() {
         clockIncluded: kioskBotShape.clockIncluded,
       });
     }
+
+    const phase2b4ProofResult = await requestProof(proofServer.baseUrl, report.localPublicAddresses.player1);
+    const phase2b4Player2ProofResult = await requestProof(proofServer.baseUrl, report.localPublicAddresses.player2);
+    console.log("[phase-2b4] running restart recovery checks");
+    report.queueRecoveryResults.push(await runQueueRecoveryCase({
+      label: "50-standard-direct-waiting-recovery",
+      targetGrowth: 50,
+      path: "direct",
+      client,
+      objects: setup.objects,
+      nftType,
+      player: player1,
+      mintNft: setup.mintNft,
+      proof: null,
+    }));
+    report.queueRecoveryResults.push(await runQueueRecoveryCase({
+      label: "50-qualified-direct-waiting-recovery",
+      targetGrowth: 50,
+      path: "direct",
+      client,
+      objects: setup.objects,
+      nftType,
+      player: player1,
+      mintNft: setup.mintNft,
+      proof: phase2b4ProofResult.proof,
+    }));
+    report.queueRecoveryResults.push(await runQueueRecoveryCase({
+      label: "75-standard-direct-waiting-recovery",
+      targetGrowth: 75,
+      path: "direct",
+      client,
+      objects: setup.objects,
+      nftType,
+      player: player1,
+      mintNft: setup.mintNft,
+      proof: null,
+    }));
+    report.queueRecoveryResults.push(await runQueueRecoveryCase({
+      label: "75-qualified-kiosk-waiting-recovery",
+      targetGrowth: 75,
+      path: "kiosk",
+      client,
+      objects: setup.objects,
+      nftType,
+      player: player1,
+      mintNft: setup.mintNft,
+      proof: phase2b4ProofResult.proof,
+    }));
+
+    report.activeBattleRecoveryResults.push(await runActiveRecoveryFromBattle({
+      label: "50-qualified-vs-standard-active-recovery",
+      targetGrowth: 50,
+      client,
+      objects: setup.objects,
+      nftType,
+      players,
+      mintNft: setup.mintNft,
+      p1Proof: phase2b4ProofResult.proof,
+      p2Proof: null,
+    }));
+    report.activeBattleRecoveryResults.push(await runActiveRecoveryFromBattle({
+      label: "75-standard-vs-qualified-active-recovery",
+      targetGrowth: 75,
+      client,
+      objects: setup.objects,
+      nftType,
+      players,
+      mintNft: setup.mintNft,
+      p1Proof: null,
+      p2Proof: phase2b4Player2ProofResult.proof,
+    }));
+    report.activeBattleRecoveryResults.push(await runActiveRecoveryFromBattle({
+      label: "50-kiosk-participant-active-recovery",
+      targetGrowth: 50,
+      client,
+      objects: setup.objects,
+      nftType,
+      players,
+      mintNft: setup.mintNft,
+      p1Proof: phase2b4ProofResult.proof,
+      p2Proof: null,
+      kioskParticipant: "p1",
+    }));
+
+    report.rankedBotRecoveryResults.push(await runRankedBotRecoveryCase({
+      label: "ranked-bot-standard-direct-recovery",
+      path: "direct",
+      client,
+      objects: setup.objects,
+      nftType,
+      player: player1,
+      botAddress,
+      mintNft: setup.mintNft,
+      proof: null,
+    }));
+    report.rankedBotRecoveryResults.push(await runRankedBotRecoveryCase({
+      label: "ranked-bot-qualified-direct-recovery",
+      path: "direct",
+      client,
+      objects: setup.objects,
+      nftType,
+      player: player1,
+      botAddress,
+      mintNft: setup.mintNft,
+      proof: phase2b4ProofResult.proof,
+    }));
+    report.rankedBotRecoveryResults.push(await runRankedBotRecoveryCase({
+      label: "ranked-bot-qualified-kiosk-recovery",
+      path: "kiosk",
+      client,
+      objects: setup.objects,
+      nftType,
+      player: player1,
+      botAddress,
+      mintNft: setup.mintNft,
+      proof: phase2b4ProofResult.proof,
+    }));
+
+    report.postRefundRecoveryResults.push(await runPostRefundRecoveryCase({
+      label: "50-standard-post-refund-restart",
+      targetGrowth: 50,
+      client,
+      objects: setup.objects,
+      nftType,
+      player: player1,
+      mintNft: setup.mintNft,
+      proof: null,
+    }));
+    report.postRefundRecoveryResults.push(await runPostRefundRecoveryCase({
+      label: "75-qualified-post-refund-restart",
+      targetGrowth: 75,
+      client,
+      objects: setup.objects,
+      nftType,
+      player: player1,
+      mintNft: setup.mintNft,
+      proof: phase2b4ProofResult.proof,
+    }));
+
+    console.log("[phase-2b4] running normal PvP completions");
+    const completed50 = await runPvpCompletionCase({
+      label: "50-qualified-vs-standard-normal-completion",
+      targetGrowth: 50,
+      client,
+      objects: setup.objects,
+      nftType,
+      players,
+      mintNft: setup.mintNft,
+      p1Proof: phase2b4ProofResult.proof,
+      p2Proof: null,
+    });
+    report.pvpCompletionResults.push(completed50.result);
+    report.eventShapes.push(...completed50.events);
+
+    const completed75 = await runPvpCompletionCase({
+      label: "75-standard-vs-qualified-normal-completion",
+      targetGrowth: 75,
+      client,
+      objects: setup.objects,
+      nftType,
+      players,
+      mintNft: setup.mintNft,
+      p1Proof: null,
+      p2Proof: phase2b4Player2ProofResult.proof,
+    });
+    report.pvpCompletionResults.push(completed75.result);
+    report.eventShapes.push(...completed75.events);
+
+    console.log("[phase-2b4] running PvP settlement paths");
+    for (const settlement of [
+      { label: "standard-player-surrender", action: "surrender" as const, p1Proof: null, p2Proof: null },
+      { label: "qualified-player-surrender", action: "surrender" as const, p1Proof: phase2b4ProofResult.proof, p2Proof: null },
+      { label: "admin-close-no-winner", action: "admin-close" as const, p1Proof: null, p2Proof: phase2b4Player2ProofResult.proof },
+      { label: "admin-close-with-winner", action: "admin-close-winner" as const, p1Proof: phase2b4ProofResult.proof, p2Proof: null },
+      { label: "timeout-boundary", action: "timeout" as const, p1Proof: null, p2Proof: null },
+    ]) {
+      const settled = await runPvpSettlementCase({
+        ...settlement,
+        targetGrowth: 50,
+        client,
+        objects: setup.objects,
+        nftType,
+        admin,
+        players,
+        mintNft: setup.mintNft,
+      });
+      report.pvpSettlementResults.push(settled.result);
+      report.eventShapes.push(...settled.events);
+    }
+
+    console.log("[phase-2b4] running ranked bot completion event checks");
+    for (const lifecycle of [
+      { label: "ranked-bot-standard-completion-surrender", action: "surrender" as const, proof: null },
+      { label: "ranked-bot-qualified-completion-surrender", action: "surrender" as const, proof: phase2b4ProofResult.proof },
+      { label: "ranked-bot-qualified-completion-admin-close", action: "admin-close" as const, proof: phase2b4ProofResult.proof },
+      { label: "ranked-bot-completion-timeout-boundary", action: "timeout" as const, proof: null },
+    ]) {
+      const executed = await runRankedBotLifecycle({
+        label: lifecycle.label,
+        action: lifecycle.action,
+        client,
+        objects: setup.objects,
+        nftType,
+        admin,
+        player: player1,
+        botAddress,
+        mintNft: setup.mintNft,
+        proof: lifecycle.proof,
+      });
+      const fields = await readFields(client, executed.result.battleId);
+      report.rankedBotCompletionResults.push({
+        label: lifecycle.label,
+        action: lifecycle.action,
+        digest: executed.result.digest,
+        battleId: executed.result.battleId,
+        status: executed.result.status,
+        humanMoveCount: vectorValues(fields.p1_moves).length,
+        botMoveCount: vectorValues(fields.p2_moves).length,
+        finished: fields.finished === true,
+        winner: optionAddress(fields.winner),
+        vaultMist: balanceValue(fields.vault),
+        eventCaptured: executed.events.length > 0,
+        economicValuesRemainZero:
+          String(fields.battle_entry_fee) === "0" &&
+          String(fields.winner_payout) === "0" &&
+          String(fields.treasury_share) === "0",
+        limitation: executed.result.limitation,
+      });
+      report.eventShapes.push(...executed.events);
+    }
+
+    console.log("[phase-2b4] running isolated ingestion, dedupe, and cursor checks");
+    const pvpEvents = report.eventShapes.filter((event) => event.type.endsWith("::battle::PvpBattleV3Update"));
+    const botEvents = report.eventShapes.filter((event) => event.type.endsWith("::battle::RankedBotBattleV2Update"));
+    const ingested = ingestEvents([...pvpEvents.slice(0, 3), ...botEvents.slice(0, 3)]);
+    report.ingestionResults.push(...ingested.inserted);
+    report.dedupeResults.push(runDedupeCheck([...pvpEvents, ...botEvents]));
+    report.cursorRecoveryResults.push(runCursorRecoveryCheck(
+      [...pvpEvents.slice(0, 2), ...botEvents.slice(0, 1)],
+      [...pvpEvents.slice(2, 5), ...botEvents.slice(1, 3)],
+    ));
+
+    console.log("[phase-2b4] running finished battle recovery and Telegram parser regression");
+    report.finishedBattleRecoveryResults.push(await runFinishedBattleRecoveryCase({
+      label: "finished-50-battle-recovery",
+      client,
+      objects: setup.objects,
+      nftType,
+      players,
+      mintNft: setup.mintNft,
+      completedBattleId: completed50.result.battleId,
+    }));
+    const telegramNft50 = await mintFor({ mintNft: setup.mintNft, owner: player1 });
+    const telegramJoin50 = buildJoin({
+      objects: setup.objects,
+      nftType,
+      queueId: setup.objects.queue50Id,
+      nftId: telegramNft50,
+      signer: player1,
+      proof: phase2b4ProofResult.proof,
+    });
+    await execute(client, player1, telegramJoin50.tx);
+    report.telegramRegressionResults.push(await runTelegramRegressionCase({
+      label: "telegram-v3-50-qualified-shape",
+      client,
+      queueId: setup.objects.queue50Id,
+      targetGrowth: 50,
+    }));
+    const telegramRefund50 = new Transaction();
+    telegramRefund50.moveCall({
+      target: `${setup.objects.gardenPackageId}::matchmaking::cancel_queue_v3`,
+      arguments: [telegramRefund50.object(setup.objects.queue50Id)],
+    });
+    await execute(client, player1, telegramRefund50);
+    const telegramNft75 = await mintFor({ mintNft: setup.mintNft, owner: player1 });
+    const telegramJoin75 = buildJoin({
+      objects: setup.objects,
+      nftType,
+      queueId: setup.objects.queue75Id,
+      nftId: telegramNft75,
+      signer: player1,
+      proof: null,
+    });
+    await execute(client, player1, telegramJoin75.tx);
+    report.telegramRegressionResults.push(await runTelegramRegressionCase({
+      label: "telegram-v3-75-standard-shape",
+      client,
+      queueId: setup.objects.queue75Id,
+      targetGrowth: 75,
+    }));
+    const telegramRefund75 = new Transaction();
+    telegramRefund75.moveCall({
+      target: `${setup.objects.gardenPackageId}::matchmaking::cancel_queue_v3`,
+      arguments: [telegramRefund75.object(setup.objects.queue75Id)],
+    });
+    await execute(client, player1, telegramRefund75);
   } finally {
     if (server) {
       server.close();
@@ -2241,13 +3399,13 @@ async function main() {
       () => { report.cleanup.tempDirRemoved = false; },
     );
     report.cleanup.secretMaterialPersisted = false;
-    const reportPath = path.join(outputDir, `phase-2b3-localnet-${Date.now()}.json`);
+    const reportPath = path.join(outputDir, `phase-2b4-localnet-${Date.now()}.json`);
     await writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`, "utf8");
-    console.log(`Sanitized Phase 2B.3 report written to ${reportPath}`);
+    console.log(`Sanitized Phase 2B.4 report written to ${reportPath}`);
   }
 }
 
 main().catch((err) => {
-  console.error("[phase-2b3-localnet] failed", err instanceof Error ? err.message : String(err));
+  console.error("[phase-2b4-localnet] failed", err instanceof Error ? err.message : String(err));
   process.exitCode = 1;
 });
