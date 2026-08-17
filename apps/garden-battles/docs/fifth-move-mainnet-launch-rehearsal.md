@@ -377,6 +377,11 @@ If launch starts and issues appear:
 
 ## Remaining Blockers Before Mainnet
 
+- Upgrade-capable Sui CLI: current installed CLI is `sui 1.74.1-8fc60f1fa966`.
+  A real upgrade attempt on 2026-08-17 built the package but panicked before
+  submission because mainnet protocol is `133` while the binary supports only
+  protocol `128`. Do not retry the upgrade until the CLI is updated to a version
+  that supports the active mainnet protocol.
 - Final operator approval for package upgrade.
 - Dedicated signer generation and secure Railway secret entry.
 - Gas budget selection for upgrade, config creation, queue creation, and enable
