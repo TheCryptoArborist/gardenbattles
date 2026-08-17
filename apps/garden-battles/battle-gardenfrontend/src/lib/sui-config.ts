@@ -9,7 +9,7 @@ export const SUI_CONFIG = {
     ((import.meta as any).env?.VITE_SUI_RPC_FALLBACK_URL as string | undefined) ||
     "",
   WS_URL: "wss://fullnode.mainnet.sui.io:443",
-  PACKAGE_ID: "0x37d3567ff2d92f94b5b55198d0692a4ba02437325aa4281f3db69ee8078aca23",
+  PACKAGE_ID: "0x9a80317a43e1d59a4d13f9771a003b773153d729e79da329fa1793d301042edf",
   ORIGINAL_PACKAGE_ID:
     "0x656ac984c39b952b40ccaaad4c26a3e074c4c99f56e2bac0862b811557de448b",
   BOT_MOVE_RESOLVED_EVENT_PACKAGE_ID: "0x6cae4020693bcfcac9523ce8bc3d0bef7f830900e48b743d002b5d6b676e5142",

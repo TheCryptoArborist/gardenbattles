@@ -19,7 +19,7 @@ const quickQueue =
 const standardQueue =
   "0x9d805e74d3a4412e4bb935ed383ad8f9dde00715632ea61704ccc4af804666cd";
 const packageId =
-  "0x37d3567ff2d92f94b5b55198d0692a4ba02437325aa4281f3db69ee8078aca23";
+  "0x9a80317a43e1d59a4d13f9771a003b773153d729e79da329fa1793d301042edf";
 
 const legacyOption: PvpMatchOption = {
   targetGrowth: 100,

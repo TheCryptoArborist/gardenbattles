@@ -1,13 +1,16 @@
 # Fifth Move Mainnet Launch Rehearsal
 
-This document is a rehearsal plan only. It does not authorize a package upgrade,
-mainnet object creation, Railway change, frontend deployment, Telegram change, or
+This document is a rehearsal and rollout record. The package upgrade to version
+8 is complete. It does not authorize FifthMoveConfig creation, V3 queue creation,
+Railway change, frontend deployment, Telegram change, or any additional
 transaction execution.
 
 Current checkpoint:
 
 - Localnet Phase 2B recovery and settlement harness: `c9316abff`.
 - Fifth Move remains inactive on mainnet.
+- Mainnet package upgrade to version `8` succeeded at
+  `7KqGMHxkTFJNroH2QcXsE44Z5zqHHYHq8Hm934MNgnR2`.
 - Existing V2 50/75 PvP queues remain the live production path.
 - Legacy 100 Growth queue recovery remains available.
 
@@ -28,8 +31,8 @@ Reverify all values immediately before execution.
 
 | Item | Value |
 | --- | --- |
-| Current live package | `0x37d3567ff2d92f94b5b55198d0692a4ba02437325aa4281f3db69ee8078aca23` |
-| Current live package version | `7` |
+| Current live package | `0x9a80317a43e1d59a4d13f9771a003b773153d729e79da329fa1793d301042edf` |
+| Current live package version | `8` |
 | UpgradeCap | `0xe94d5b1b468dd1e843181edd055b2b24f5b67afcff184820acc9aa86a82fa604` |
 | Config object | `0x30addc978abe37f31d55cc60a395f30fd6cfdcbfb3cd4e319d2920b0e780a9bf` |
 | Expected Config admin / upgrade operator | `0x485953e2eadf4aa02af950cf8e914fbd2b67523385e73c36118341459d8d45c4` |
@@ -108,21 +111,28 @@ Read-only object verification notes:
 - `suiup` installed `sui 1.77.2-51d177ad7d65`, and PowerShell resolves
   `C:\Users\peter\AppData\Local\bin\sui.exe` before the old
   `C:\Users\peter\sui\sui.exe` when `$env:LOCALAPPDATA\bin` is first in PATH.
-- The newer CLI removes the protocol-version blocker, but Sui CLI network reads
-  from the Codex environment still hit `NativeCertsNotFound`; use GraphQL for
-  read-only verification here and run transaction commands from the operator
-  PowerShell session where the updated CLI is active.
+- The newer CLI removed the protocol-version blocker. The upgrade transaction
+  was run from the operator PowerShell session where the updated CLI was active.
+  Sui CLI network reads from the Codex environment still hit
+  `NativeCertsNotFound`, so use GraphQL for read-only verification here.
+- Mainnet upgrade digest:
+  `7KqGMHxkTFJNroH2QcXsE44Z5zqHHYHq8Hm934MNgnR2`.
+- Mainnet upgraded package:
+  `0x9a80317a43e1d59a4d13f9771a003b773153d729e79da329fa1793d301042edf`.
+- Mainnet package version: `8`.
+- Published modules: `battle`, `config`, `errors`, `fifth_move`, `matchmaking`,
+  `nft`, `utils`.
 
 Verified with GraphQL:
 
 - UpgradeCap owner:
   `0x485953e2eadf4aa02af950cf8e914fbd2b67523385e73c36118341459d8d45c4`.
 - UpgradeCap package:
-  `0x37d3567ff2d92f94b5b55198d0692a4ba02437325aa4281f3db69ee8078aca23`.
-- UpgradeCap version: `7`.
+  `0x9a80317a43e1d59a4d13f9771a003b773153d729e79da329fa1793d301042edf`.
+- UpgradeCap version: `8`.
 - UpgradeCap policy: `0`.
 - Upgrade transaction digest:
-  `8goT3mXxMPFNSMdx678bwkq6myjkxHYcqpoWuZPMCSxz`.
+  `7KqGMHxkTFJNroH2QcXsE44Z5zqHHYHq8Hm934MNgnR2`.
 - Config admin:
   `0x485953e2eadf4aa02af950cf8e914fbd2b67523385e73c36118341459d8d45c4`.
 - Config treasury:
@@ -179,32 +189,32 @@ Record only:
 - operator who generated it,
 - storage location for the Railway secret.
 
-## Package Upgrade Template
+## Package Upgrade Record
 
-Do not run until the preflight is approved.
+Completed on mainnet.
 
-```powershell
-Set-Location -LiteralPath "D:\Finance\Crypto\Repos\gardenbattles\apps\garden-battles\sui_contract"
-sui client upgrade --upgrade-capability 0xe94d5b1b468dd1e843181edd055b2b24f5b67afcff184820acc9aa86a82fa604 --gas-budget <BUDGET> .
-```
-
-After the upgrade transaction:
-
-- record the new package ID,
-- record the new package version,
-- record the upgrade digest,
-- verify the `UpgradeCap` package field changed to the new package,
-- verify the expected modules exist: `fifth_move`, `matchmaking`, `battle`,
-- do not deploy the frontend or Railway yet.
+- Command gas budget: `1000000000` MIST.
+- Upgrade digest: `7KqGMHxkTFJNroH2QcXsE44Z5zqHHYHq8Hm934MNgnR2`.
+- New package ID:
+  `0x9a80317a43e1d59a4d13f9771a003b773153d729e79da329fa1793d301042edf`.
+- Package version: `8`.
+- Created immutable package object version: `8`.
+- UpgradeCap object version after upgrade: `962998916`.
+- Gas cost: `278155220` MIST.
+- Verified modules: `battle`, `config`, `errors`, `fifth_move`, `matchmaking`,
+  `nft`, `utils`.
+- No frontend, Railway, Telegram, FifthMoveConfig, or V3 queue action was
+  performed by this upgrade transaction.
 
 ## FifthMoveConfig Creation
 
 Create the shared config after the upgraded package is verified. It initializes
-disabled.
+disabled. Do not execute until the dedicated production signer public key is
+ready.
 
 ```powershell
 sui client call `
-  --package <NEW_PACKAGE_ID> `
+  --package 0x9a80317a43e1d59a4d13f9771a003b773153d729e79da329fa1793d301042edf `
   --module fifth_move `
   --function init_fifth_move_config `
   --type-args 0x6c5a609f6d0288523ce4a6ed87d19ae127f62073ab75fd9b0b1c9b455d4895cf::tree::TREE `
@@ -214,7 +224,8 @@ sui client call `
 
 Verify:
 
-- object type is `<NEW_PACKAGE_ID>::fifth_move::FifthMoveConfig`,
+- object type is
+  `0x9a80317a43e1d59a4d13f9771a003b773153d729e79da329fa1793d301042edf::fifth_move::FifthMoveConfig`,
 - admin is the expected operations wallet,
 - `enabled` is `false`,
 - `utility_coin` is canonical TREE,
@@ -231,14 +242,14 @@ growth.
 
 ```powershell
 sui client call `
-  --package <NEW_PACKAGE_ID> `
+  --package 0x9a80317a43e1d59a4d13f9771a003b773153d729e79da329fa1793d301042edf `
   --module matchmaking `
   --function create_queue_v3 `
   --args 0x30addc978abe37f31d55cc60a395f30fd6cfdcbfb3cd4e319d2920b0e780a9bf 50 `
   --gas-budget <BUDGET>
 
 sui client call `
-  --package <NEW_PACKAGE_ID> `
+  --package 0x9a80317a43e1d59a4d13f9771a003b773153d729e79da329fa1793d301042edf `
   --module matchmaking `
   --function create_queue_v3 `
   --args 0x30addc978abe37f31d55cc60a395f30fd6cfdcbfb3cd4e319d2920b0e780a9bf 75 `
@@ -264,9 +275,10 @@ Verify:
 Set these only after the package, config, and V3 queue IDs are verified:
 
 ```text
-BATTLE_PACKAGE_ID=<NEW_PACKAGE_ID>
-PVP_BATTLE_V3_EVENT_PACKAGE_ID=<NEW_PACKAGE_ID>
-RANKED_BOT_BATTLE_V2_EVENT_PACKAGE_ID=<NEW_PACKAGE_ID>
+BATTLE_PACKAGE_ID=0x9a80317a43e1d59a4d13f9771a003b773153d729e79da329fa1793d301042edf
+PVP_BATTLE_V2_EVENT_PACKAGE_ID=0x9a80317a43e1d59a4d13f9771a003b773153d729e79da329fa1793d301042edf
+PVP_BATTLE_V3_EVENT_PACKAGE_ID=0x9a80317a43e1d59a4d13f9771a003b773153d729e79da329fa1793d301042edf
+RANKED_BOT_BATTLE_V2_EVENT_PACKAGE_ID=0x9a80317a43e1d59a4d13f9771a003b773153d729e79da329fa1793d301042edf
 FIFTH_MOVE_ATTESTATION_PRIVATE_KEY=<DEDICATED_ED25519_PRIVATE_KEY>
 FIFTH_MOVE_ATTESTATION_KEY_ID=<SIGNER_KEY_ID>
 FIFTH_MOVE_CONFIG_ID=<FIFTH_MOVE_CONFIG_OBJECT_ID>
@@ -294,7 +306,7 @@ can read `FifthMoveConfig` before enabling the feature.
 Set these only after backend variables are staged and V3 objects are verified:
 
 ```text
-VITE_BATTLE_PACKAGE_ID=<NEW_PACKAGE_ID>
+VITE_BATTLE_PACKAGE_ID=0x9a80317a43e1d59a4d13f9771a003b773153d729e79da329fa1793d301042edf
 VITE_FIFTH_MOVE_CONFIG_ID=<FIFTH_MOVE_CONFIG_OBJECT_ID>
 VITE_MATCHMAKING_QUEUE_V3_50_ID=<CREATED_50_QUEUE_ID>
 VITE_MATCHMAKING_QUEUE_V3_75_ID=<CREATED_75_QUEUE_ID>
@@ -320,7 +332,7 @@ Enable command:
 
 ```powershell
 sui client call `
-  --package <NEW_PACKAGE_ID> `
+  --package 0x9a80317a43e1d59a4d13f9771a003b773153d729e79da329fa1793d301042edf `
   --module fifth_move `
   --function set_enabled `
   --args <FIFTH_MOVE_CONFIG_OBJECT_ID> true `
@@ -384,14 +396,9 @@ If launch starts and issues appear:
 
 ## Remaining Blockers Before Mainnet
 
-- Upgrade-capable Sui CLI: `sui 1.77.2-51d177ad7d65` is installed through
-  `suiup`. Ensure `C:\Users\peter\AppData\Local\bin` appears before
-  `C:\Users\peter\sui` in PATH before running upgrade commands.
-- Final operator approval for package upgrade.
 - Dedicated signer generation and secure Railway secret entry.
 - Gas budget selection for upgrade, config creation, queue creation, and enable
   transaction.
-- Exact new package ID from the future upgrade.
 - Mainnet `FifthMoveConfig` object ID.
 - Mainnet V3 50/75 queue object IDs.
 - Approved deployment window and rollback owner.
