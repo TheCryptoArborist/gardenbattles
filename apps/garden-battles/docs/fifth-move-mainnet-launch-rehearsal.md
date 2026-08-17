@@ -212,6 +212,21 @@ Create the shared config after the upgraded package is verified. It initializes
 disabled. Do not execute until the dedicated production signer public key is
 ready.
 
+The backend expects `FIFTH_MOVE_ATTESTATION_PRIVATE_KEY` to be a dedicated
+Ed25519 Sui private key string. Do not use the Garden Battles admin key. Do not
+paste the private key into chat, docs, or committed files.
+
+The on-chain `FifthMoveConfig` stores only the matching raw 32-byte Ed25519
+public key. If the public key comes from `sui keytool list`, convert its
+`public_key_base64` field into the required `vector<u8>` with:
+
+```powershell
+Set-Location -LiteralPath "D:\Finance\Crypto\Repos\gardenbattles\apps\garden-battles"
+npm.cmd exec -- tsx scripts/fifth-move-public-key-vector.ts --public-key-base64 "<PUBLIC_KEY_BASE64>"
+```
+
+Use the printed `suiCliVector` as `<SIGNER_PUBLIC_KEY_BYTES_VECTOR>`.
+
 ```powershell
 sui client call `
   --package 0x9a80317a43e1d59a4d13f9771a003b773153d729e79da329fa1793d301042edf `

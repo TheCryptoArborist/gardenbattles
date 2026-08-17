@@ -80,13 +80,25 @@ Do not execute during this checkpoint.
 
 Create the shared config after the package upgrade, using the dedicated signer public key:
 
+The backend expects `FIFTH_MOVE_ATTESTATION_PRIVATE_KEY` to be a dedicated
+Ed25519 Sui private key string. The on-chain config stores only the matching raw
+32-byte Ed25519 public key as `vector<u8>`. Do not reuse or store the Garden
+Battles admin key as the attestation key.
+
+If the public key comes from `sui keytool list`, convert its
+`public_key_base64` field into the required vector with:
+
+```powershell
+npm.cmd exec -- tsx scripts/fifth-move-public-key-vector.ts --public-key-base64 "<PUBLIC_KEY_BASE64>"
+```
+
 ```powershell
 sui client call `
   --package <FUTURE_PACKAGE_ID> `
   --module fifth_move `
   --function init_fifth_move_config `
   --type-args 0x6c5a609f6d0288523ce4a6ed87d19ae127f62073ab75fd9b0b1c9b455d4895cf::tree::TREE `
-  --args <DEDICATED_SIGNER_PUBLIC_KEY_BYTES> `
+  --args <DEDICATED_SIGNER_PUBLIC_KEY_BYTES_VECTOR> <MAX_ATTESTATION_AGE_MS> `
   --gas-budget <BUDGET>
 ```
 
