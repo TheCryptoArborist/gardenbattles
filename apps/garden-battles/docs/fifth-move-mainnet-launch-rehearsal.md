@@ -77,6 +77,12 @@ Recorded on 2026-08-17 after `e51b3d77f`.
   `0x485953e2eadf4aa02af950cf8e914fbd2b67523385e73c36118341459d8d45c4`.
 - Readiness result: blocked for any real upgrade transaction until the active
   CLI address is switched to the expected operator account.
+- Local CLI address list contains only alias `brave-chrysolite` for
+  `0x47a6b4e25fd82af7b6a43e82e70fd4437de82a9189dbaa832cf5318946a17274`.
+- The expected operator account is not currently available in the local Sui CLI,
+  so this workstation cannot run the package upgrade until that account is added
+  through a secure operator-controlled setup. Do not request, paste, export, or
+  commit any private key or seed phrase.
 
 Read-only object verification notes:
 
