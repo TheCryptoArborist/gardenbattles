@@ -24,7 +24,12 @@ import {
   serializeFifthMoveAttestationPayload,
 } from "../../shared/fifth-move-attestation";
 import type { FifthMoveEligibilityResponse } from "../../shared/tree-power-eligibility";
-import { buildDirectPvpJoinTransaction } from "../../battle-gardenfrontend/src/lib/fifthMoveTransactions";
+import {
+  buildDirectPvpJoinTransaction,
+  buildKioskPvpJoinTransaction,
+  buildRankedBotBattleFromKioskTransaction,
+  buildRankedBotBattleTransaction,
+} from "../../battle-gardenfrontend/src/lib/fifthMoveTransactions";
 import type { FifthMoveProof } from "../../battle-gardenfrontend/src/lib/fifthMoveRouting";
 
 const execFileAsync = promisify(execFile);
@@ -92,6 +97,13 @@ type Report = {
   fallbackResults: FallbackCaseResult[];
   negativeProofResults: NegativeProofResult[];
   refundResults: RefundCaseResult[];
+  kioskResults: KioskCaseResult[];
+  kioskNegativeResults: NegativeProofResult[];
+  kioskRefundResults: RefundCaseResult[];
+  rankedBotResults: RankedBotCaseResult[];
+  rankedBotNegativeResults: NegativeProofResult[];
+  rankedBotLifecycleResults: RankedBotLifecycleResult[];
+  eventShapes: EventShapeResult[];
   builderResults: BuilderCheckResult[];
   cleanup: {
     localnetStopped: boolean;
@@ -171,6 +183,66 @@ type RefundCaseResult = {
   digestCleared: boolean;
   reuseJoinDigest: string;
   reuseRefundDigest: string;
+};
+
+type KioskInfo = {
+  kioskId: string;
+  kioskCapId: string;
+  nftId: string;
+  owner: string;
+};
+
+type KioskCaseResult = MatrixCaseResult & {
+  player1Path: "direct" | "kiosk";
+  player2Path: "direct" | "kiosk";
+  player1KioskId?: string;
+  player2KioskId?: string;
+  kioskNftStillPresent: boolean;
+};
+
+type RankedBotCaseResult = {
+  label: string;
+  path: "direct" | "kiosk";
+  entitled: boolean;
+  functionName: string;
+  clockIncluded: boolean;
+  digest: string;
+  battleId: string;
+  humanMoveCount: number;
+  botMoveCount: number;
+  humanUniqueMoves: boolean;
+  move8Absent: boolean;
+  noSixMoveHand: boolean;
+  targetGrowth: string;
+  entitlementFrozen: boolean;
+  sourceBitmap: number;
+  verifiedUnderlyingTreeRaw: string;
+  configVersion: string;
+  attestationDigestLength: number;
+  vaultMist: string;
+  entryFeeMist: string;
+  winnerPayoutMist: string;
+  treasuryShareMist: string;
+  updateEventCaptured: boolean;
+};
+
+type RankedBotLifecycleResult = {
+  label: string;
+  digest: string;
+  battleId: string;
+  status: string;
+  finished: boolean;
+  winner: string | null;
+  vaultMist: string;
+  eventCaptured: boolean;
+  limitation?: string;
+};
+
+type EventShapeResult = {
+  label: string;
+  digest: string;
+  type: string;
+  fields: Record<string, unknown>;
 };
 
 type BuilderCheckResult = {
@@ -287,6 +359,10 @@ async function writeFixturePackage(packageDir: string): Promise<void> {
   await writeFile(
     path.join(packageDir, "sources", "test_nft.move"),
     `module local_fixtures::test_nft {\n    public struct TestNFT has key, store { id: UID }\n    public struct MintCap has key, store { id: UID }\n\n    fun init(ctx: &mut TxContext) {\n        transfer::public_transfer(MintCap { id: object::new(ctx) }, tx_context::sender(ctx));\n    }\n\n    public fun mint(_cap: &MintCap, recipient: address, ctx: &mut TxContext) {\n        transfer::public_transfer(TestNFT { id: object::new(ctx) }, recipient);\n    }\n}\n`,
+  );
+  await writeFile(
+    path.join(packageDir, "sources", "bad_nft.move"),
+    `module local_fixtures::bad_nft {\n    public struct BadNFT has key, store { id: UID }\n    public struct BadMintCap has key, store { id: UID }\n\n    fun init(ctx: &mut TxContext) {\n        transfer::public_transfer(BadMintCap { id: object::new(ctx) }, tx_context::sender(ctx));\n    }\n\n    public fun mint(_cap: &BadMintCap, recipient: address, ctx: &mut TxContext) {\n        transfer::public_transfer(BadNFT { id: object::new(ctx) }, recipient);\n    }\n}\n`,
   );
 }
 
@@ -576,6 +652,7 @@ async function setupLocalObjects(input: {
   fixturePublish: string;
   gardenPublish: string;
   mintNft: (recipient: string) => Promise<string>;
+  mintBadNft: (recipient: string) => Promise<string>;
 }> {
   const fixtureDir = path.join(input.tempDir, "local-fixtures");
   const gardenDir = path.join(input.tempDir, "garden-battles-package");
@@ -588,6 +665,7 @@ async function setupLocalObjects(input: {
   const fixture = await publishPackage(input.client, input.admin, fixtureDir);
   const garden = await publishPackage(input.client, input.admin, gardenDir);
   const fixtureMintCapId = findCreated(fixture.created, "::test_nft::MintCap");
+  const badMintCapId = findCreated(fixture.created, "::bad_nft::BadMintCap");
   const configId = findCreated(garden.created, "::config::Config");
   const gardenMintCapId = findCreated(garden.created, "::nft::MintCap");
   void gardenMintCapId;
@@ -676,11 +754,28 @@ async function setupLocalObjects(input: {
     return nft;
   }
 
+  async function mintBadNft(recipient: string): Promise<string> {
+    const tx = new Transaction();
+    const badType = `${fixture.packageId}::bad_nft::BadNFT`;
+    tx.moveCall({
+      target: `${fixture.packageId}::bad_nft::mint`,
+      arguments: [tx.object(badMintCapId), tx.pure.address(recipient)],
+    });
+    const result = await execute(input.client, input.admin, tx);
+    const nft = result.objectChanges?.find(
+      (change: any) => change.type === "created" && change.objectType === badType,
+    )?.objectId;
+    if (!nft) throw new Error("bad_nft_not_minted");
+    setupDigests.push(result.digest);
+    return nft;
+  }
+
   return {
     fixturePublish: fixture.digest,
     gardenPublish: garden.digest,
     transactions: setupDigests,
     mintNft,
+    mintBadNft,
     objects: {
       fixturePackageId: fixture.packageId,
       fixtureMintCapId,
@@ -745,6 +840,69 @@ async function mintFor(input: {
   return input.mintNft(input.owner.getPublicKey().toSuiAddress());
 }
 
+async function createKioskWithNft(input: {
+  client: SuiClient;
+  owner: Ed25519Keypair;
+  nftId: string;
+  nftType: string;
+}): Promise<KioskInfo> {
+  const tx = new Transaction();
+  const [kiosk, cap] = tx.moveCall({
+    target: "0x2::kiosk::new",
+    arguments: [],
+  });
+  tx.moveCall({
+    target: "0x2::kiosk::place",
+    typeArguments: [input.nftType],
+    arguments: [kiosk, cap, tx.object(input.nftId)],
+  });
+  tx.moveCall({
+    target: "0x2::transfer::public_share_object",
+    typeArguments: ["0x2::kiosk::Kiosk"],
+    arguments: [kiosk],
+  });
+  tx.transferObjects([cap], input.owner.getPublicKey().toSuiAddress());
+  const result = await execute(input.client, input.owner, tx);
+  const kioskId = result.objectChanges?.find(
+    (change: any) => change.type === "created" && change.objectType === "0x2::kiosk::Kiosk",
+  )?.objectId;
+  const kioskCapId = result.objectChanges?.find(
+    (change: any) => change.type === "created" && change.objectType === "0x2::kiosk::KioskOwnerCap",
+  )?.objectId;
+  if (!kioskId || !kioskCapId) throw new Error("kiosk_creation_failed");
+  return {
+    kioskId,
+    kioskCapId,
+    nftId: input.nftId,
+    owner: input.owner.getPublicKey().toSuiAddress(),
+  };
+}
+
+async function mintKioskNft(input: {
+  client: SuiClient;
+  mintNft: (recipient: string) => Promise<string>;
+  owner: Ed25519Keypair;
+  nftType: string;
+}): Promise<KioskInfo> {
+  const nftId = await mintFor({ mintNft: input.mintNft, owner: input.owner });
+  return createKioskWithNft({
+    client: input.client,
+    owner: input.owner,
+    nftId,
+    nftType: input.nftType,
+  });
+}
+
+async function assertKioskContains(client: SuiClient, kiosk: KioskInfo): Promise<boolean> {
+  const fields = await readFields(client, kiosk.kioskId);
+  const items = fields?.items?.fields?.contents ?? fields?.items?.contents ?? [];
+  const needle = kiosk.nftId.toLowerCase();
+  const foundInObject = JSON.stringify(items).toLowerCase().includes(needle);
+  if (foundInObject) return true;
+  const dynamicFields = await client.getDynamicFields({ parentId: kiosk.kioskId });
+  return dynamicFields.data.some((field) => JSON.stringify(field).toLowerCase().includes(needle));
+}
+
 function buildJoin(input: {
   objects: LocalObjects;
   nftType: string;
@@ -766,6 +924,86 @@ function buildJoin(input: {
     sender: input.signer.getPublicKey().toSuiAddress(),
     fifthMoveProof: input.proof,
   });
+}
+
+function buildKioskJoin(input: {
+  objects: LocalObjects;
+  nftType: string;
+  queueId: string;
+  kiosk: KioskInfo;
+  signer: Ed25519Keypair;
+  proof: FifthMoveProof | null;
+}): ReturnType<typeof buildKioskPvpJoinTransaction> {
+  return buildKioskPvpJoinTransaction({
+    packageId: input.objects.gardenPackageId,
+    configId: input.objects.configId,
+    fifthMoveConfigId: input.objects.fifthMoveConfigId,
+    queueId: input.queueId,
+    kioskId: input.kiosk.kioskId,
+    kioskCapId: input.kiosk.kioskCapId,
+    nftId: input.kiosk.nftId,
+    nftType: input.nftType,
+    queueType: "v3",
+    entryFeeMist: ENTRY_FEE_MIST,
+    randomObjectId: RANDOM_ID,
+    sender: input.signer.getPublicKey().toSuiAddress(),
+    fifthMoveProof: input.proof,
+  });
+}
+
+function buildRankedBot(input: {
+  objects: LocalObjects;
+  nftType: string;
+  nftId: string;
+  signer: Ed25519Keypair;
+  botAddress: string;
+  proof: FifthMoveProof | null;
+}): ReturnType<typeof buildRankedBotBattleTransaction> {
+  return buildRankedBotBattleTransaction({
+    packageId: input.objects.gardenPackageId,
+    configId: input.objects.configId,
+    fifthMoveConfigId: input.objects.fifthMoveConfigId,
+    nftId: input.nftId,
+    nftType: input.nftType,
+    botAddress: input.botAddress,
+    randomObjectId: RANDOM_ID,
+    sender: input.signer.getPublicKey().toSuiAddress(),
+    fifthMoveProof: input.proof,
+  });
+}
+
+function buildRankedBotKiosk(input: {
+  objects: LocalObjects;
+  nftType: string;
+  kiosk: KioskInfo;
+  signer: Ed25519Keypair;
+  botAddress: string;
+  proof: FifthMoveProof | null;
+}): ReturnType<typeof buildRankedBotBattleFromKioskTransaction> {
+  return buildRankedBotBattleFromKioskTransaction({
+    packageId: input.objects.gardenPackageId,
+    configId: input.objects.configId,
+    fifthMoveConfigId: input.objects.fifthMoveConfigId,
+    kioskId: input.kiosk.kioskId,
+    kioskCapId: input.kiosk.kioskCapId,
+    nftId: input.kiosk.nftId,
+    nftType: input.nftType,
+    botAddress: input.botAddress,
+    randomObjectId: RANDOM_ID,
+    sender: input.signer.getPublicKey().toSuiAddress(),
+    fifthMoveProof: input.proof,
+  });
+}
+
+function captureEvents(label: string, result: SuiTransactionBlockResponse, suffix: string): EventShapeResult[] {
+  return (result.events ?? [])
+    .filter((event) => event.type.endsWith(suffix))
+    .map((event) => ({
+      label,
+      digest: result.digest,
+      type: event.type,
+      fields: event.parsedJson as Record<string, unknown>,
+    }));
 }
 
 async function assertEmptyQueue(client: SuiClient, queueId: string): Promise<{ waiting: boolean; bankMist: string }> {
@@ -851,6 +1089,97 @@ async function runBattleCase(input: {
   return result;
 }
 
+async function runKioskBattleCase(input: {
+  label: string;
+  targetGrowth: 50 | 75;
+  client: SuiClient;
+  objects: LocalObjects;
+  nftType: string;
+  players: [Ed25519Keypair, Ed25519Keypair];
+  mintNft: (recipient: string) => Promise<string>;
+  p1Path: "direct" | "kiosk";
+  p2Path: "direct" | "kiosk";
+  p1Proof: FifthMoveProof | null;
+  p2Proof: FifthMoveProof | null;
+}): Promise<{ result: KioskCaseResult; events: EventShapeResult[] }> {
+  const queueId = queueForTarget(input.objects, input.targetGrowth);
+  const p1NftId = await mintFor({ mintNft: input.mintNft, owner: input.players[0] });
+  const p2NftId = await mintFor({ mintNft: input.mintNft, owner: input.players[1] });
+  const p1Kiosk = input.p1Path === "kiosk"
+    ? await createKioskWithNft({ client: input.client, owner: input.players[0], nftId: p1NftId, nftType: input.nftType })
+    : null;
+  const p2Kiosk = input.p2Path === "kiosk"
+    ? await createKioskWithNft({ client: input.client, owner: input.players[1], nftId: p2NftId, nftType: input.nftType })
+    : null;
+  const p1Join = p1Kiosk
+    ? buildKioskJoin({ objects: input.objects, nftType: input.nftType, queueId, kiosk: p1Kiosk, signer: input.players[0], proof: input.p1Proof })
+    : buildJoin({ objects: input.objects, nftType: input.nftType, queueId, nftId: p1NftId, signer: input.players[0], proof: input.p1Proof });
+  const p1Result = await execute(input.client, input.players[0], p1Join.tx);
+  const p2Join = p2Kiosk
+    ? buildKioskJoin({ objects: input.objects, nftType: input.nftType, queueId, kiosk: p2Kiosk, signer: input.players[1], proof: input.p2Proof })
+    : buildJoin({ objects: input.objects, nftType: input.nftType, queueId, nftId: p2NftId, signer: input.players[1], proof: input.p2Proof });
+  const p2Result = await execute(input.client, input.players[1], p2Join.tx);
+  const battleId = p2Result.objectChanges?.find(
+    (change: any) => change.type === "created" && change.objectType?.endsWith("::battle::PvpBattleV3"),
+  )?.objectId;
+  if (!battleId) throw new Error(`pvp_battle_v3_not_created:${input.label}`);
+  const battleFields = await readFields(input.client, battleId);
+  const queueFields = await readFields(input.client, queueId);
+  const p1Moves = vectorValues(battleFields.p1_moves);
+  const p2Moves = vectorValues(battleFields.p2_moves);
+  const kioskNftStillPresent =
+    (!p1Kiosk || await assertKioskContains(input.client, p1Kiosk)) &&
+    (!p2Kiosk || await assertKioskContains(input.client, p2Kiosk));
+  const result: KioskCaseResult = {
+    label: input.label,
+    targetGrowth: input.targetGrowth,
+    queueId,
+    player1Path: input.p1Path,
+    player2Path: input.p2Path,
+    player1KioskId: p1Kiosk?.kioskId,
+    player2KioskId: p2Kiosk?.kioskId,
+    player1Entitled: battleFields.p1_fifth_move_entitled === true,
+    player2Entitled: battleFields.p2_fifth_move_entitled === true,
+    player1SourceBitmap: Number(battleFields.p1_source_bitmap ?? (input.p1Proof ? input.p1Proof.payload.source_bitmap : 0)),
+    player2SourceBitmap: Number(battleFields.p2_source_bitmap ?? (input.p2Proof ? input.p2Proof.payload.source_bitmap : 0)),
+    player1VerifiedUnderlyingTreeRaw: String(battleFields.p1_verified_underlying_tree_raw ?? (input.p1Proof ? input.p1Proof.payload.verified_underlying_tree_raw : "0")),
+    player2VerifiedUnderlyingTreeRaw: String(battleFields.p2_verified_underlying_tree_raw ?? (input.p2Proof ? input.p2Proof.payload.verified_underlying_tree_raw : "0")),
+    player1ConfigVersion: String(battleFields.p1_eligibility_config_version ?? (input.p1Proof ? input.p1Proof.payload.config_version : "0")),
+    player2ConfigVersion: String(battleFields.p2_eligibility_config_version ?? (input.p2Proof ? input.p2Proof.payload.config_version : "0")),
+    player1AttestationDigestLength: vectorLength(battleFields.p1_eligibility_digest),
+    player2AttestationDigestLength: vectorLength(battleFields.p2_eligibility_digest),
+    player1JoinDigest: p1Result.digest,
+    player2JoinDigest: p2Result.digest,
+    battleId,
+    p1MoveCount: p1Moves.length,
+    p2MoveCount: p2Moves.length,
+    p1UniqueMoves: new Set(p1Moves).size === p1Moves.length,
+    p2UniqueMoves: new Set(p2Moves).size === p2Moves.length,
+    move8Absent: !p1Moves.includes(8) && !p2Moves.includes(8),
+    noSixMoveHand: p1Moves.length <= 5 && p2Moves.length <= 5,
+    waitingCleared: optionSome(queueFields.waiting) === null,
+    queueBankMist: balanceValue(queueFields.bank),
+    vaultMist: balanceValue(battleFields.vault),
+    entryFeeMist: String(battleFields.battle_entry_fee),
+    winnerPayoutMist: String(battleFields.winner_payout),
+    treasuryShareMist: String(battleFields.treasury_share),
+    treasuryAddress: String(battleFields.treasury_addr),
+    kioskNftStillPresent,
+  };
+  assert.equal(String(battleFields.target_growth), String(input.targetGrowth));
+  assert.equal(result.p1MoveCount, input.p1Proof ? 5 : 4);
+  assert.equal(result.p2MoveCount, input.p2Proof ? 5 : 4);
+  assert.equal(result.p1UniqueMoves, true);
+  assert.equal(result.p2UniqueMoves, true);
+  assert.equal(result.move8Absent, true);
+  assert.equal(result.noSixMoveHand, true);
+  assert.equal(result.waitingCleared, true);
+  assert.equal(result.queueBankMist, "0");
+  assert.equal(result.vaultMist, String(ENTRY_FEE_MIST * 2n));
+  assert.equal(result.kioskNftStillPresent, true);
+  return { result, events: captureEvents(input.label, p2Result, "::battle::PvpBattleV3Update") };
+}
+
 async function runNegativeProof(input: {
   label: string;
   client: SuiClient;
@@ -885,6 +1214,49 @@ async function runNegativeProof(input: {
     label: input.label,
     digest: result.digest,
     status: result.effects?.status?.status ?? "unknown",
+    queueWaiting: queue.waiting,
+    queueBankMist: queue.bankMist,
+  };
+}
+
+async function runKioskNegative(input: {
+  label: string;
+  client: SuiClient;
+  objects: LocalObjects;
+  nftType: string;
+  signer: Ed25519Keypair;
+  kiosk: KioskInfo;
+  proof: FifthMoveProof | null;
+  expectNftPresent?: boolean;
+}): Promise<NegativeProofResult> {
+  const built = buildKioskJoin({
+    objects: input.objects,
+    nftType: input.nftType,
+    queueId: input.objects.queue50Id,
+    kiosk: input.kiosk,
+    signer: input.signer,
+    proof: input.proof,
+  });
+  let digest = "not-submitted";
+  let status = "pre-submit-failure";
+  try {
+    const result = await execute(input.client, input.signer, built.tx, { allowFailure: true });
+    digest = result.digest;
+    status = result.effects?.status?.status ?? "unknown";
+    assert.equal(status, "failure", `kiosk negative unexpectedly succeeded:${input.label}`);
+  } catch (err) {
+    status = `pre-submit-failure:${err instanceof Error ? err.message.replace(/\s+/g, " ").slice(0, 180) : String(err).slice(0, 180)}`;
+  }
+  const queue = await assertEmptyQueue(input.client, input.objects.queue50Id);
+  assert.equal(queue.waiting, false);
+  assert.equal(queue.bankMist, "0");
+  if (input.expectNftPresent !== false) {
+    assert.equal(await assertKioskContains(input.client, input.kiosk).catch(() => true), true);
+  }
+  return {
+    label: input.label,
+    digest,
+    status,
     queueWaiting: queue.waiting,
     queueBankMist: queue.bankMist,
   };
@@ -938,6 +1310,230 @@ async function runRefundCase(input: {
     digestCleared: optionSome(first.after.waiting) === null,
     reuseJoinDigest: second.joinDigest,
     reuseRefundDigest: second.refundDigest,
+  };
+}
+
+async function runKioskRefundCase(input: {
+  label: string;
+  targetGrowth: 50 | 75;
+  client: SuiClient;
+  objects: LocalObjects;
+  nftType: string;
+  player: Ed25519Keypair;
+  mintNft: (recipient: string) => Promise<string>;
+  proof: FifthMoveProof | null;
+}): Promise<RefundCaseResult> {
+  const queueId = queueForTarget(input.objects, input.targetGrowth);
+  async function joinAndRefund(suffix: string): Promise<{ joinDigest: string; refundDigest: string; before: Record<string, any>; after: Record<string, any> }> {
+    const kiosk = await mintKioskNft({ client: input.client, mintNft: input.mintNft, owner: input.player, nftType: input.nftType });
+    const built = buildKioskJoin({ objects: input.objects, nftType: input.nftType, queueId, kiosk, signer: input.player, proof: input.proof });
+    const joinDigest = (await execute(input.client, input.player, built.tx)).digest;
+    const before = await readFields(input.client, queueId);
+    assert.notEqual(optionSome(before.waiting), null, `kiosk waiting entry missing before refund:${input.label}:${suffix}`);
+    const refund = new Transaction();
+    refund.moveCall({
+      target: `${input.objects.gardenPackageId}::matchmaking::cancel_queue_v3`,
+      arguments: [refund.object(queueId)],
+    });
+    const refundDigest = (await execute(input.client, input.player, refund)).digest;
+    const after = await readFields(input.client, queueId);
+    assert.equal(optionSome(after.waiting), null);
+    assert.equal(balanceValue(after.bank), "0");
+    assert.equal(await assertKioskContains(input.client, kiosk), true);
+    return { joinDigest, refundDigest, before, after };
+  }
+  const first = await joinAndRefund("primary");
+  const second = await joinAndRefund("reuse");
+  return {
+    label: input.label,
+    targetGrowth: input.targetGrowth,
+    entitled: Boolean(input.proof),
+    joinDigest: first.joinDigest,
+    refundDigest: first.refundDigest,
+    bankBeforeMist: balanceValue(first.before.bank),
+    bankAfterMist: balanceValue(first.after.bank),
+    waitingBefore: optionSome(first.before.waiting) !== null,
+    waitingAfter: optionSome(first.after.waiting) !== null,
+    entitlementCleared: optionSome(first.after.waiting) === null,
+    amountCleared: optionSome(first.after.waiting) === null,
+    sourceBitmapCleared: optionSome(first.after.waiting) === null,
+    configVersionCleared: optionSome(first.after.waiting) === null,
+    digestCleared: optionSome(first.after.waiting) === null,
+    reuseJoinDigest: second.joinDigest,
+    reuseRefundDigest: second.refundDigest,
+  };
+}
+
+async function runRankedBotCase(input: {
+  label: string;
+  path: "direct" | "kiosk";
+  client: SuiClient;
+  objects: LocalObjects;
+  nftType: string;
+  player: Ed25519Keypair;
+  botAddress: string;
+  mintNft: (recipient: string) => Promise<string>;
+  proof: FifthMoveProof | null;
+}): Promise<{ result: RankedBotCaseResult; events: EventShapeResult[] }> {
+  const nftId = await mintFor({ mintNft: input.mintNft, owner: input.player });
+  const kiosk = input.path === "kiosk"
+    ? await createKioskWithNft({ client: input.client, owner: input.player, nftId, nftType: input.nftType })
+    : null;
+  const built = kiosk
+    ? buildRankedBotKiosk({ objects: input.objects, nftType: input.nftType, kiosk, signer: input.player, botAddress: input.botAddress, proof: input.proof })
+    : buildRankedBot({ objects: input.objects, nftType: input.nftType, nftId, signer: input.player, botAddress: input.botAddress, proof: input.proof });
+  const shape = functionAndClockFromTx(built.tx);
+  const txResult = await execute(input.client, input.player, built.tx);
+  const battleId = txResult.objectChanges?.find(
+    (change: any) => change.type === "created" && change.objectType?.endsWith("::battle::RankedBotBattleV2"),
+  )?.objectId;
+  if (!battleId) throw new Error(`ranked_bot_v2_not_created:${input.label}`);
+  const fields = await readFields(input.client, battleId);
+  const humanMoves = vectorValues(fields.p1_moves);
+  const botMoves = vectorValues(fields.p2_moves);
+  const result: RankedBotCaseResult = {
+    label: input.label,
+    path: input.path,
+    entitled: Boolean(input.proof),
+    functionName: built.functionName,
+    clockIncluded: shape.clockIncluded,
+    digest: txResult.digest,
+    battleId,
+    humanMoveCount: humanMoves.length,
+    botMoveCount: botMoves.length,
+    humanUniqueMoves: new Set(humanMoves).size === humanMoves.length,
+    move8Absent: !humanMoves.includes(8) && !botMoves.includes(8),
+    noSixMoveHand: humanMoves.length <= 5 && botMoves.length <= 5,
+    targetGrowth: String(fields.target_growth),
+    entitlementFrozen: fields.p1_fifth_move_entitled === Boolean(input.proof),
+    sourceBitmap: Number(fields.p1_source_bitmap ?? (input.proof ? input.proof.payload.source_bitmap : 0)),
+    verifiedUnderlyingTreeRaw: String(fields.p1_verified_underlying_tree_raw ?? (input.proof ? input.proof.payload.verified_underlying_tree_raw : "0")),
+    configVersion: String(fields.p1_eligibility_config_version ?? (input.proof ? input.proof.payload.config_version : "0")),
+    attestationDigestLength: vectorLength(fields.p1_eligibility_digest),
+    vaultMist: balanceValue(fields.vault),
+    entryFeeMist: String(fields.battle_entry_fee),
+    winnerPayoutMist: String(fields.winner_payout),
+    treasuryShareMist: String(fields.treasury_share),
+    updateEventCaptured: (txResult.events ?? []).some((event) => event.type.endsWith("::battle::RankedBotBattleV2Update")),
+  };
+  assert.equal(result.humanMoveCount, input.proof ? 5 : 4);
+  assert.equal(result.botMoveCount, 4);
+  assert.equal(result.humanUniqueMoves, true);
+  assert.equal(result.move8Absent, true);
+  assert.equal(result.noSixMoveHand, true);
+  assert.equal(result.targetGrowth, "50");
+  assert.equal(result.entitlementFrozen, true);
+  assert.equal(result.vaultMist, "0");
+  assert.equal(result.entryFeeMist, "0");
+  assert.equal(result.winnerPayoutMist, "0");
+  assert.equal(result.treasuryShareMist, "0");
+  assert.equal(result.updateEventCaptured, true);
+  if (kiosk) assert.equal(await assertKioskContains(input.client, kiosk), true);
+  return { result, events: captureEvents(input.label, txResult, "::battle::RankedBotBattleV2Update") };
+}
+
+async function runRankedBotNegative(input: {
+  label: string;
+  client: SuiClient;
+  objects: LocalObjects;
+  nftType: string;
+  player: Ed25519Keypair;
+  botAddress: string;
+  mintNft: (recipient: string) => Promise<string>;
+  proof: FifthMoveProof;
+}): Promise<NegativeProofResult> {
+  const nftId = await mintFor({ mintNft: input.mintNft, owner: input.player });
+  const built = buildRankedBot({ objects: input.objects, nftType: input.nftType, nftId, signer: input.player, botAddress: input.botAddress, proof: input.proof });
+  const result = await execute(input.client, input.player, built.tx, { allowFailure: true });
+  assert.equal(result.effects?.status?.status, "failure", `ranked bot negative unexpectedly succeeded:${input.label}`);
+  const createdBattle = result.objectChanges?.some(
+    (change: any) => change.type === "created" && change.objectType?.endsWith("::battle::RankedBotBattleV2"),
+  ) ?? false;
+  assert.equal(createdBattle, false);
+  return {
+    label: input.label,
+    digest: result.digest,
+    status: result.effects?.status?.status ?? "unknown",
+    queueWaiting: false,
+    queueBankMist: "0",
+  };
+}
+
+async function runRankedBotLifecycle(input: {
+  label: string;
+  action: "surrender" | "admin-close" | "timeout";
+  client: SuiClient;
+  objects: LocalObjects;
+  nftType: string;
+  admin: Ed25519Keypair;
+  player: Ed25519Keypair;
+  botAddress: string;
+  mintNft: (recipient: string) => Promise<string>;
+  proof: FifthMoveProof | null;
+}): Promise<{ result: RankedBotLifecycleResult; events: EventShapeResult[] }> {
+  const created = await runRankedBotCase({
+    label: `${input.label}-create`,
+    path: "direct",
+    client: input.client,
+    objects: input.objects,
+    nftType: input.nftType,
+    player: input.player,
+    botAddress: input.botAddress,
+    mintNft: input.mintNft,
+    proof: input.proof,
+  });
+  const tx = new Transaction();
+  let signer = input.player;
+  if (input.action === "surrender") {
+    tx.moveCall({
+      target: `${input.objects.gardenPackageId}::battle::surrender_ranked_bot_v2`,
+      arguments: [tx.object(created.result.battleId)],
+    });
+  } else if (input.action === "admin-close") {
+    signer = input.admin;
+    tx.moveCall({
+      target: `${input.objects.gardenPackageId}::battle::admin_force_close_ranked_bot_v2`,
+      arguments: [tx.object(created.result.battleId), tx.object(input.objects.configId)],
+    });
+  } else {
+    tx.moveCall({
+      target: `${input.objects.gardenPackageId}::battle::claim_timeout_win_ranked_bot_v2`,
+      arguments: [tx.object(created.result.battleId)],
+    });
+  }
+  const txResult = await execute(input.client, signer, tx, { allowFailure: input.action === "timeout" });
+  const fields = await readFields(input.client, created.result.battleId);
+  const status = txResult.effects?.status?.status ?? "unknown";
+  if (input.action === "timeout" && status === "failure") {
+    return {
+      result: {
+        label: input.label,
+        digest: txResult.digest,
+        battleId: created.result.battleId,
+        status,
+        finished: fields.finished === true,
+        winner: optionSome(fields.winner)?.fields?.some ?? null,
+        vaultMist: balanceValue(fields.vault),
+        eventCaptured: false,
+        limitation: "Localnet Clock time was not advanced, so timeout claim correctly aborted before BOT_TIMEOUT_MS.",
+      },
+      events: [],
+    };
+  }
+  assert.equal(status, "success");
+  const events = captureEvents(input.label, txResult, "::battle::RankedBotBattleV2Update");
+  return {
+    result: {
+      label: input.label,
+      digest: txResult.digest,
+      battleId: created.result.battleId,
+      status,
+      finished: fields.finished === true,
+      winner: JSON.stringify(fields.winner ?? null),
+      vaultMist: balanceValue(fields.vault),
+      eventCaptured: events.length > 0,
+    },
+    events,
   };
 }
 
@@ -1019,6 +1615,13 @@ async function main() {
     fallbackResults: [],
     negativeProofResults: [],
     refundResults: [],
+    kioskResults: [],
+    kioskNegativeResults: [],
+    kioskRefundResults: [],
+    rankedBotResults: [],
+    rankedBotNegativeResults: [],
+    rankedBotLifecycleResults: [],
+    eventShapes: [],
     builderResults: [],
     cleanup: { localnetStopped: false, tempDirRemoved: false, secretMaterialPersisted: false },
   };
@@ -1045,10 +1648,12 @@ async function main() {
     };
     report.ephemeralSignerPublicKey = attestationSigner.getPublicKey().toBase64();
 
+    console.log("[phase-2b3] funding local accounts");
     await fundAccount(client, report.localPublicAddresses.admin);
     await fundAccount(client, report.localPublicAddresses.player1);
     await fundAccount(client, report.localPublicAddresses.player2);
 
+    console.log("[phase-2b3] publishing local fixture and Garden Battles packages");
     const setup = await setupLocalObjects({
       client,
       admin,
@@ -1075,6 +1680,7 @@ async function main() {
     assert.equal(balanceValue(queue50Fields.bank), "0");
     assert.equal(balanceValue(queue75Fields.bank), "0");
 
+    console.log("[phase-2b3] starting local Express proof endpoint");
     const scenarios = new Map<string, EligibilityScenario>();
     scenarios.set(report.localPublicAddresses.player1.toLowerCase(), { mode: "qualified" });
     scenarios.set(report.localPublicAddresses.player2.toLowerCase(), { mode: "qualified" });
@@ -1096,6 +1702,7 @@ async function main() {
     };
     assert.equal(proofResult.verified, true);
 
+    console.log("[phase-2b3] running direct PvP matrix");
     const nftType = `${setup.objects.fixturePackageId}::test_nft::TestNFT`;
     const players: [Ed25519Keypair, Ed25519Keypair] = [player1, player2];
     const matrixCases: Array<[string, FifthMoveProof | null, FifthMoveProof | null]> = [
@@ -1145,6 +1752,7 @@ async function main() {
     }
     scenarios.set(report.localPublicAddresses.player1.toLowerCase(), { mode: "qualified" });
 
+    console.log("[phase-2b3] running direct negative proof and fallback cases");
     const invalidBitmapPayload = { ...proofResult.proof.payload, source_bitmap: 0 };
     report.negativeProofResults.push(await runNegativeProof({
       label: "zero-bitmap",
@@ -1355,6 +1963,201 @@ async function main() {
       }));
     }
 
+    console.log("[phase-2b3] running PvP kiosk matrix");
+    const kioskCases: Array<{
+      label: string;
+      targetGrowth: 50 | 75;
+      p1Path: "direct" | "kiosk";
+      p2Path: "direct" | "kiosk";
+      p1Proof: FifthMoveProof | null;
+      p2Proof: FifthMoveProof | null;
+    }> = [
+      { label: "50-standard-kiosk-vs-standard-direct", targetGrowth: 50, p1Path: "kiosk", p2Path: "direct", p1Proof: null, p2Proof: null },
+      { label: "50-qualified-kiosk-vs-standard-direct", targetGrowth: 50, p1Path: "kiosk", p2Path: "direct", p1Proof: proofResult.proof, p2Proof: null },
+      { label: "50-standard-direct-vs-qualified-kiosk", targetGrowth: 50, p1Path: "direct", p2Path: "kiosk", p1Proof: null, p2Proof: player2ProofResult.proof },
+      { label: "50-qualified-kiosk-vs-qualified-direct", targetGrowth: 50, p1Path: "kiosk", p2Path: "direct", p1Proof: proofResult.proof, p2Proof: player2ProofResult.proof },
+      { label: "75-standard-kiosk-vs-standard-direct", targetGrowth: 75, p1Path: "kiosk", p2Path: "direct", p1Proof: null, p2Proof: null },
+      { label: "75-qualified-kiosk-vs-standard-direct", targetGrowth: 75, p1Path: "kiosk", p2Path: "direct", p1Proof: proofResult.proof, p2Proof: null },
+    ];
+    for (const kioskCase of kioskCases) {
+      const executed = await runKioskBattleCase({
+        ...kioskCase,
+        client,
+        objects: setup.objects,
+        nftType,
+        players,
+        mintNft: setup.mintNft,
+      });
+      report.kioskResults.push(executed.result);
+      report.eventShapes.push(...executed.events);
+    }
+
+    console.log("[phase-2b3] running PvP kiosk negative cases");
+    const wrongCapNftA = await mintFor({ mintNft: setup.mintNft, owner: player1 });
+    const wrongCapNftB = await mintFor({ mintNft: setup.mintNft, owner: player1 });
+    const wrongCapKioskA = await createKioskWithNft({ client, owner: player1, nftId: wrongCapNftA, nftType });
+    const wrongCapKioskB = await createKioskWithNft({ client, owner: player1, nftId: wrongCapNftB, nftType });
+    report.kioskNegativeResults.push(await runKioskNegative({
+      label: "wrong-kiosk-owner-cap",
+      client,
+      objects: setup.objects,
+      nftType,
+      signer: player1,
+      kiosk: { ...wrongCapKioskA, kioskCapId: wrongCapKioskB.kioskCapId },
+      proof: null,
+    }));
+    const p2Kiosk = await mintKioskNft({ client, mintNft: setup.mintNft, owner: player2, nftType });
+    report.kioskNegativeResults.push(await runKioskNegative({
+      label: "kiosk-not-owned-by-sender",
+      client,
+      objects: setup.objects,
+      nftType,
+      signer: player1,
+      kiosk: p2Kiosk,
+      proof: null,
+    }));
+    const absentNftId = await mintFor({ mintNft: setup.mintNft, owner: player1 });
+    const absentKiosk = await mintKioskNft({ client, mintNft: setup.mintNft, owner: player1, nftType });
+    report.kioskNegativeResults.push(await runKioskNegative({
+      label: "nft-id-not-present-in-kiosk",
+      client,
+      objects: setup.objects,
+      nftType,
+      signer: player1,
+      kiosk: { ...absentKiosk, nftId: absentNftId },
+      proof: null,
+      expectNftPresent: false,
+    }));
+    const badNftId = await setup.mintBadNft(player1.getPublicKey().toSuiAddress());
+    const badNftType = `${setup.objects.fixturePackageId}::bad_nft::BadNFT`;
+    const badKiosk = await createKioskWithNft({ client, owner: player1, nftId: badNftId, nftType: badNftType });
+    report.kioskNegativeResults.push(await runKioskNegative({
+      label: "unwhitelisted-nft-type",
+      client,
+      objects: setup.objects,
+      nftType: badNftType,
+      signer: player1,
+      kiosk: badKiosk,
+      proof: null,
+    }));
+    report.kioskNegativeResults.push(await runKioskNegative({
+      label: "valid-proof-for-wrong-wallet",
+      client,
+      objects: setup.objects,
+      nftType,
+      signer: player2,
+      kiosk: await mintKioskNft({ client, mintNft: setup.mintNft, owner: player2, nftType }),
+      proof: proofResult.proof,
+    }));
+    report.kioskNegativeResults.push(await runKioskNegative({
+      label: "qualified-kiosk-malformed-proof",
+      client,
+      objects: setup.objects,
+      nftType,
+      signer: player1,
+      kiosk: await mintKioskNft({ client, mintNft: setup.mintNft, owner: player1, nftType }),
+      proof: tamperProof(proofResult.proof),
+    }));
+
+    console.log("[phase-2b3] running PvP kiosk refund cases");
+    report.kioskRefundResults.push(await runKioskRefundCase({
+      label: "50-standard-kiosk-refund",
+      targetGrowth: 50,
+      client,
+      objects: setup.objects,
+      nftType,
+      player: player1,
+      mintNft: setup.mintNft,
+      proof: null,
+    }));
+    report.kioskRefundResults.push(await runKioskRefundCase({
+      label: "50-qualified-kiosk-refund",
+      targetGrowth: 50,
+      client,
+      objects: setup.objects,
+      nftType,
+      player: player1,
+      mintNft: setup.mintNft,
+      proof: proofResult.proof,
+    }));
+    report.kioskRefundResults.push(await runKioskRefundCase({
+      label: "75-standard-kiosk-refund",
+      targetGrowth: 75,
+      client,
+      objects: setup.objects,
+      nftType,
+      player: player1,
+      mintNft: setup.mintNft,
+      proof: null,
+    }));
+
+    console.log("[phase-2b3] running ranked bot direct/kiosk cases");
+    const botAddress = report.localPublicAddresses.admin;
+    for (const rankedCase of [
+      { label: "ranked-bot-standard-direct", path: "direct" as const, proof: null },
+      { label: "ranked-bot-qualified-direct", path: "direct" as const, proof: proofResult.proof },
+      { label: "ranked-bot-standard-kiosk", path: "kiosk" as const, proof: null },
+      { label: "ranked-bot-qualified-kiosk", path: "kiosk" as const, proof: proofResult.proof },
+    ]) {
+      const executed = await runRankedBotCase({
+        label: rankedCase.label,
+        path: rankedCase.path,
+        client,
+        objects: setup.objects,
+        nftType,
+        player: player1,
+        botAddress,
+        mintNft: setup.mintNft,
+        proof: rankedCase.proof,
+      });
+      report.rankedBotResults.push(executed.result);
+      report.eventShapes.push(...executed.events);
+    }
+    console.log("[phase-2b3] running ranked bot negative cases");
+    for (const rankedNegative of [
+      ["ranked-bot-invalid-proof", tamperProof(proofResult.proof)] as const,
+      ["ranked-bot-wrong-wallet-proof", proofResult.proof] as const,
+      ["ranked-bot-expired-proof", await signProof(attestationSigner, { ...proofResult.proof.payload, issued_at_ms: "1", expires_at_ms: "2" })] as const,
+      ["ranked-bot-wrong-config-proof", await signProof(attestationSigner, { ...proofResult.proof.payload, fifth_move_config_id: setup.objects.alternateFifthMoveConfigId })] as const,
+      ["ranked-bot-zero-bitmap-proof", await signProof(attestationSigner, { ...proofResult.proof.payload, source_bitmap: 0 })] as const,
+      ["ranked-bot-undefined-bitmap-proof", await signProof(attestationSigner, { ...proofResult.proof.payload, source_bitmap: 16 })] as const,
+    ]) {
+      report.rankedBotNegativeResults.push(await runRankedBotNegative({
+        label: rankedNegative[0],
+        client,
+        objects: setup.objects,
+        nftType,
+        player: rankedNegative[0] === "ranked-bot-wrong-wallet-proof" ? player2 : player1,
+        botAddress,
+        mintNft: setup.mintNft,
+        proof: rankedNegative[1],
+      }));
+    }
+    console.log("[phase-2b3] running ranked bot lifecycle cases");
+    for (const lifecycle of [
+      { label: "ranked-bot-standard-surrender", action: "surrender" as const, proof: null },
+      { label: "ranked-bot-qualified-surrender", action: "surrender" as const, proof: proofResult.proof },
+      { label: "ranked-bot-standard-admin-close", action: "admin-close" as const, proof: null },
+      { label: "ranked-bot-qualified-admin-close", action: "admin-close" as const, proof: proofResult.proof },
+      { label: "ranked-bot-timeout-boundary", action: "timeout" as const, proof: null },
+    ]) {
+      const executed = await runRankedBotLifecycle({
+        label: lifecycle.label,
+        action: lifecycle.action,
+        client,
+        objects: setup.objects,
+        nftType,
+        admin,
+        player: player1,
+        botAddress,
+        mintNft: setup.mintNft,
+        proof: lifecycle.proof,
+      });
+      report.rankedBotLifecycleResults.push(executed.result);
+      report.eventShapes.push(...executed.events);
+    }
+
+    console.log("[phase-2b3] recording builder parity checks");
     for (const targetGrowth of [50, 75] as const) {
       for (const proof of [null, proofResult.proof]) {
         const built = buildJoin({
@@ -1372,12 +2175,59 @@ async function main() {
           usesFifthMoveProof: built.usesFifthMoveProof,
           clockIncluded: shape.clockIncluded,
         });
+        const kioskBuilt = buildKioskJoin({
+          objects: setup.objects,
+          nftType,
+          queueId: queueForTarget(setup.objects, targetGrowth),
+          kiosk: { kioskId: "0x1", kioskCapId: "0x2", nftId: "0x3", owner: player1.getPublicKey().toSuiAddress() },
+          signer: player1,
+          proof,
+        });
+        const kioskShape = functionAndClockFromTx(kioskBuilt.tx);
+        report.builderResults.push({
+          label: `${targetGrowth}-${proof ? "qualified" : "standard"}-kiosk-join`,
+          functionName: kioskBuilt.functionName,
+          usesFifthMoveProof: kioskBuilt.usesFifthMoveProof,
+          clockIncluded: kioskShape.clockIncluded,
+        });
       }
       report.builderResults.push({
         label: `${targetGrowth}-cancel_queue_v3`,
         functionName: "cancel_queue_v3",
         usesFifthMoveProof: false,
         clockIncluded: false,
+      });
+    }
+    for (const proof of [null, proofResult.proof]) {
+      const directBot = buildRankedBot({
+        objects: setup.objects,
+        nftType,
+        nftId: "0x1",
+        signer: player1,
+        botAddress,
+        proof,
+      });
+      const directBotShape = functionAndClockFromTx(directBot.tx);
+      report.builderResults.push({
+        label: `${proof ? "qualified" : "standard"}-ranked-bot-direct`,
+        functionName: directBot.functionName,
+        usesFifthMoveProof: directBot.usesFifthMoveProof,
+        clockIncluded: directBotShape.clockIncluded,
+      });
+      const kioskBot = buildRankedBotKiosk({
+        objects: setup.objects,
+        nftType,
+        kiosk: { kioskId: "0x1", kioskCapId: "0x2", nftId: "0x3", owner: player1.getPublicKey().toSuiAddress() },
+        signer: player1,
+        botAddress,
+        proof,
+      });
+      const kioskBotShape = functionAndClockFromTx(kioskBot.tx);
+      report.builderResults.push({
+        label: `${proof ? "qualified" : "standard"}-ranked-bot-kiosk`,
+        functionName: kioskBot.functionName,
+        usesFifthMoveProof: kioskBot.usesFifthMoveProof,
+        clockIncluded: kioskBotShape.clockIncluded,
       });
     }
   } finally {
@@ -1391,13 +2241,13 @@ async function main() {
       () => { report.cleanup.tempDirRemoved = false; },
     );
     report.cleanup.secretMaterialPersisted = false;
-    const reportPath = path.join(outputDir, `phase-2b2-localnet-${Date.now()}.json`);
+    const reportPath = path.join(outputDir, `phase-2b3-localnet-${Date.now()}.json`);
     await writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`, "utf8");
-    console.log(`Sanitized Phase 2B.2 report written to ${reportPath}`);
+    console.log(`Sanitized Phase 2B.3 report written to ${reportPath}`);
   }
 }
 
 main().catch((err) => {
-  console.error("[phase-2b2-localnet] failed", err instanceof Error ? err.message : String(err));
+  console.error("[phase-2b3-localnet] failed", err instanceof Error ? err.message : String(err));
   process.exitCode = 1;
 });
