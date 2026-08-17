@@ -64,6 +64,30 @@ sui client object 0xe94d5b1b468dd1e843181edd055b2b24f5b67afcff184820acc9aa86a82f
 sui client object 0x30addc978abe37f31d55cc60a395f30fd6cfdcbfb3cd4e319d2920b0e780a9bf
 ```
 
+## Current Preflight Snapshot
+
+Recorded on 2026-08-17 after `e51b3d77f`.
+
+- Git branch: `codex/recovered-gardenbattles-20260624`.
+- Local branch state: ahead of origin by two commits.
+- Sui CLI active environment: `mainnet`.
+- Sui CLI active address:
+  `0x47a6b4e25fd82af7b6a43e82e70fd4437de82a9189dbaa832cf5318946a17274`.
+- Expected upgrade/admin address:
+  `0x485953e2eadf4aa02af950cf8e914fbd2b67523385e73c36118341459d8d45c4`.
+- Readiness result: blocked for any real upgrade transaction until the active
+  CLI address is switched to the expected operator account.
+
+Read-only object verification was not completed in this snapshot:
+
+- `sui client object <id>` failed locally with `NativeCertsNotFound`.
+- Public fullnode JSON-RPC returned `Method not found` because public JSON-RPC
+  object reads are deprecated.
+
+Before the real upgrade window, object verification should use a working Sui CLI
+certificate setup, an approved gRPC/GraphQL read path, or a configured private
+RPC provider that does not expose credentials in logs or committed files.
+
 Validation commands:
 
 ```powershell
