@@ -18,6 +18,7 @@ import { Transaction } from "@mysten/sui/transactions";
 import { fromBase64 } from "@mysten/sui/utils";
 import { createFifthMoveAttestationHandler, parseMoveTypeName, parseMoveU64, parseMoveU8Vector } from "../../server/routes";
 import {
+  asciiBytes,
   decodeBase64Bytes,
   FIFTH_MOVE_SOURCE_BITS,
   serializeFifthMoveAttestationPayload,
@@ -38,6 +39,8 @@ const ENTRY_FEE_MIST = 3_000_000_000n;
 const WINNER_PAYOUT_MIST = 5_000_000_000n;
 const TREASURY_SHARE_MIST = 1_000_000_000n;
 const THRESHOLD_RAW = "1000000000000";
+const LOCAL_ATTESTATION_MAX_AGE_MS = 900_000;
+const LOCAL_ATTESTATION_TTL_MS = 600_000;
 const CLOCK_ID = "0x6";
 const RANDOM_ID = "0x8";
 
@@ -59,10 +62,9 @@ type LocalObjects = {
   gardenPackageId: string;
   configId: string;
   fifthMoveConfigId: string;
+  alternateFifthMoveConfigId: string;
   queue50Id: string;
-  player1NftId: string;
-  player2NftId: string;
-  refundNftId: string;
+  queue75Id: string;
 };
 
 type Report = {
@@ -84,37 +86,110 @@ type Report = {
     fixturePublish?: string;
     gardenPublish?: string;
     setup?: string[];
-    qualifiedJoin?: string;
-    standardJoin?: string;
-    tamperedProof?: string;
-    refundJoin?: string;
-    refund?: string;
   };
-  battle: {
-    battleId?: string;
-    targetGrowth?: string;
-    p1MoveCount?: number;
-    p2MoveCount?: number;
-    p1UniqueMoves?: boolean;
-    move8Absent?: boolean;
-    p1Entitled?: boolean;
-    p2Entitled?: boolean;
-    vaultMist?: string;
-    vaultFieldShape?: string;
-  };
-  queue: {
-    waitingClearedAfterMatch?: boolean;
-    bankMistAfterMatch?: string;
-    waitingBeforeRefundShape?: string;
-    bankMistBeforeRefund?: string;
-    waitingClearedAfterRefund?: boolean;
-    bankMistAfterRefund?: string;
-  };
+  matrix: MatrixCaseResult[];
+  sourceBitmapResults: MatrixCaseResult[];
+  fallbackResults: FallbackCaseResult[];
+  negativeProofResults: NegativeProofResult[];
+  refundResults: RefundCaseResult[];
+  builderResults: BuilderCheckResult[];
   cleanup: {
     localnetStopped: boolean;
     tempDirRemoved: boolean;
     secretMaterialPersisted: boolean;
   };
+};
+
+type MatrixCaseResult = {
+  label: string;
+  targetGrowth: 50 | 75;
+  queueId: string;
+  player1Entitled: boolean;
+  player2Entitled: boolean;
+  player1SourceBitmap: number;
+  player2SourceBitmap: number;
+  player1VerifiedUnderlyingTreeRaw: string;
+  player2VerifiedUnderlyingTreeRaw: string;
+  player1ConfigVersion: string;
+  player2ConfigVersion: string;
+  player1AttestationDigestLength: number;
+  player2AttestationDigestLength: number;
+  player1JoinDigest: string;
+  player2JoinDigest: string;
+  battleId: string;
+  p1MoveCount: number;
+  p2MoveCount: number;
+  p1UniqueMoves: boolean;
+  p2UniqueMoves: boolean;
+  move8Absent: boolean;
+  noSixMoveHand: boolean;
+  waitingCleared: boolean;
+  queueBankMist: string;
+  vaultMist: string;
+  entryFeeMist: string;
+  winnerPayoutMist: string;
+  treasuryShareMist: string;
+  treasuryAddress: string;
+};
+
+type FallbackCaseResult = {
+  label: string;
+  endpointStatus?: number;
+  endpointReason?: string;
+  selectedFunction: string;
+  usesProof: boolean;
+  clockIncluded: boolean;
+  joinDigest: string;
+  finishDigest: string;
+  battleId: string;
+  moveCount: number;
+  proofSubmittedFirst: boolean;
+};
+
+type NegativeProofResult = {
+  label: string;
+  digest: string;
+  status: string;
+  queueWaiting: boolean;
+  queueBankMist: string;
+};
+
+type RefundCaseResult = {
+  label: string;
+  targetGrowth: 50 | 75;
+  entitled: boolean;
+  joinDigest: string;
+  refundDigest: string;
+  bankBeforeMist: string;
+  bankAfterMist: string;
+  waitingBefore: boolean;
+  waitingAfter: boolean;
+  entitlementCleared: boolean;
+  amountCleared: boolean;
+  sourceBitmapCleared: boolean;
+  configVersionCleared: boolean;
+  digestCleared: boolean;
+  reuseJoinDigest: string;
+  reuseRefundDigest: string;
+};
+
+type BuilderCheckResult = {
+  label: string;
+  functionName: string;
+  usesFifthMoveProof: boolean;
+  clockIncluded: boolean;
+};
+
+type EligibilityMode =
+  | "qualified"
+  | "not-qualified"
+  | "verification-incomplete"
+  | "unavailable";
+
+type EligibilityScenario = {
+  mode: EligibilityMode;
+  sourceBitmap?: number;
+  verifiedUnderlyingTreeRaw?: string;
 };
 
 function isLoopbackRpcUrl(rpcUrl: string): boolean {
@@ -332,31 +407,16 @@ async function createExpressProofServer(input: {
   signer: Ed25519Keypair;
   fifthMoveConfigId: string;
   expectedUtilityCoin: string;
-  wallet: string;
+  scenarios: Map<string, EligibilityScenario>;
+  signerOverride?: Ed25519Keypair | null;
 }): Promise<{ server: Server; baseUrl: string }> {
   const app = express();
   app.use(express.json());
   app.post(
     "/api/tree-power/fifth-move-attestation",
     createFifthMoveAttestationHandler({
-      getSigner: () => input.signer,
-      getEligibility: async (wallet) => ({
-        wallet,
-        status: "qualified",
-        thresholdRaw: THRESHOLD_RAW,
-        totalVerifiedUnderlyingTreeRaw: "2500000000000",
-        verifiedUnderlyingTreeRaw: "2500000000000",
-        remainingTreeRaw: "0",
-        checkedAt: new Date().toISOString(),
-        sources: [
-          {
-            source: "suidex-v3",
-            status: "qualified-data",
-            underlyingTreeRaw: "2500000000000",
-            reason: "phase-2b-localnet-injected-qualified",
-          },
-        ],
-      } satisfies FifthMoveEligibilityResponse),
+      getSigner: () => input.signerOverride === null ? null : input.signerOverride ?? input.signer,
+      getEligibility: async (wallet) => buildInjectedEligibility(wallet, input.scenarios.get(wallet.toLowerCase()) ?? { mode: "qualified" }),
       readConfig: async (serverSignerPublicKey) => {
         const fields = await readFields(input.client, input.fifthMoveConfigId);
         const signerPublicKey = parseMoveU8Vector(fields.signer_public_key);
@@ -374,7 +434,7 @@ async function createExpressProofServer(input: {
       },
       expectedUtilityCoin: input.expectedUtilityCoin,
       checkRateLimit: () => true,
-      ttlMs: 60_000,
+      ttlMs: LOCAL_ATTESTATION_TTL_MS,
       keyId: "phase-2b-localnet",
     }),
   );
@@ -384,6 +444,88 @@ async function createExpressProofServer(input: {
   const address = server.address();
   assert(address && typeof address === "object");
   return { server, baseUrl: `http://127.0.0.1:${address.port}` };
+}
+
+function buildInjectedEligibility(wallet: string, scenario: EligibilityScenario): FifthMoveEligibilityResponse {
+  const sourceBitmap = scenario.sourceBitmap ?? FIFTH_MOVE_SOURCE_BITS.suidexV3;
+  const verifiedRaw = scenario.verifiedUnderlyingTreeRaw ?? "2500000000000";
+  if (scenario.mode === "qualified") {
+    return {
+      wallet,
+      status: "qualified",
+      thresholdRaw: THRESHOLD_RAW,
+      totalVerifiedUnderlyingTreeRaw: verifiedRaw,
+      verifiedUnderlyingTreeRaw: verifiedRaw,
+      remainingTreeRaw: "0",
+      checkedAt: new Date().toISOString(),
+      sources: sourcesForBitmap(sourceBitmap, verifiedRaw),
+    } satisfies FifthMoveEligibilityResponse;
+  }
+  if (scenario.mode === "not-qualified") {
+    return {
+      wallet,
+      status: "not-qualified",
+      thresholdRaw: THRESHOLD_RAW,
+      totalVerifiedUnderlyingTreeRaw: "500000000000",
+      verifiedUnderlyingTreeRaw: "500000000000",
+      remainingTreeRaw: "500000000000",
+      checkedAt: new Date().toISOString(),
+      sources: sourcesForBitmap(sourceBitmap, "500000000000"),
+    } satisfies FifthMoveEligibilityResponse;
+  }
+  if (scenario.mode === "verification-incomplete") {
+    return {
+      wallet,
+      status: "verification-incomplete",
+      thresholdRaw: THRESHOLD_RAW,
+      totalVerifiedUnderlyingTreeRaw: "0",
+      verifiedUnderlyingTreeRaw: "0",
+      remainingTreeRaw: THRESHOLD_RAW,
+      checkedAt: new Date().toISOString(),
+      sources: [
+        {
+          source: "moonbags-staking",
+          status: "unavailable",
+          underlyingTreeRaw: "0",
+          reason: "phase-2b-localnet-injected-incomplete",
+        },
+      ],
+    } satisfies FifthMoveEligibilityResponse;
+  }
+  return {
+    wallet,
+    status: "unavailable",
+    thresholdRaw: THRESHOLD_RAW,
+    totalVerifiedUnderlyingTreeRaw: "0",
+    verifiedUnderlyingTreeRaw: "0",
+    remainingTreeRaw: THRESHOLD_RAW,
+    checkedAt: new Date().toISOString(),
+    sources: [
+      {
+        source: "suidex-v3",
+        status: "unavailable",
+        underlyingTreeRaw: "0",
+        reason: "phase-2b-localnet-injected-unavailable",
+      },
+    ],
+  } satisfies FifthMoveEligibilityResponse;
+}
+
+function sourcesForBitmap(sourceBitmap: number, underlyingTreeRaw: string): FifthMoveEligibilityResponse["sources"] {
+  const sources: FifthMoveEligibilityResponse["sources"] = [];
+  if ((sourceBitmap & FIFTH_MOVE_SOURCE_BITS.suidexV2Direct) !== 0) {
+    sources.push({ source: "suidex-v2", status: "qualified-data", underlyingTreeRaw, reason: "phase-2b-localnet-direct" });
+  }
+  if ((sourceBitmap & FIFTH_MOVE_SOURCE_BITS.suidexV2Farm) !== 0) {
+    sources.push({ source: "suidex-v2", status: "qualified-data", underlyingTreeRaw, reason: "phase-2b-localnet-farmed" });
+  }
+  if ((sourceBitmap & FIFTH_MOVE_SOURCE_BITS.suidexV3) !== 0) {
+    sources.push({ source: "suidex-v3", status: "qualified-data", underlyingTreeRaw, reason: "phase-2b-localnet" });
+  }
+  if ((sourceBitmap & FIFTH_MOVE_SOURCE_BITS.moonbagsStaking) !== 0) {
+    sources.push({ source: "moonbags-staking", status: "qualified-data", underlyingTreeRaw, reason: "phase-2b-localnet" });
+  }
+  return sources;
 }
 
 async function requestProof(baseUrl: string, wallet: string): Promise<{ proof: FifthMoveProof; body: any; verified: boolean; status: number }> {
@@ -412,6 +554,15 @@ async function requestProof(baseUrl: string, wallet: string): Promise<{ proof: F
   };
 }
 
+async function requestAttestation(baseUrl: string, wallet: string): Promise<{ status: number; body: any }> {
+  const response = await fetch(`${baseUrl}/api/tree-power/fifth-move-attestation`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ wallet }),
+  });
+  return { status: response.status, body: await response.json() };
+}
+
 async function setupLocalObjects(input: {
   client: SuiClient;
   admin: Ed25519Keypair;
@@ -419,7 +570,13 @@ async function setupLocalObjects(input: {
   player2: Ed25519Keypair;
   signerPublicKey: Uint8Array;
   tempDir: string;
-}): Promise<{ objects: LocalObjects; transactions: string[]; fixturePublish: string; gardenPublish: string }> {
+}): Promise<{
+  objects: LocalObjects;
+  transactions: string[];
+  fixturePublish: string;
+  gardenPublish: string;
+  mintNft: (recipient: string) => Promise<string>;
+}> {
   const fixtureDir = path.join(input.tempDir, "local-fixtures");
   const gardenDir = path.join(input.tempDir, "garden-battles-package");
   await writeFixturePackage(fixtureDir);
@@ -459,22 +616,43 @@ async function setupLocalObjects(input: {
     typeArguments: [localTreeType],
     arguments: [
       setup.pure.vector("u8", Array.from(input.signerPublicKey)),
-      setup.pure.u64(120_000),
+      setup.pure.u64(LOCAL_ATTESTATION_MAX_AGE_MS),
+    ],
+  });
+  setup.moveCall({
+    target: `${garden.packageId}::fifth_move::init_fifth_move_config`,
+    typeArguments: [localTreeType],
+    arguments: [
+      setup.pure.vector("u8", Array.from(input.signerPublicKey)),
+      setup.pure.u64(LOCAL_ATTESTATION_MAX_AGE_MS),
     ],
   });
   setup.moveCall({
     target: `${garden.packageId}::matchmaking::create_queue_v3`,
     arguments: [setup.object(configId), setup.pure.u64(50)],
   });
+  setup.moveCall({
+    target: `${garden.packageId}::matchmaking::create_queue_v3`,
+    arguments: [setup.object(configId), setup.pure.u64(75)],
+  });
   const setupResult = await execute(input.client, input.admin, setup);
   setupDigests.push(setupResult.digest);
-  const fifthMoveConfigId = setupResult.objectChanges?.find(
+  const fifthMoveConfigs = (setupResult.objectChanges ?? []).filter(
     (change: any) => change.type === "created" && change.objectType?.endsWith("::fifth_move::FifthMoveConfig"),
-  )?.objectId;
-  const queue50Id = setupResult.objectChanges?.find(
+  );
+  const queues = (setupResult.objectChanges ?? []).filter(
     (change: any) => change.type === "created" && change.objectType?.endsWith("::matchmaking::MatchmakingQueueV3"),
-  )?.objectId;
-  if (!fifthMoveConfigId || !queue50Id) throw new Error("setup_objects_not_created");
+  );
+  const fifthMoveConfigId = fifthMoveConfigs[0]?.objectId;
+  const alternateFifthMoveConfigId = fifthMoveConfigs[1]?.objectId;
+  let queue50Id: string | undefined;
+  let queue75Id: string | undefined;
+  for (const queue of queues) {
+    const queueFields = await readFields(input.client, queue.objectId);
+    if (String(queueFields.target_growth) === "50") queue50Id = queue.objectId;
+    if (String(queueFields.target_growth) === "75") queue75Id = queue.objectId;
+  }
+  if (!fifthMoveConfigId || !alternateFifthMoveConfigId || !queue50Id || !queue75Id) throw new Error("setup_objects_not_created");
 
   const enable = new Transaction();
   enable.moveCall({
@@ -502,16 +680,16 @@ async function setupLocalObjects(input: {
     fixturePublish: fixture.digest,
     gardenPublish: garden.digest,
     transactions: setupDigests,
+    mintNft,
     objects: {
       fixturePackageId: fixture.packageId,
       fixtureMintCapId,
       gardenPackageId: garden.packageId,
       configId,
       fifthMoveConfigId,
+      alternateFifthMoveConfigId,
       queue50Id,
-      player1NftId: await mintNft(input.player1.getPublicKey().toSuiAddress()),
-      player2NftId: await mintNft(input.player2.getPublicKey().toSuiAddress()),
-      refundNftId: await mintNft(input.player1.getPublicKey().toSuiAddress()),
+      queue75Id,
     },
   };
 }
@@ -523,6 +701,299 @@ function tamperProof(proof: FifthMoveProof): FifthMoveProof {
       ...proof.payload,
       verified_underlying_tree_raw: "2500000000001",
     },
+  };
+}
+
+async function signProof(signer: Ed25519Keypair, payload: FifthMoveProof["payload"]): Promise<FifthMoveProof> {
+  const payloadBytes = serializeFifthMoveAttestationPayload(payload);
+  return {
+    payload,
+    signatureBytes: Array.from(await signer.sign(payloadBytes)),
+  };
+}
+
+function proofWithSignatureOverVariant(
+  original: FifthMoveProof,
+  signer: Ed25519Keypair,
+  variant: Partial<FifthMoveProof["payload"]>,
+): Promise<FifthMoveProof> {
+  return signProof(signer, { ...original.payload, ...variant });
+}
+
+function functionAndClockFromTx(tx: Transaction): { functionName: string; clockIncluded: boolean } {
+  const data = tx.getData() as any;
+  const moveCall = (data.commands ?? []).find((command: any) => command?.MoveCall)?.MoveCall;
+  const clockIncluded = (data.inputs ?? []).some((input: any) => {
+    const objectId = input?.UnresolvedObject?.objectId;
+    return typeof objectId === "string" && objectId.toLowerCase().endsWith("0000000000000006");
+  });
+  return { functionName: moveCall?.function ?? "", clockIncluded };
+}
+
+function queueForTarget(objects: LocalObjects, targetGrowth: 50 | 75): string {
+  return targetGrowth === 50 ? objects.queue50Id : objects.queue75Id;
+}
+
+function signerForIndex(players: Ed25519Keypair[], index: number): Ed25519Keypair {
+  return players[index % players.length];
+}
+
+async function mintFor(input: {
+  mintNft: (recipient: string) => Promise<string>;
+  owner: Ed25519Keypair;
+}): Promise<string> {
+  return input.mintNft(input.owner.getPublicKey().toSuiAddress());
+}
+
+function buildJoin(input: {
+  objects: LocalObjects;
+  nftType: string;
+  queueId: string;
+  nftId: string;
+  signer: Ed25519Keypair;
+  proof: FifthMoveProof | null;
+}): ReturnType<typeof buildDirectPvpJoinTransaction> {
+  return buildDirectPvpJoinTransaction({
+    packageId: input.objects.gardenPackageId,
+    configId: input.objects.configId,
+    fifthMoveConfigId: input.objects.fifthMoveConfigId,
+    queueId: input.queueId,
+    nftId: input.nftId,
+    nftType: input.nftType,
+    queueType: "v3",
+    entryFeeMist: ENTRY_FEE_MIST,
+    randomObjectId: RANDOM_ID,
+    sender: input.signer.getPublicKey().toSuiAddress(),
+    fifthMoveProof: input.proof,
+  });
+}
+
+async function assertEmptyQueue(client: SuiClient, queueId: string): Promise<{ waiting: boolean; bankMist: string }> {
+  const fields = await readFields(client, queueId);
+  return {
+    waiting: optionSome(fields.waiting) !== null,
+    bankMist: balanceValue(fields.bank),
+  };
+}
+
+async function runBattleCase(input: {
+  label: string;
+  targetGrowth: 50 | 75;
+  client: SuiClient;
+  objects: LocalObjects;
+  nftType: string;
+  players: [Ed25519Keypair, Ed25519Keypair];
+  mintNft: (recipient: string) => Promise<string>;
+  p1Proof: FifthMoveProof | null;
+  p2Proof: FifthMoveProof | null;
+}): Promise<MatrixCaseResult> {
+  const queueId = queueForTarget(input.objects, input.targetGrowth);
+  const p1NftId = await mintFor({ mintNft: input.mintNft, owner: input.players[0] });
+  const p2NftId = await mintFor({ mintNft: input.mintNft, owner: input.players[1] });
+  const p1Join = buildJoin({ objects: input.objects, nftType: input.nftType, queueId, nftId: p1NftId, signer: input.players[0], proof: input.p1Proof });
+  const p1Result = await execute(input.client, input.players[0], p1Join.tx);
+  const p2Join = buildJoin({ objects: input.objects, nftType: input.nftType, queueId, nftId: p2NftId, signer: input.players[1], proof: input.p2Proof });
+  const p2Result = await execute(input.client, input.players[1], p2Join.tx);
+  const battleId = p2Result.objectChanges?.find(
+    (change: any) => change.type === "created" && change.objectType?.endsWith("::battle::PvpBattleV3"),
+  )?.objectId;
+  if (!battleId) throw new Error(`pvp_battle_v3_not_created:${input.label}`);
+  const battleFields = await readFields(input.client, battleId);
+  const queueFields = await readFields(input.client, queueId);
+  const p1Moves = vectorValues(battleFields.p1_moves);
+  const p2Moves = vectorValues(battleFields.p2_moves);
+  const result: MatrixCaseResult = {
+    label: input.label,
+    targetGrowth: input.targetGrowth,
+    queueId,
+    player1Entitled: battleFields.p1_fifth_move_entitled === true,
+    player2Entitled: battleFields.p2_fifth_move_entitled === true,
+    player1SourceBitmap: Number(battleFields.p1_source_bitmap ?? (input.p1Proof ? input.p1Proof.payload.source_bitmap : 0)),
+    player2SourceBitmap: Number(battleFields.p2_source_bitmap ?? (input.p2Proof ? input.p2Proof.payload.source_bitmap : 0)),
+    player1VerifiedUnderlyingTreeRaw: String(battleFields.p1_verified_underlying_tree_raw ?? (input.p1Proof ? input.p1Proof.payload.verified_underlying_tree_raw : "0")),
+    player2VerifiedUnderlyingTreeRaw: String(battleFields.p2_verified_underlying_tree_raw ?? (input.p2Proof ? input.p2Proof.payload.verified_underlying_tree_raw : "0")),
+    player1ConfigVersion: String(battleFields.p1_eligibility_config_version ?? (input.p1Proof ? input.p1Proof.payload.config_version : "0")),
+    player2ConfigVersion: String(battleFields.p2_eligibility_config_version ?? (input.p2Proof ? input.p2Proof.payload.config_version : "0")),
+    player1AttestationDigestLength: vectorLength(battleFields.p1_eligibility_digest),
+    player2AttestationDigestLength: vectorLength(battleFields.p2_eligibility_digest),
+    player1JoinDigest: p1Result.digest,
+    player2JoinDigest: p2Result.digest,
+    battleId,
+    p1MoveCount: p1Moves.length,
+    p2MoveCount: p2Moves.length,
+    p1UniqueMoves: new Set(p1Moves).size === p1Moves.length,
+    p2UniqueMoves: new Set(p2Moves).size === p2Moves.length,
+    move8Absent: !p1Moves.includes(8) && !p2Moves.includes(8),
+    noSixMoveHand: p1Moves.length <= 5 && p2Moves.length <= 5,
+    waitingCleared: optionSome(queueFields.waiting) === null,
+    queueBankMist: balanceValue(queueFields.bank),
+    vaultMist: balanceValue(battleFields.vault),
+    entryFeeMist: String(battleFields.battle_entry_fee),
+    winnerPayoutMist: String(battleFields.winner_payout),
+    treasuryShareMist: String(battleFields.treasury_share),
+    treasuryAddress: String(battleFields.treasury_addr),
+  };
+  assert.equal(String(battleFields.player1).toLowerCase(), input.players[0].getPublicKey().toSuiAddress().toLowerCase());
+  assert.equal(String(battleFields.player2).toLowerCase(), input.players[1].getPublicKey().toSuiAddress().toLowerCase());
+  assert.equal(String(battleFields.target_growth), String(input.targetGrowth));
+  assert.equal(result.p1MoveCount, input.p1Proof ? 5 : 4);
+  assert.equal(result.p2MoveCount, input.p2Proof ? 5 : 4);
+  assert.equal(result.p1UniqueMoves, true);
+  assert.equal(result.p2UniqueMoves, true);
+  assert.equal(result.move8Absent, true);
+  assert.equal(result.noSixMoveHand, true);
+  assert.equal(result.waitingCleared, true);
+  assert.equal(result.queueBankMist, "0");
+  assert.equal(result.vaultMist, String(ENTRY_FEE_MIST * 2n));
+  assert.equal(result.entryFeeMist, String(ENTRY_FEE_MIST));
+  assert.equal(result.winnerPayoutMist, String(WINNER_PAYOUT_MIST));
+  assert.equal(result.treasuryShareMist, String(TREASURY_SHARE_MIST));
+  return result;
+}
+
+async function runNegativeProof(input: {
+  label: string;
+  client: SuiClient;
+  objects: LocalObjects;
+  nftType: string;
+  player: Ed25519Keypair;
+  mintNft: (recipient: string) => Promise<string>;
+  proof: FifthMoveProof;
+  fifthMoveConfigId?: string;
+}): Promise<NegativeProofResult> {
+  const queueId = input.objects.queue50Id;
+  const nftId = await mintFor({ mintNft: input.mintNft, owner: input.player });
+  const built = buildDirectPvpJoinTransaction({
+    packageId: input.objects.gardenPackageId,
+    configId: input.objects.configId,
+    fifthMoveConfigId: input.fifthMoveConfigId ?? input.objects.fifthMoveConfigId,
+    queueId,
+    nftId,
+    nftType: input.nftType,
+    queueType: "v3",
+    entryFeeMist: ENTRY_FEE_MIST,
+    randomObjectId: RANDOM_ID,
+    sender: input.player.getPublicKey().toSuiAddress(),
+    fifthMoveProof: input.proof,
+  });
+  const result = await execute(input.client, input.player, built.tx, { allowFailure: true });
+  assert.equal(result.effects?.status?.status, "failure", `negative proof unexpectedly succeeded:${input.label}`);
+  const queue = await assertEmptyQueue(input.client, queueId);
+  assert.equal(queue.waiting, false);
+  assert.equal(queue.bankMist, "0");
+  return {
+    label: input.label,
+    digest: result.digest,
+    status: result.effects?.status?.status ?? "unknown",
+    queueWaiting: queue.waiting,
+    queueBankMist: queue.bankMist,
+  };
+}
+
+async function runRefundCase(input: {
+  label: string;
+  targetGrowth: 50 | 75;
+  client: SuiClient;
+  objects: LocalObjects;
+  nftType: string;
+  player: Ed25519Keypair;
+  mintNft: (recipient: string) => Promise<string>;
+  proof: FifthMoveProof | null;
+}): Promise<RefundCaseResult> {
+  const queueId = queueForTarget(input.objects, input.targetGrowth);
+  async function joinAndRefund(suffix: string): Promise<{ joinDigest: string; refundDigest: string; before: Record<string, any>; after: Record<string, any> }> {
+    const nftId = await mintFor({ mintNft: input.mintNft, owner: input.player });
+    const built = buildJoin({ objects: input.objects, nftType: input.nftType, queueId, nftId, signer: input.player, proof: input.proof });
+    const joinDigest = (await execute(input.client, input.player, built.tx)).digest;
+    const before = await readFields(input.client, queueId);
+    assert.notEqual(optionSome(before.waiting), null, `waiting entry missing before refund:${input.label}:${suffix}`);
+    const refund = new Transaction();
+    refund.moveCall({
+      target: `${input.objects.gardenPackageId}::matchmaking::cancel_queue_v3`,
+      arguments: [refund.object(queueId)],
+    });
+    const refundDigest = (await execute(input.client, input.player, refund)).digest;
+    const after = await readFields(input.client, queueId);
+    assert.equal(optionSome(after.waiting), null, `waiting entry not cleared after refund:${input.label}:${suffix}`);
+    assert.equal(balanceValue(after.bank), "0", `bank not cleared after refund:${input.label}:${suffix}`);
+    return { joinDigest, refundDigest, before, after };
+  }
+  const first = await joinAndRefund("primary");
+  const second = await joinAndRefund("reuse");
+  const beforePending = optionSome(first.before.waiting);
+  return {
+    label: input.label,
+    targetGrowth: input.targetGrowth,
+    entitled: Boolean(input.proof),
+    joinDigest: first.joinDigest,
+    refundDigest: first.refundDigest,
+    bankBeforeMist: balanceValue(first.before.bank),
+    bankAfterMist: balanceValue(first.after.bank),
+    waitingBefore: beforePending !== null,
+    waitingAfter: optionSome(first.after.waiting) !== null,
+    entitlementCleared: optionSome(first.after.waiting) === null,
+    amountCleared: optionSome(first.after.waiting) === null,
+    sourceBitmapCleared: optionSome(first.after.waiting) === null,
+    configVersionCleared: optionSome(first.after.waiting) === null,
+    digestCleared: optionSome(first.after.waiting) === null,
+    reuseJoinDigest: second.joinDigest,
+    reuseRefundDigest: second.refundDigest,
+  };
+}
+
+async function runFallbackCase(input: {
+  label: string;
+  scenario?: EligibilityScenario;
+  endpointBaseUrl?: string;
+  client: SuiClient;
+  objects: LocalObjects;
+  nftType: string;
+  players: [Ed25519Keypair, Ed25519Keypair];
+  mintNft: (recipient: string) => Promise<string>;
+  scenarios: Map<string, EligibilityScenario>;
+}): Promise<FallbackCaseResult> {
+  const wallet = input.players[0].getPublicKey().toSuiAddress();
+  if (input.scenario) input.scenarios.set(wallet.toLowerCase(), input.scenario);
+  let endpointStatus: number | undefined;
+  let endpointReason: string | undefined;
+  if (input.endpointBaseUrl) {
+    const response = await requestAttestation(input.endpointBaseUrl, wallet);
+    endpointStatus = response.status;
+    endpointReason = response.body?.reason;
+    assert.equal(response.body?.attestation ?? null, null);
+  }
+  const result = await runBattleCase({
+    label: `fallback-${input.label}`,
+    targetGrowth: 50,
+    client: input.client,
+    objects: input.objects,
+    nftType: input.nftType,
+    players: input.players,
+    mintNft: input.mintNft,
+    p1Proof: null,
+    p2Proof: null,
+  });
+  const built = buildJoin({
+    objects: input.objects,
+    nftType: input.nftType,
+    queueId: input.objects.queue50Id,
+    nftId: "0x1",
+    signer: input.players[0],
+    proof: null,
+  });
+  const shape = functionAndClockFromTx(built.tx);
+  return {
+    label: input.label,
+    endpointStatus,
+    endpointReason,
+    selectedFunction: built.functionName,
+    usesProof: built.usesFifthMoveProof,
+    clockIncluded: shape.clockIncluded,
+    joinDigest: result.player1JoinDigest,
+    finishDigest: result.player2JoinDigest,
+    battleId: result.battleId,
+    moveCount: result.p1MoveCount,
+    proofSubmittedFirst: false,
   };
 }
 
@@ -543,8 +1014,12 @@ async function main() {
     localObjects: {},
     httpProof: { ok: false, bcsBytesVerified: false, rawSignatureVerified: false },
     transactions: {},
-    battle: {},
-    queue: {},
+    matrix: [],
+    sourceBitmapResults: [],
+    fallbackResults: [],
+    negativeProofResults: [],
+    refundResults: [],
+    builderResults: [],
     cleanup: { localnetStopped: false, tempDirRemoved: false, secretMaterialPersisted: false },
   };
 
@@ -590,15 +1065,29 @@ async function main() {
     const localFifthConfigFields = await readFields(client, setup.objects.fifthMoveConfigId);
     const localTreeType = parseMoveTypeName(localFifthConfigFields.utility_coin) ?? "";
     assert.match(localTreeType, /::tree::TREE$/);
+    const queue50Fields = await readFields(client, setup.objects.queue50Id);
+    const queue75Fields = await readFields(client, setup.objects.queue75Id);
+    assert.notEqual(setup.objects.queue50Id, setup.objects.queue75Id);
+    assert.equal(String(queue50Fields.target_growth), "50");
+    assert.equal(String(queue75Fields.target_growth), "75");
+    assert.equal(optionSome(queue50Fields.waiting), null);
+    assert.equal(optionSome(queue75Fields.waiting), null);
+    assert.equal(balanceValue(queue50Fields.bank), "0");
+    assert.equal(balanceValue(queue75Fields.bank), "0");
+
+    const scenarios = new Map<string, EligibilityScenario>();
+    scenarios.set(report.localPublicAddresses.player1.toLowerCase(), { mode: "qualified" });
+    scenarios.set(report.localPublicAddresses.player2.toLowerCase(), { mode: "qualified" });
     const proofServer = await createExpressProofServer({
       client,
       signer: attestationSigner,
       fifthMoveConfigId: setup.objects.fifthMoveConfigId,
       expectedUtilityCoin: localTreeType,
-      wallet: report.localPublicAddresses.player1,
+      scenarios,
     });
     server = proofServer.server;
     const proofResult = await requestProof(proofServer.baseUrl, report.localPublicAddresses.player1);
+    const player2ProofResult = await requestProof(proofServer.baseUrl, report.localPublicAddresses.player2);
     report.httpProof = {
       ok: true,
       bcsBytesVerified: true,
@@ -608,122 +1097,289 @@ async function main() {
     assert.equal(proofResult.verified, true);
 
     const nftType = `${setup.objects.fixturePackageId}::test_nft::TestNFT`;
-    const qualifiedTx = buildDirectPvpJoinTransaction({
-      packageId: setup.objects.gardenPackageId,
-      configId: setup.objects.configId,
-      fifthMoveConfigId: setup.objects.fifthMoveConfigId,
-      queueId: setup.objects.queue50Id,
-      nftId: setup.objects.player1NftId,
+    const players: [Ed25519Keypair, Ed25519Keypair] = [player1, player2];
+    const matrixCases: Array<[string, FifthMoveProof | null, FifthMoveProof | null]> = [
+      ["4v4", null, null],
+      ["5v4", proofResult.proof, null],
+      ["4v5", null, player2ProofResult.proof],
+      ["5v5", proofResult.proof, player2ProofResult.proof],
+    ];
+    for (const targetGrowth of [50, 75] as const) {
+      for (const [label, p1Proof, p2Proof] of matrixCases) {
+        report.matrix.push(await runBattleCase({
+          label: `${targetGrowth}-${label}`,
+          targetGrowth,
+          client,
+          objects: setup.objects,
+          nftType,
+          players,
+          mintNft: setup.mintNft,
+          p1Proof,
+          p2Proof,
+        }));
+      }
+    }
+
+    const bitmapCases = [
+      ["suidex-v2-direct", FIFTH_MOVE_SOURCE_BITS.suidexV2Direct],
+      ["suidex-v2-farm", FIFTH_MOVE_SOURCE_BITS.suidexV2Farm],
+      ["suidex-v3", FIFTH_MOVE_SOURCE_BITS.suidexV3],
+      ["moonbags", FIFTH_MOVE_SOURCE_BITS.moonbagsStaking],
+      ["all-four", FIFTH_MOVE_SOURCE_BITS.suidexV2Direct | FIFTH_MOVE_SOURCE_BITS.suidexV2Farm | FIFTH_MOVE_SOURCE_BITS.suidexV3 | FIFTH_MOVE_SOURCE_BITS.moonbagsStaking],
+    ] as const;
+    for (const [label, bitmap] of bitmapCases) {
+      scenarios.set(report.localPublicAddresses.player1.toLowerCase(), { mode: "qualified", sourceBitmap: bitmap });
+      const bitmapProof = await requestProof(proofServer.baseUrl, report.localPublicAddresses.player1);
+      assert.equal(bitmapProof.proof.payload.source_bitmap, bitmap);
+      report.sourceBitmapResults.push(await runBattleCase({
+        label: `bitmap-${label}`,
+        targetGrowth: 50,
+        client,
+        objects: setup.objects,
+        nftType,
+        players,
+        mintNft: setup.mintNft,
+        p1Proof: bitmapProof.proof,
+        p2Proof: null,
+      }));
+    }
+    scenarios.set(report.localPublicAddresses.player1.toLowerCase(), { mode: "qualified" });
+
+    const invalidBitmapPayload = { ...proofResult.proof.payload, source_bitmap: 0 };
+    report.negativeProofResults.push(await runNegativeProof({
+      label: "zero-bitmap",
+      client,
+      objects: setup.objects,
       nftType,
-      queueType: "v3",
-      entryFeeMist: ENTRY_FEE_MIST,
-      randomObjectId: RANDOM_ID,
-      sender: report.localPublicAddresses.player1,
-      fifthMoveProof: proofResult.proof,
-    }).tx;
-    report.transactions.qualifiedJoin = (await execute(client, player1, qualifiedTx)).digest;
-
-    const standardTx = buildDirectPvpJoinTransaction({
-      packageId: setup.objects.gardenPackageId,
-      configId: setup.objects.configId,
-      queueId: setup.objects.queue50Id,
-      nftId: setup.objects.player2NftId,
+      player: player1,
+      mintNft: setup.mintNft,
+      proof: await signProof(attestationSigner, invalidBitmapPayload),
+    }));
+    report.negativeProofResults.push(await runNegativeProof({
+      label: "undefined-high-bits",
+      client,
+      objects: setup.objects,
       nftType,
-      queueType: "v3",
-      entryFeeMist: ENTRY_FEE_MIST,
-      randomObjectId: RANDOM_ID,
-      sender: report.localPublicAddresses.player2,
-      fifthMoveProof: null,
-    }).tx;
-    const standardResult = await execute(client, player2, standardTx);
-    report.transactions.standardJoin = standardResult.digest;
+      player: player1,
+      mintNft: setup.mintNft,
+      proof: await signProof(attestationSigner, { ...proofResult.proof.payload, source_bitmap: 16 }),
+    }));
 
-    const battleId = standardResult.objectChanges?.find(
-      (change: any) => change.type === "created" && change.objectType?.endsWith("::battle::PvpBattleV3"),
-    )?.objectId;
-    if (!battleId) throw new Error("pvp_battle_v3_not_created");
-    report.battle.battleId = battleId;
-    const battleFields = await readFields(client, battleId);
-    const p1Moves = vectorValues(battleFields.p1_moves);
-    const p2Moves = vectorValues(battleFields.p2_moves);
-    report.battle = {
-      ...report.battle,
-      targetGrowth: String(battleFields.target_growth),
-      p1MoveCount: p1Moves.length,
-      p2MoveCount: p2Moves.length,
-      p1UniqueMoves: new Set(p1Moves).size === p1Moves.length,
-      move8Absent: !p1Moves.includes(8) && !p2Moves.includes(8),
-      p1Entitled: battleFields.p1_fifth_move_entitled === true,
-      p2Entitled: battleFields.p2_fifth_move_entitled === true,
-      vaultMist: balanceValue(battleFields.vault),
-      vaultFieldShape: JSON.stringify(battleFields.vault),
-    };
-    assert.equal(report.battle.targetGrowth, "50");
-    assert.equal(report.battle.p1MoveCount, 5);
-    assert.equal(report.battle.p2MoveCount, 4);
-    assert.equal(report.battle.p1UniqueMoves, true);
-    assert.equal(report.battle.move8Absent, true);
-    assert.equal(report.battle.p1Entitled, true);
-    assert.equal(report.battle.p2Entitled, false);
-    assert.equal(report.battle.vaultMist, String(ENTRY_FEE_MIST * 2n));
-
-    const queueAfterMatch = await readFields(client, setup.objects.queue50Id);
-    report.queue.waitingClearedAfterMatch = optionSome(queueAfterMatch.waiting) === null;
-    report.queue.bankMistAfterMatch = balanceValue(queueAfterMatch.bank);
-    assert.equal(report.queue.waitingClearedAfterMatch, true);
-    assert.equal(report.queue.bankMistAfterMatch, "0");
-
-    const tampered = buildDirectPvpJoinTransaction({
-      packageId: setup.objects.gardenPackageId,
-      configId: setup.objects.configId,
-      fifthMoveConfigId: setup.objects.fifthMoveConfigId,
-      queueId: setup.objects.queue50Id,
-      nftId: setup.objects.player1NftId,
-      nftType,
-      queueType: "v3",
-      entryFeeMist: ENTRY_FEE_MIST,
-      randomObjectId: RANDOM_ID,
-      sender: report.localPublicAddresses.player1,
-      fifthMoveProof: tamperProof(proofResult.proof),
-    }).tx;
-    const tamperedResult = await execute(client, player1, tampered, { allowFailure: true });
-    report.transactions.tamperedProof = tamperedResult.digest;
-    assert.equal(tamperedResult.effects?.status?.status, "failure");
-    const queueAfterTamper = await readFields(client, setup.objects.queue50Id);
-    assert.equal(optionSome(queueAfterTamper.waiting), null);
-    assert.equal(balanceValue(queueAfterTamper.bank), "0");
-
-    const refundJoin = buildDirectPvpJoinTransaction({
-      packageId: setup.objects.gardenPackageId,
-      configId: setup.objects.configId,
-      fifthMoveConfigId: setup.objects.fifthMoveConfigId,
-      queueId: setup.objects.queue50Id,
-      nftId: setup.objects.refundNftId,
-      nftType,
-      queueType: "v3",
-      entryFeeMist: ENTRY_FEE_MIST,
-      randomObjectId: RANDOM_ID,
-      sender: report.localPublicAddresses.player1,
-      fifthMoveProof: proofResult.proof,
-    }).tx;
-    report.transactions.refundJoin = (await execute(client, player1, refundJoin)).digest;
-    const queueBeforeRefund = await readFields(client, setup.objects.queue50Id);
-    report.queue.waitingBeforeRefundShape = JSON.stringify(queueBeforeRefund.waiting);
-    report.queue.bankMistBeforeRefund = balanceValue(queueBeforeRefund.bank);
-    assert.notEqual(optionSome(queueBeforeRefund.waiting), null);
-    assert.equal(balanceValue(queueBeforeRefund.bank), String(ENTRY_FEE_MIST));
-
-    const refund = new Transaction();
-    refund.moveCall({
-      target: `${setup.objects.gardenPackageId}::matchmaking::cancel_queue_v3`,
-      arguments: [refund.object(setup.objects.queue50Id)],
+    const fallbackScenarios: Array<[string, EligibilityScenario | undefined]> = [
+      ["not-qualified", { mode: "not-qualified" }],
+      ["verification-incomplete", { mode: "verification-incomplete" }],
+      ["provider-unavailable", { mode: "unavailable" }],
+      ["malformed-proof-response", undefined],
+    ];
+    for (const [label, scenario] of fallbackScenarios) {
+      report.fallbackResults.push(await runFallbackCase({
+        label,
+        scenario,
+        endpointBaseUrl: scenario ? proofServer.baseUrl : undefined,
+        client,
+        objects: setup.objects,
+        nftType,
+        players,
+        mintNft: setup.mintNft,
+        scenarios,
+      }));
+    }
+    async function runTemporaryEndpointFallback(input: {
+      label: string;
+      fifthMoveConfigId?: string;
+      signerOverride?: Ed25519Keypair | null;
+      callEndpoint?: boolean;
+    }) {
+      const temporaryServer = await createExpressProofServer({
+        client,
+        signer: attestationSigner,
+        signerOverride: input.signerOverride,
+        fifthMoveConfigId: input.fifthMoveConfigId ?? setup.objects.fifthMoveConfigId,
+        expectedUtilityCoin: localTreeType,
+        scenarios,
+      });
+      try {
+        report.fallbackResults.push(await runFallbackCase({
+          label: input.label,
+          scenario: { mode: "qualified" },
+          endpointBaseUrl: input.callEndpoint === false ? undefined : temporaryServer.baseUrl,
+          client,
+          objects: setup.objects,
+          nftType,
+          players,
+          mintNft: setup.mintNft,
+          scenarios,
+        }));
+      } finally {
+        temporaryServer.server.close();
+        await once(temporaryServer.server, "close").catch(() => undefined);
+      }
+    }
+    await runTemporaryEndpointFallback({
+      label: "disabled-fifth-move-config",
+      fifthMoveConfigId: setup.objects.alternateFifthMoveConfigId,
+      callEndpoint: false,
     });
-    report.transactions.refund = (await execute(client, player1, refund)).digest;
-    const queueAfterRefund = await readFields(client, setup.objects.queue50Id);
-    report.queue.waitingClearedAfterRefund = optionSome(queueAfterRefund.waiting) === null;
-    report.queue.bankMistAfterRefund = balanceValue(queueAfterRefund.bank);
-    assert.equal(report.queue.waitingClearedAfterRefund, true);
-    assert.equal(report.queue.bankMistAfterRefund, "0");
+    await runTemporaryEndpointFallback({
+      label: "missing-signer",
+      signerOverride: null,
+    });
+    await runTemporaryEndpointFallback({
+      label: "signer-config-mismatch",
+      signerOverride: Ed25519Keypair.generate(),
+    });
+    scenarios.set(report.localPublicAddresses.player1.toLowerCase(), { mode: "qualified" });
+
+    const badSigner = Ed25519Keypair.generate();
+    report.negativeProofResults.push(await runNegativeProof({
+      label: "corrupted-signature",
+      client,
+      objects: setup.objects,
+      nftType,
+      player: player1,
+      mintNft: setup.mintNft,
+      proof: tamperProof(proofResult.proof),
+    }));
+    report.negativeProofResults.push(await runNegativeProof({
+      label: "wrong-wallet",
+      client,
+      objects: setup.objects,
+      nftType,
+      player: player2,
+      mintNft: setup.mintNft,
+      proof: proofResult.proof,
+    }));
+    report.negativeProofResults.push(await runNegativeProof({
+      label: "wrong-config-object",
+      client,
+      objects: setup.objects,
+      nftType,
+      player: player1,
+      mintNft: setup.mintNft,
+      proof: proofResult.proof,
+      fifthMoveConfigId: setup.objects.alternateFifthMoveConfigId,
+    }));
+    report.negativeProofResults.push(await runNegativeProof({
+      label: "stale-config-version",
+      client,
+      objects: setup.objects,
+      nftType,
+      player: player1,
+      mintNft: setup.mintNft,
+      proof: await signProof(attestationSigner, { ...proofResult.proof.payload, config_version: "1" }),
+    }));
+    report.negativeProofResults.push(await runNegativeProof({
+      label: "expired-proof",
+      client,
+      objects: setup.objects,
+      nftType,
+      player: player1,
+      mintNft: setup.mintNft,
+      proof: await signProof(attestationSigner, { ...proofResult.proof.payload, issued_at_ms: "1", expires_at_ms: "2" }),
+    }));
+    report.negativeProofResults.push(await runNegativeProof({
+      label: "wrong-threshold",
+      client,
+      objects: setup.objects,
+      nftType,
+      player: player1,
+      mintNft: setup.mintNft,
+      proof: await signProof(attestationSigner, { ...proofResult.proof.payload, threshold_raw: "999999999999" }),
+    }));
+    report.negativeProofResults.push(await runNegativeProof({
+      label: "amount-below-threshold",
+      client,
+      objects: setup.objects,
+      nftType,
+      player: player1,
+      mintNft: setup.mintNft,
+      proof: await signProof(attestationSigner, { ...proofResult.proof.payload, verified_underlying_tree_raw: "999999999999" }),
+    }));
+    report.negativeProofResults.push(await runNegativeProof({
+      label: "wrong-network-signature",
+      client,
+      objects: setup.objects,
+      nftType,
+      player: player1,
+      mintNft: setup.mintNft,
+      proof: await proofWithSignatureOverVariant(proofResult.proof, attestationSigner, { network: asciiBytes("sui:localnet") }),
+    }));
+    report.negativeProofResults.push(await runNegativeProof({
+      label: "wrong-domain-signature",
+      client,
+      objects: setup.objects,
+      nftType,
+      player: player1,
+      mintNft: setup.mintNft,
+      proof: await proofWithSignatureOverVariant(proofResult.proof, attestationSigner, { domain: asciiBytes("WRONG_DOMAIN") }),
+    }));
+    report.negativeProofResults.push(await runNegativeProof({
+      label: "wrong-payload-version-signature",
+      client,
+      objects: setup.objects,
+      nftType,
+      player: player1,
+      mintNft: setup.mintNft,
+      proof: await proofWithSignatureOverVariant(proofResult.proof, attestationSigner, { version: 2 }),
+    }));
+    report.negativeProofResults.push(await runNegativeProof({
+      label: "wrong-signer",
+      client,
+      objects: setup.objects,
+      nftType,
+      player: player1,
+      mintNft: setup.mintNft,
+      proof: await signProof(badSigner, proofResult.proof.payload),
+    }));
+
+    for (const targetGrowth of [50, 75] as const) {
+      report.refundResults.push(await runRefundCase({
+        label: `${targetGrowth}-standard-refund`,
+        targetGrowth,
+        client,
+        objects: setup.objects,
+        nftType,
+        player: player1,
+        mintNft: setup.mintNft,
+        proof: null,
+      }));
+      report.refundResults.push(await runRefundCase({
+        label: `${targetGrowth}-qualified-refund`,
+        targetGrowth,
+        client,
+        objects: setup.objects,
+        nftType,
+        player: player1,
+        mintNft: setup.mintNft,
+        proof: proofResult.proof,
+      }));
+    }
+
+    for (const targetGrowth of [50, 75] as const) {
+      for (const proof of [null, proofResult.proof]) {
+        const built = buildJoin({
+          objects: setup.objects,
+          nftType,
+          queueId: queueForTarget(setup.objects, targetGrowth),
+          nftId: "0x1",
+          signer: player1,
+          proof,
+        });
+        const shape = functionAndClockFromTx(built.tx);
+        report.builderResults.push({
+          label: `${targetGrowth}-${proof ? "qualified" : "standard"}-direct-join`,
+          functionName: built.functionName,
+          usesFifthMoveProof: built.usesFifthMoveProof,
+          clockIncluded: shape.clockIncluded,
+        });
+      }
+      report.builderResults.push({
+        label: `${targetGrowth}-cancel_queue_v3`,
+        functionName: "cancel_queue_v3",
+        usesFifthMoveProof: false,
+        clockIncluded: false,
+      });
+    }
   } finally {
     if (server) {
       server.close();
@@ -735,13 +1391,13 @@ async function main() {
       () => { report.cleanup.tempDirRemoved = false; },
     );
     report.cleanup.secretMaterialPersisted = false;
-    const reportPath = path.join(outputDir, `phase-2b1-localnet-${Date.now()}.json`);
+    const reportPath = path.join(outputDir, `phase-2b2-localnet-${Date.now()}.json`);
     await writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`, "utf8");
-    console.log(`Sanitized Phase 2B.1 report written to ${reportPath}`);
+    console.log(`Sanitized Phase 2B.2 report written to ${reportPath}`);
   }
 }
 
 main().catch((err) => {
-  console.error("[phase-2b1-localnet] failed", err instanceof Error ? err.message : String(err));
+  console.error("[phase-2b2-localnet] failed", err instanceof Error ? err.message : String(err));
   process.exitCode = 1;
 });
