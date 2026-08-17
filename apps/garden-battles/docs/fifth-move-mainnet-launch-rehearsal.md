@@ -71,18 +71,24 @@ Recorded on 2026-08-17 after `e51b3d77f`.
 - Git branch: `codex/recovered-gardenbattles-20260624`.
 - Local branch state: ahead of origin by two commits.
 - Sui CLI active environment: `mainnet`.
-- Sui CLI active address:
+- Plain Sui CLI active address previously resolved to:
   `0x47a6b4e25fd82af7b6a43e82e70fd4437de82a9189dbaa832cf5318946a17274`.
+- Explicit config path Sui CLI active address resolves to:
+  `0x485953e2eadf4aa02af950cf8e914fbd2b67523385e73c36118341459d8d45c4`.
 - Expected upgrade/admin address:
   `0x485953e2eadf4aa02af950cf8e914fbd2b67523385e73c36118341459d8d45c4`.
-- Readiness result: blocked for any real upgrade transaction until the active
-  CLI address is switched to the expected operator account.
-- Local CLI address list contains only alias `brave-chrysolite` for
+- Readiness result: use the explicit `--client.config
+  C:\Users\peter\.sui\sui_config\client.yaml` flag for future Sui CLI preflight
+  and transaction commands from this workspace.
+- Plain CLI address list contains only alias `brave-chrysolite` for
   `0x47a6b4e25fd82af7b6a43e82e70fd4437de82a9189dbaa832cf5318946a17274`.
-- The expected operator account is not currently available in the local Sui CLI,
-  so this workstation cannot run the package upgrade until that account is added
-  through a secure operator-controlled setup. Do not request, paste, export, or
-  commit any private key or seed phrase.
+- Explicit config path address list contains alias `mint-admin-45c4` for
+  `0x485953e2eadf4aa02af950cf8e914fbd2b67523385e73c36118341459d8d45c4`.
+- Operator SUI balance from read-only GraphQL:
+  `128717457088` MIST (`128.717457088 SUI`).
+- The expected operator account is available on this workstation when the
+  explicit config path is supplied. Do not request, paste, export, or commit any
+  private key or seed phrase.
 
 Read-only object verification notes:
 
@@ -95,6 +101,10 @@ Read-only object verification notes:
 - Read-only GraphQL queries against `https://graphql.mainnet.sui.io/graphql`
   succeeded and should be the preferred public object-read fallback for this
   workstation.
+- `sui client --client.config C:\Users\peter\.sui\sui_config\client.yaml
+  chain-identifier` and gas reads still failed locally with
+  `NativeCertsNotFound`, so network-state reads should use GraphQL until the Sui
+  CLI certificate issue is fixed.
 
 Verified with GraphQL:
 
