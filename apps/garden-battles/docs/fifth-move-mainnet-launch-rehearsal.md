@@ -83,6 +83,9 @@ Read-only object verification was not completed in this snapshot:
 - `sui client object <id>` failed locally with `NativeCertsNotFound`.
 - Public fullnode JSON-RPC returned `Method not found` because public JSON-RPC
   object reads are deprecated.
+- A read-only request to `https://sui-mainnet.mystenlabs.com/graphql` did not
+  complete from this workstation because Windows curl/PowerShell hit a TLS
+  transport handshake failure before a GraphQL response was received.
 
 Before the real upgrade window, object verification should use a working Sui CLI
 certificate setup, an approved gRPC/GraphQL read path, or a configured private
