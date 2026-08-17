@@ -105,6 +105,13 @@ Read-only object verification notes:
   chain-identifier` and gas reads still failed locally with
   `NativeCertsNotFound`, so network-state reads should use GraphQL until the Sui
   CLI certificate issue is fixed.
+- `suiup` installed `sui 1.77.2-51d177ad7d65`, and PowerShell resolves
+  `C:\Users\peter\AppData\Local\bin\sui.exe` before the old
+  `C:\Users\peter\sui\sui.exe` when `$env:LOCALAPPDATA\bin` is first in PATH.
+- The newer CLI removes the protocol-version blocker, but Sui CLI network reads
+  from the Codex environment still hit `NativeCertsNotFound`; use GraphQL for
+  read-only verification here and run transaction commands from the operator
+  PowerShell session where the updated CLI is active.
 
 Verified with GraphQL:
 
@@ -377,11 +384,9 @@ If launch starts and issues appear:
 
 ## Remaining Blockers Before Mainnet
 
-- Upgrade-capable Sui CLI: current installed CLI is `sui 1.74.1-8fc60f1fa966`.
-  A real upgrade attempt on 2026-08-17 built the package but panicked before
-  submission because mainnet protocol is `133` while the binary supports only
-  protocol `128`. Do not retry the upgrade until the CLI is updated to a version
-  that supports the active mainnet protocol.
+- Upgrade-capable Sui CLI: `sui 1.77.2-51d177ad7d65` is installed through
+  `suiup`. Ensure `C:\Users\peter\AppData\Local\bin` appears before
+  `C:\Users\peter\sui` in PATH before running upgrade commands.
 - Final operator approval for package upgrade.
 - Dedicated signer generation and secure Railway secret entry.
 - Gas budget selection for upgrade, config creation, queue creation, and enable
