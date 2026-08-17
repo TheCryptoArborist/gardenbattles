@@ -78,7 +78,7 @@ Recorded on 2026-08-17 after `e51b3d77f`.
 - Readiness result: blocked for any real upgrade transaction until the active
   CLI address is switched to the expected operator account.
 
-Read-only object verification was not completed in this snapshot:
+Read-only object verification notes:
 
 - `sui client object <id>` failed locally with `NativeCertsNotFound`.
 - Public fullnode JSON-RPC returned `Method not found` because public JSON-RPC
@@ -86,10 +86,32 @@ Read-only object verification was not completed in this snapshot:
 - A read-only request to `https://sui-mainnet.mystenlabs.com/graphql` did not
   complete from this workstation because Windows curl/PowerShell hit a TLS
   transport handshake failure before a GraphQL response was received.
+- Read-only GraphQL queries against `https://graphql.mainnet.sui.io/graphql`
+  succeeded and should be the preferred public object-read fallback for this
+  workstation.
+
+Verified with GraphQL:
+
+- UpgradeCap owner:
+  `0x485953e2eadf4aa02af950cf8e914fbd2b67523385e73c36118341459d8d45c4`.
+- UpgradeCap package:
+  `0x37d3567ff2d92f94b5b55198d0692a4ba02437325aa4281f3db69ee8078aca23`.
+- UpgradeCap version: `7`.
+- UpgradeCap policy: `0`.
+- Upgrade transaction digest:
+  `8goT3mXxMPFNSMdx678bwkq6myjkxHYcqpoWuZPMCSxz`.
+- Config admin:
+  `0x485953e2eadf4aa02af950cf8e914fbd2b67523385e73c36118341459d8d45c4`.
+- Config treasury:
+  `0x485953e2eadf4aa02af950cf8e914fbd2b67523385e73c36118341459d8d45c4`.
+- Config entry fee: `3000000000`.
+- Config winner payout: `5000000000`.
+- Config treasury share: `1000000000`.
+- Config paused: `false`.
 
 Before the real upgrade window, object verification should use a working Sui CLI
-certificate setup, an approved gRPC/GraphQL read path, or a configured private
-RPC provider that does not expose credentials in logs or committed files.
+certificate setup, `https://graphql.mainnet.sui.io/graphql`, or a configured
+private RPC provider that does not expose credentials in logs or committed files.
 
 Validation commands:
 
