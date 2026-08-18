@@ -2652,24 +2652,32 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
 
     options?.onWalletApprovalRequested?.(queueState);
 
-    const result = await new Promise<any>((resolve, reject) => {
-      signAndExecuteTransaction(
-        { transaction: tx, chain: SUI_CONFIG.CHAIN },
-        {
-          onSuccess: (r) => resolve(r),
-          onError: (e: any) => {
-            console.error("[pvp-queue] refund transaction submission failed", {
-              name: e?.name,
-              message: e?.message,
-              code: e?.code,
-              cause: e?.cause,
-              status: e?.status ?? e?.response?.status ?? e?.cause?.status,
-            });
-            reject(e);
-          },
+    let result: Awaited<ReturnType<typeof walletSignAndExecuteTransaction>>;
+    try {
+      if (!currentWallet || !currentAccount) {
+        throw new Error("Wallet disconnected before refund approval");
+      }
+      result = await walletSignAndExecuteTransaction(currentWallet, {
+        account: currentAccount,
+        chain: SUI_CONFIG.CHAIN,
+        transaction: {
+          toJSON: async () =>
+            tx.toJSON({
+              client: suiClient,
+              supportedIntents,
+            }),
         },
-      );
-    });
+      });
+    } catch (e: any) {
+      console.error("[pvp-queue] refund transaction submission failed", {
+        name: e?.name,
+        message: e?.message,
+        code: e?.code,
+        cause: e?.cause,
+        status: e?.status ?? e?.response?.status ?? e?.cause?.status,
+      });
+      throw e;
+    }
 
     let verificationNotice: string | undefined;
     if (!result?.digest) {
@@ -2746,7 +2754,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
       queueState,
       verificationNotice,
     };
-  }, [address, suiClient, signAndExecuteTransaction]);
+  }, [address, suiClient, currentAccount, currentWallet, supportedIntents]);
 
   // ── ConnectWalletButton component ─────────────────────────────────────────
   const ConnectWalletButton = useCallback(
