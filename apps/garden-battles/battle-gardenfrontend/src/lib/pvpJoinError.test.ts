@@ -35,6 +35,15 @@ test("Move abort codes are mapped to actionable queue join messages", () => {
   );
 });
 
+test("post-wallet transaction failures do not look like prep failures", () => {
+  assert.equal(
+    formatPvpJoinFailureMessage(
+      "PvP queue transaction failed after wallet approval: Failed to fetch",
+    ),
+    "Wallet approval opened, but the queue transaction result could not be confirmed. Check your wallet activity before trying again.",
+  );
+});
+
 test("unknown errors are included without raw URLs", () => {
   assert.equal(
     formatPvpJoinFailureMessage(

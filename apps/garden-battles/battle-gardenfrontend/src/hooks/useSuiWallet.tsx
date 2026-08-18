@@ -1865,7 +1865,13 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
                 targetGrowth: matchOption.targetGrowth,
                 functionName: joinFunction,
               });
-              reject(new Error(err?.message ?? "Failed to join battle"));
+              reject(
+                new Error(
+                  `PvP queue transaction failed after wallet approval: ${
+                    err?.message ?? "Unknown wallet transaction error"
+                  }`,
+                ),
+              );
             },
           },
         );
