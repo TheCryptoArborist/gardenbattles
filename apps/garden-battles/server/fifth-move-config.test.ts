@@ -160,6 +160,16 @@ test("enabled FifthMoveConfig with matching signer returns validated config", ()
   assert.deepEqual(Array.from(validated.signerPublicKey), Array.from(signerPublicKey));
 });
 
+test("live FifthMoveConfig utility coin validation accepts normalized TypeName addresses", () => {
+  const { config, signerPublicKey } = validParsedConfig({
+    utilityCoin: TREE_COIN_TYPE.replace(/^0x/, ""),
+  });
+
+  const validated = validateLiveFifthMoveConfigFields(config, signerPublicKey);
+
+  assert.equal(validated.utilityCoin, TREE_COIN_TYPE);
+});
+
 test("PvpBattleV3Update parsing preserves target and ignores entitlement for scoring", () => {
   const event = parseBattleEvent(
     {

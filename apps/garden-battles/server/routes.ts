@@ -266,7 +266,9 @@ export function validateLiveFifthMoveConfigFields(
     throw new Error("fifth_move_config_malformed_signer");
   }
   assertExpectedSignerPublicKey(config.signerPublicKey, serverSignerPublicKey);
-  if (config.utilityCoin !== TREE_COIN_TYPE) throw new Error("fifth_move_config_wrong_utility_coin");
+  if (!config.utilityCoin || normalizeMoveTypeName(config.utilityCoin) !== normalizeMoveTypeName(TREE_COIN_TYPE)) {
+    throw new Error("fifth_move_config_wrong_utility_coin");
+  }
   if (!config.minUnderlyingTreeRaw || BigInt(config.minUnderlyingTreeRaw) <= BigInt(0)) {
     throw new Error("fifth_move_config_invalid_threshold");
   }
@@ -281,7 +283,7 @@ export function validateLiveFifthMoveConfigFields(
   return {
     id: config.id,
     enabled: config.enabled,
-    utilityCoin: config.utilityCoin,
+    utilityCoin: normalizeMoveTypeName(config.utilityCoin),
     minUnderlyingTreeRaw: config.minUnderlyingTreeRaw,
     signerPublicKey: config.signerPublicKey,
     configVersion: config.configVersion,
