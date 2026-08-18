@@ -80,6 +80,7 @@ import {
 import {
   readSuiBalanceWithRetry,
   readSuiObjectWithRetry,
+  readSuiTransactionBlockWithRetry,
   SuiRpcReadError,
 } from "@/lib/suiRpc";
 
@@ -809,15 +810,13 @@ async function getLiveBattleState(
 // ─── Provider ─────────────────────────────────────────────────────────────────
 
 async function getBattleStateFromTransaction(
-  suiClient: any,
+  _suiClient: any,
   digest: string,
   address: string,
 ): Promise<BattleState | null> {
-  const tx = await suiClient.waitForTransaction({
-    digest,
-    timeout: 45_000,
-    pollInterval: 1_500,
-    options: {
+  const tx = await readSuiTransactionBlockWithRetry(digest, {
+    operation: "battle-transaction-read",
+    requestOptions: {
       showEvents: true,
       showObjectChanges: true,
     },
@@ -854,13 +853,14 @@ async function getBattleStateFromTransaction(
       change.type === "created" &&
       typeof change.objectType === "string" &&
       (isLegacyBattleObjectType(change.objectType) ||
-        isPvpBattleV2ObjectType(change.objectType)) &&
+        isPvpBattleV2ObjectType(change.objectType) ||
+        isPvpBattleV3ObjectType(change.objectType)) &&
       typeof change.objectId === "string",
   );
 
   if (createdBattle?.objectId) {
     const liveState = await getLiveBattleState(
-      suiClient,
+      _suiClient,
       createdBattle.objectId,
     );
     return isActiveBattleForAddress(liveState ?? null, address)

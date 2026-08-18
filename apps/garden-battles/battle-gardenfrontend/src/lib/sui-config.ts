@@ -1,13 +1,28 @@
 // Sui Blockchain Configuration - SUI MAIN PUBLIC FULL NODE ENDPOINTS
+const DEFAULT_PUBLIC_SUI_RPC_URL = "https://fullnode.mainnet.sui.io:443";
+const DEFAULT_GARDEN_BATTLES_API_BASE =
+  "https://gardenbattles-production.up.railway.app";
+const GARDEN_BATTLES_API_BASE = (
+  ((import.meta as any).env?.VITE_GARDEN_BATTLES_API_URL as string | undefined) ||
+  DEFAULT_GARDEN_BATTLES_API_BASE
+).replace(/\/$/, "");
+
 export const SUI_CONFIG = {
   NETWORK: "mainnet",
   CHAIN: "sui:mainnet",
   RPC_URL:
     ((import.meta as any).env?.VITE_SUI_RPC_URL as string | undefined) ||
-    "https://fullnode.mainnet.sui.io:443",
+    DEFAULT_PUBLIC_SUI_RPC_URL,
+  READ_RPC_URL:
+    ((import.meta as any).env?.VITE_SUI_READ_RPC_URL as string | undefined) ||
+    `${GARDEN_BATTLES_API_BASE}/api/sui-rpc`,
   RPC_FALLBACK_URL:
     ((import.meta as any).env?.VITE_SUI_RPC_FALLBACK_URL as string | undefined) ||
-    "",
+    DEFAULT_PUBLIC_SUI_RPC_URL,
+  READ_RPC_FALLBACK_URL:
+    ((import.meta as any).env?.VITE_SUI_READ_RPC_FALLBACK_URL as string | undefined) ||
+    ((import.meta as any).env?.VITE_SUI_RPC_FALLBACK_URL as string | undefined) ||
+    DEFAULT_PUBLIC_SUI_RPC_URL,
   WS_URL: "wss://fullnode.mainnet.sui.io:443",
   PACKAGE_ID: "0x9a80317a43e1d59a4d13f9771a003b773153d729e79da329fa1793d301042edf",
   ORIGINAL_PACKAGE_ID:

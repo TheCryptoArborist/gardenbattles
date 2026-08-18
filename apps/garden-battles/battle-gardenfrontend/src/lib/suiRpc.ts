@@ -127,7 +127,7 @@ function endpointLabel(index: number) {
 }
 
 function getConfiguredEndpoints() {
-  const endpoints = [SUI_CONFIG.RPC_URL, SUI_CONFIG.RPC_FALLBACK_URL]
+  const endpoints = [SUI_CONFIG.READ_RPC_URL, SUI_CONFIG.READ_RPC_FALLBACK_URL]
     .map((url) => url.trim())
     .filter((url, index, all) => url.length > 0 && all.indexOf(url) === index);
   return endpoints.length > 0

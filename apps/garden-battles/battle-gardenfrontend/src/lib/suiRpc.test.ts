@@ -243,6 +243,27 @@ describe("readSuiObjectWithRetry", () => {
     assert.equal(result.data?.objectId, legacyQueue);
   });
 
+  it("defaults read calls to the Garden Battles RPC proxy", async () => {
+    const { calls, fetchImpl } = fetchFromResponses([
+      jsonResponse(200, objectResult(quickQueue)),
+    ]);
+
+    await readSuiObjectWithRetry(
+      null,
+      { id: quickQueue, options: { showContent: true } },
+      {
+        operation: "default-endpoint-read",
+        fetchImpl,
+        retryDelaysMs: [],
+      },
+    );
+
+    assert.equal(
+      calls[0].url,
+      "https://gardenbattles-production.up.railway.app/api/sui-rpc",
+    );
+  });
+
   it("retries primary after a 429 and succeeds", async () => {
     const { calls, fetchImpl } = fetchFromResponses([
       jsonResponse(429, { error: { code: 429, message: "Too Many Requests" } }),
