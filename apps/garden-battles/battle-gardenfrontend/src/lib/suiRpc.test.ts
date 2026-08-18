@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  buildSuixGetBalanceJsonRpcBody,
   buildSuiGetObjectJsonRpcBody,
   buildSuiGetTransactionBlockJsonRpcBody,
   classifySuiRpcReadError,
+  readSuiBalanceWithRetry,
   readSuiObjectWithRetry,
   readSuiTransactionBlockWithRetry,
   resolveFetchImplementation,
@@ -36,6 +38,19 @@ function objectResult(id = "0xobject") {
         objectId: id,
         content: { fields: {} },
       },
+    },
+  };
+}
+
+function balanceResult(ownerBalance = "4200000000") {
+  return {
+    jsonrpc: "2.0",
+    id: 1,
+    result: {
+      coinType: "0x2::sui::SUI",
+      coinObjectCount: 2,
+      totalBalance: ownerBalance,
+      lockedBalance: {},
     },
   };
 }
@@ -126,6 +141,61 @@ describe("readSuiObjectWithRetry", () => {
       showObjectChanges: false,
       showBalanceChanges: false,
     });
+  });
+
+  it("builds a proper suix_getBalance JSON-RPC POST body", () => {
+    const owner =
+      "0x18d72fc2a3df6d92d0806da3b04d92be056e2d6d35882a56c16ddb25f48d35d6";
+    const body = buildSuixGetBalanceJsonRpcBody(owner);
+
+    assert.equal(body.method, "suix_getBalance");
+    assert.deepEqual(body.params, [owner]);
+  });
+
+  it("reads balances through POST without altering endpoint URLs", async () => {
+    const endpoint = "https://example.quicknode.pro/token/path/";
+    const owner =
+      "0x18d72fc2a3df6d92d0806da3b04d92be056e2d6d35882a56c16ddb25f48d35d6";
+    const { calls, fetchImpl } = fetchFromResponses([
+      jsonResponse(200, balanceResult("5000000000")),
+    ]);
+
+    const result = await readSuiBalanceWithRetry(owner, {
+      operation: "balance-read",
+      endpoints: [endpoint],
+      fetchImpl,
+      retryDelaysMs: [],
+    });
+
+    assert.equal(result.totalBalance, "5000000000");
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].url, endpoint);
+    assert.equal(calls[0].init.method, "POST");
+    const body = JSON.parse(String(calls[0].init.body));
+    assert.equal(body.method, "suix_getBalance");
+    assert.equal(body.params[0], owner);
+    assert.equal(calls[0].url.includes(owner), false);
+  });
+
+  it("uses fallback when primary balance read fails", async () => {
+    const owner =
+      "0x18d72fc2a3df6d92d0806da3b04d92be056e2d6d35882a56c16ddb25f48d35d6";
+    const { calls, fetchImpl } = fetchFromResponses([
+      jsonResponse(503, { error: { code: 503, message: "unavailable" } }),
+      jsonResponse(200, balanceResult("6000000000")),
+    ]);
+
+    const result = await readSuiBalanceWithRetry(owner, {
+      operation: "balance-read",
+      endpoints: ["https://primary.example/rpc", "https://fallback.example/rpc"],
+      fetchImpl,
+      retryDelaysMs: [],
+    });
+
+    assert.equal(result.totalBalance, "6000000000");
+    assert.equal(calls.length, 2);
+    assert.equal(calls[0].url, "https://primary.example/rpc");
+    assert.equal(calls[1].url, "https://fallback.example/rpc");
   });
 
   it("reads transaction blocks through POST without altering endpoint URLs", async () => {

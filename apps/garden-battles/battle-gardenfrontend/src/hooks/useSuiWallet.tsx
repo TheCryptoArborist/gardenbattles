@@ -77,7 +77,11 @@ import {
   scanWalletAndKiosksForNft,
   type NftData,
 } from "@/lib/nftreeAccess";
-import { readSuiObjectWithRetry, SuiRpcReadError } from "@/lib/suiRpc";
+import {
+  readSuiBalanceWithRetry,
+  readSuiObjectWithRetry,
+  SuiRpcReadError,
+} from "@/lib/suiRpc";
 
 const POST_REFUND_VERIFICATION_RETRY_DELAYS_MS = [
   750,
@@ -1140,10 +1144,16 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
   }, [isWaiting]);
 
   const refreshEntryFee = useCallback(async () => {
-    const obj = await suiClient.getObject({
-      id: SUI_CONFIG.CONFIG_ID,
-      options: { showContent: true },
-    });
+    const obj = await readSuiObjectWithRetry(
+      suiClient,
+      {
+        id: SUI_CONFIG.CONFIG_ID,
+        options: { showContent: true },
+      },
+      {
+        operation: "pvp-entry-fee-read",
+      },
+    );
     const fee = readConfigEntryFeeMist(obj.data?.content);
     if (fee === null) {
       throw new Error("Could not read battle entry fee from on-chain config");
@@ -1722,11 +1732,23 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
         throw new Error("This match type is not active yet.");
       }
 
-      const liveEntryFeeMist = await refreshEntryFee();
+      let liveEntryFeeMist: number;
+      try {
+        liveEntryFeeMist = await refreshEntryFee();
+      } catch (e) {
+        if (e instanceof SuiRpcReadError) {
+          throw new Error(
+            "The Sui RPC request failed while preparing the queue join. Wait a moment and try again.",
+          );
+        }
+        throw e;
+      }
 
       // Balance check
       try {
-        const balance = await suiClient.getBalance({ owner: address });
+        const balance = await readSuiBalanceWithRetry(address, {
+          operation: "pvp-join-balance-read",
+        });
         const balSui = Number(balance.totalBalance) / 1e9;
         const needed = liveEntryFeeMist / 1e9 + 0.1;
         if (balSui < needed) {
@@ -1736,6 +1758,11 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
         }
       } catch (e: any) {
         if (e.message?.includes("Insufficient")) throw e;
+        if (e instanceof SuiRpcReadError) {
+          throw new Error(
+            "The Sui RPC request failed while preparing the queue join. Wait a moment and try again.",
+          );
+        }
       }
 
       let tx: Transaction;

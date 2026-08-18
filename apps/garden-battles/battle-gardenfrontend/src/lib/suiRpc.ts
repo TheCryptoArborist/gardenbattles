@@ -18,6 +18,13 @@ type SuiObjectResponse = {
   error?: any;
 };
 
+export type SuiBalanceResponse = {
+  coinType: string;
+  coinObjectCount: number;
+  totalBalance: string;
+  lockedBalance: Record<string, string>;
+};
+
 export type SuiTransactionBlockResponse = any;
 
 type FetchLike = typeof fetch;
@@ -25,6 +32,7 @@ type FetchLike = typeof fetch;
 const DEFAULT_OBJECT_READ_RETRY_DELAYS_MS = [750, 1500, 3000] as const;
 const SUI_GET_OBJECT_METHOD = "sui_getObject";
 const SUI_GET_TRANSACTION_BLOCK_METHOD = "sui_getTransactionBlock";
+const SUIX_GET_BALANCE_METHOD = "suix_getBalance";
 
 export function resolveFetchImplementation(fetchImpl?: FetchLike): FetchLike {
   if (fetchImpl) {
@@ -163,6 +171,15 @@ export function buildSuiGetTransactionBlockJsonRpcBody(
         ...options,
       },
     ],
+  };
+}
+
+export function buildSuixGetBalanceJsonRpcBody(owner: string, coinType?: string) {
+  return {
+    jsonrpc: "2.0",
+    id: 1,
+    method: SUIX_GET_BALANCE_METHOD,
+    params: coinType ? [owner, coinType] : [owner],
   };
 }
 
@@ -367,6 +384,132 @@ export async function readSuiObjectWithRetry(
           rpcCode: rpcError.rpcCode,
           rpcMessage: rpcError.rpcMessage,
           queueId: options.queueId,
+        });
+      }
+    }
+  }
+
+  throw lastError;
+}
+
+async function readBalanceViaJsonRpc(
+  endpoint: string,
+  owner: string,
+  options: {
+    endpointIndex: number;
+    operation: string;
+    coinType?: string;
+    fetchFn: FetchLike;
+  },
+): Promise<SuiBalanceResponse> {
+  const body = buildSuixGetBalanceJsonRpcBody(owner, options.coinType);
+  return readJsonRpcViaPost(endpoint, body, {
+    endpointIndex: options.endpointIndex,
+    operation: options.operation,
+    jsonRpcMethod: SUIX_GET_BALANCE_METHOD,
+    fetchFn: options.fetchFn,
+  });
+}
+
+async function readBalanceWithRetries(
+  endpoint: string,
+  owner: string,
+  options: {
+    endpointIndex: number;
+    operation: string;
+    coinType?: string;
+    retryDelaysMs: readonly number[];
+    fetchFn: FetchLike;
+  },
+): Promise<SuiBalanceResponse> {
+  const endpointCategory = endpointLabel(options.endpointIndex);
+  let lastError: unknown;
+  let lastKind: SuiReadFailureKind = "unexpected";
+  let lastStatus: number | undefined;
+  let lastRpcCode: number | undefined;
+  let lastRpcMessage: string | undefined;
+
+  for (let attempt = 0; attempt <= options.retryDelaysMs.length; attempt += 1) {
+    try {
+      return await readBalanceViaJsonRpc(endpoint, owner, options);
+    } catch (error) {
+      lastError = error;
+      const classification = classifySuiRpcReadError(error);
+      lastKind = classification.kind;
+      lastStatus = classification.status;
+      lastRpcCode = error instanceof SuiRpcReadError ? error.rpcCode : undefined;
+      lastRpcMessage =
+        error instanceof SuiRpcReadError ? error.rpcMessage : undefined;
+
+      console.warn("[sui-rpc] balance read failed", {
+        operation: options.operation,
+        endpointCategory,
+        httpMethod: "POST",
+        jsonRpcMethod: SUIX_GET_BALANCE_METHOD,
+        status: classification.status,
+        rpcCode: lastRpcCode,
+        rpcMessage: lastRpcMessage,
+        retry: attempt,
+      });
+
+      const shouldRetry =
+        classification.retryable && attempt < options.retryDelaysMs.length;
+      if (!shouldRetry) break;
+      await sleep(options.retryDelaysMs[attempt]);
+    }
+  }
+
+  throw new SuiRpcReadError(
+    lastKind === "rate_limited"
+      ? "Sui RPC balance read was rate-limited after retries."
+      : "Sui RPC balance read failed after retries.",
+    {
+      kind: lastKind,
+      status: lastStatus,
+      rpcCode: lastRpcCode,
+      rpcMessage: lastRpcMessage,
+      cause: lastError,
+    },
+  );
+}
+
+export async function readSuiBalanceWithRetry(
+  owner: string,
+  options: {
+    operation: string;
+    coinType?: string;
+    retryDelaysMs?: readonly number[];
+    endpoints?: string[];
+    fetchImpl?: FetchLike;
+  },
+): Promise<SuiBalanceResponse> {
+  const retryDelaysMs =
+    options.retryDelaysMs ?? DEFAULT_OBJECT_READ_RETRY_DELAYS_MS;
+  const endpoints =
+    options.endpoints?.filter(Boolean) ?? getConfiguredEndpoints();
+  const fetchFn = resolveFetchImplementation(options.fetchImpl);
+
+  let lastError: unknown;
+  for (let index = 0; index < endpoints.length; index += 1) {
+    try {
+      return await readBalanceWithRetries(endpoints[index], owner, {
+        endpointIndex: index,
+        operation: options.operation,
+        coinType: options.coinType,
+        retryDelaysMs,
+        fetchFn,
+      });
+    } catch (error) {
+      lastError = error;
+      if (index < endpoints.length - 1) {
+        const rpcError = error as Partial<SuiRpcReadError>;
+        console.warn("[sui-rpc] switching endpoint after balance failure", {
+          operation: options.operation,
+          endpointCategory: endpointLabel(index),
+          nextEndpointCategory: endpointLabel(index + 1),
+          status: rpcError.status,
+          rpcCode: rpcError.rpcCode,
+          rpcMessage: rpcError.rpcMessage,
         });
       }
     }
