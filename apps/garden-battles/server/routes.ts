@@ -116,7 +116,7 @@ const processedBotTurns = new Set<string>();
 let suiVerificationClient: SuiClient | null = null;
 let fifthMoveSigner: Ed25519Keypair | null | undefined;
 const fifthMoveAttestationRequests = new Map<string, number>();
-type LiveFifthMoveConfig = {
+export type LiveFifthMoveConfig = {
   id: string;
   enabled: boolean;
   utilityCoin: string;
@@ -250,6 +250,45 @@ export function assertExpectedSignerPublicKey(onChainKey: Uint8Array, serverKey:
   }
 }
 
+export function validateLiveFifthMoveConfigFields(
+  config: {
+    id: string;
+    enabled: boolean;
+    utilityCoin: string | null;
+    minUnderlyingTreeRaw: string | null;
+    signerPublicKey: Uint8Array | null;
+    configVersion: string | null;
+    maxAttestationAgeMs: string | null;
+  },
+  serverSignerPublicKey: Uint8Array,
+): LiveFifthMoveConfig {
+  if (!config.signerPublicKey) {
+    throw new Error("fifth_move_config_malformed_signer");
+  }
+  assertExpectedSignerPublicKey(config.signerPublicKey, serverSignerPublicKey);
+  if (config.utilityCoin !== TREE_COIN_TYPE) throw new Error("fifth_move_config_wrong_utility_coin");
+  if (!config.minUnderlyingTreeRaw || BigInt(config.minUnderlyingTreeRaw) <= BigInt(0)) {
+    throw new Error("fifth_move_config_invalid_threshold");
+  }
+  if (!config.configVersion || BigInt(config.configVersion) <= BigInt(0)) {
+    throw new Error("fifth_move_config_invalid_version");
+  }
+  if (!config.maxAttestationAgeMs || BigInt(config.maxAttestationAgeMs) <= BigInt(0)) {
+    throw new Error("fifth_move_config_invalid_max_age");
+  }
+  if (!config.enabled) throw new Error("fifth_move_config_disabled");
+
+  return {
+    id: config.id,
+    enabled: config.enabled,
+    utilityCoin: config.utilityCoin,
+    minUnderlyingTreeRaw: config.minUnderlyingTreeRaw,
+    signerPublicKey: config.signerPublicKey,
+    configVersion: config.configVersion,
+    maxAttestationAgeMs: config.maxAttestationAgeMs,
+  };
+}
+
 async function readLiveFifthMoveConfig(serverSignerPublicKey: Uint8Array): Promise<LiveFifthMoveConfig> {
   if (!FIFTH_MOVE_CONFIG_ID) {
     throw new Error("fifth_move_config_id_unconfigured");
@@ -294,23 +333,7 @@ async function readLiveFifthMoveConfig(serverSignerPublicKey: Uint8Array): Promi
       const maxAttestationAgeMs = parseMoveU64(fields.max_attestation_age_ms);
       const signerPublicKey = parseMoveU8Vector(fields.signer_public_key);
 
-      if (!enabled) throw new Error("fifth_move_config_disabled");
-      if (utilityCoin !== TREE_COIN_TYPE) throw new Error("fifth_move_config_wrong_utility_coin");
-      if (!minUnderlyingTreeRaw || BigInt(minUnderlyingTreeRaw) <= BigInt(0)) {
-        throw new Error("fifth_move_config_invalid_threshold");
-      }
-      if (!configVersion || BigInt(configVersion) <= BigInt(0)) {
-        throw new Error("fifth_move_config_invalid_version");
-      }
-      if (!maxAttestationAgeMs || BigInt(maxAttestationAgeMs) <= BigInt(0)) {
-        throw new Error("fifth_move_config_invalid_max_age");
-      }
-      if (!signerPublicKey) {
-        throw new Error("fifth_move_config_malformed_signer");
-      }
-      assertExpectedSignerPublicKey(signerPublicKey, serverSignerPublicKey);
-
-      return {
+      return validateLiveFifthMoveConfigFields({
         id: data.objectId.toLowerCase(),
         enabled,
         utilityCoin,
@@ -318,7 +341,7 @@ async function readLiveFifthMoveConfig(serverSignerPublicKey: Uint8Array): Promi
         signerPublicKey,
         configVersion,
         maxAttestationAgeMs,
-      };
+      }, serverSignerPublicKey);
     })().finally(() => {
       fifthMoveConfigReadInFlight = null;
     });

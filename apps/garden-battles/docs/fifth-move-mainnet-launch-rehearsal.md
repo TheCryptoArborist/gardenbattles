@@ -122,6 +122,39 @@ Read-only object verification notes:
 - Mainnet package version: `8`.
 - Published modules: `battle`, `config`, `errors`, `fifth_move`, `matchmaking`,
   `nft`, `utils`.
+- Mainnet FifthMoveConfig:
+  `0x083a9303bd13b789e87f3e746b817a8723290f25414f3686ac8868f90a5020b3`.
+- FifthMoveConfig creation transaction:
+  `4mj4WCLuE9wN4HF22Ba47we4MwKt2qwM4pTramBg6cLZ`.
+- FifthMoveConfig verified state:
+  - `enabled`: `false`,
+  - `config_version`: `1`,
+  - `min_underlying_tree_raw`: `1000000000000` (`1,000,000 TREE`),
+  - `max_attestation_age_ms`: `180000`,
+  - utility coin: canonical TREE,
+  - admin:
+    `0x485953e2eadf4aa02af950cf8e914fbd2b67523385e73c36118341459d8d45c4`.
+- 50-Growth MatchmakingQueueV3:
+  `0xb380a69e611ad7636f2b7993fab6656c272c0802fd7a6ec35448a58956a0c38f`.
+- 50-Growth queue creation transaction:
+  `6bx9jzNfmn3YBaYe4c3avmumncZhhFpUQuDhjrhWNtqa`.
+- 50-Growth queue verified state:
+  - `target_growth`: `50`,
+  - `bank`: `0`,
+  - `waiting`: none,
+  - owner: shared.
+- 75-Growth MatchmakingQueueV3:
+  `0x03e77c44e4ef2a6203a0d84378a4a8faf3acfb82ddfef84cd5e0bb243ff5abe1`.
+- 75-Growth queue creation transaction:
+  `DM4toALEprW4zTGnyRxsNXhUJXzVCn8qvLitcLhbEWYD`.
+- 75-Growth queue verified state:
+  - `target_growth`: `75`,
+  - `bank`: `0`,
+  - `waiting`: none,
+  - owner: shared.
+- Fifth Move remains disabled.
+- No Railway variables have been changed yet.
+- No frontend variables have been changed yet.
 
 Verified with GraphQL:
 
@@ -208,9 +241,7 @@ Completed on mainnet.
 
 ## FifthMoveConfig Creation
 
-Create the shared config after the upgraded package is verified. It initializes
-disabled. Do not execute until the dedicated production signer public key is
-ready.
+Completed on mainnet. The shared config exists and is still disabled.
 
 The backend expects `FIFTH_MOVE_ATTESTATION_PRIVATE_KEY` to be a dedicated
 Ed25519 Sui private key string. Do not use the Garden Battles admin key. Do not
@@ -227,6 +258,8 @@ npm.cmd exec -- tsx scripts/fifth-move-public-key-vector.ts --public-key-base64 
 
 Use the printed `suiCliVector` as `<SIGNER_PUBLIC_KEY_BYTES_VECTOR>`.
 
+Creation command template:
+
 ```powershell
 sui client call `
   --package 0x9a80317a43e1d59a4d13f9771a003b773153d729e79da329fa1793d301042edf `
@@ -237,7 +270,7 @@ sui client call `
   --gas-budget <BUDGET>
 ```
 
-Verify:
+Verified:
 
 - object type is
   `0x9a80317a43e1d59a4d13f9771a003b773153d729e79da329fa1793d301042edf::fifth_move::FifthMoveConfig`,
@@ -247,13 +280,17 @@ Verify:
 - `min_underlying_tree_raw` is `1000000000000`,
 - `signer_public_key` equals the dedicated signer public key,
 - `config_version` is `1`,
-- `max_attestation_age_ms` is the approved production value.
+- `max_attestation_age_ms` is `180000`.
+- object ID:
+  `0x083a9303bd13b789e87f3e746b817a8723290f25414f3686ac8868f90a5020b3`,
+- creation transaction:
+  `4mj4WCLuE9wN4HF22Ba47we4MwKt2qwM4pTramBg6cLZ`.
 
 ## V3 Queue Creation
 
-Create V3 queues only after `FifthMoveConfig` exists and the package is verified.
-`create_queue_v3` requires the existing shared `Config` object and the target
-growth.
+Completed on mainnet. Both V3 queues exist, are shared, and are empty with zero
+bank. `create_queue_v3` requires the existing shared `Config` object and the
+target growth.
 
 ```powershell
 sui client call `
@@ -274,16 +311,20 @@ sui client call `
 From each transaction effect, capture the created shared
 `MatchmakingQueueV3` object:
 
-- `MATCHMAKING_QUEUE_V3_50_ID=<CREATED_50_QUEUE_ID>`
-- `MATCHMAKING_QUEUE_V3_75_ID=<CREATED_75_QUEUE_ID>`
+- `MATCHMAKING_QUEUE_V3_50_ID=0xb380a69e611ad7636f2b7993fab6656c272c0802fd7a6ec35448a58956a0c38f`
+- `MATCHMAKING_QUEUE_V3_75_ID=0x03e77c44e4ef2a6203a0d84378a4a8faf3acfb82ddfef84cd5e0bb243ff5abe1`
 
-Verify:
+Verified:
 
 - 50 queue target is `50`,
 - 75 queue target is `75`,
 - both queues have empty waiting state,
 - both queues have zero bank,
 - queue object types use the new package ID.
+- 50 queue creation transaction:
+  `6bx9jzNfmn3YBaYe4c3avmumncZhhFpUQuDhjrhWNtqa`.
+- 75 queue creation transaction:
+  `DM4toALEprW4zTGnyRxsNXhUJXzVCn8qvLitcLhbEWYD`.
 
 ## Backend / Railway Configuration
 
@@ -296,13 +337,13 @@ PVP_BATTLE_V3_EVENT_PACKAGE_ID=0x9a80317a43e1d59a4d13f9771a003b773153d729e79da32
 RANKED_BOT_BATTLE_V2_EVENT_PACKAGE_ID=0x9a80317a43e1d59a4d13f9771a003b773153d729e79da329fa1793d301042edf
 FIFTH_MOVE_ATTESTATION_PRIVATE_KEY=<DEDICATED_ED25519_PRIVATE_KEY>
 FIFTH_MOVE_ATTESTATION_KEY_ID=<SIGNER_KEY_ID>
-FIFTH_MOVE_CONFIG_ID=<FIFTH_MOVE_CONFIG_OBJECT_ID>
+FIFTH_MOVE_CONFIG_ID=0x083a9303bd13b789e87f3e746b817a8723290f25414f3686ac8868f90a5020b3
 FIFTH_MOVE_ATTESTATION_TTL_MS=<APPROVED_TTL_MS>
 FIFTH_MOVE_ATTESTATION_RATE_LIMIT_MS=5000
 FIFTH_MOVE_CONFIG_CACHE_MS=30000
 FIFTH_MOVE_CONFIG_READ_TIMEOUT_MS=5000
-MATCHMAKING_QUEUE_V3_50_ID=<CREATED_50_QUEUE_ID>
-MATCHMAKING_QUEUE_V3_75_ID=<CREATED_75_QUEUE_ID>
+MATCHMAKING_QUEUE_V3_50_ID=0xb380a69e611ad7636f2b7993fab6656c272c0802fd7a6ec35448a58956a0c38f
+MATCHMAKING_QUEUE_V3_75_ID=0x03e77c44e4ef2a6203a0d84378a4a8faf3acfb82ddfef84cd5e0bb243ff5abe1
 ```
 
 Preserve:
@@ -314,7 +355,9 @@ MATCHMAKING_QUEUE_75_ID=0x9d805e74d3a4412e4bb935ed383ad8f9dde00715632ea61704ccc4
 ```
 
 Restart Railway only during the approved deployment window. Confirm the backend
-can read `FifthMoveConfig` before enabling the feature.
+can read `FifthMoveConfig` before enabling the feature. The disabled-config
+backend smoke test must prove signer equality before it returns
+`fifth_move_config_disabled`.
 
 ## Frontend Configuration
 
@@ -322,9 +365,9 @@ Set these only after backend variables are staged and V3 objects are verified:
 
 ```text
 VITE_BATTLE_PACKAGE_ID=0x9a80317a43e1d59a4d13f9771a003b773153d729e79da329fa1793d301042edf
-VITE_FIFTH_MOVE_CONFIG_ID=<FIFTH_MOVE_CONFIG_OBJECT_ID>
-VITE_MATCHMAKING_QUEUE_V3_50_ID=<CREATED_50_QUEUE_ID>
-VITE_MATCHMAKING_QUEUE_V3_75_ID=<CREATED_75_QUEUE_ID>
+VITE_FIFTH_MOVE_CONFIG_ID=0x083a9303bd13b789e87f3e746b817a8723290f25414f3686ac8868f90a5020b3
+VITE_MATCHMAKING_QUEUE_V3_50_ID=0xb380a69e611ad7636f2b7993fab6656c272c0802fd7a6ec35448a58956a0c38f
+VITE_MATCHMAKING_QUEUE_V3_75_ID=0x03e77c44e4ef2a6203a0d84378a4a8faf3acfb82ddfef84cd5e0bb243ff5abe1
 ```
 
 Preserve existing V2 and legacy IDs until all V3 launch smoke tests pass.
@@ -350,7 +393,7 @@ sui client call `
   --package 0x9a80317a43e1d59a4d13f9771a003b773153d729e79da329fa1793d301042edf `
   --module fifth_move `
   --function set_enabled `
-  --args <FIFTH_MOVE_CONFIG_OBJECT_ID> true `
+  --args 0x083a9303bd13b789e87f3e746b817a8723290f25414f3686ac8868f90a5020b3 true `
   --gas-budget <BUDGET>
 ```
 
@@ -411,9 +454,10 @@ If launch starts and issues appear:
 
 ## Remaining Blockers Before Mainnet
 
-- Dedicated signer generation and secure Railway secret entry.
-- Gas budget selection for upgrade, config creation, queue creation, and enable
-  transaction.
-- Mainnet `FifthMoveConfig` object ID.
-- Mainnet V3 50/75 queue object IDs.
+- Secure Railway secret entry for the dedicated signer.
+- Gas budget selection for the enable transaction.
+- Disabled-config backend smoke test that proves signer equality before
+  returning `fifth_move_config_disabled`.
+- Railway V3/backend variable update.
+- Frontend V3 variable update.
 - Approved deployment window and rollback owner.

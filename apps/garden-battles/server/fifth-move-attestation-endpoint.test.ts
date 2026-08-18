@@ -6,7 +6,11 @@ import express from "express";
 import { Ed25519PublicKey } from "@mysten/sui/keypairs/ed25519";
 import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
 import { fromBase64 } from "@mysten/sui/utils";
-import { createFifthMoveAttestationHandler, type FifthMoveAttestationRouteOptions } from "./routes";
+import {
+  createFifthMoveAttestationHandler,
+  validateLiveFifthMoveConfigFields,
+  type FifthMoveAttestationRouteOptions,
+} from "./routes";
 import {
   decodeBase64Bytes,
   FIFTH_MOVE_SOURCE_BITS,
@@ -191,6 +195,67 @@ test("attestation endpoint refuses to sign when config or signer is unavailable"
       const result = await postAttestation(baseUrl);
       assert.equal(result.status, 503);
       assert.equal(result.body.reason, "fifth_move_config_disabled");
+    },
+  );
+});
+
+test("attestation endpoint validates disabled config signer equality before returning disabled", async () => {
+  const signer = Ed25519Keypair.generate();
+
+  await withEndpoint(
+    {
+      getSigner: () => signer,
+      getEligibility: async () => qualifiedEligibility(),
+      readConfig: async (serverSignerPublicKey) => validateLiveFifthMoveConfigFields(
+        {
+          id: CONFIG_ID,
+          enabled: false,
+          utilityCoin: TREE_COIN_TYPE,
+          minUnderlyingTreeRaw: "1000000000000",
+          signerPublicKey: signer.getPublicKey().toRawBytes(),
+          configVersion: "1",
+          maxAttestationAgeMs: "180000",
+        },
+        serverSignerPublicKey,
+      ),
+      checkRateLimit: () => true,
+    },
+    async (baseUrl) => {
+      const result = await postAttestation(baseUrl);
+      assert.equal(result.status, 503);
+      assert.equal(result.body.reason, "fifth_move_config_disabled");
+      assert.equal(result.body.attestation, undefined);
+    },
+  );
+});
+
+test("attestation endpoint reports disabled config signer mismatch before disabled", async () => {
+  const serverSigner = Ed25519Keypair.generate();
+  const onChainSigner = Ed25519Keypair.generate();
+
+  await withEndpoint(
+    {
+      getSigner: () => serverSigner,
+      getEligibility: async () => qualifiedEligibility(),
+      readConfig: async (serverSignerPublicKey) => validateLiveFifthMoveConfigFields(
+        {
+          id: CONFIG_ID,
+          enabled: false,
+          utilityCoin: TREE_COIN_TYPE,
+          minUnderlyingTreeRaw: "1000000000000",
+          signerPublicKey: onChainSigner.getPublicKey().toRawBytes(),
+          configVersion: "1",
+          maxAttestationAgeMs: "180000",
+        },
+        serverSignerPublicKey,
+      ),
+      checkRateLimit: () => true,
+    },
+    async (baseUrl) => {
+      const result = await postAttestation(baseUrl);
+      assert.equal(result.status, 503);
+      assert.equal(result.body.reason, "fifth_move_signer_mismatch");
+      assert.equal(result.body.attestation, undefined);
     },
   );
 });

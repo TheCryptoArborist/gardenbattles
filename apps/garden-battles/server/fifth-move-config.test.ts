@@ -6,6 +6,7 @@ import {
   parseMoveTypeName,
   parseMoveU64,
   parseMoveU8Vector,
+  validateLiveFifthMoveConfigFields,
 } from "./routes";
 import { TREE_COIN_TYPE } from "../shared/tree-power-eligibility";
 
@@ -48,6 +49,115 @@ test("signer public key validation catches malformed and mismatched keys", () =>
     () => assertExpectedSignerPublicKey(key, Uint8Array.from(Array.from({ length: 32 }, () => 9))),
     /fifth_move_signer_mismatch/,
   );
+});
+
+function validParsedConfig(overrides: Partial<Parameters<typeof validateLiveFifthMoveConfigFields>[0]> = {}) {
+  const signerPublicKey = Uint8Array.from(Array.from({ length: 32 }, (_, i) => i));
+  return {
+    config: {
+      id: "0x083a9303bd13b789e87f3e746b817a8723290f25414f3686ac8868f90a5020b3",
+      enabled: true,
+      utilityCoin: TREE_COIN_TYPE,
+      minUnderlyingTreeRaw: "1000000000000",
+      signerPublicKey,
+      configVersion: "1",
+      maxAttestationAgeMs: "180000",
+      ...overrides,
+    },
+    signerPublicKey,
+  };
+}
+
+test("disabled FifthMoveConfig with matching signer validates fields before returning disabled", () => {
+  const { config, signerPublicKey } = validParsedConfig({ enabled: false });
+
+  assert.throws(
+    () => validateLiveFifthMoveConfigFields(config, signerPublicKey),
+    /fifth_move_config_disabled/,
+  );
+});
+
+test("disabled FifthMoveConfig with mismatched signer returns signer mismatch before disabled", () => {
+  const { config } = validParsedConfig({ enabled: false });
+  const wrongServerSigner = Uint8Array.from(Array.from({ length: 32 }, () => 9));
+
+  assert.throws(
+    () => validateLiveFifthMoveConfigFields(config, wrongServerSigner),
+    /fifth_move_signer_mismatch/,
+  );
+});
+
+test("disabled FifthMoveConfig with malformed public key returns malformed signer before disabled", () => {
+  const { config, signerPublicKey } = validParsedConfig({
+    enabled: false,
+    signerPublicKey: Uint8Array.from([1, 2, 3]),
+  });
+
+  assert.throws(
+    () => validateLiveFifthMoveConfigFields(config, signerPublicKey),
+    /fifth_move_config_malformed_signer/,
+  );
+});
+
+test("disabled FifthMoveConfig validates TREE utility before returning disabled", () => {
+  const { config, signerPublicKey } = validParsedConfig({
+    enabled: false,
+    utilityCoin: "0x2::sui::SUI",
+  });
+
+  assert.throws(
+    () => validateLiveFifthMoveConfigFields(config, signerPublicKey),
+    /fifth_move_config_wrong_utility_coin/,
+  );
+});
+
+test("disabled FifthMoveConfig validates threshold before returning disabled", () => {
+  const { config, signerPublicKey } = validParsedConfig({
+    enabled: false,
+    minUnderlyingTreeRaw: "0",
+  });
+
+  assert.throws(
+    () => validateLiveFifthMoveConfigFields(config, signerPublicKey),
+    /fifth_move_config_invalid_threshold/,
+  );
+});
+
+test("disabled FifthMoveConfig validates config version before returning disabled", () => {
+  const { config, signerPublicKey } = validParsedConfig({
+    enabled: false,
+    configVersion: "0",
+  });
+
+  assert.throws(
+    () => validateLiveFifthMoveConfigFields(config, signerPublicKey),
+    /fifth_move_config_invalid_version/,
+  );
+});
+
+test("disabled FifthMoveConfig validates max age before returning disabled", () => {
+  const { config, signerPublicKey } = validParsedConfig({
+    enabled: false,
+    maxAttestationAgeMs: "0",
+  });
+
+  assert.throws(
+    () => validateLiveFifthMoveConfigFields(config, signerPublicKey),
+    /fifth_move_config_invalid_max_age/,
+  );
+});
+
+test("enabled FifthMoveConfig with matching signer returns validated config", () => {
+  const { config, signerPublicKey } = validParsedConfig();
+
+  const validated = validateLiveFifthMoveConfigFields(config, signerPublicKey);
+
+  assert.equal(validated.enabled, true);
+  assert.equal(validated.utilityCoin, TREE_COIN_TYPE);
+  assert.equal(validated.minUnderlyingTreeRaw, "1000000000000");
+  assert.equal(validated.configVersion, "1");
+  assert.equal(validated.maxAttestationAgeMs, "180000");
+  assert.deepEqual(Array.from(validated.signerPublicKey), Array.from(signerPublicKey));
 });
 
 test("PvpBattleV3Update parsing preserves target and ignores entitlement for scoring", () => {
