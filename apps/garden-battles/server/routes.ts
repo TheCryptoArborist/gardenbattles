@@ -86,7 +86,6 @@ function isEnvEnabled(value: string | undefined): boolean {
 }
 
 const BLOCKED_SUI_RPC_PROXY_METHODS = new Set([
-  "sui_executeTransactionBlock",
   "sui_dryRunTransactionBlock",
   "sui_devInspectTransactionBlock",
 ]);
@@ -94,6 +93,7 @@ const BLOCKED_SUI_RPC_PROXY_METHODS = new Set([
 export function isAllowedSuiRpcProxyMethod(method: unknown): method is string {
   if (typeof method !== "string") return false;
   if (method === "rpc.discover") return true;
+  if (method === "sui_executeTransactionBlock") return true;
   if (method.startsWith("unsafe_")) return false;
   if (BLOCKED_SUI_RPC_PROXY_METHODS.has(method)) return false;
   return (

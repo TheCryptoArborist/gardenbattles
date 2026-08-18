@@ -6,16 +6,17 @@ const GARDEN_BATTLES_API_BASE = (
   ((import.meta as any).env?.VITE_GARDEN_BATTLES_API_URL as string | undefined) ||
   DEFAULT_GARDEN_BATTLES_API_BASE
 ).replace(/\/$/, "");
+const DEFAULT_GARDEN_BATTLES_SUI_RPC_PROXY = `${GARDEN_BATTLES_API_BASE}/api/sui-rpc`;
 
 export const SUI_CONFIG = {
   NETWORK: "mainnet",
   CHAIN: "sui:mainnet",
   RPC_URL:
     ((import.meta as any).env?.VITE_SUI_RPC_URL as string | undefined) ||
-    DEFAULT_PUBLIC_SUI_RPC_URL,
+    DEFAULT_GARDEN_BATTLES_SUI_RPC_PROXY,
   READ_RPC_URL:
     ((import.meta as any).env?.VITE_SUI_READ_RPC_URL as string | undefined) ||
-    `${GARDEN_BATTLES_API_BASE}/api/sui-rpc`,
+    DEFAULT_GARDEN_BATTLES_SUI_RPC_PROXY,
   RPC_FALLBACK_URL:
     ((import.meta as any).env?.VITE_SUI_RPC_FALLBACK_URL as string | undefined) ||
     DEFAULT_PUBLIC_SUI_RPC_URL,
@@ -40,11 +41,14 @@ export const SUI_CONFIG = {
   MATCHMAKING_QUEUE_75_ID:
     "0x9d805e74d3a4412e4bb935ed383ad8f9dde00715632ea61704ccc4af804666cd",
   MATCHMAKING_QUEUE_V3_50_ID:
-    ((import.meta as any).env?.VITE_MATCHMAKING_QUEUE_V3_50_ID as string | undefined) || "",
+    ((import.meta as any).env?.VITE_MATCHMAKING_QUEUE_V3_50_ID as string | undefined) ||
+    "0xb380a69e611ad7636f2b7993fab6656c272c0802fd7a6ec35448a58956a0c38f",
   MATCHMAKING_QUEUE_V3_75_ID:
-    ((import.meta as any).env?.VITE_MATCHMAKING_QUEUE_V3_75_ID as string | undefined) || "",
+    ((import.meta as any).env?.VITE_MATCHMAKING_QUEUE_V3_75_ID as string | undefined) ||
+    "0x03e77c44e4ef2a6203a0d84378a4a8faf3acfb82ddfef84cd5e0bb243ff5abe1",
   FIFTH_MOVE_CONFIG_ID:
-    ((import.meta as any).env?.VITE_FIFTH_MOVE_CONFIG_ID as string | undefined) || "",
+    ((import.meta as any).env?.VITE_FIFTH_MOVE_CONFIG_ID as string | undefined) ||
+    "0x083a9303bd13b789e87f3e746b817a8723290f25414f3686ac8868f90a5020b3",
   BOT_ADDRESS:
     "0xbbe518c2a2025d2d95b9e5b6435911771f64d7d9fe037fbf2ec661981890d5b4",
   SAPLING_STRUCT:

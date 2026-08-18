@@ -62,13 +62,13 @@ async function withNftreeAccessEndpoint(
   }
 }
 
-test("Sui RPC proxy allowlist permits read/query methods and blocks write-like methods", () => {
+test("Sui RPC proxy allowlist permits read/query methods and signed transaction execution", () => {
   assert.equal(isAllowedSuiRpcProxyMethod("sui_getObject"), true);
   assert.equal(isAllowedSuiRpcProxyMethod("sui_multiGetObjects"), true);
   assert.equal(isAllowedSuiRpcProxyMethod("suix_getOwnedObjects"), true);
   assert.equal(isAllowedSuiRpcProxyMethod("suix_queryEvents"), true);
   assert.equal(isAllowedSuiRpcProxyMethod("rpc.discover"), true);
-  assert.equal(isAllowedSuiRpcProxyMethod("sui_executeTransactionBlock"), false);
+  assert.equal(isAllowedSuiRpcProxyMethod("sui_executeTransactionBlock"), true);
   assert.equal(isAllowedSuiRpcProxyMethod("sui_dryRunTransactionBlock"), false);
   assert.equal(isAllowedSuiRpcProxyMethod("sui_devInspectTransactionBlock"), false);
   assert.equal(isAllowedSuiRpcProxyMethod("unsafe_transferObject"), false);
@@ -146,7 +146,47 @@ test("Sui RPC proxy forwards Sui client metadata discovery", async () => {
   });
 });
 
-test("Sui RPC proxy blocks transaction execution methods", async () => {
+test("Sui RPC proxy forwards signed transaction execution without exposing the upstream URL", async () => {
+  let capturedUrl = "";
+  let capturedBody: any = null;
+  const fetchImpl: typeof fetch = async (input, init) => {
+    capturedUrl = String(input);
+    capturedBody = JSON.parse(String(init?.body));
+    return new Response(
+      JSON.stringify({
+        jsonrpc: "2.0",
+        id: capturedBody.id,
+        result: { digest: "9signedDigest", effects: { status: { status: "success" } } },
+      }),
+      {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      },
+    );
+  };
+
+  await withProxyEndpoint(fetchImpl, async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/api/sui-rpc`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 7,
+        method: "sui_executeTransactionBlock",
+        params: ["signed-by-wallet", ["signature"], { showEffects: true }],
+      }),
+    });
+
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.result.digest, "9signedDigest");
+    assert.equal(capturedUrl, "https://secret-rpc.example/jsonrpc?api_key=do-not-leak");
+    assert.equal(capturedBody.method, "sui_executeTransactionBlock");
+    assert.equal(JSON.stringify(body).includes("do-not-leak"), false);
+  });
+});
+
+test("Sui RPC proxy blocks dry run and dev inspect methods", async () => {
   const fetchImpl: typeof fetch = async () => {
     throw new Error("fetch should not be called for blocked methods");
   };
@@ -158,7 +198,7 @@ test("Sui RPC proxy blocks transaction execution methods", async () => {
       body: JSON.stringify({
         jsonrpc: "2.0",
         id: 7,
-        method: "sui_executeTransactionBlock",
+        method: "sui_devInspectTransactionBlock",
         params: [],
       }),
     });
