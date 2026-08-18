@@ -21,7 +21,6 @@ import {
   ConnectButton,
   useCurrentAccount,
   useSignAndExecuteTransaction,
-  useSignTransaction,
   useSuiClient,
 } from "@mysten/dapp-kit";
 import { Transaction } from "@mysten/sui/transactions";
@@ -1001,7 +1000,29 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
   const currentAccount = useCurrentAccount();
   const suiClient = useSuiClient();
   const { mutate: signAndExecuteTransaction } = useSignAndExecuteTransaction();
-  const { mutateAsync: signTransaction } = useSignTransaction();
+  const { mutateAsync: signAndExecutePvpJoinTransaction } =
+    useSignAndExecuteTransaction({
+      mutationKey: ["pvp-join"],
+      execute: async ({ bytes, signature }) => {
+        console.info("[pvp-join] executing signed transaction via app SuiClient");
+        const result = await suiClient.executeTransactionBlock({
+          transactionBlock: bytes,
+          signature,
+          options: {
+            showRawEffects: true,
+            showEffects: true,
+            showObjectChanges: true,
+          },
+        });
+        if (!result.rawEffects) {
+          throw new Error("Sui execution did not return raw effects for wallet confirmation");
+        }
+        return {
+          digest: result.digest,
+          rawEffects: result.rawEffects,
+        };
+      },
+    });
 
   const [battleState, setBattleState] = useState<BattleState | null>(null);
   const [isWaiting, setIsWaiting] = useState(false);
@@ -1831,38 +1852,11 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
         usesFifthMoveProof: Boolean(fifthMoveProof),
       });
 
-      let signedTx: Awaited<ReturnType<typeof signTransaction>>;
-      try {
-        signedTx = await signTransaction({ transaction: tx, chain: SUI_CONFIG.CHAIN });
-      } catch (err: any) {
-        console.error("[pvp-join] wallet signing failed", {
-          name: err?.name,
-          message: err?.message,
-          code: err?.code,
-          cause: err?.cause,
-          queueId: matchOption.queueId,
-          queueType: matchOption.queueType,
-          targetGrowth: matchOption.targetGrowth,
-          functionName: joinFunction,
-        });
-        throw err;
-      }
-
       let digest = "";
       try {
-        console.info("[pvp-join] signed transaction received; executing via app SuiClient", {
-          queueId: matchOption.queueId,
-          queueType: matchOption.queueType,
-          targetGrowth: matchOption.targetGrowth,
-          functionName: joinFunction,
-        });
-        const result = await suiClient.executeTransactionBlock({
-          transactionBlock: signedTx.bytes,
-          signature: signedTx.signature,
-          options: {
-            showEffects: true,
-            showObjectChanges: true,
-          },
+        const result = await signAndExecutePvpJoinTransaction({
+          transaction: tx,
+          chain: SUI_CONFIG.CHAIN,
         });
         digest = result.digest;
         console.info("[pvp-join] transaction submitted", {
@@ -1873,7 +1867,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
           functionName: joinFunction,
         });
       } catch (err: any) {
-        console.error("[pvp-join] signed transaction execution failed", {
+        console.error("[pvp-join] transaction submission failed", {
           name: err?.name,
           message: err?.message,
           code: err?.code,
@@ -1885,7 +1879,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
         });
         throw new Error(
           `PvP queue transaction failed after wallet approval: ${
-            err?.message ?? "Unknown transaction execution error"
+            err?.message ?? "Unknown transaction submission error"
           }`,
         );
       }
@@ -1960,7 +1954,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
       randomObjectId,
       refreshEntryFee,
       suiClient,
-      signTransaction,
+      signAndExecutePvpJoinTransaction,
       hydrateActivePvpBattle,
     ],
   );
