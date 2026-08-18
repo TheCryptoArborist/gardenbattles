@@ -73,9 +73,39 @@ const FIFTH_MOVE_ATTESTATION_RATE_LIMIT_MS = Number(
 );
 const FIFTH_MOVE_CONFIG_CACHE_MS = Number(process.env.FIFTH_MOVE_CONFIG_CACHE_MS ?? 30_000);
 const FIFTH_MOVE_CONFIG_READ_TIMEOUT_MS = Number(process.env.FIFTH_MOVE_CONFIG_READ_TIMEOUT_MS ?? 5_000);
+const SUI_RPC_PROXY_TIMEOUT_MS = Number(process.env.SUI_RPC_PROXY_TIMEOUT_MS ?? 10_000);
 
 function isEnvEnabled(value: string | undefined): boolean {
   return ["true", "1", "yes", "on"].includes((value ?? "").trim().toLowerCase());
+}
+
+const BLOCKED_SUI_RPC_PROXY_METHODS = new Set([
+  "sui_executeTransactionBlock",
+  "sui_dryRunTransactionBlock",
+  "sui_devInspectTransactionBlock",
+]);
+
+export function isAllowedSuiRpcProxyMethod(method: unknown): method is string {
+  if (typeof method !== "string") return false;
+  if (method.startsWith("unsafe_")) return false;
+  if (BLOCKED_SUI_RPC_PROXY_METHODS.has(method)) return false;
+  return (
+    method.startsWith("sui_get") ||
+    method.startsWith("sui_multiGet") ||
+    method.startsWith("suix_get") ||
+    method.startsWith("suix_query")
+  );
+}
+
+function extractSuiRpcProxyMethods(body: unknown): string[] {
+  const requests = Array.isArray(body) ? body : [body];
+  return requests
+    .map((request) =>
+      request && typeof request === "object"
+        ? (request as { method?: unknown }).method
+        : null,
+    )
+    .filter((method): method is string => typeof method === "string");
 }
 
 const DISABLE_SUI_RELAY = isEnvEnabled(process.env.DISABLE_SUI_RELAY);
@@ -476,6 +506,65 @@ export function createFifthMoveAttestationHandler(
       const reason = err instanceof Error ? err.message : "fifth_move_attestation_failed";
       const status = reason === "invalid_sui_address" ? 400 : 503;
       return res.status(status).json({ ok: false, reason });
+    }
+  };
+}
+
+export function createSuiRpcProxyHandler(options: {
+  upstreamUrl?: string;
+  fetchImpl?: typeof fetch;
+  timeoutMs?: number;
+} = {}): RequestHandler {
+  const upstreamUrl = options.upstreamUrl ?? SUI_RPC_URL;
+  const fetchImpl = options.fetchImpl ?? fetch;
+  const timeoutMs = options.timeoutMs ?? SUI_RPC_PROXY_TIMEOUT_MS;
+
+  return async (req, res) => {
+    const methods = extractSuiRpcProxyMethods(req.body);
+    if (methods.length === 0) {
+      return res.status(400).json({
+        jsonrpc: "2.0",
+        id: null,
+        error: { code: -32600, message: "Invalid Sui JSON-RPC request." },
+      });
+    }
+
+    const blockedMethod = methods.find((method) => !isAllowedSuiRpcProxyMethod(method));
+    if (blockedMethod) {
+      console.warn("[sui-rpc-proxy] blocked method", { method: blockedMethod });
+      return res.status(403).json({
+        jsonrpc: "2.0",
+        id: Array.isArray(req.body) ? null : req.body?.id ?? null,
+        error: { code: -32601, message: "Sui JSON-RPC method is not allowed by this proxy." },
+      });
+    }
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const upstreamResponse = await fetchImpl(upstreamUrl, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(req.body),
+        signal: controller.signal,
+      });
+      const text = await upstreamResponse.text();
+      res.status(upstreamResponse.status);
+      res.type(upstreamResponse.headers.get("content-type") ?? "application/json");
+      return res.send(text);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.warn("[sui-rpc-proxy] upstream request failed", {
+        methods,
+        message,
+      });
+      return res.status(503).json({
+        jsonrpc: "2.0",
+        id: Array.isArray(req.body) ? null : req.body?.id ?? null,
+        error: { code: -32000, message: "Sui RPC proxy upstream unavailable." },
+      });
+    } finally {
+      clearTimeout(timer);
     }
   };
 }
@@ -953,6 +1042,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`[relay] client disconnected: ${socket.id}`);
     });
   });
+
+  app.post("/api/sui-rpc", createSuiRpcProxyHandler());
 
   // ── REST: health check ──────────────────────────────────────────────────────
   app.get("/api/health", (_req, res) => {
