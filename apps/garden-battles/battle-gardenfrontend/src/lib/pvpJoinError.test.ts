@@ -44,6 +44,15 @@ test("post-wallet transaction failures do not look like prep failures", () => {
   );
 });
 
+test("queue-prep RPC failures are not double-wrapped", () => {
+  assert.equal(
+    formatPvpJoinFailureMessage(
+      "The Sui RPC request failed while preparing the queue join. Wait a moment and try again.",
+    ),
+    "The Sui RPC request failed while preparing the queue join. Wait a moment and try again.",
+  );
+});
+
 test("unknown errors are included without raw URLs", () => {
   assert.equal(
     formatPvpJoinFailureMessage(

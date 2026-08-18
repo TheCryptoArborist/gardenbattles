@@ -1759,9 +1759,12 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
       } catch (e: any) {
         if (e.message?.includes("Insufficient")) throw e;
         if (e instanceof SuiRpcReadError) {
-          throw new Error(
-            "The Sui RPC request failed while preparing the queue join. Wait a moment and try again.",
-          );
+          console.warn("[pvp-join] balance check unavailable; continuing to wallet approval", {
+            kind: e.kind,
+            status: e.status,
+            rpcCode: e.rpcCode,
+            rpcMessage: e.rpcMessage,
+          });
         }
       }
 

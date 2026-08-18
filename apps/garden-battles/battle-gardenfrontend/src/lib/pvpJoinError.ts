@@ -79,6 +79,8 @@ export function formatPvpJoinFailureMessage(message: string) {
     lowerMessage.includes("rate-limiting") ||
     lowerMessage.includes("too many requests") ||
     lowerMessage.includes("failed to fetch") ||
+    lowerMessage.includes("sui rpc request failed") ||
+    lowerMessage.includes("rpc request failed") ||
     lowerMessage.includes("network") ||
     lowerMessage.includes("timeout")
   ) {
