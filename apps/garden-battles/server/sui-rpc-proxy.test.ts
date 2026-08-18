@@ -40,6 +40,7 @@ test("Sui RPC proxy allowlist permits read/query methods and blocks write-like m
   assert.equal(isAllowedSuiRpcProxyMethod("sui_multiGetObjects"), true);
   assert.equal(isAllowedSuiRpcProxyMethod("suix_getOwnedObjects"), true);
   assert.equal(isAllowedSuiRpcProxyMethod("suix_queryEvents"), true);
+  assert.equal(isAllowedSuiRpcProxyMethod("rpc.discover"), true);
   assert.equal(isAllowedSuiRpcProxyMethod("sui_executeTransactionBlock"), false);
   assert.equal(isAllowedSuiRpcProxyMethod("sui_dryRunTransactionBlock"), false);
   assert.equal(isAllowedSuiRpcProxyMethod("sui_devInspectTransactionBlock"), false);
