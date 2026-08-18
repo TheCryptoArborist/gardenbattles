@@ -20,9 +20,11 @@ import {
 import {
   ConnectButton,
   useCurrentAccount,
+  useCurrentWallet,
   useSignAndExecuteTransaction,
   useSuiClient,
 } from "@mysten/dapp-kit";
+import { signAndExecuteTransaction as walletSignAndExecuteTransaction } from "@mysten/wallet-standard";
 import { Transaction } from "@mysten/sui/transactions";
 import { fromBase64 } from "@mysten/sui/utils";
 import {
@@ -998,31 +1000,9 @@ async function getBattleUpdateStateFromTransaction(
 
 export function SuiWalletProvider({ children }: { children: ReactNode }) {
   const currentAccount = useCurrentAccount();
+  const { currentWallet, supportedIntents } = useCurrentWallet();
   const suiClient = useSuiClient();
   const { mutate: signAndExecuteTransaction } = useSignAndExecuteTransaction();
-  const { mutateAsync: signAndExecutePvpJoinTransaction } =
-    useSignAndExecuteTransaction({
-      mutationKey: ["pvp-join"],
-      execute: async ({ bytes, signature }) => {
-        console.info("[pvp-join] executing signed transaction via app SuiClient");
-        const result = await suiClient.executeTransactionBlock({
-          transactionBlock: bytes,
-          signature,
-          options: {
-            showRawEffects: true,
-            showEffects: true,
-            showObjectChanges: true,
-          },
-        });
-        if (!result.rawEffects) {
-          throw new Error("Sui execution did not return raw effects for wallet confirmation");
-        }
-        return {
-          digest: result.digest,
-          rawEffects: result.rawEffects,
-        };
-      },
-    });
 
   const [battleState, setBattleState] = useState<BattleState | null>(null);
   const [isWaiting, setIsWaiting] = useState(false);
@@ -1854,9 +1834,19 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
 
       let digest = "";
       try {
-        const result = await signAndExecutePvpJoinTransaction({
-          transaction: tx,
+        if (!currentWallet || !currentAccount) {
+          throw new Error("Wallet disconnected before transaction approval");
+        }
+        const result = await walletSignAndExecuteTransaction(currentWallet, {
+          account: currentAccount,
           chain: SUI_CONFIG.CHAIN,
+          transaction: {
+            toJSON: async () =>
+              tx.toJSON({
+                client: suiClient,
+                supportedIntents,
+              }),
+          },
         });
         digest = result.digest;
         console.info("[pvp-join] transaction submitted", {
@@ -1954,7 +1944,9 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
       randomObjectId,
       refreshEntryFee,
       suiClient,
-      signAndExecutePvpJoinTransaction,
+      currentAccount,
+      currentWallet,
+      supportedIntents,
       hydrateActivePvpBattle,
     ],
   );
