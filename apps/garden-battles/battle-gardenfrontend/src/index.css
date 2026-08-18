@@ -3937,16 +3937,37 @@
     display: inline-flex;
     flex-direction: column;
     gap: 3px;
-    max-width: 230px;
+    max-width: min(360px, 100%);
     min-width: 0;
     vertical-align: middle;
   }
 
   .gb-leaderboard-player-primary {
     color: inherit;
+    display: inline-flex;
     font-weight: 800;
+    gap: 6px;
     line-height: 1.2;
-    overflow-wrap: anywhere;
+    max-width: 100%;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .gb-leaderboard-player-name-text {
+    display: inline-block;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .gb-leaderboard-player-identity-suins .gb-leaderboard-player-primary {
+    color: var(--gb-text);
+    font-family: Orbitron, sans-serif;
+    font-size: 14px;
+    font-weight: 900;
   }
 
   .gb-leaderboard-player-secondary {
@@ -3954,13 +3975,17 @@
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
     font-size: 10px;
     line-height: 1.1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .gb-leaderboard-player-you {
+    align-self: center;
     color: var(--gb-tree-green);
-    display: inline-block;
+    display: inline-flex;
+    flex: 0 0 auto;
     font-size: 10px;
-    margin-left: 6px;
     text-transform: uppercase;
   }
 
@@ -4002,6 +4027,8 @@
   .gb-leaderboard-mobile-card-head .gb-leaderboard-player-identity {
     align-items: flex-end;
     color: var(--gb-text);
+    flex: 1 1 auto;
+    max-width: min(280px, 74vw);
     min-width: 0;
     text-align: right;
   }
@@ -5726,6 +5753,18 @@
     font-weight: 800;
   }
 
+  .gb-leaderboard-podium-card .gb-leaderboard-player-identity {
+    align-items: center;
+    max-width: 100%;
+    width: 100%;
+  }
+
+  .gb-leaderboard-podium-card .gb-leaderboard-player-primary,
+  .gb-leaderboard-podium-card .gb-leaderboard-player-secondary {
+    max-width: 100%;
+    text-align: center;
+  }
+
   .gb-leaderboard-podium-card .gb-leaderboard-target-mix-items {
     justify-content: center;
   }
@@ -5820,7 +5859,7 @@
   .gb-leaderboard-table {
     border-collapse: separate;
     border-spacing: 0 10px;
-    min-width: 940px;
+    min-width: 1040px;
     width: 100%;
   }
 
@@ -5842,6 +5881,17 @@
     font-size: 13px;
     padding: 12px 10px;
     vertical-align: middle;
+  }
+
+  .gb-leaderboard-table th:nth-child(2),
+  .gb-leaderboard-table td:nth-child(2) {
+    min-width: 250px;
+    width: 30%;
+  }
+
+  .gb-leaderboard-table td:nth-child(2) .gb-leaderboard-player-identity {
+    max-width: 320px;
+    width: 100%;
   }
 
   .gb-leaderboard-table td:first-child {

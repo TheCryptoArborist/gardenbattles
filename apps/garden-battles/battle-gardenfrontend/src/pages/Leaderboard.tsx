@@ -148,11 +148,15 @@ function PlayerIdentity({
   suinsName: string | null | undefined;
 }) {
   const shortAddress = shortenAddress(address);
+  const displayName = suinsName || shortAddress;
 
   return (
-    <span className="gb-leaderboard-player-identity">
+    <span
+      className={`gb-leaderboard-player-identity ${suinsName ? "gb-leaderboard-player-identity-suins" : ""}`}
+      title={suinsName ? `${suinsName} (${shortAddress})` : address}
+    >
       <span className="gb-leaderboard-player-primary">
-        {suinsName || shortAddress}
+        <span className="gb-leaderboard-player-name-text">{displayName}</span>
         {isMe && <span className="gb-leaderboard-player-you">YOU</span>}
       </span>
       {suinsName && (
