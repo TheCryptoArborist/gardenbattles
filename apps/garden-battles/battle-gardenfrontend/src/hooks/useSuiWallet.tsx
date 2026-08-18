@@ -66,7 +66,10 @@ import {
   shouldSuppressQueueRecovery,
 } from "@/lib/pvpQueueLifecycle";
 import { isUsableFifthMoveProof } from "@/lib/fifthMoveRouting";
-import { buildDirectPvpJoinTransaction } from "@/lib/fifthMoveTransactions";
+import {
+  buildDirectPvpJoinTransaction,
+  buildKioskPvpJoinTransaction,
+} from "@/lib/fifthMoveTransactions";
 import {
   findDirectWalletNftByTypeFilter,
   mergeAllowedNftTypes,
@@ -1736,11 +1739,12 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
       }
 
       let tx: Transaction;
+      let joinFunction = "";
       const fifthMoveProof =
         matchOption.queueType === "v3" ? await getOptionalFifthMoveProof(address) : null;
 
       if (nftData.location === "wallet") {
-        tx = buildDirectPvpJoinTransaction({
+        const built = buildDirectPvpJoinTransaction({
           packageId: SUI_CONFIG.PACKAGE_ID,
           configId: SUI_CONFIG.CONFIG_ID,
           fifthMoveConfigId: SUI_CONFIG.FIFTH_MOVE_CONFIG_ID,
@@ -1751,67 +1755,40 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
           entryFeeMist: liveEntryFeeMist,
           randomObjectId,
           fifthMoveProof,
-        }).tx;
-      } else if (nftData.kioskId && nftData.kioskCapId) {
-        tx = new Transaction();
-        const [fee] =
-          liveEntryFeeMist === 0
-            ? [
-                tx.moveCall({
-                  target: "0x2::coin::zero",
-                  typeArguments: ["0x2::sui::SUI"],
-                  arguments: [],
-                }),
-              ]
-            : tx.splitCoins(tx.gas, [tx.pure.u64(liveEntryFeeMist)]);
-        const joinFunction =
-          matchOption.queueType === "v3"
-            ? fifthMoveProof
-              ? "join_queue_v3_with_fifth_move_from_kiosk"
-              : "join_queue_v3_from_kiosk"
-            : matchOption.queueType === "v2"
-              ? "join_queue_v2_from_kiosk"
-              : "join_queue_from_kiosk";
-        const args =
-          matchOption.queueType === "v3" && fifthMoveProof
-            ? [
-                tx.object(SUI_CONFIG.CONFIG_ID),
-                tx.object(SUI_CONFIG.FIFTH_MOVE_CONFIG_ID),
-                tx.object(matchOption.queueId),
-                tx.object(nftData.kioskId),
-                tx.object(nftData.kioskCapId),
-                tx.pure.address(nftData.nftId),
-                fee,
-                tx.pure.vector("u8", fifthMoveProof.signatureBytes),
-                tx.pure.bool(fifthMoveProof.payload.qualified),
-                tx.pure.u64(fifthMoveProof.payload.verified_underlying_tree_raw),
-                tx.pure.u64(fifthMoveProof.payload.threshold_raw),
-                tx.pure.u8(fifthMoveProof.payload.source_bitmap),
-                tx.pure.u64(fifthMoveProof.payload.config_version),
-                tx.pure.u64(fifthMoveProof.payload.issued_at_ms),
-                tx.pure.u64(fifthMoveProof.payload.expires_at_ms),
-                tx.object("0x6"),
-                tx.object(randomObjectId),
-              ]
-            : [
-                tx.object(SUI_CONFIG.CONFIG_ID),
-                tx.object(matchOption.queueId),
-                tx.object(nftData.kioskId),
-                tx.object(nftData.kioskCapId),
-                tx.pure.address(nftData.nftId),
-                fee,
-                tx.object(randomObjectId),
-              ];
-        tx.moveCall({
-          target: `${SUI_CONFIG.PACKAGE_ID}::matchmaking::${joinFunction}`,
-          typeArguments: [nftData.nftType],
-          arguments: args,
         });
+        tx = built.tx;
+        joinFunction = built.functionName;
+      } else if (nftData.kioskId && nftData.kioskCapId) {
+        const built = buildKioskPvpJoinTransaction({
+          packageId: SUI_CONFIG.PACKAGE_ID,
+          configId: SUI_CONFIG.CONFIG_ID,
+          fifthMoveConfigId: SUI_CONFIG.FIFTH_MOVE_CONFIG_ID,
+          queueId: matchOption.queueId,
+          kioskId: nftData.kioskId,
+          kioskCapId: nftData.kioskCapId,
+          nftId: nftData.nftId,
+          nftType: nftData.nftType,
+          queueType: matchOption.queueType,
+          entryFeeMist: liveEntryFeeMist,
+          randomObjectId,
+          fifthMoveProof,
+        });
+        tx = built.tx;
+        joinFunction = built.functionName;
       } else {
         throw new Error("Invalid NFT location data");
       }
 
       tx.setSender(address);
+      console.info("[pvp-join] wallet approval requested", {
+        queueId: matchOption.queueId,
+        queueType: matchOption.queueType,
+        targetGrowth: matchOption.targetGrowth,
+        functionName: joinFunction,
+        entryFeeMist: liveEntryFeeMist,
+        nftLocation: nftData.location,
+        usesFifthMoveProof: Boolean(fifthMoveProof),
+      });
 
       return new Promise<void>((resolve, reject) => {
         signAndExecuteTransaction(
@@ -1851,7 +1828,16 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
               resolve();
             },
             onError: (err: any) => {
-              console.error("join_queue tx failed:", err);
+              console.error("[pvp-join] transaction failed", {
+                name: err?.name,
+                message: err?.message,
+                code: err?.code,
+                cause: err?.cause,
+                queueId: matchOption.queueId,
+                queueType: matchOption.queueType,
+                targetGrowth: matchOption.targetGrowth,
+                functionName: joinFunction,
+              });
               reject(new Error(err?.message ?? "Failed to join battle"));
             },
           },

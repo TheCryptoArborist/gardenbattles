@@ -22,6 +22,10 @@ import ForestPower from "@/components/ForestPower";
 import { appAsset } from "@/lib/assets";
 import { appRoute } from "@/lib/routes";
 import { resolvePvpQueueUiAfterRefund } from "@/lib/pvpQueueState";
+import {
+  formatPvpJoinFailureMessage,
+  isWalletCancelMessage,
+} from "@/lib/pvpJoinError";
 import TreePowerPanel from "@/components/TreePowerPanel";
 import TreeEcosystemStatus from "@/components/TreeEcosystemStatus";
 import PrizePayoutPanel from "@/components/PrizePayoutPanel";
@@ -176,16 +180,6 @@ function formatSuiAmount(mist: number) {
   return `${(mist / 1e9).toLocaleString(undefined, {
     maximumFractionDigits: 9,
   })} SUI`;
-}
-
-function isWalletCancelMessage(message: string) {
-  const lowerMessage = message.toLowerCase();
-  return (
-    lowerMessage.includes("reject") ||
-    lowerMessage.includes("cancel") ||
-    lowerMessage.includes("denied") ||
-    lowerMessage.includes("declined")
-  );
 }
 
 function formatRefundFailureMessage(message: string) {
@@ -389,9 +383,9 @@ export default function Battle() {
       const nftData = await getFirstValidSaplingNft(address!);
 
       if (nftData) {
-        setDialogKind("pvp-join-pending");
+        setDialogKind("info");
         setDialogMessage(
-          `Joining PvP queue\n\n${selectedPvpMatchLabel}\n\nWaiting for wallet approval.\n\nApprove or reject the request in your wallet.`,
+          `Preparing PvP queue entry\n\n${selectedPvpMatchLabel}\n\nChecking on-chain settings before wallet approval.`,
         );
         setPlayerNftImageUrl(nftData.imageUrl || null);
         await joinBattle(nftData, selectedPvpTarget);
@@ -411,23 +405,9 @@ export default function Battle() {
     } catch (error: any) {
       const message = error?.message || "";
       const isCancelled = isWalletCancelMessage(message);
-      const isInactiveMatchType = message.includes(
-        "This match type is not active yet",
-      );
-      const nftScanFailed = message
-        .toLowerCase()
-        .includes("could not scan your nftrees");
       setDialogOpen(true);
       setDialogKind(isCancelled ? "pvp-join-cancelled" : "pvp-join-error");
-      setDialogMessage(
-        isInactiveMatchType
-          ? "This match type is not active yet."
-          : nftScanFailed
-            ? "Could not scan your NFTrees because the Sui RPC request failed. Wait a moment and try again."
-          : isCancelled
-          ? "Queue join cancelled in wallet."
-          : "Could not join the PvP queue. Try again.",
-      );
+      setDialogMessage(formatPvpJoinFailureMessage(message));
     } finally {
       setIsJoining(false);
     }
