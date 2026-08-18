@@ -66,6 +66,13 @@ import {
 } from "@/lib/pvpQueueLifecycle";
 import { isUsableFifthMoveProof } from "@/lib/fifthMoveRouting";
 import { buildDirectPvpJoinTransaction } from "@/lib/fifthMoveTransactions";
+import {
+  findDirectWalletNftByTypeFilter,
+  mergeAllowedNftTypes,
+  readAllowedNftTypesFromStorage,
+  scanWalletAndKiosksForNft,
+  type NftData,
+} from "@/lib/nftreeAccess";
 import { readSuiObjectWithRetry, SuiRpcReadError } from "@/lib/suiRpc";
 
 const POST_REFUND_VERIFICATION_RETRY_DELAYS_MS = [
@@ -104,15 +111,6 @@ export interface BattleState {
   lastTransactionDigest?: string;
   resolvedMoveId?: number | null;
   resolvedMoveSource?: "local" | "transaction" | "unavailable";
-}
-
-export interface NftData {
-  nftId: string;
-  nftType: string;
-  location: "wallet" | "kiosk";
-  kioskId?: string;
-  kioskCapId?: string;
-  imageUrl?: string;
 }
 
 export interface PvpQueueState {
@@ -1640,10 +1638,10 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
   // ── 4. Scan wallet / kiosks for a valid NFT ───────────────────────────────
   const getFirstValidSaplingNft = useCallback(
     async (owner: string): Promise<NftData | null> => {
-      const stored = localStorage.getItem("allowed_nft_collections");
-      let allowedTypes: string[] = stored
-        ? JSON.parse(stored).map((c: any) => c.type)
-        : [SUI_CONFIG.SAPLING_STRUCT];
+      let allowedTypes = readAllowedNftTypesFromStorage(
+        typeof localStorage === "undefined" ? null : localStorage,
+        SUI_CONFIG.SAPLING_STRUCT,
+      );
 
       // Fetch on-chain whitelisted collections to ensure we have the latest global list
       try {
@@ -1668,120 +1666,25 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
             return typeNameStr;
           });
           // Merge allowed types
-          allowedTypes = Array.from(
-            new Set([...allowedTypes, ...onChainTypes]),
-          );
+          allowedTypes = mergeAllowedNftTypes(allowedTypes, onChainTypes);
         }
       } catch (err) {
         console.error("Failed to fetch on-chain config collections:", err);
       }
 
-      const kiosks = new Map<string, string>(); // kioskId → ownerCapId
-      let cursor: string | null = null;
-
       try {
-        do {
-          const res = await suiClient.getOwnedObjects({
-            owner,
-            options: { showType: true, showContent: true },
-            cursor: cursor || undefined,
-            limit: 50,
-          });
+        const directNft = await findDirectWalletNftByTypeFilter(
+          suiClient,
+          owner,
+          allowedTypes,
+        );
+        if (directNft) return directNft;
 
-          for (const obj of res.data) {
-            const type = obj?.data?.type;
-            if (!type) continue;
-
-            if (type.includes("::kiosk::KioskOwnerCap")) {
-              const capId = obj?.data?.objectId;
-              // @ts-ignore
-              const kioskId =
-                // @ts-ignore
-                obj?.data?.content?.fields?.for?.fields?.kiosk_id ||
-                // @ts-ignore
-                obj?.data?.content?.fields?.kiosk_id ||
-                // @ts-ignore
-                obj?.data?.content?.fields?.for;
-              if (kioskId && capId) kiosks.set(kioskId, capId);
-            }
-
-            if (allowedTypes.includes(type)) {
-              const id = obj?.data?.objectId;
-              // Extract image from Display or object field
-              // @ts-ignore
-              const displayUrl = obj?.data?.display?.data?.image_url;
-              // @ts-ignore
-              const contentUrlField = obj?.data?.content?.fields?.image_url;
-              // Handle case where image_url is a Url struct { url: string }
-              const contentUrl =
-                typeof contentUrlField === "string"
-                  ? contentUrlField
-                  : contentUrlField?.fields?.url || contentUrlField?.url || "";
-
-              const imageUrl = displayUrl || contentUrl || "";
-
-              if (id)
-                return {
-                  nftId: id,
-                  nftType: type,
-                  location: "wallet",
-                  imageUrl,
-                };
-            }
-          }
-
-          cursor = res.hasNextPage ? (res.nextCursor ?? null) : null;
-        } while (cursor);
-
-        for (const [kioskId, ownerCapId] of Array.from(kiosks.entries())) {
-          try {
-            const fields = await suiClient.getDynamicFields({
-              parentId: kioskId,
-            });
-            for (const field of fields.data) {
-              const fieldType = field?.name?.type ?? "";
-              if (fieldType.includes("::Lock")) continue;
-              // @ts-ignore
-              const nftId = field?.name?.value?.id;
-              if (!nftId) continue;
-
-              const obj = await suiClient.getObject({
-                id: nftId,
-                options: { showType: true, showContent: true },
-              });
-
-              if (obj?.data?.type && allowedTypes.includes(obj.data.type)) {
-                if (fieldType.includes("::Item")) {
-                  // @ts-ignore
-                  const displayUrl = obj?.data?.display?.data?.image_url;
-                  // @ts-ignore
-                  const contentUrlField = obj?.data?.content?.fields?.image_url;
-                  const contentUrl =
-                    typeof contentUrlField === "string"
-                      ? contentUrlField
-                      : contentUrlField?.fields?.url ||
-                        contentUrlField?.url ||
-                        "";
-
-                  const imageUrl = displayUrl || contentUrl || "";
-
-                  return {
-                    nftId,
-                    nftType: obj.data.type,
-                    location: "kiosk",
-                    kioskId,
-                    kioskCapId: ownerCapId,
-                    imageUrl,
-                  };
-                }
-              }
-            }
-          } catch {
-            // skip bad kiosk
-          }
-        }
-
-        return null;
+        return await scanWalletAndKiosksForNft(
+          suiClient,
+          owner,
+          allowedTypes,
+        );
       } catch (err) {
         console.error("NFT scan error:", err);
         throw new Error(
