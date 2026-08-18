@@ -22,6 +22,7 @@ import {
   getEmptyModeMessage,
   getModeLabel,
   getPlayerRecordHeading,
+  getPvpTargetMixItems,
   getRankProgress,
   isConnectedWallet,
   orderPodiumForDesktop,
@@ -187,6 +188,31 @@ function BadgeChips({ badges }: { badges: string[] }) {
   );
 }
 
+function PvpTargetMix({
+  counts,
+  compact = false,
+}: {
+  counts: LeaderboardEntry["pvp_target_counts"] | PlayerStats["pvp_target_counts"];
+  compact?: boolean;
+}) {
+  const items = getPvpTargetMixItems(counts);
+  if (items.length === 0) return null;
+
+  return (
+    <div className={`gb-leaderboard-target-mix ${compact ? "gb-leaderboard-target-mix-compact" : ""}`}>
+      {!compact && <span className="gb-leaderboard-target-mix-label">Match Mix</span>}
+      <span className="gb-leaderboard-target-mix-items">
+        {items.map((item) => (
+          <span key={item.label}>
+            <strong>{item.value}</strong>
+            {item.label}
+          </span>
+        ))}
+      </span>
+    </div>
+  );
+}
+
 function RankBadge({ entry, compact = false }: { entry: Pick<LeaderboardEntry | PlayerStats, "rank_title" | "ranked" | "total_battles">; compact?: boolean }) {
   const rankTitle = getDisplayRankTitle(entry);
   const isProvisional = entry.ranked === false || entry.total_battles < 3;
@@ -239,6 +265,7 @@ function CurrentPlayerCard({
           <span><strong>{stats.total_battles}</strong><small>Battles</small></span>
           <span><strong>{stats.recent_result ?? "-"}</strong><small>Recent</small></span>
         </div>
+        {mode === "pvp" && <PvpTargetMix counts={stats.pvp_target_counts} />}
         <div className="gb-leaderboard-progress-block">
           <div className="gb-leaderboard-progress-head">
             <span>
@@ -284,6 +311,7 @@ function PodiumCard({
         <span>{formatWinRate(entry.win_rate)}</span>
         <span className={streakClass(entry.current_streak)}>{formatStreak(entry.current_streak)}</span>
       </div>
+      <PvpTargetMix counts={entry.pvp_target_counts} compact />
       <BadgeChips badges={entry.badges.slice(0, 1)} />
     </article>
   );
@@ -534,6 +562,7 @@ export default function Leaderboard() {
                       <th>Rank</th>
                       <th>Record</th>
                       <th>Win Rate</th>
+                      {mode === "pvp" && <th>Match Mix</th>}
                       <th>Streak</th>
                       <th>Last Played</th>
                     </tr>
@@ -564,6 +593,11 @@ export default function Leaderboard() {
                             </span>
                           </td>
                           <td>{formatWinRate(entry.win_rate)}</td>
+                          {mode === "pvp" && (
+                            <td>
+                              <PvpTargetMix counts={entry.pvp_target_counts} compact />
+                            </td>
+                          )}
                           <td className={streakClass(entry.current_streak)}>
                             {formatStreak(entry.current_streak)}
                           </td>
@@ -602,6 +636,12 @@ export default function Leaderboard() {
                       <dl className="gb-leaderboard-mobile-stats">
                         <div><dt>Record</dt><dd>{formatRecord(entry.wins, entry.losses)}</dd></div>
                         <div><dt>Win Rate</dt><dd>{formatWinRate(entry.win_rate)}</dd></div>
+                        {mode === "pvp" && (
+                          <div className="gb-leaderboard-mobile-span">
+                            <dt>Match Mix</dt>
+                            <dd><PvpTargetMix counts={entry.pvp_target_counts} compact /></dd>
+                          </div>
+                        )}
                         <div><dt>Streak</dt><dd className={streakClass(entry.current_streak)}>{formatStreak(entry.current_streak)}</dd></div>
                         <div><dt>Last Played</dt><dd>{formatLastPlayed(entry.last_played)}</dd></div>
                       </dl>

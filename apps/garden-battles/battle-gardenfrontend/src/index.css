@@ -5548,6 +5548,58 @@
     text-transform: uppercase;
   }
 
+  .gb-leaderboard-target-mix {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 14px;
+    min-width: 0;
+  }
+
+  .gb-leaderboard-target-mix-label {
+    color: rgba(234, 255, 246, 0.58);
+    font-size: 10px;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .gb-leaderboard-target-mix-items {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 7px;
+    min-width: 0;
+  }
+
+  .gb-leaderboard-target-mix-items span {
+    align-items: center;
+    background: rgba(0, 213, 199, 0.1);
+    border: 1px solid rgba(0, 213, 199, 0.24);
+    border-radius: 999px;
+    color: rgba(234, 255, 246, 0.76);
+    display: inline-flex;
+    font-size: 10px;
+    font-weight: 900;
+    gap: 5px;
+    line-height: 1;
+    padding: 6px 8px;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .gb-leaderboard-target-mix-items strong {
+    color: var(--gb-gold);
+    font-family: Orbitron, sans-serif;
+    font-size: 11px;
+    line-height: 1;
+  }
+
+  .gb-leaderboard-target-mix-compact {
+    justify-content: center;
+    margin-top: 0;
+  }
+
   .gb-leaderboard-progress-block {
     margin-top: 16px;
   }
@@ -5674,6 +5726,15 @@
     font-weight: 800;
   }
 
+  .gb-leaderboard-podium-card .gb-leaderboard-target-mix-items {
+    justify-content: center;
+  }
+
+  .gb-leaderboard-podium-card .gb-leaderboard-target-mix-items span {
+    background: rgba(255, 211, 78, 0.1);
+    border-color: rgba(255, 211, 78, 0.24);
+  }
+
   .gb-leaderboard-is-me,
   .gb-leaderboard-row-current,
   .gb-leaderboard-mobile-card-current {
@@ -5759,7 +5820,7 @@
   .gb-leaderboard-table {
     border-collapse: separate;
     border-spacing: 0 10px;
-    min-width: 860px;
+    min-width: 940px;
     width: 100%;
   }
 
@@ -5794,6 +5855,16 @@
   .gb-leaderboard-table td:last-child {
     border-radius: 0 8px 8px 0;
     border-right: 1px solid rgba(0, 213, 199, 0.13);
+  }
+
+  .gb-leaderboard-table .gb-leaderboard-target-mix {
+    justify-content: flex-start;
+    min-width: 150px;
+  }
+
+  .gb-leaderboard-table .gb-leaderboard-target-mix-items span {
+    font-size: 9px;
+    padding: 5px 7px;
   }
 
   .gb-leaderboard-record {
@@ -5930,6 +6001,10 @@
 
   .gb-leaderboard-mobile-stats {
     margin-top: 0;
+  }
+
+  .gb-leaderboard-mobile-stats .gb-leaderboard-target-mix {
+    justify-content: flex-start;
   }
 
   .gb-leaderboard-rules summary {

@@ -1,4 +1,9 @@
-import type { LeaderboardEntry, LeaderboardMode, PlayerStats } from "./api";
+import type {
+  LeaderboardEntry,
+  LeaderboardMode,
+  PlayerStats,
+  PvpTargetCounts,
+} from "./api";
 
 export const BATTLE_RANKS = [
   "Grove Recruit",
@@ -153,4 +158,15 @@ export function getEmptyModeMessage(mode: LeaderboardMode): string {
   if (mode === "bot") return "No verified Garden Bot battles have been recorded yet.";
   if (mode === "overall") return "No verified Garden Battles have been recorded yet.";
   return "No verified PvP battles have been recorded yet.";
+}
+
+export function getPvpTargetMixItems(
+  counts?: PvpTargetCounts | null,
+): Array<{ label: string; value: number }> {
+  if (!counts) return [];
+  return [
+    { label: "Quick 50", value: counts.quick_50 ?? 0 },
+    { label: "Standard 75", value: counts.standard_75 ?? 0 },
+    { label: "Legacy 100", value: counts.legacy_100 ?? 0 },
+  ].filter((item) => item.value > 0);
 }

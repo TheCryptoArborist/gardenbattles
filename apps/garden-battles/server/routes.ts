@@ -1322,6 +1322,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           last_played: null,
           recent_result: null,
           ranked: false,
+          pvp_target_counts: {
+            quick_50: 0,
+            standard_75: 0,
+            legacy_100: 0,
+          },
         });
       }
 
@@ -1341,6 +1346,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         last_played: modeStats.last_played,
         recent_result: modeStats.recent_result,
         ranked: modeStats.ranked,
+        pvp_target_counts: modeStats.pvp_target_counts,
       });
     }
 

@@ -215,6 +215,11 @@ export interface LeaderboardEntry {
   last_played: number | null;
   recent_result: "Win" | "Loss" | null;
   ranked: boolean;
+  pvp_target_counts?: {
+    quick_50: number;
+    standard_75: number;
+    legacy_100: number;
+  };
 }
 
 // ─── Prepared statements ───────────────────────────────────────────────────────
@@ -470,6 +475,11 @@ interface DerivedLeaderboardStats {
   last_played: number | null;
   last_win_at: number | null;
   recent_result: "Win" | "Loss" | null;
+  pvp_target_counts: {
+    quick_50: number;
+    standard_75: number;
+    legacy_100: number;
+  };
 }
 
 function createDerivedStats(address: string): DerivedLeaderboardStats {
@@ -482,6 +492,11 @@ function createDerivedStats(address: string): DerivedLeaderboardStats {
     last_played: null,
     last_win_at: null,
     recent_result: null,
+    pvp_target_counts: {
+      quick_50: 0,
+      standard_75: 0,
+      legacy_100: 0,
+    },
   };
 }
 
@@ -496,6 +511,7 @@ function addResult(
   address: string,
   won: boolean,
   finishedAt: number,
+  targetGrowth?: number | null,
 ) {
   const normalized = address.toLowerCase();
   const stats = statsByAddress.get(normalized) ?? createDerivedStats(normalized);
@@ -511,6 +527,13 @@ function addResult(
   if (!stats.last_played || finishedAt > stats.last_played) {
     stats.last_played = finishedAt;
     stats.recent_result = won ? "Win" : "Loss";
+  }
+  if (targetGrowth === 50) {
+    stats.pvp_target_counts.quick_50 += 1;
+  } else if (targetGrowth === 75) {
+    stats.pvp_target_counts.standard_75 += 1;
+  } else if (targetGrowth === 100) {
+    stats.pvp_target_counts.legacy_100 += 1;
   }
   statsByAddress.set(normalized, stats);
 }
@@ -530,8 +553,21 @@ function getDerivedLeaderboard(mode: LeaderboardMode): DerivedLeaderboardStats[]
       continue;
     }
 
-    addResult(statsByAddress, player1, winner === player1, record.finished_at);
-    addResult(statsByAddress, player2, winner === player2, record.finished_at);
+    const pvpTargetGrowth = record.target_growth ?? 100;
+    addResult(
+      statsByAddress,
+      player1,
+      winner === player1,
+      record.finished_at,
+      pvpTargetGrowth,
+    );
+    addResult(
+      statsByAddress,
+      player2,
+      winner === player2,
+      record.finished_at,
+      pvpTargetGrowth,
+    );
   }
 
   return Array.from(statsByAddress.values());
@@ -593,6 +629,7 @@ export function getLeaderboard(
       last_played: row.last_played,
       recent_result: row.recent_result,
       ranked: totalBattles >= 3,
+      pvp_target_counts: row.pvp_target_counts,
     };
   });
 }

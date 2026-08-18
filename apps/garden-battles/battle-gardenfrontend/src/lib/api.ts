@@ -103,6 +103,13 @@ export interface PlayerStats {
   last_played?: number | null;
   recent_result?: "Win" | "Loss" | null;
   ranked?: boolean;
+  pvp_target_counts?: PvpTargetCounts;
+}
+
+export interface PvpTargetCounts {
+  quick_50: number;
+  standard_75: number;
+  legacy_100: number;
 }
 
 export interface LeaderboardEntry {
@@ -119,6 +126,7 @@ export interface LeaderboardEntry {
   last_played: number | null;
   recent_result: "Win" | "Loss" | null;
   ranked: boolean;
+  pvp_target_counts?: PvpTargetCounts;
 }
 
 export type FifthMoveSource = "suidex-v2" | "suidex-v3" | "moonbags-staking";

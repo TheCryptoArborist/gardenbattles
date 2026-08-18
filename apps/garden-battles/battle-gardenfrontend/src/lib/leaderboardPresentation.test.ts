@@ -6,6 +6,7 @@ import {
   getEmptyModeMessage,
   getModeLabel,
   getPlayerRecordHeading,
+  getPvpTargetMixItems,
   getRankProgress,
   isConnectedWallet,
   orderPodiumForDesktop,
@@ -145,5 +146,20 @@ describe("leaderboard presentation helpers", () => {
   it("empty states point at the selected mode", () => {
     assert.match(getEmptyModeMessage("pvp"), /PvP/);
     assert.match(getEmptyModeMessage("bot"), /Garden Bot/);
+  });
+
+  it("pvp target mix only includes played match lengths", () => {
+    assert.deepEqual(
+      getPvpTargetMixItems({
+        quick_50: 2,
+        standard_75: 1,
+        legacy_100: 0,
+      }),
+      [
+        { label: "Quick 50", value: 2 },
+        { label: "Standard 75", value: 1 },
+      ],
+    );
+    assert.deepEqual(getPvpTargetMixItems(null), []);
   });
 });
