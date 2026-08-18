@@ -2689,6 +2689,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
     try {
       const confirmedRefund = await suiClient.waitForTransaction({
         digest: result.digest,
+        timeout: 20_000,
         options: {
           showEffects: true,
           showObjectChanges: true,
@@ -2717,9 +2718,18 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
         cause: err?.cause,
         status: err?.status ?? err?.response?.status ?? err?.cause?.status,
       });
+      const confirmationMessage = String(err?.message ?? err ?? "");
+      if (
+        /timeout|timed out|failed to fetch|fetch failed|network|transport/i.test(
+          confirmationMessage,
+        )
+      ) {
+        verificationNotice = POST_REFUND_SYNCING_NOTICE;
+      } else {
       throw new Error(
         `Refund transaction was submitted, but confirmation could not be loaded: ${err?.message ?? "Unknown confirmation error"}`,
       );
+      }
     }
 
     setPvpQueueState(null);
