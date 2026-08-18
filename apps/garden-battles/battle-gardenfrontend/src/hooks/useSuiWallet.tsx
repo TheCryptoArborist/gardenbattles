@@ -1737,11 +1737,20 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
         liveEntryFeeMist = await refreshEntryFee();
       } catch (e) {
         if (e instanceof SuiRpcReadError) {
-          throw new Error(
-            "The Sui RPC request failed while preparing the queue join. Wait a moment and try again.",
-          );
+          liveEntryFeeMist =
+            Number.isFinite(entryFeeMist) && entryFeeMist > 0
+              ? entryFeeMist
+              : SUI_CONFIG.ENTRY_FEE;
+          console.warn("[pvp-join] entry fee read unavailable; using cached fee", {
+            entryFeeMist: liveEntryFeeMist,
+            kind: e.kind,
+            status: e.status,
+            rpcCode: e.rpcCode,
+            rpcMessage: e.rpcMessage,
+          });
+        } else {
+          throw e;
         }
-        throw e;
       }
 
       // Balance check
@@ -1882,6 +1891,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
     },
     [
       address,
+      entryFeeMist,
       randomObjectId,
       refreshEntryFee,
       suiClient,
