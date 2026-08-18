@@ -1,7 +1,11 @@
 const API_UNAVAILABLE_MESSAGE =
   "Leaderboard backend is not connected on this deployment yet.";
 
-const API_BASE = ((import.meta.env?.VITE_GARDEN_BATTLES_API_URL ?? "") as string).replace(/\/$/, "");
+const DEFAULT_API_BASE = "https://gardenbattles-production.up.railway.app";
+const API_BASE = (
+  (import.meta.env?.VITE_GARDEN_BATTLES_API_URL as string | undefined) ??
+  DEFAULT_API_BASE
+).replace(/\/$/, "");
 
 function apiUrl(path: string): string {
   return `${API_BASE}${path.startsWith("/") ? path : `/${path}`}`;
