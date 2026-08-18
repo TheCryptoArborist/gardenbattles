@@ -83,6 +83,42 @@ test("Sui RPC proxy forwards an allowed read request without exposing the upstre
   });
 });
 
+test("Sui RPC proxy forwards Sui client metadata discovery", async () => {
+  let capturedBody: any = null;
+  const fetchImpl: typeof fetch = async (_input, init) => {
+    capturedBody = JSON.parse(String(init?.body));
+    return new Response(
+      JSON.stringify({
+        jsonrpc: "2.0",
+        id: capturedBody.id,
+        result: { methods: [] },
+      }),
+      {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      },
+    );
+  };
+
+  await withProxyEndpoint(fetchImpl, async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/api/sui-rpc`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 2,
+        method: "rpc.discover",
+        params: [],
+      }),
+    });
+
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.deepEqual(body.result, { methods: [] });
+    assert.equal(capturedBody.method, "rpc.discover");
+  });
+});
+
 test("Sui RPC proxy blocks transaction execution methods", async () => {
   const fetchImpl: typeof fetch = async () => {
     throw new Error("fetch should not be called for blocked methods");
