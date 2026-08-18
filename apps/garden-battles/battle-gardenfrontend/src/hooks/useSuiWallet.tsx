@@ -42,6 +42,7 @@ import {
   type PvpMatchTarget,
 } from "@/lib/sui-config";
 import {
+  fetchNftreeAccess,
   requestFifthMoveAttestation,
   submitBattleRecord,
   type FifthMoveAttestationPayload,
@@ -1673,6 +1674,15 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
       }
 
       try {
+        try {
+          const serverAccess = await fetchNftreeAccess(owner);
+          if (serverAccess.nft) return serverAccess.nft;
+        } catch (err) {
+          console.warn("[nftree-access] server lookup unavailable", {
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+
         const directNft = await findDirectWalletNftByTypeFilter(
           suiClient,
           owner,

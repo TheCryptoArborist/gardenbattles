@@ -74,6 +74,12 @@ const FIFTH_MOVE_ATTESTATION_RATE_LIMIT_MS = Number(
 const FIFTH_MOVE_CONFIG_CACHE_MS = Number(process.env.FIFTH_MOVE_CONFIG_CACHE_MS ?? 30_000);
 const FIFTH_MOVE_CONFIG_READ_TIMEOUT_MS = Number(process.env.FIFTH_MOVE_CONFIG_READ_TIMEOUT_MS ?? 5_000);
 const SUI_RPC_PROXY_TIMEOUT_MS = Number(process.env.SUI_RPC_PROXY_TIMEOUT_MS ?? 10_000);
+const NFTREE_STRUCT_TYPE =
+  process.env.NFTREE_STRUCT_TYPE ||
+  "0xf6c6d439ea0da2f3e9ba79e4992a7a4c113215fbf54c442ac9020c315f953705::collection::NFT";
+const NFTREE_ACCESS_READ_TIMEOUT_MS = Number(
+  process.env.NFTREE_ACCESS_READ_TIMEOUT_MS ?? 5_000,
+);
 
 function isEnvEnabled(value: string | undefined): boolean {
   return ["true", "1", "yes", "on"].includes((value ?? "").trim().toLowerCase());
@@ -608,6 +614,68 @@ export function createSuiRpcProxyHandler(options: {
   };
 }
 
+function extractNftreeImageUrl(obj: any): string {
+  const displayUrl = obj?.data?.display?.data?.image_url;
+  const contentUrlField = obj?.data?.content?.fields?.image_url;
+  if (typeof displayUrl === "string" && displayUrl.trim()) return displayUrl;
+  if (typeof contentUrlField === "string") return contentUrlField;
+  return contentUrlField?.fields?.url || contentUrlField?.url || "";
+}
+
+export function createNftreeAccessHandler(options: {
+  client?: Pick<SuiClient, "getOwnedObjects">;
+  nftreeStructType?: string;
+  timeoutMs?: number;
+} = {}): RequestHandler {
+  const client = options.client ?? getSuiVerificationClient();
+  const nftreeStructType = options.nftreeStructType ?? NFTREE_STRUCT_TYPE;
+  const timeoutMs = options.timeoutMs ?? NFTREE_ACCESS_READ_TIMEOUT_MS;
+
+  return async (req, res) => {
+    const wallet = normalizeSuiAddress(req.params.address);
+    if (!wallet) {
+      return res.status(400).json({ ok: false, error: "invalid_sui_address" });
+    }
+
+    try {
+      const page = await withTimeout(
+        client.getOwnedObjects({
+          owner: wallet,
+          filter: { StructType: nftreeStructType },
+          options: { showType: true, showContent: true, showDisplay: true },
+          limit: 50,
+        }),
+        timeoutMs,
+        "nftree_access_read",
+      );
+
+      const match = page.data.find((obj: any) => obj?.data?.type === nftreeStructType);
+      if (!match?.data?.objectId) {
+        return res.json({ ok: true, nft: null });
+      }
+
+      return res.json({
+        ok: true,
+        nft: {
+          nftId: match.data.objectId,
+          nftType: nftreeStructType,
+          location: "wallet",
+          imageUrl: extractNftreeImageUrl(match),
+        },
+      });
+    } catch (err) {
+      console.warn("[nftree-access] server lookup failed", {
+        wallet,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      return res.status(503).json({
+        ok: false,
+        error: "nftree_access_unavailable",
+      });
+    }
+  };
+}
+
 // ─── In-memory battle state ────────────────────────────────────────────────────
 interface BattleState {
   battleId: string;
@@ -1083,6 +1151,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/sui-rpc", createSuiRpcProxyHandler());
+  app.get("/api/nftree-access/:address", createNftreeAccessHandler());
 
   // ── REST: health check ──────────────────────────────────────────────────────
   app.get("/api/health", (_req, res) => {

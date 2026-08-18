@@ -4,6 +4,7 @@ import { createServer, type Server } from "node:http";
 import test from "node:test";
 import express from "express";
 import {
+  createNftreeAccessHandler,
   createSuiRpcProxyHandler,
   isAllowedSuiRpcProxyMethod,
 } from "./routes";
@@ -19,6 +20,32 @@ async function withProxyEndpoint(
     createSuiRpcProxyHandler({
       upstreamUrl: "https://secret-rpc.example/jsonrpc?api_key=do-not-leak",
       fetchImpl,
+      timeoutMs: 1_000,
+    }),
+  );
+  const server: Server = createServer(app);
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+  const address = server.address();
+  assert(address && typeof address === "object");
+  try {
+    await run(`http://127.0.0.1:${address.port}`);
+  } finally {
+    server.close();
+    await once(server, "close");
+  }
+}
+
+async function withNftreeAccessEndpoint(
+  client: any,
+  run: (baseUrl: string) => Promise<void>,
+): Promise<void> {
+  const app = express();
+  app.get(
+    "/api/nftree-access/:address",
+    createNftreeAccessHandler({
+      client,
+      nftreeStructType: "0xabc::collection::NFT",
       timeoutMs: 1_000,
     }),
   );
@@ -218,5 +245,75 @@ test("Sui RPC proxy reports upstream failure without leaking credentials", async
     assert.match(text, /Sui RPC proxy upstream unavailable/);
     assert.equal(text.includes("secret-rpc.example"), false);
     assert.equal(text.includes("do-not-leak"), false);
+  });
+});
+
+test("NFTree access endpoint returns a direct wallet NFTree", async () => {
+  let capturedArgs: any = null;
+  const client = {
+    async getOwnedObjects(args: any) {
+      capturedArgs = args;
+      return {
+        data: [
+          {
+            data: {
+              objectId: "0xnft",
+              type: "0xabc::collection::NFT",
+              display: { data: { image_url: "ipfs://nft" } },
+              content: { fields: {} },
+            },
+          },
+        ],
+      };
+    },
+  };
+
+  await withNftreeAccessEndpoint(client, async (baseUrl) => {
+    const response = await fetch(
+      `${baseUrl}/api/nftree-access/0x00000000000000000000000000000000000000000000000000000000000000ab`,
+    );
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.ok, true);
+    assert.equal(body.nft.nftId, "0xnft");
+    assert.equal(body.nft.location, "wallet");
+    assert.equal(body.nft.imageUrl, "ipfs://nft");
+    assert.deepEqual(capturedArgs.filter, { StructType: "0xabc::collection::NFT" });
+  });
+});
+
+test("NFTree access endpoint returns null only after a successful empty lookup", async () => {
+  const client = {
+    async getOwnedObjects() {
+      return { data: [] };
+    },
+  };
+
+  await withNftreeAccessEndpoint(client, async (baseUrl) => {
+    const response = await fetch(
+      `${baseUrl}/api/nftree-access/0x00000000000000000000000000000000000000000000000000000000000000ab`,
+    );
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.ok, true);
+    assert.equal(body.nft, null);
+  });
+});
+
+test("NFTree access endpoint reports RPC failure without converting it to no NFTree", async () => {
+  const client = {
+    async getOwnedObjects() {
+      throw new Error("rpc unavailable");
+    },
+  };
+
+  await withNftreeAccessEndpoint(client, async (baseUrl) => {
+    const response = await fetch(
+      `${baseUrl}/api/nftree-access/0x00000000000000000000000000000000000000000000000000000000000000ab`,
+    );
+    assert.equal(response.status, 503);
+    const body = await response.json();
+    assert.equal(body.ok, false);
+    assert.equal(body.error, "nftree_access_unavailable");
   });
 });

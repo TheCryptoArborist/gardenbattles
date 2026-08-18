@@ -180,6 +180,17 @@ export type FifthMoveAttestationResponse = {
   };
 };
 
+export type NftreeAccessResponse = {
+  ok: boolean;
+  error?: string;
+  nft: null | {
+    nftId: string;
+    nftType: string;
+    location: "wallet";
+    imageUrl?: string;
+  };
+};
+
 interface LeaderboardResponse {
   leaderboard: LeaderboardEntry[];
   total: number;
@@ -242,6 +253,15 @@ export async function fetchFifthMoveEligibility(
   return fetchJson<FifthMoveEligibilityResponse>(
     `/api/tree-power/eligibility/${address.toLowerCase()}`,
     "Fifth Move eligibility verification is temporarily unavailable.",
+  );
+}
+
+export async function fetchNftreeAccess(
+  address: string,
+): Promise<NftreeAccessResponse> {
+  return fetchJson<NftreeAccessResponse>(
+    `/api/nftree-access/${address.toLowerCase()}`,
+    "NFTree access check is temporarily unavailable.",
   );
 }
 
