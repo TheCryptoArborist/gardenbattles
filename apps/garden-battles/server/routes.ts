@@ -109,6 +109,26 @@ function extractSuiRpcProxyMethods(body: unknown): string[] {
     .filter((method): method is string => typeof method === "string");
 }
 
+function extractSuiRpcProxyErrors(body: unknown): Array<{
+  id: unknown;
+  code: unknown;
+  message: unknown;
+}> {
+  const responses = Array.isArray(body) ? body : [body];
+  return responses.flatMap((response) => {
+    if (!response || typeof response !== "object") return [];
+    const error = (response as { error?: unknown }).error;
+    if (!error || typeof error !== "object") return [];
+    return [
+      {
+        id: (response as { id?: unknown }).id ?? null,
+        code: (error as { code?: unknown }).code ?? null,
+        message: (error as { message?: unknown }).message ?? null,
+      },
+    ];
+  });
+}
+
 const DISABLE_SUI_RELAY = isEnvEnabled(process.env.DISABLE_SUI_RELAY);
 
 function getLeaderboardMode(value: unknown): LeaderboardMode {
@@ -550,6 +570,24 @@ export function createSuiRpcProxyHandler(options: {
         signal: controller.signal,
       });
       const text = await upstreamResponse.text();
+      try {
+        const parsed = JSON.parse(text);
+        const errors = extractSuiRpcProxyErrors(parsed);
+        if (errors.length > 0) {
+          console.warn("[sui-rpc-proxy] upstream json-rpc error", {
+            methods,
+            status: upstreamResponse.status,
+            errors,
+          });
+        }
+      } catch {
+        if (!upstreamResponse.ok) {
+          console.warn("[sui-rpc-proxy] upstream non-json response", {
+            methods,
+            status: upstreamResponse.status,
+          });
+        }
+      }
       res.status(upstreamResponse.status);
       res.type(upstreamResponse.headers.get("content-type") ?? "application/json");
       return res.send(text);

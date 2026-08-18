@@ -143,6 +143,59 @@ test("Sui RPC proxy blocks transaction execution methods", async () => {
   });
 });
 
+test("Sui RPC proxy forwards upstream JSON-RPC errors while logging safe metadata", async () => {
+  const warnings: unknown[][] = [];
+  const originalWarn = console.warn;
+  console.warn = (...args: unknown[]) => {
+    warnings.push(args);
+  };
+
+  const fetchImpl: typeof fetch = async (_input, init) => {
+    const request = JSON.parse(String(init?.body));
+    return new Response(
+      JSON.stringify({
+        jsonrpc: "2.0",
+        id: request.id,
+        error: { code: -32000, message: "backend read failed" },
+      }),
+      {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      },
+    );
+  };
+
+  try {
+    await withProxyEndpoint(fetchImpl, async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/api/sui-rpc`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: 11,
+          method: "suix_getOwnedObjects",
+          params: ["0xowner"],
+        }),
+      });
+
+      assert.equal(response.status, 200);
+      const body = await response.json();
+      assert.equal(body.error.message, "backend read failed");
+    });
+  } finally {
+    console.warn = originalWarn;
+  }
+
+  assert.equal(warnings.length, 1);
+  assert.equal(warnings[0][0], "[sui-rpc-proxy] upstream json-rpc error");
+  assert.deepEqual(warnings[0][1], {
+    methods: ["suix_getOwnedObjects"],
+    status: 200,
+    errors: [{ id: 11, code: -32000, message: "backend read failed" }],
+  });
+  assert.equal(JSON.stringify(warnings).includes("0xowner"), false);
+});
+
 test("Sui RPC proxy reports upstream failure without leaking credentials", async () => {
   const fetchImpl: typeof fetch = async () => {
     throw new Error("upstream unavailable");
