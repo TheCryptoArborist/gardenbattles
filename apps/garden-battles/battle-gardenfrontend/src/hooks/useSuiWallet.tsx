@@ -21,6 +21,7 @@ import {
   ConnectButton,
   useCurrentAccount,
   useSignAndExecuteTransaction,
+  useSignTransaction,
   useSuiClient,
 } from "@mysten/dapp-kit";
 import { Transaction } from "@mysten/sui/transactions";
@@ -1000,6 +1001,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
   const currentAccount = useCurrentAccount();
   const suiClient = useSuiClient();
   const { mutate: signAndExecuteTransaction } = useSignAndExecuteTransaction();
+  const { mutateAsync: signTransaction } = useSignTransaction();
 
   const [battleState, setBattleState] = useState<BattleState | null>(null);
   const [isWaiting, setIsWaiting] = useState(false);
@@ -1829,65 +1831,128 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
         usesFifthMoveProof: Boolean(fifthMoveProof),
       });
 
-      return new Promise<void>((resolve, reject) => {
-        signAndExecuteTransaction(
-          { transaction: tx, chain: SUI_CONFIG.CHAIN },
-          {
-            onSuccess: async (result) => {
-              console.log("join_queue tx success:", result.digest);
-              try {
-                const matchedBattle = await getBattleStateFromTransaction(
-                  suiClient,
-                  result.digest,
-                  address,
-                );
-                const hydratedBattle = matchedBattle
-                  ? await hydrateActivePvpBattle(
-                      matchedBattle,
-                      "join_queue transaction",
-                    )
-                  : null;
-                if (hydratedBattle) {
-                  resolve();
-                  return;
-                }
-              } catch (err) {
-                console.warn("[pvp-match] could not hydrate joined battle from transaction", err);
-              }
+      let signedTx: Awaited<ReturnType<typeof signTransaction>>;
+      try {
+        signedTx = await signTransaction({ transaction: tx, chain: SUI_CONFIG.CHAIN });
+      } catch (err: any) {
+        console.error("[pvp-join] wallet signing failed", {
+          name: err?.name,
+          message: err?.message,
+          code: err?.code,
+          cause: err?.cause,
+          queueId: matchOption.queueId,
+          queueType: matchOption.queueType,
+          targetGrowth: matchOption.targetGrowth,
+          functionName: joinFunction,
+        });
+        throw err;
+      }
 
-              setPvpQueueState({
-                queueId: matchOption.queueId,
-                player: address.toLowerCase(),
-                entryFeeMist: liveEntryFeeMist,
-                targetGrowth: matchOption.targetGrowth,
-                matchLabel: getPvpMatchDisplayLabel(matchOption.targetGrowth),
-                queueType: matchOption.queueType,
-              });
-              setIsWaiting(true);
-              resolve();
-            },
-            onError: (err: any) => {
-              console.error("[pvp-join] transaction failed", {
-                name: err?.name,
-                message: err?.message,
-                code: err?.code,
-                cause: err?.cause,
-                queueId: matchOption.queueId,
-                queueType: matchOption.queueType,
-                targetGrowth: matchOption.targetGrowth,
-                functionName: joinFunction,
-              });
-              reject(
-                new Error(
-                  `PvP queue transaction failed after wallet approval: ${
-                    err?.message ?? "Unknown wallet transaction error"
-                  }`,
-                ),
-              );
-            },
+      let digest = "";
+      try {
+        console.info("[pvp-join] signed transaction received; executing via app SuiClient", {
+          queueId: matchOption.queueId,
+          queueType: matchOption.queueType,
+          targetGrowth: matchOption.targetGrowth,
+          functionName: joinFunction,
+        });
+        const result = await suiClient.executeTransactionBlock({
+          transactionBlock: signedTx.bytes,
+          signature: signedTx.signature,
+          options: {
+            showEffects: true,
+            showObjectChanges: true,
           },
+        });
+        digest = result.digest;
+        console.info("[pvp-join] transaction submitted", {
+          digest,
+          queueId: matchOption.queueId,
+          queueType: matchOption.queueType,
+          targetGrowth: matchOption.targetGrowth,
+          functionName: joinFunction,
+        });
+      } catch (err: any) {
+        console.error("[pvp-join] signed transaction execution failed", {
+          name: err?.name,
+          message: err?.message,
+          code: err?.code,
+          cause: err?.cause,
+          queueId: matchOption.queueId,
+          queueType: matchOption.queueType,
+          targetGrowth: matchOption.targetGrowth,
+          functionName: joinFunction,
+        });
+        throw new Error(
+          `PvP queue transaction failed after wallet approval: ${
+            err?.message ?? "Unknown transaction execution error"
+          }`,
         );
+      }
+
+      try {
+        const confirmed = await suiClient.waitForTransaction({
+          digest,
+          options: {
+            showEffects: true,
+            showObjectChanges: true,
+          },
+        });
+        const status = confirmed.effects?.status?.status;
+        if (status && status !== "success") {
+          throw new Error(confirmed.effects?.status?.error ?? `Transaction status: ${status}`);
+        }
+        console.info("[pvp-join] transaction confirmed", {
+          digest,
+          queueId: matchOption.queueId,
+          queueType: matchOption.queueType,
+          targetGrowth: matchOption.targetGrowth,
+          functionName: joinFunction,
+        });
+      } catch (err: any) {
+        console.error("[pvp-join] transaction confirmation failed", {
+          name: err?.name,
+          message: err?.message,
+          code: err?.code,
+          cause: err?.cause,
+          digest,
+          queueId: matchOption.queueId,
+          queueType: matchOption.queueType,
+          targetGrowth: matchOption.targetGrowth,
+          functionName: joinFunction,
+        });
+        throw new Error(
+          `PvP queue transaction confirmation failed after wallet approval: ${
+            err?.message ?? "Unknown transaction confirmation error"
+          }`,
+        );
+      }
+
+      try {
+        const matchedBattle = await getBattleStateFromTransaction(
+          suiClient,
+          digest,
+          address,
+        );
+        const hydratedBattle = matchedBattle
+          ? await hydrateActivePvpBattle(matchedBattle, "join_queue transaction")
+          : null;
+        if (hydratedBattle) {
+          return;
+        }
+      } catch (err) {
+        console.warn("[pvp-match] could not hydrate joined battle from transaction", err);
+      }
+
+      setPvpQueueState({
+        queueId: matchOption.queueId,
+        player: address.toLowerCase(),
+        entryFeeMist: liveEntryFeeMist,
+        targetGrowth: matchOption.targetGrowth,
+        matchLabel: getPvpMatchDisplayLabel(matchOption.targetGrowth),
+        queueType: matchOption.queueType,
       });
+      setIsWaiting(true);
     },
     [
       address,
@@ -1895,7 +1960,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
       randomObjectId,
       refreshEntryFee,
       suiClient,
-      signAndExecuteTransaction,
+      signTransaction,
       hydrateActivePvpBattle,
     ],
   );
