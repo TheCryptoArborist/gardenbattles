@@ -1023,11 +1023,10 @@ async function getBattleUpdateStateFromTransaction(
   if (timingStartedAt !== undefined) {
     logTxTiming("waitForTransaction start", timingStartedAt, { digest });
   }
-  const tx = await suiClient.waitForTransaction({
-    digest,
-    timeout: 45_000,
-    pollInterval: 1_500,
-    options: {
+  const tx = await readSuiTransactionBlockWithRetry(digest, {
+    operation: "battle-update-transaction-read",
+    retryDelaysMs: [1500, 3000, 5000, 7500, 10000],
+    requestOptions: {
       showEvents: true,
     },
   });
@@ -1947,7 +1946,6 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
           transaction: {
             toJSON: async () =>
               tx.toJSON({
-                client: suiClient,
                 supportedIntents,
               }),
           },
@@ -1979,9 +1977,10 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
       }
 
       try {
-        const confirmed = await suiClient.waitForTransaction({
-          digest,
-          options: {
+        const confirmed = await readSuiTransactionBlockWithRetry(digest, {
+          operation: "pvp-join-confirmation",
+          retryDelaysMs: PVP_JOIN_RECOVERY_RETRY_DELAYS_MS,
+          requestOptions: {
             showEffects: true,
             showObjectChanges: true,
           },
@@ -2864,7 +2863,6 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
         transaction: {
           toJSON: async () =>
             tx.toJSON({
-              client: suiClient,
               supportedIntents,
             }),
         },
@@ -2888,14 +2886,17 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
     }
 
     try {
-      const confirmedRefund = await suiClient.waitForTransaction({
-        digest: result.digest,
-        timeout: 20_000,
-        options: {
-          showEffects: true,
-          showObjectChanges: true,
+      const confirmedRefund = await readSuiTransactionBlockWithRetry(
+        result.digest,
+        {
+          operation: "pvp-refund-confirmation",
+          retryDelaysMs: POST_REFUND_VERIFICATION_RETRY_DELAYS_MS,
+          requestOptions: {
+            showEffects: true,
+            showObjectChanges: true,
+          },
         },
-      });
+      );
       const status = confirmedRefund?.effects?.status?.status;
       if (status && status !== "success") {
         throw new Error(

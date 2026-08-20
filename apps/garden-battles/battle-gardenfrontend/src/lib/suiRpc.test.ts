@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
-  buildSuixGetBalanceJsonRpcBody,
-  buildSuiGetObjectJsonRpcBody,
-  buildSuiGetTransactionBlockJsonRpcBody,
+  buildSuiBalanceGraphQLBody,
+  buildSuiObjectGraphQLBody,
+  buildSuiTransactionGraphQLBody,
   classifySuiRpcReadError,
   readSuiBalanceWithRetry,
   readSuiObjectWithRetry,
@@ -12,12 +12,12 @@ import {
   SuiRpcReadError,
 } from "./suiRpc";
 
-const legacyQueue =
-  "0xb5c054185c98d9cb80e35c50f78e306ca2d7bed52955e397df9f1acad9938e4d";
 const quickQueue =
-  "0x469a5da237047f4c78223e3a2fac6bf42427ba488fd1e26f2233b65f01a31960";
+  "0xb380a69e611ad7636f2b7993fab6656c272c0802fd7a6ec35448a58956a0c38f";
 const standardQueue =
-  "0x9d805e74d3a4412e4bb935ed383ad8f9dde00715632ea61704ccc4af804666cd";
+  "0x03e77c44e4ef2a6203a0d84378a4a8faf3acfb82ddfef84cd5e0bb243ff5abe1";
+const wallet =
+  "0x18d72fc2a3df6d92d0806da3b04d92be056e2d6d35882a56c16ddb25f48d35d6";
 
 function jsonResponse(status: number, body: unknown) {
   return {
@@ -29,28 +29,86 @@ function jsonResponse(status: number, body: unknown) {
   } as Response;
 }
 
-function objectResult(id = "0xobject") {
+function objectResult(
+  id = quickQueue,
+  fields: Record<string, unknown> = {
+    waiting: {
+      player: wallet,
+      entry_fee_snapshot: "3000000000",
+    },
+    bank: "3000000000",
+    target_growth: "50",
+  },
+) {
   return {
-    jsonrpc: "2.0",
-    id: 1,
-    result: {
-      data: {
-        objectId: id,
-        content: { fields: {} },
+    data: {
+      object: {
+        address: id,
+        digest: "objectDigest",
+        version: 968278043,
+        previousTransaction: { digest: "previousDigest" },
+        owner: { __typename: "Shared", initialSharedVersion: 123 },
+        asMoveObject: {
+          contents: {
+            type: { repr: "0xpackage::matchmaking::MatchmakingQueueV3" },
+            json: { id, ...fields },
+          },
+        },
       },
     },
   };
 }
 
-function balanceResult(ownerBalance = "4200000000") {
+function balanceResult(totalBalance = "4200000000") {
   return {
-    jsonrpc: "2.0",
-    id: 1,
-    result: {
-      coinType: "0x2::sui::SUI",
-      coinObjectCount: 2,
-      totalBalance: ownerBalance,
-      lockedBalance: {},
+    data: {
+      address: {
+        balance: {
+          coinType: { repr: "0x2::sui::SUI" },
+          totalBalance,
+        },
+      },
+    },
+  };
+}
+
+function transactionResult(status: "SUCCESS" | "FAILURE" = "SUCCESS") {
+  return {
+    data: {
+      transaction: {
+        digest: "9digest",
+        effects: {
+          status,
+          executionError:
+            status === "FAILURE" ? { message: "MoveAbort code 104" } : null,
+          events: {
+            nodes: [
+              {
+                sequenceNumber: 0,
+                contents: {
+                  type: { repr: "0xpackage::battle::BattleUpdated" },
+                  json: { battle_id: "0xbattle" },
+                },
+              },
+            ],
+          },
+          objectChanges: {
+            nodes: [
+              {
+                address: "0xbattle",
+                idCreated: true,
+                idDeleted: false,
+                inputState: null,
+                outputState: {
+                  asMoveObject: {
+                    contents: { type: { repr: "0xpackage::battle::Battle" } },
+                  },
+                },
+              },
+            ],
+          },
+        },
+      },
     },
   };
 }
@@ -66,275 +124,155 @@ function fetchFromResponses(responses: Response[]) {
   return { calls, fetchImpl: fetchImpl as typeof fetch };
 }
 
-describe("readSuiObjectWithRetry", () => {
-  it("builds a proper sui_getObject JSON-RPC POST body", () => {
-    const body = buildSuiGetObjectJsonRpcBody({
-      id: quickQueue,
-      options: { showContent: true },
-    });
+describe("Sui GraphQL read migration", () => {
+  it("builds supported queries without retired JSON-RPC methods", () => {
+    const objectBody = buildSuiObjectGraphQLBody({ id: quickQueue });
+    const balanceBody = buildSuiBalanceGraphQLBody(wallet);
+    const transactionBody = buildSuiTransactionGraphQLBody("9digest");
 
-    assert.equal(body.method, "sui_getObject");
-    assert.equal(body.params[0], quickQueue);
-    assert.deepEqual(body.params[1], {
-      showType: true,
-      showOwner: true,
-      showContent: true,
-    });
+    assert.equal(objectBody.variables.id, quickQueue);
+    assert.equal(balanceBody.variables.owner, wallet);
+    assert.equal(balanceBody.variables.coinType, "0x2::sui::SUI");
+    assert.equal(transactionBody.variables.digest, "9digest");
+    assert.match(objectBody.query, /object\(address: \$id\)/);
+    assert.match(balanceBody.query, /balance\(coinType: \$coinType\)/);
+    assert.match(transactionBody.query, /transaction\(digest: \$digest\)/);
+    assert.doesNotMatch(JSON.stringify(objectBody), /sui_getObject/);
+    assert.doesNotMatch(JSON.stringify(balanceBody), /suix_getBalance/);
+    assert.doesNotMatch(JSON.stringify(transactionBody), /sui_getTransactionBlock/);
   });
 
-  it("preserves showPreviousTransaction in object reads", () => {
-    const body = buildSuiGetObjectJsonRpcBody({
-      id: quickQueue,
-      options: {
-        showContent: true,
-        showType: true,
-        showPreviousTransaction: true,
-      },
-    });
-
-    assert.deepEqual(body.params[1], {
-      showType: true,
-      showOwner: true,
-      showContent: true,
-      showPreviousTransaction: true,
-    });
-  });
-
-  it("posts to the endpoint URL unchanged without appending the object ID", async () => {
-    const endpoint = "https://example.quicknode.pro/token/path/";
+  it("maps Move JSON into the legacy object shape used by queue parsing", async () => {
+    const endpoint = "https://graphql.example/graphql";
     const { calls, fetchImpl } = fetchFromResponses([
-      jsonResponse(200, objectResult(quickQueue)),
+      jsonResponse(200, objectResult()),
     ]);
-
-    await readSuiObjectWithRetry(
+    const result = await readSuiObjectWithRetry(
       null,
       { id: quickQueue, options: { showContent: true } },
-      {
-        operation: "test-read",
-        endpoints: [endpoint],
-        fetchImpl,
-        retryDelaysMs: [],
-      },
+      { operation: "queue-read", endpoints: [endpoint], fetchImpl, retryDelaysMs: [] },
     );
 
-    assert.equal(calls.length, 1);
+    assert.equal(result.data?.objectId, quickQueue);
+    assert.equal(result.data?.previousTransaction, "previousDigest");
+    assert.equal((result.data?.content as any)?.fields?.bank, "3000000000");
+    assert.equal((result.data?.owner as any)?.Shared?.initial_shared_version, "123");
     assert.equal(calls[0].url, endpoint);
-    assert.equal(calls[0].init.method, "POST");
-    assert.equal(
-      JSON.parse(String(calls[0].init.body)).params[0],
-      quickQueue,
-    );
-    assert.equal(calls[0].url.includes(quickQueue), false);
+    assert.equal(JSON.parse(String(calls[0].init.body)).variables.id, quickQueue);
   });
 
-  it("builds a proper sui_getTransactionBlock JSON-RPC POST body", () => {
-    const body = buildSuiGetTransactionBlockJsonRpcBody("9digest", {
-      showEffects: true,
+  it("defaults reads to the official Sui mainnet GraphQL endpoint", async () => {
+    const { calls, fetchImpl } = fetchFromResponses([
+      jsonResponse(200, objectResult()),
+    ]);
+    await readSuiObjectWithRetry(null, { id: quickQueue }, {
+      operation: "default-read",
+      fetchImpl,
+      retryDelaysMs: [],
     });
-
-    assert.equal(body.method, "sui_getTransactionBlock");
-    assert.equal(body.params[0], "9digest");
-    assert.deepEqual(body.params[1], {
-      showInput: true,
-      showEffects: true,
-      showEvents: false,
-      showObjectChanges: false,
-      showBalanceChanges: false,
-    });
+    assert.equal(calls[0].url, "https://graphql.mainnet.sui.io/graphql");
   });
 
-  it("builds a proper suix_getBalance JSON-RPC POST body", () => {
-    const owner =
-      "0x18d72fc2a3df6d92d0806da3b04d92be056e2d6d35882a56c16ddb25f48d35d6";
-    const body = buildSuixGetBalanceJsonRpcBody(owner);
-
-    assert.equal(body.method, "suix_getBalance");
-    assert.deepEqual(body.params, [owner]);
-  });
-
-  it("reads balances through POST without altering endpoint URLs", async () => {
-    const endpoint = "https://example.quicknode.pro/token/path/";
-    const owner =
-      "0x18d72fc2a3df6d92d0806da3b04d92be056e2d6d35882a56c16ddb25f48d35d6";
+  it("maps GraphQL balances into the existing balance response", async () => {
     const { calls, fetchImpl } = fetchFromResponses([
       jsonResponse(200, balanceResult("5000000000")),
     ]);
-
-    const result = await readSuiBalanceWithRetry(owner, {
+    const result = await readSuiBalanceWithRetry(wallet, {
       operation: "balance-read",
-      endpoints: [endpoint],
+      endpoints: ["https://graphql.example/graphql"],
       fetchImpl,
       retryDelaysMs: [],
     });
-
     assert.equal(result.totalBalance, "5000000000");
-    assert.equal(calls.length, 1);
-    assert.equal(calls[0].url, endpoint);
-    assert.equal(calls[0].init.method, "POST");
-    const body = JSON.parse(String(calls[0].init.body));
-    assert.equal(body.method, "suix_getBalance");
-    assert.equal(body.params[0], owner);
-    assert.equal(calls[0].url.includes(owner), false);
+    assert.equal(JSON.parse(String(calls[0].init.body)).variables.owner, wallet);
   });
 
-  it("uses fallback when primary balance read fails", async () => {
-    const owner =
-      "0x18d72fc2a3df6d92d0806da3b04d92be056e2d6d35882a56c16ddb25f48d35d6";
-    const { calls, fetchImpl } = fetchFromResponses([
-      jsonResponse(503, { error: { code: 503, message: "unavailable" } }),
-      jsonResponse(200, balanceResult("6000000000")),
-    ]);
-
-    const result = await readSuiBalanceWithRetry(owner, {
-      operation: "balance-read",
-      endpoints: ["https://primary.example/rpc", "https://fallback.example/rpc"],
-      fetchImpl,
-      retryDelaysMs: [],
-    });
-
-    assert.equal(result.totalBalance, "6000000000");
-    assert.equal(calls.length, 2);
-    assert.equal(calls[0].url, "https://primary.example/rpc");
-    assert.equal(calls[1].url, "https://fallback.example/rpc");
-  });
-
-  it("reads transaction blocks through POST without altering endpoint URLs", async () => {
-    const endpoint = "https://example.quicknode.pro/token/path/";
-    const { calls, fetchImpl } = fetchFromResponses([
-      jsonResponse(200, {
-        jsonrpc: "2.0",
-        id: 1,
-        result: { digest: "9digest" },
-      }),
-    ]);
-
-    const result = await readSuiTransactionBlockWithRetry("9digest", {
-      operation: "tx-read",
-      endpoints: [endpoint],
-      fetchImpl,
-      retryDelaysMs: [],
-    });
-
-    assert.equal(result.digest, "9digest");
-    assert.equal(calls.length, 1);
-    assert.equal(calls[0].url, endpoint);
-    assert.equal(calls[0].init.method, "POST");
-    const body = JSON.parse(String(calls[0].init.body));
-    assert.equal(body.method, "sui_getTransactionBlock");
-    assert.equal(body.params[0], "9digest");
-  });
-
-  it("returns the primary RPC object response when primary succeeds", async () => {
+  it("maps effects, events, and object changes for post-digest recovery", async () => {
     const { fetchImpl } = fetchFromResponses([
-      jsonResponse(200, objectResult(legacyQueue)),
+      jsonResponse(200, transactionResult()),
     ]);
-
-    const result = await readSuiObjectWithRetry(
-      null,
-      { id: legacyQueue, options: { showContent: true } },
-      {
-        operation: "test-read",
-        endpoints: ["https://primary.example/rpc"],
-        fetchImpl,
-        retryDelaysMs: [],
-      },
-    );
-
-    assert.equal(result.data?.objectId, legacyQueue);
+    const result = await readSuiTransactionBlockWithRetry("9digest", {
+      operation: "transaction-read",
+      endpoints: ["https://graphql.example/graphql"],
+      fetchImpl,
+      retryDelaysMs: [],
+    });
+    assert.equal(result.effects.status.status, "success");
+    assert.equal(result.events[0].type, "0xpackage::battle::BattleUpdated");
+    assert.equal(result.events[0].parsedJson.battle_id, "0xbattle");
+    assert.deepEqual(result.objectChanges[0], {
+      type: "created",
+      objectId: "0xbattle",
+      objectType: "0xpackage::battle::Battle",
+    });
   });
 
-  it("defaults read calls to the Garden Battles RPC proxy", async () => {
-    const { calls, fetchImpl } = fetchFromResponses([
-      jsonResponse(200, objectResult(quickQueue)),
+  it("preserves explicit transaction failure", async () => {
+    const { fetchImpl } = fetchFromResponses([
+      jsonResponse(200, transactionResult("FAILURE")),
     ]);
-
-    await readSuiObjectWithRetry(
-      null,
-      { id: quickQueue, options: { showContent: true } },
-      {
-        operation: "default-endpoint-read",
-        fetchImpl,
-        retryDelaysMs: [],
-      },
-    );
-
-    assert.equal(
-      calls[0].url,
-      "https://gardenbattles-production.up.railway.app/api/sui-rpc",
-    );
+    const result = await readSuiTransactionBlockWithRetry("9digest", {
+      operation: "transaction-read",
+      endpoints: ["https://graphql.example/graphql"],
+      fetchImpl,
+      retryDelaysMs: [],
+    });
+    assert.equal(result.effects.status.status, "failure");
+    assert.equal(result.effects.status.error, "MoveAbort code 104");
   });
 
-  it("retries primary after a 429 and succeeds", async () => {
+  it("retries after a 429 and succeeds", async () => {
     const { calls, fetchImpl } = fetchFromResponses([
-      jsonResponse(429, { error: { code: 429, message: "Too Many Requests" } }),
-      jsonResponse(200, objectResult(quickQueue)),
+      jsonResponse(429, {}),
+      jsonResponse(200, objectResult()),
     ]);
-
-    const result = await readSuiObjectWithRetry(
-      null,
-      { id: quickQueue, options: { showContent: true } },
-      {
-        operation: "test-read",
-        endpoints: ["https://primary.example/rpc"],
-        fetchImpl,
-        retryDelaysMs: [0],
-      },
-    );
-
+    const result = await readSuiObjectWithRetry(null, { id: quickQueue }, {
+      operation: "retry-read",
+      endpoints: ["https://graphql.example/graphql"],
+      fetchImpl,
+      retryDelaysMs: [0],
+    });
     assert.equal(result.data?.objectId, quickQueue);
     assert.equal(calls.length, 2);
   });
 
-  it("uses fallback when primary returns 404", async () => {
+  it("uses the next GraphQL endpoint after a transport failure", async () => {
     const { calls, fetchImpl } = fetchFromResponses([
-      jsonResponse(404, { error: { code: -32000, message: "not found" } }),
-      jsonResponse(200, objectResult(standardQueue)),
+      jsonResponse(503, {}),
+      jsonResponse(200, objectResult(standardQueue, {
+        waiting: null,
+        bank: "0",
+        target_growth: "75",
+      })),
     ]);
-
-    const result = await readSuiObjectWithRetry(
-      null,
-      { id: standardQueue, options: { showContent: true } },
-      {
-        operation: "test-read",
-        endpoints: ["https://primary.example/rpc", "https://fallback.example/rpc"],
-        fetchImpl,
-        retryDelaysMs: [],
-      },
-    );
-
+    const result = await readSuiObjectWithRetry(null, { id: standardQueue }, {
+      operation: "fallback-read",
+      endpoints: ["https://primary.example/graphql", "https://fallback.example/graphql"],
+      fetchImpl,
+      retryDelaysMs: [],
+    });
     assert.equal(result.data?.objectId, standardQueue);
-    assert.equal(calls.length, 2);
-    assert.equal(calls[0].url, "https://primary.example/rpc");
-    assert.equal(calls[1].url, "https://fallback.example/rpc");
+    assert.equal(calls[1].url, "https://fallback.example/graphql");
   });
 
-  it("throws an RPC unavailable error when all endpoints fail", async () => {
+  it("throws a typed error when every endpoint fails", async () => {
     const { fetchImpl } = fetchFromResponses([
-      jsonResponse(404, { error: { code: -32000, message: "not found" } }),
-      jsonResponse(503, { error: { code: 503, message: "unavailable" } }),
+      jsonResponse(503, {}),
+      jsonResponse(503, {}),
     ]);
-
     await assert.rejects(
-      () =>
-        readSuiObjectWithRetry(
-          null,
-          { id: quickQueue, options: { showContent: true } },
-          {
-            operation: "test-read",
-            endpoints: ["https://primary.example/rpc", "https://fallback.example/rpc"],
-            fetchImpl,
-            retryDelaysMs: [],
-          },
-        ),
-      (error) =>
-        error instanceof SuiRpcReadError &&
-        (error.kind === "transport" || error.kind === "rate_limited"),
+      () => readSuiObjectWithRetry(null, { id: quickQueue }, {
+        operation: "failed-read",
+        endpoints: ["https://primary.example/graphql", "https://fallback.example/graphql"],
+        fetchImpl,
+        retryDelaysMs: [],
+      }),
+      (error) => error instanceof SuiRpcReadError && error.kind === "rate_limited",
     );
   });
 
   it("classifies transport failures as retryable", () => {
     const result = classifySuiRpcReadError(new Error("Failed to fetch"));
-
     assert.equal(result.kind, "transport");
     assert.equal(result.retryable, true);
   });
@@ -343,7 +281,6 @@ describe("readSuiObjectWithRetry", () => {
     const originalFetch = globalThis.fetch;
     const expectedReceiver = globalThis;
     let called = false;
-
     try {
       globalThis.fetch = function receiverSensitiveFetch(
         this: unknown,
@@ -351,17 +288,11 @@ describe("readSuiObjectWithRetry", () => {
         _init?: RequestInit,
       ) {
         called = true;
-        if (this !== expectedReceiver) {
-          throw new TypeError("Illegal invocation");
-        }
-        return Promise.resolve(jsonResponse(200, objectResult(quickQueue)));
+        if (this !== expectedReceiver) throw new TypeError("Illegal invocation");
+        return Promise.resolve(jsonResponse(200, objectResult()));
       } as typeof fetch;
-
       const wrappedFetch = resolveFetchImplementation();
-      const response = await wrappedFetch("https://primary.example/rpc", {
-        method: "POST",
-      });
-
+      const response = await wrappedFetch("https://graphql.example/graphql", { method: "POST" });
       assert.equal(called, true);
       assert.equal(response.ok, true);
     } finally {

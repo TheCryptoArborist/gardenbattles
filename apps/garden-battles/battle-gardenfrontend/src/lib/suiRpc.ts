@@ -1,5 +1,3 @@
-import { SUI_CONFIG } from "./sui-config";
-
 type SuiObjectOptions = {
   showType?: boolean;
   showOwner?: boolean;
@@ -30,9 +28,71 @@ export type SuiTransactionBlockResponse = any;
 type FetchLike = typeof fetch;
 
 const DEFAULT_OBJECT_READ_RETRY_DELAYS_MS = [750, 1500, 3000] as const;
-const SUI_GET_OBJECT_METHOD = "sui_getObject";
-const SUI_GET_TRANSACTION_BLOCK_METHOD = "sui_getTransactionBlock";
-const SUIX_GET_BALANCE_METHOD = "suix_getBalance";
+const DEFAULT_SUI_GRAPHQL_URL = "https://graphql.mainnet.sui.io/graphql";
+
+const SUI_OBJECT_QUERY = `
+  query SuiObject($id: SuiAddress!) {
+    object(address: $id) {
+      address
+      digest
+      version
+      previousTransaction { digest }
+      asMoveObject {
+        contents {
+          type { repr }
+          json
+        }
+      }
+      owner {
+        __typename
+        ... on AddressOwner { address { address } }
+        ... on ObjectOwner { address { address } }
+        ... on Shared { initialSharedVersion }
+      }
+    }
+  }
+`;
+
+const SUI_BALANCE_QUERY = `
+  query SuiBalance($owner: SuiAddress!, $coinType: String!) {
+    address(address: $owner) {
+      balance(coinType: $coinType) {
+        coinType { repr }
+        totalBalance
+      }
+    }
+  }
+`;
+
+const SUI_TRANSACTION_QUERY = `
+  query SuiTransaction($digest: String!) {
+    transaction(digest: $digest) {
+      digest
+      effects {
+        status
+        executionError { message }
+        events(first: 50) {
+          nodes {
+            sequenceNumber
+            contents {
+              type { repr }
+              json
+            }
+          }
+        }
+        objectChanges(first: 50) {
+          nodes {
+            address
+            idCreated
+            idDeleted
+            inputState { asMoveObject { contents { type { repr } } } }
+            outputState { asMoveObject { contents { type { repr } } } }
+          }
+        }
+      }
+    }
+  }
+`;
 
 export function resolveFetchImplementation(fetchImpl?: FetchLike): FetchLike {
   if (fetchImpl) {
@@ -127,69 +187,55 @@ function endpointLabel(index: number) {
 }
 
 function getConfiguredEndpoints() {
-  const endpoints = [SUI_CONFIG.READ_RPC_URL, SUI_CONFIG.READ_RPC_FALLBACK_URL]
-    .map((url) => url.trim())
-    .filter((url, index, all) => url.length > 0 && all.indexOf(url) === index);
-  return endpoints.length > 0
-    ? endpoints
-    : ["https://fullnode.mainnet.sui.io:443"];
+  return [DEFAULT_SUI_GRAPHQL_URL];
 }
 
-export function buildSuiGetObjectJsonRpcBody(request: SuiObjectRequest) {
+export function buildSuiObjectGraphQLBody(request: SuiObjectRequest) {
   return {
-    jsonrpc: "2.0",
-    id: 1,
-    method: SUI_GET_OBJECT_METHOD,
-    params: [
-      request.id,
-      {
-        showType: true,
-        showOwner: true,
-        showContent: true,
-        ...(request.options ?? {}),
+    query: SUI_OBJECT_QUERY,
+    variables: { id: request.id },
+  };
+}
+
+export function buildSuiBalanceGraphQLBody(owner: string, coinType?: string) {
+  return {
+    query: SUI_BALANCE_QUERY,
+    variables: { owner, coinType: coinType ?? "0x2::sui::SUI" },
+  };
+}
+
+export function buildSuiTransactionGraphQLBody(digest: string) {
+  return {
+    query: SUI_TRANSACTION_QUERY,
+    variables: { digest },
+  };
+}
+
+function mapGraphQLObjectOwner(owner: any) {
+  if (!owner) return undefined;
+  if (owner.__typename === "AddressOwner") {
+    return { AddressOwner: owner.address?.address };
+  }
+  if (owner.__typename === "ObjectOwner") {
+    return { ObjectOwner: owner.address?.address };
+  }
+  if (owner.__typename === "Shared") {
+    return {
+      Shared: {
+        initial_shared_version: String(owner.initialSharedVersion),
       },
-    ],
-  };
+    };
+  }
+  if (owner.__typename === "Immutable") return "Immutable";
+  return undefined;
 }
 
-export function buildSuiGetTransactionBlockJsonRpcBody(
-  digest: string,
-  options: Record<string, unknown> = {},
-) {
-  return {
-    jsonrpc: "2.0",
-    id: 1,
-    method: SUI_GET_TRANSACTION_BLOCK_METHOD,
-    params: [
-      digest,
-      {
-        showInput: true,
-        showEffects: false,
-        showEvents: false,
-        showObjectChanges: false,
-        showBalanceChanges: false,
-        ...options,
-      },
-    ],
-  };
-}
-
-export function buildSuixGetBalanceJsonRpcBody(owner: string, coinType?: string) {
-  return {
-    jsonrpc: "2.0",
-    id: 1,
-    method: SUIX_GET_BALANCE_METHOD,
-    params: coinType ? [owner, coinType] : [owner],
-  };
-}
-
-async function readJsonRpcViaPost(
+async function readGraphQLViaPost(
   endpoint: string,
   body: Record<string, unknown>,
   options: {
     endpointIndex: number;
     operation: string;
-    jsonRpcMethod: string;
     objectId?: string;
     transactionDigest?: string;
     queueId?: string;
@@ -197,70 +243,69 @@ async function readJsonRpcViaPost(
   },
 ): Promise<any> {
   const endpointCategory = endpointLabel(options.endpointIndex);
-  const response = await options.fetchFn(endpoint, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-    },
-    body: JSON.stringify(body),
-  });
+  let response: Response;
+  try {
+    response = await options.fetchFn(endpoint, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  } catch (cause) {
+    throw new SuiRpcReadError("Sui GraphQL transport failed.", {
+      kind: "transport",
+      cause,
+    });
+  }
 
   let json: any = null;
   try {
     json = await response.json();
   } catch {
-    // Non-JSON responses are handled by status classification below.
+    // Status handling below reports non-JSON responses without exposing bodies.
   }
 
   if (!response.ok) {
-    console.warn("[sui-rpc] json-rpc http failure", {
+    console.warn("[sui-graphql] http failure", {
       operation: options.operation,
       endpointCategory,
-      httpMethod: "POST",
-      jsonRpcMethod: options.jsonRpcMethod,
       objectId: options.objectId,
       transactionDigest: options.transactionDigest,
-      status: response.status,
-      rpcCode: json?.error?.code,
-      rpcMessage: json?.error?.message,
       queueId: options.queueId,
+      status: response.status,
     });
-    throw new SuiRpcReadError("Sui JSON-RPC HTTP request failed.", {
+    throw new SuiRpcReadError("Sui GraphQL HTTP request failed.", {
       kind:
-        response.status === 429 || response.status === 503
+        response.status === 429 ||
+        response.status === 502 ||
+        response.status === 503 ||
+        response.status === 504
           ? "rate_limited"
           : "transport",
       status: response.status,
-      rpcCode: json?.error?.code,
-      rpcMessage: json?.error?.message,
     });
   }
 
-  if (json?.error) {
-    console.warn("[sui-rpc] json-rpc failure", {
+  if (Array.isArray(json?.errors) && json.errors.length > 0) {
+    const message = String(json.errors[0]?.message ?? "GraphQL request failed");
+    console.warn("[sui-graphql] query failure", {
       operation: options.operation,
       endpointCategory,
-      httpMethod: "POST",
-      jsonRpcMethod: options.jsonRpcMethod,
       objectId: options.objectId,
       transactionDigest: options.transactionDigest,
-      status: response.status,
-      rpcCode: json.error.code,
-      rpcMessage: json.error.message,
       queueId: options.queueId,
+      graphQLMessage: message,
     });
-    throw new SuiRpcReadError("Sui JSON-RPC request failed.", {
+    throw new SuiRpcReadError("Sui GraphQL request failed.", {
       kind: "unexpected",
       status: response.status,
-      rpcCode: json.error.code,
-      rpcMessage: json.error.message,
+      rpcMessage: message,
     });
   }
 
-  return json?.result;
+  return json;
 }
 
-async function readObjectViaJsonRpc(
+async function readObjectViaGraphQL(
   endpoint: string,
   request: SuiObjectRequest,
   options: {
@@ -270,15 +315,46 @@ async function readObjectViaJsonRpc(
     fetchFn: FetchLike;
   },
 ): Promise<SuiObjectResponse> {
-  const body = buildSuiGetObjectJsonRpcBody(request);
-  return readJsonRpcViaPost(endpoint, body, {
-    endpointIndex: options.endpointIndex,
-    operation: options.operation,
-    jsonRpcMethod: SUI_GET_OBJECT_METHOD,
-    objectId: request.id,
-    queueId: options.queueId,
-    fetchFn: options.fetchFn,
-  });
+  const response = await readGraphQLViaPost(
+    endpoint,
+    buildSuiObjectGraphQLBody(request),
+    {
+      endpointIndex: options.endpointIndex,
+      operation: options.operation,
+      objectId: request.id,
+      queueId: options.queueId,
+      fetchFn: options.fetchFn,
+    },
+  );
+  const object = response?.data?.object;
+  if (!object) {
+    return {
+      error: {
+        code: "notExists",
+        objectId: request.id,
+      },
+    };
+  }
+
+  const moveObject = object.asMoveObject;
+  const objectType = moveObject?.contents?.type?.repr;
+  return {
+    data: {
+      objectId: object.address,
+      version: String(object.version),
+      digest: object.digest,
+      type: objectType,
+      owner: mapGraphQLObjectOwner(object.owner),
+      previousTransaction: object.previousTransaction?.digest ?? null,
+      content: moveObject
+        ? {
+            dataType: "moveObject",
+            type: objectType,
+            fields: moveObject.contents?.json ?? {},
+          }
+        : undefined,
+    },
+  };
 }
 
 async function readWithRetries(
@@ -301,7 +377,7 @@ async function readWithRetries(
 
   for (let attempt = 0; attempt <= options.retryDelaysMs.length; attempt += 1) {
     try {
-      return await readObjectViaJsonRpc(endpoint, request, options);
+      return await readObjectViaGraphQL(endpoint, request, options);
     } catch (error) {
       lastError = error;
       const classification = classifySuiRpcReadError(error);
@@ -311,11 +387,10 @@ async function readWithRetries(
       lastRpcMessage =
         error instanceof SuiRpcReadError ? error.rpcMessage : undefined;
 
-      console.warn("[sui-rpc] object read failed", {
+      console.warn("[sui-graphql] object read failed", {
         operation: options.operation,
         endpointCategory,
         httpMethod: "POST",
-        jsonRpcMethod: SUI_GET_OBJECT_METHOD,
         objectId: request.id,
         status: classification.status,
         rpcCode: lastRpcCode,
@@ -376,7 +451,7 @@ export async function readSuiObjectWithRetry(
       lastError = error;
       if (index < endpoints.length - 1) {
         const rpcError = error as Partial<SuiRpcReadError>;
-        console.warn("[sui-rpc] switching endpoint after read failure", {
+        console.warn("[sui-graphql] switching endpoint after read failure", {
           operation: options.operation,
           endpointCategory: endpointLabel(index),
           nextEndpointCategory: endpointLabel(index + 1),
@@ -392,7 +467,7 @@ export async function readSuiObjectWithRetry(
   throw lastError;
 }
 
-async function readBalanceViaJsonRpc(
+async function readBalanceViaGraphQL(
   endpoint: string,
   owner: string,
   options: {
@@ -402,13 +477,22 @@ async function readBalanceViaJsonRpc(
     fetchFn: FetchLike;
   },
 ): Promise<SuiBalanceResponse> {
-  const body = buildSuixGetBalanceJsonRpcBody(owner, options.coinType);
-  return readJsonRpcViaPost(endpoint, body, {
-    endpointIndex: options.endpointIndex,
-    operation: options.operation,
-    jsonRpcMethod: SUIX_GET_BALANCE_METHOD,
-    fetchFn: options.fetchFn,
-  });
+  const response = await readGraphQLViaPost(
+    endpoint,
+    buildSuiBalanceGraphQLBody(owner, options.coinType),
+    {
+      endpointIndex: options.endpointIndex,
+      operation: options.operation,
+      fetchFn: options.fetchFn,
+    },
+  );
+  const balance = response?.data?.address?.balance;
+  return {
+    coinType: balance?.coinType?.repr ?? options.coinType ?? "0x2::sui::SUI",
+    coinObjectCount: 0,
+    totalBalance: String(balance?.totalBalance ?? "0"),
+    lockedBalance: {},
+  };
 }
 
 async function readBalanceWithRetries(
@@ -431,7 +515,7 @@ async function readBalanceWithRetries(
 
   for (let attempt = 0; attempt <= options.retryDelaysMs.length; attempt += 1) {
     try {
-      return await readBalanceViaJsonRpc(endpoint, owner, options);
+      return await readBalanceViaGraphQL(endpoint, owner, options);
     } catch (error) {
       lastError = error;
       const classification = classifySuiRpcReadError(error);
@@ -441,11 +525,10 @@ async function readBalanceWithRetries(
       lastRpcMessage =
         error instanceof SuiRpcReadError ? error.rpcMessage : undefined;
 
-      console.warn("[sui-rpc] balance read failed", {
+      console.warn("[sui-graphql] balance read failed", {
         operation: options.operation,
         endpointCategory,
         httpMethod: "POST",
-        jsonRpcMethod: SUIX_GET_BALANCE_METHOD,
         status: classification.status,
         rpcCode: lastRpcCode,
         rpcMessage: lastRpcMessage,
@@ -503,7 +586,7 @@ export async function readSuiBalanceWithRetry(
       lastError = error;
       if (index < endpoints.length - 1) {
         const rpcError = error as Partial<SuiRpcReadError>;
-        console.warn("[sui-rpc] switching endpoint after balance failure", {
+        console.warn("[sui-graphql] switching endpoint after balance failure", {
           operation: options.operation,
           endpointCategory: endpointLabel(index),
           nextEndpointCategory: endpointLabel(index + 1),
@@ -518,7 +601,7 @@ export async function readSuiBalanceWithRetry(
   throw lastError;
 }
 
-async function readTransactionBlockViaJsonRpc(
+async function readTransactionBlockViaGraphQL(
   endpoint: string,
   digest: string,
   requestOptions: Record<string, unknown>,
@@ -528,14 +611,63 @@ async function readTransactionBlockViaJsonRpc(
     fetchFn: FetchLike;
   },
 ): Promise<SuiTransactionBlockResponse> {
-  const body = buildSuiGetTransactionBlockJsonRpcBody(digest, requestOptions);
-  return readJsonRpcViaPost(endpoint, body, {
-    endpointIndex: options.endpointIndex,
-    operation: options.operation,
-    jsonRpcMethod: SUI_GET_TRANSACTION_BLOCK_METHOD,
-    transactionDigest: digest,
-    fetchFn: options.fetchFn,
-  });
+  void requestOptions;
+  const response = await readGraphQLViaPost(
+    endpoint,
+    buildSuiTransactionGraphQLBody(digest),
+    {
+      endpointIndex: options.endpointIndex,
+      operation: options.operation,
+      transactionDigest: digest,
+      fetchFn: options.fetchFn,
+    },
+  );
+  const transaction = response?.data?.transaction;
+  if (!transaction) {
+    throw new SuiRpcReadError("Sui transaction is not indexed yet.", {
+      kind: "transport",
+      status: 404,
+    });
+  }
+
+  const effects = transaction.effects;
+  const status = String(effects?.status ?? "").toLowerCase();
+  const events = (effects?.events?.nodes ?? []).map((event: any) => ({
+    id: {
+      txDigest: transaction.digest,
+      eventSeq: String(event.sequenceNumber),
+    },
+    type: event.contents?.type?.repr,
+    parsedJson: event.contents?.json,
+  }));
+  const objectChanges = (effects?.objectChanges?.nodes ?? []).map(
+    (change: any) => {
+      const objectType =
+        change.outputState?.asMoveObject?.contents?.type?.repr ??
+        change.inputState?.asMoveObject?.contents?.type?.repr;
+      return {
+        type: change.idCreated
+          ? "created"
+          : change.idDeleted
+            ? "deleted"
+            : "mutated",
+        objectId: change.address,
+        objectType,
+      };
+    },
+  );
+
+  return {
+    digest: transaction.digest,
+    effects: {
+      status: {
+        status: status || "success",
+        error: effects?.executionError?.message,
+      },
+    },
+    events,
+    objectChanges,
+  };
 }
 
 async function readTransactionBlockWithRetries(
@@ -558,7 +690,7 @@ async function readTransactionBlockWithRetries(
 
   for (let attempt = 0; attempt <= options.retryDelaysMs.length; attempt += 1) {
     try {
-      return await readTransactionBlockViaJsonRpc(
+      return await readTransactionBlockViaGraphQL(
         endpoint,
         digest,
         requestOptions,
@@ -573,11 +705,10 @@ async function readTransactionBlockWithRetries(
       lastRpcMessage =
         error instanceof SuiRpcReadError ? error.rpcMessage : undefined;
 
-      console.warn("[sui-rpc] transaction block read failed", {
+      console.warn("[sui-graphql] transaction block read failed", {
         operation: options.operation,
         endpointCategory,
         httpMethod: "POST",
-        jsonRpcMethod: SUI_GET_TRANSACTION_BLOCK_METHOD,
         transactionDigest: digest,
         status: classification.status,
         rpcCode: lastRpcCode,
@@ -640,7 +771,7 @@ export async function readSuiTransactionBlockWithRetry(
       lastError = error;
       if (index < endpoints.length - 1) {
         const rpcError = error as Partial<SuiRpcReadError>;
-        console.warn("[sui-rpc] switching endpoint after transaction read failure", {
+        console.warn("[sui-graphql] switching endpoint after transaction read failure", {
           operation: options.operation,
           endpointCategory: endpointLabel(index),
           nextEndpointCategory: endpointLabel(index + 1),
