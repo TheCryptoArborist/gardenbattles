@@ -2,11 +2,15 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   buildSuiBalanceGraphQLBody,
+  buildSuiDynamicFieldsGraphQLBody,
   buildSuiObjectGraphQLBody,
+  buildSuiOwnedObjectsGraphQLBody,
   buildSuiTransactionGraphQLBody,
   classifySuiRpcReadError,
   readSuiBalanceWithRetry,
+  readSuiDynamicFieldsWithRetry,
   readSuiObjectWithRetry,
+  readSuiOwnedObjectsWithRetry,
   readSuiTransactionBlockWithRetry,
   resolveFetchImplementation,
   SuiRpcReadError,
@@ -185,6 +189,106 @@ describe("Sui GraphQL read migration", () => {
     });
     assert.equal(result.totalBalance, "5000000000");
     assert.equal(JSON.parse(String(calls[0].init.body)).variables.owner, wallet);
+  });
+
+  it("maps filtered owned NFTrees and display metadata", async () => {
+    const nftType = "0xcollection::collection::NFT";
+    const nftId = "0xnft";
+    const { calls, fetchImpl } = fetchFromResponses([
+      jsonResponse(200, {
+        data: {
+          address: {
+            objects: {
+              pageInfo: { hasNextPage: false, endCursor: null },
+              nodes: [
+                {
+                  address: nftId,
+                  digest: "nftDigest",
+                  version: 12,
+                  previousTransaction: { digest: "mintDigest" },
+                  owner: {
+                    __typename: "AddressOwner",
+                    address: { address: wallet },
+                  },
+                  contents: {
+                    type: { repr: nftType },
+                    json: { id: nftId, image_url: "ipfs://fallback" },
+                    display: {
+                      output: { image_url: "https://images.example/nft.png" },
+                      errors: null,
+                    },
+                  },
+                },
+              ],
+            },
+          },
+        },
+      }),
+    ]);
+
+    const result = await readSuiOwnedObjectsWithRetry(wallet, {
+      operation: "owned-nftrees",
+      structType: nftType,
+      endpoints: ["https://graphql.example/graphql"],
+      fetchImpl,
+      retryDelaysMs: [],
+    });
+
+    assert.equal(result.data[0].data.objectId, nftId);
+    assert.equal(result.data[0].data.type, nftType);
+    assert.equal(
+      result.data[0].data.display.data.image_url,
+      "https://images.example/nft.png",
+    );
+    assert.deepEqual(
+      JSON.parse(String(calls[0].init.body)).variables.filter,
+      { type: nftType },
+    );
+    assert.match(buildSuiOwnedObjectsGraphQLBody(wallet).query, /objects/);
+  });
+
+  it("maps kiosk dynamic-field names into the legacy scan shape", async () => {
+    const kioskId = "0xkiosk";
+    const nftId = "0xkioskNft";
+    const { fetchImpl } = fetchFromResponses([
+      jsonResponse(200, {
+        data: {
+          address: {
+            dynamicFields: {
+              pageInfo: { hasNextPage: false, endCursor: null },
+              nodes: [
+                {
+                  address: "0xfield",
+                  name: {
+                    type: { repr: "0x2::kiosk::Item" },
+                    json: { id: nftId },
+                  },
+                  value: {
+                    __typename: "MoveObject",
+                    address: nftId,
+                    contents: { type: { repr: "0xcollection::collection::NFT" } },
+                  },
+                },
+              ],
+            },
+          },
+        },
+      }),
+    ]);
+
+    const result = await readSuiDynamicFieldsWithRetry(kioskId, {
+      operation: "kiosk-fields",
+      endpoints: ["https://graphql.example/graphql"],
+      fetchImpl,
+      retryDelaysMs: [],
+    });
+
+    assert.equal(result.data[0].name.type, "0x2::kiosk::Item");
+    assert.equal(result.data[0].name.value.id, nftId);
+    assert.match(
+      buildSuiDynamicFieldsGraphQLBody(kioskId).query,
+      /dynamicFields/,
+    );
   });
 
   it("maps effects, events, and object changes for post-digest recovery", async () => {

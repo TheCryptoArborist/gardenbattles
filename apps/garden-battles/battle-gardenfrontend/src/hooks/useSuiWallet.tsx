@@ -81,7 +81,9 @@ import {
 } from "@/lib/nftreeAccess";
 import {
   readSuiBalanceWithRetry,
+  readSuiDynamicFieldsWithRetry,
   readSuiObjectWithRetry,
+  readSuiOwnedObjectsWithRetry,
   readSuiTransactionBlockWithRetry,
   SuiRpcReadError,
 } from "@/lib/suiRpc";
@@ -1758,10 +1760,14 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
 
       // Fetch on-chain whitelisted collections to ensure we have the latest global list
       try {
-        const configObj = await suiClient.getObject({
-          id: SUI_CONFIG.CONFIG_ID,
-          options: { showContent: true },
-        });
+        const configObj = await readSuiObjectWithRetry(
+          suiClient,
+          {
+            id: SUI_CONFIG.CONFIG_ID,
+            options: { showContent: true },
+          },
+          { operation: "nftree-whitelist-config-read" },
+        );
 
         const whitelisted = (configObj?.data?.content as any)?.fields
           ?.whitelisted_collections;
@@ -1786,6 +1792,28 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
       }
 
       try {
+        const nftreeReadClient = {
+          getOwnedObjects: (args: any) =>
+            readSuiOwnedObjectsWithRetry(args.owner, {
+              operation: "nftree-owned-objects-read",
+              structType: args.filter?.StructType,
+              cursor: args.cursor,
+              limit: args.limit,
+            }),
+          getDynamicFields: (args: { parentId: string }) =>
+            readSuiDynamicFieldsWithRetry(args.parentId, {
+              operation: "nftree-kiosk-fields-read",
+              limit: 50,
+            }),
+          getObject: (args: {
+            id: string;
+            options?: Record<string, unknown>;
+          }) =>
+            readSuiObjectWithRetry(suiClient, args, {
+              operation: "nftree-kiosk-object-read",
+            }),
+        };
+
         try {
           const serverAccess = await fetchNftreeAccess(owner);
           if (serverAccess.nft) return serverAccess.nft;
@@ -1796,14 +1824,14 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
         }
 
         const directNft = await findDirectWalletNftByTypeFilter(
-          suiClient,
+          nftreeReadClient,
           owner,
           allowedTypes,
         );
         if (directNft) return directNft;
 
         return await scanWalletAndKiosksForNft(
-          suiClient,
+          nftreeReadClient,
           owner,
           allowedTypes,
         );

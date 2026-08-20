@@ -25,6 +25,12 @@ export type SuiBalanceResponse = {
 
 export type SuiTransactionBlockResponse = any;
 
+export type SuiPaginatedObjectResponse = {
+  data: any[];
+  hasNextPage: boolean;
+  nextCursor: string | null;
+};
+
 type FetchLike = typeof fetch;
 
 const DEFAULT_OBJECT_READ_RETRY_DELAYS_MS = [750, 1500, 3000] as const;
@@ -87,6 +93,64 @@ const SUI_TRANSACTION_QUERY = `
             idDeleted
             inputState { asMoveObject { contents { type { repr } } } }
             outputState { asMoveObject { contents { type { repr } } } }
+          }
+        }
+      }
+    }
+  }
+`;
+
+const SUI_OWNED_OBJECTS_QUERY = `
+  query SuiOwnedObjects(
+    $owner: SuiAddress!
+    $filter: ObjectFilter
+    $first: Int
+    $cursor: String
+  ) {
+    address(address: $owner) {
+      objects(first: $first, after: $cursor, filter: $filter) {
+        pageInfo { hasNextPage endCursor }
+        nodes {
+          address
+          digest
+          version
+          previousTransaction { digest }
+          owner {
+            __typename
+            ... on AddressOwner { address { address } }
+            ... on ObjectOwner { address { address } }
+            ... on Shared { initialSharedVersion }
+          }
+          contents {
+            type { repr }
+            json
+            display { output errors }
+          }
+        }
+      }
+    }
+  }
+`;
+
+const SUI_DYNAMIC_FIELDS_QUERY = `
+  query SuiDynamicFields(
+    $parentId: SuiAddress!
+    $first: Int
+    $cursor: String
+  ) {
+    address(address: $parentId) {
+      dynamicFields(first: $first, after: $cursor) {
+        pageInfo { hasNextPage endCursor }
+        nodes {
+          address
+          name { type { repr } json }
+          value {
+            __typename
+            ... on MoveValue { type { repr } json }
+            ... on MoveObject {
+              address
+              contents { type { repr } json }
+            }
           }
         }
       }
@@ -208,6 +272,35 @@ export function buildSuiTransactionGraphQLBody(digest: string) {
   return {
     query: SUI_TRANSACTION_QUERY,
     variables: { digest },
+  };
+}
+
+export function buildSuiOwnedObjectsGraphQLBody(
+  owner: string,
+  options: { structType?: string; cursor?: string | null; limit?: number } = {},
+) {
+  return {
+    query: SUI_OWNED_OBJECTS_QUERY,
+    variables: {
+      owner,
+      filter: options.structType ? { type: options.structType } : null,
+      first: options.limit ?? 50,
+      cursor: options.cursor ?? null,
+    },
+  };
+}
+
+export function buildSuiDynamicFieldsGraphQLBody(
+  parentId: string,
+  options: { cursor?: string | null; limit?: number } = {},
+) {
+  return {
+    query: SUI_DYNAMIC_FIELDS_QUERY,
+    variables: {
+      parentId,
+      first: options.limit ?? 50,
+      cursor: options.cursor ?? null,
+    },
   };
 }
 
@@ -465,6 +558,215 @@ export async function readSuiObjectWithRetry(
   }
 
   throw lastError;
+}
+
+function mapGraphQLOwnedObject(object: any) {
+  const contents = object?.contents;
+  const objectType = contents?.type?.repr;
+  return {
+    data: {
+      objectId: object?.address,
+      version: String(object?.version),
+      digest: object?.digest,
+      type: objectType,
+      owner: mapGraphQLObjectOwner(object?.owner),
+      previousTransaction: object?.previousTransaction?.digest ?? null,
+      content: {
+        dataType: "moveObject",
+        type: objectType,
+        fields: contents?.json ?? {},
+      },
+      display: contents?.display
+        ? {
+            data: contents.display.output ?? {},
+            error: contents.display.errors ?? null,
+          }
+        : undefined,
+    },
+  };
+}
+
+function mapGraphQLDynamicField(field: any) {
+  const valueType =
+    field?.value?.__typename === "MoveObject"
+      ? field.value.contents?.type?.repr
+      : field?.value?.type?.repr;
+  return {
+    name: {
+      type: field?.name?.type?.repr,
+      value: field?.name?.json,
+    },
+    objectId: field?.address,
+    objectType: valueType,
+  };
+}
+
+async function readPaginatedGraphQLWithRetries(
+  endpoint: string,
+  body: Record<string, unknown>,
+  options: {
+    endpointIndex: number;
+    operation: string;
+    subjectId: string;
+    retryDelaysMs: readonly number[];
+    fetchFn: FetchLike;
+    selectPage: (response: any) => any;
+    mapNode: (node: any) => any;
+  },
+): Promise<SuiPaginatedObjectResponse> {
+  const endpointCategory = endpointLabel(options.endpointIndex);
+  let lastError: unknown;
+  let lastKind: SuiReadFailureKind = "unexpected";
+  let lastStatus: number | undefined;
+  let lastRpcMessage: string | undefined;
+
+  for (let attempt = 0; attempt <= options.retryDelaysMs.length; attempt += 1) {
+    try {
+      const response = await readGraphQLViaPost(endpoint, body, {
+        endpointIndex: options.endpointIndex,
+        operation: options.operation,
+        objectId: options.subjectId,
+        fetchFn: options.fetchFn,
+      });
+      const page = options.selectPage(response);
+      if (!page) {
+        return { data: [], hasNextPage: false, nextCursor: null };
+      }
+      return {
+        data: (page.nodes ?? []).map(options.mapNode),
+        hasNextPage: Boolean(page.pageInfo?.hasNextPage),
+        nextCursor: page.pageInfo?.endCursor ?? null,
+      };
+    } catch (error) {
+      lastError = error;
+      const classification = classifySuiRpcReadError(error);
+      lastKind = classification.kind;
+      lastStatus = classification.status;
+      lastRpcMessage =
+        error instanceof SuiRpcReadError ? error.rpcMessage : undefined;
+
+      console.warn("[sui-graphql] paginated read failed", {
+        operation: options.operation,
+        endpointCategory,
+        httpMethod: "POST",
+        objectId: options.subjectId,
+        status: classification.status,
+        rpcMessage: lastRpcMessage,
+        retry: attempt,
+      });
+
+      const shouldRetry =
+        classification.retryable && attempt < options.retryDelaysMs.length;
+      if (!shouldRetry) break;
+      await sleep(options.retryDelaysMs[attempt]);
+    }
+  }
+
+  throw new SuiRpcReadError(
+    lastKind === "rate_limited"
+      ? "Sui GraphQL paginated read was rate-limited after retries."
+      : "Sui GraphQL paginated read failed after retries.",
+    {
+      kind: lastKind,
+      status: lastStatus,
+      rpcMessage: lastRpcMessage,
+      cause: lastError,
+    },
+  );
+}
+
+async function readPaginatedGraphQLAcrossEndpoints(
+  body: Record<string, unknown>,
+  options: {
+    operation: string;
+    subjectId: string;
+    retryDelaysMs?: readonly number[];
+    endpoints?: string[];
+    fetchImpl?: FetchLike;
+    selectPage: (response: any) => any;
+    mapNode: (node: any) => any;
+  },
+): Promise<SuiPaginatedObjectResponse> {
+  const retryDelaysMs =
+    options.retryDelaysMs ?? DEFAULT_OBJECT_READ_RETRY_DELAYS_MS;
+  const endpoints =
+    options.endpoints?.filter(Boolean) ?? getConfiguredEndpoints();
+  const fetchFn = resolveFetchImplementation(options.fetchImpl);
+  let lastError: unknown;
+
+  for (let index = 0; index < endpoints.length; index += 1) {
+    try {
+      return await readPaginatedGraphQLWithRetries(endpoints[index], body, {
+        endpointIndex: index,
+        operation: options.operation,
+        subjectId: options.subjectId,
+        retryDelaysMs,
+        fetchFn,
+        selectPage: options.selectPage,
+        mapNode: options.mapNode,
+      });
+    } catch (error) {
+      lastError = error;
+      if (index < endpoints.length - 1) {
+        const graphQLError = error as Partial<SuiRpcReadError>;
+        console.warn("[sui-graphql] switching endpoint after paginated read failure", {
+          operation: options.operation,
+          endpointCategory: endpointLabel(index),
+          nextEndpointCategory: endpointLabel(index + 1),
+          status: graphQLError.status,
+          rpcMessage: graphQLError.rpcMessage,
+          objectId: options.subjectId,
+        });
+      }
+    }
+  }
+
+  throw lastError;
+}
+
+export async function readSuiOwnedObjectsWithRetry(
+  owner: string,
+  options: {
+    operation: string;
+    structType?: string;
+    cursor?: string | null;
+    limit?: number;
+    retryDelaysMs?: readonly number[];
+    endpoints?: string[];
+    fetchImpl?: FetchLike;
+  },
+): Promise<SuiPaginatedObjectResponse> {
+  return readPaginatedGraphQLAcrossEndpoints(
+    buildSuiOwnedObjectsGraphQLBody(owner, options),
+    {
+      ...options,
+      subjectId: owner,
+      selectPage: (response) => response?.data?.address?.objects,
+      mapNode: mapGraphQLOwnedObject,
+    },
+  );
+}
+
+export async function readSuiDynamicFieldsWithRetry(
+  parentId: string,
+  options: {
+    operation: string;
+    cursor?: string | null;
+    limit?: number;
+    retryDelaysMs?: readonly number[];
+    endpoints?: string[];
+    fetchImpl?: FetchLike;
+  },
+): Promise<SuiPaginatedObjectResponse> {
+  return readPaginatedGraphQLAcrossEndpoints(
+    buildSuiDynamicFieldsGraphQLBody(parentId, options),
+    {
+      ...options,
+      subjectId: parentId,
+      selectPage: (response) => response?.data?.address?.dynamicFields,
+      mapNode: mapGraphQLDynamicField,
+    },
+  );
 }
 
 async function readBalanceViaGraphQL(
