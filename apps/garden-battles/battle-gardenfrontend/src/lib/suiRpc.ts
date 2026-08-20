@@ -158,6 +158,25 @@ const SUI_DYNAMIC_FIELDS_QUERY = `
   }
 `;
 
+const SUI_EVENTS_QUERY = `
+  query SuiEvents(
+    $filter: EventFilter!
+    $last: Int
+    $before: String
+  ) {
+    events(filter: $filter, last: $last, before: $before) {
+      pageInfo { hasPreviousPage startCursor }
+      nodes {
+        sequenceNumber
+        timestamp
+        sender { address }
+        transaction { digest }
+        contents { type { repr } json }
+      }
+    }
+  }
+`;
+
 export function resolveFetchImplementation(fetchImpl?: FetchLike): FetchLike {
   if (fetchImpl) {
     return (input, init) => fetchImpl(input, init);
@@ -300,6 +319,20 @@ export function buildSuiDynamicFieldsGraphQLBody(
       parentId,
       first: options.limit ?? 50,
       cursor: options.cursor ?? null,
+    },
+  };
+}
+
+export function buildSuiEventsGraphQLBody(
+  eventType: string,
+  options: { before?: string | null; limit?: number } = {},
+) {
+  return {
+    query: SUI_EVENTS_QUERY,
+    variables: {
+      filter: { type: eventType },
+      last: Math.min(Math.max(options.limit ?? 50, 1), 50),
+      before: options.before ?? null,
     },
   };
 }
@@ -601,6 +634,22 @@ function mapGraphQLDynamicField(field: any) {
   };
 }
 
+function mapGraphQLEvent(event: any) {
+  const digest = event?.transaction?.digest;
+  return {
+    id: {
+      txDigest: digest,
+      eventSeq: String(event?.sequenceNumber),
+    },
+    type: event?.contents?.type?.repr,
+    sender: event?.sender?.address,
+    parsedJson: event?.contents?.json,
+    timestampMs: event?.timestamp
+      ? String(Date.parse(event.timestamp))
+      : undefined,
+  };
+}
+
 async function readPaginatedGraphQLWithRetries(
   endpoint: string,
   body: Record<string, unknown>,
@@ -612,6 +661,7 @@ async function readPaginatedGraphQLWithRetries(
     fetchFn: FetchLike;
     selectPage: (response: any) => any;
     mapNode: (node: any) => any;
+    pageInfoDirection?: "forward" | "backward";
   },
 ): Promise<SuiPaginatedObjectResponse> {
   const endpointCategory = endpointLabel(options.endpointIndex);
@@ -634,8 +684,15 @@ async function readPaginatedGraphQLWithRetries(
       }
       return {
         data: (page.nodes ?? []).map(options.mapNode),
-        hasNextPage: Boolean(page.pageInfo?.hasNextPage),
-        nextCursor: page.pageInfo?.endCursor ?? null,
+        hasNextPage: Boolean(
+          options.pageInfoDirection === "backward"
+            ? page.pageInfo?.hasPreviousPage
+            : page.pageInfo?.hasNextPage,
+        ),
+        nextCursor:
+          options.pageInfoDirection === "backward"
+            ? (page.pageInfo?.startCursor ?? null)
+            : (page.pageInfo?.endCursor ?? null),
       };
     } catch (error) {
       lastError = error;
@@ -685,6 +742,7 @@ async function readPaginatedGraphQLAcrossEndpoints(
     fetchImpl?: FetchLike;
     selectPage: (response: any) => any;
     mapNode: (node: any) => any;
+    pageInfoDirection?: "forward" | "backward";
   },
 ): Promise<SuiPaginatedObjectResponse> {
   const retryDelaysMs =
@@ -704,6 +762,7 @@ async function readPaginatedGraphQLAcrossEndpoints(
         fetchFn,
         selectPage: options.selectPage,
         mapNode: options.mapNode,
+        pageInfoDirection: options.pageInfoDirection,
       });
     } catch (error) {
       lastError = error;
@@ -767,6 +826,49 @@ export async function readSuiDynamicFieldsWithRetry(
       mapNode: mapGraphQLDynamicField,
     },
   );
+}
+
+export async function readSuiEventsWithRetry(
+  eventType: string,
+  options: {
+    operation: string;
+    limit?: number;
+    retryDelaysMs?: readonly number[];
+    endpoints?: string[];
+    fetchImpl?: FetchLike;
+  },
+): Promise<SuiPaginatedObjectResponse> {
+  const requestedLimit = Math.max(options.limit ?? 50, 1);
+  const data: any[] = [];
+  let before: string | null = null;
+  let hasNextPage = true;
+
+  while (data.length < requestedLimit && hasNextPage) {
+    const page = await readPaginatedGraphQLAcrossEndpoints(
+      buildSuiEventsGraphQLBody(eventType, {
+        before,
+        limit: Math.min(requestedLimit - data.length, 50),
+      }),
+      {
+        ...options,
+        subjectId: eventType,
+        selectPage: (response) => response?.data?.events,
+        mapNode: mapGraphQLEvent,
+        pageInfoDirection: "backward",
+      },
+    );
+
+    data.push(...page.data.reverse());
+    hasNextPage = page.hasNextPage;
+    before = page.nextCursor;
+    if (!before) break;
+  }
+
+  return {
+    data,
+    hasNextPage,
+    nextCursor: before,
+  };
 }
 
 async function readBalanceViaGraphQL(

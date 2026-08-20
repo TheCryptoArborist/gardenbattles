@@ -3,12 +3,14 @@ import { describe, it } from "node:test";
 import {
   buildSuiBalanceGraphQLBody,
   buildSuiDynamicFieldsGraphQLBody,
+  buildSuiEventsGraphQLBody,
   buildSuiObjectGraphQLBody,
   buildSuiOwnedObjectsGraphQLBody,
   buildSuiTransactionGraphQLBody,
   classifySuiRpcReadError,
   readSuiBalanceWithRetry,
   readSuiDynamicFieldsWithRetry,
+  readSuiEventsWithRetry,
   readSuiObjectWithRetry,
   readSuiOwnedObjectsWithRetry,
   readSuiTransactionBlockWithRetry,
@@ -289,6 +291,57 @@ describe("Sui GraphQL read migration", () => {
       buildSuiDynamicFieldsGraphQLBody(kioskId).query,
       /dynamicFields/,
     );
+  });
+
+  it("maps recent events newest-first across GraphQL's 50-event pages", async () => {
+    const eventType = "0xpackage::battle::PvpBattleV3Update";
+    const eventNode = (digest: string, sequenceNumber: number) => ({
+      sequenceNumber,
+      timestamp: "2026-08-20T23:43:18.216Z",
+      sender: { address: wallet },
+      transaction: { digest },
+      contents: {
+        type: { repr: eventType },
+        json: { battle_id: `0xbattle${sequenceNumber}` },
+      },
+    });
+    const { calls, fetchImpl } = fetchFromResponses([
+      jsonResponse(200, {
+        data: {
+          events: {
+            pageInfo: { hasPreviousPage: true, startCursor: "older-page" },
+            nodes: [eventNode("middleDigest", 1), eventNode("newestDigest", 2)],
+          },
+        },
+      }),
+      jsonResponse(200, {
+        data: {
+          events: {
+            pageInfo: { hasPreviousPage: false, startCursor: "oldest" },
+            nodes: [eventNode("oldestDigest", 0)],
+          },
+        },
+      }),
+    ]);
+
+    const result = await readSuiEventsWithRetry(eventType, {
+      operation: "active-battle-events",
+      limit: 3,
+      endpoints: ["https://graphql.example/graphql"],
+      fetchImpl,
+      retryDelaysMs: [],
+    });
+
+    assert.deepEqual(
+      result.data.map((event) => event.id.txDigest),
+      ["newestDigest", "middleDigest", "oldestDigest"],
+    );
+    assert.equal(result.data[0].parsedJson.battle_id, "0xbattle2");
+    assert.equal(
+      JSON.parse(String(calls[1].init.body)).variables.before,
+      "older-page",
+    );
+    assert.equal(buildSuiEventsGraphQLBody(eventType, { limit: 100 }).variables.last, 50);
   });
 
   it("maps effects, events, and object changes for post-digest recovery", async () => {

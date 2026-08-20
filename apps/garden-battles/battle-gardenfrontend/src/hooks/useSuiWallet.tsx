@@ -82,6 +82,7 @@ import {
 import {
   readSuiBalanceWithRetry,
   readSuiDynamicFieldsWithRetry,
+  readSuiEventsWithRetry,
   readSuiObjectWithRetry,
   readSuiOwnedObjectsWithRetry,
   readSuiTransactionBlockWithRetry,
@@ -980,10 +981,9 @@ async function findActivePvpBattleState(
   ];
 
   for (const eventQuery of eventQueries) {
-    const events = await suiClient.queryEvents({
-      query: { MoveEventType: eventQuery.eventType },
+    const events = await readSuiEventsWithRetry(eventQuery.eventType, {
+      operation: "active-pvp-battle-discovery",
       limit: 100,
-      order: "descending",
     });
 
     for (const event of events.data ?? []) {
@@ -1693,10 +1693,9 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
           ];
 
           for (const eventQuery of eventQueries) {
-            const events = await suiClient.queryEvents({
-              query: { MoveEventType: eventQuery.eventType },
+            const events = await readSuiEventsWithRetry(eventQuery.eventType, {
+              operation: "battle-polling-event-discovery",
               limit: force ? 50 : 20,
-              order: "descending",
             });
 
             for (const event of events.data) {
