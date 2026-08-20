@@ -85,8 +85,21 @@ import {
   readSuiTransactionBlockWithRetry,
   SuiRpcReadError,
 } from "@/lib/suiRpc";
+import {
+  PVP_JOIN_SYNCING_MESSAGE,
+  buildSubmittedPvpJoinQueueState,
+  classifyPvpJoinTransactionStatus,
+  isTransientPvpJoinConfirmationError,
+} from "@/lib/pvpJoinRecovery";
 
 const POST_REFUND_VERIFICATION_RETRY_DELAYS_MS = [
+  750,
+  1500,
+  3000,
+  5000,
+] as const;
+
+const PVP_JOIN_RECOVERY_RETRY_DELAYS_MS = [
   750,
   1500,
   3000,
@@ -163,6 +176,10 @@ interface CancelQueueOptions {
   onRefundConfirmed?: (queueState: PvpQueueState) => void;
 }
 
+export type JoinBattleResult =
+  | { status: "confirmed" }
+  | { status: "syncing"; digest: string; message: string };
+
 export interface CancelQueueResult {
   digest?: string;
   queueState: PvpQueueState;
@@ -179,7 +196,10 @@ interface SuiWalletContextType {
   isMyTurn: boolean;
   actionLog: ActionEntry[];
   clearActionLog: () => void;
-  joinBattle: (nftData: NftData, targetGrowth?: PvpMatchTarget) => Promise<void>;
+  joinBattle: (
+    nftData: NftData,
+    targetGrowth?: PvpMatchTarget,
+  ) => Promise<JoinBattleResult>;
   startBotBattle: (
     nftData: NftData,
     options?: StartBotBattleOptions,
@@ -873,6 +893,79 @@ async function getBattleStateFromTransaction(
   return null;
 }
 
+async function getPvpJoinTransactionStatusFromDigest(
+  digest: string,
+): Promise<ReturnType<typeof classifyPvpJoinTransactionStatus>> {
+  const tx = await readSuiTransactionBlockWithRetry(digest, {
+    operation: "pvp-join-transaction-recovery",
+    retryDelaysMs: PVP_JOIN_RECOVERY_RETRY_DELAYS_MS,
+    requestOptions: {
+      showEffects: true,
+      showObjectChanges: true,
+      showEvents: true,
+    },
+  });
+  return classifyPvpJoinTransactionStatus(tx);
+}
+
+async function getJoinedPvpQueueStateWithRetries(
+  suiClient: any,
+  address: string,
+  option: PvpMatchOption,
+): Promise<PvpQueueState | null> {
+  let lastError: unknown;
+
+  for (
+    let attempt = 0;
+    attempt <= PVP_JOIN_RECOVERY_RETRY_DELAYS_MS.length;
+    attempt += 1
+  ) {
+    if (attempt > 0) {
+      await wait(PVP_JOIN_RECOVERY_RETRY_DELAYS_MS[attempt - 1]);
+    }
+
+    try {
+      const snapshot = await getPvpQueueSnapshotForOption(
+        suiClient,
+        address,
+        option,
+        "pvp-join-queue-recovery",
+        [],
+      );
+      console.info("[pvp-join] queue recovery read", {
+        queueId: option.queueId,
+        queueType: option.queueType,
+        targetGrowth: option.targetGrowth,
+        previousTransaction: snapshot.previousTransaction,
+        version: snapshot.version,
+        bankMist: snapshot.bankMist,
+        walletWaiting: Boolean(snapshot.queueState),
+        attempt,
+      });
+      if (snapshot.queueState) return snapshot.queueState;
+    } catch (err) {
+      lastError = err;
+      console.warn("[pvp-join] queue recovery read failed", {
+        queueId: option.queueId,
+        queueType: option.queueType,
+        targetGrowth: option.targetGrowth,
+        attempt,
+        err,
+      });
+    }
+  }
+
+  if (lastError) {
+    console.warn("[pvp-join] queue recovery unresolved after retries", {
+      queueId: option.queueId,
+      queueType: option.queueType,
+      targetGrowth: option.targetGrowth,
+      lastError,
+    });
+  }
+  return null;
+}
+
 async function findActivePvpBattleState(
   suiClient: any,
   address: string,
@@ -1027,6 +1120,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
   const lastConfirmedPvpQueueStateRef = useRef<PvpQueueState | null>(null);
   const queueClearDiscoveryInFlightRef = useRef(false);
   const lastQueueClearDiscoveryKeyRef = useRef<string | null>(null);
+  const unresolvedPvpJoinDigestRef = useRef<string | null>(null);
 
   const address = currentAccount?.address ?? null;
   const isConnected = !!currentAccount;
@@ -1082,6 +1176,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
     setPvpQueueState(queueState);
     setIsWaiting(!!queueState);
     if (queueState) {
+      unresolvedPvpJoinDigestRef.current = null;
       console.info("[pvp-queue] queue state restored after refresh", {
         queueId: queueState.queueId,
       });
@@ -1170,6 +1265,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
     setIsWaiting(false);
     setPvpQueueState(null);
     lastConfirmedPvpQueueStateRef.current = null;
+    unresolvedPvpJoinDigestRef.current = null;
     prevBattleStateRef.current = null;
     if (address) cacheBattleState(address, null);
   }, [address]);
@@ -1320,6 +1416,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
       setIsWaiting(false);
       setPvpQueueState(null);
       lastConfirmedPvpQueueStateRef.current = null;
+      unresolvedPvpJoinDigestRef.current = null;
 
       if (mode === "apply-update") {
         await applyBattleState(state);
@@ -1723,11 +1820,18 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
 
   // ── 4. Join the battle queue ──────────────────────────────────────────────
   const joinBattle = useCallback(
-    async (nftData: NftData, targetGrowth: PvpMatchTarget = 50) => {
+    async (
+      nftData: NftData,
+      targetGrowth: PvpMatchTarget = 50,
+    ): Promise<JoinBattleResult> => {
       if (!address || !randomObjectId) {
         throw new Error(
           "Wallet not connected or random object not initialised",
         );
+      }
+
+      if (unresolvedPvpJoinDigestRef.current) {
+        throw new Error(PVP_JOIN_SYNCING_MESSAGE);
       }
 
       const matchOption = getPvpMatchOption(targetGrowth);
@@ -1905,11 +2009,105 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
           targetGrowth: matchOption.targetGrowth,
           functionName: joinFunction,
         });
-        throw new Error(
-          `PvP queue transaction confirmation failed after wallet approval: ${
-            err?.message ?? "Unknown transaction confirmation error"
-          }`,
+
+        if (!isTransientPvpJoinConfirmationError(err)) {
+          throw new Error(
+            `PvP queue transaction confirmation failed after wallet approval: ${
+              err?.message ?? "Unknown transaction confirmation error"
+            }`,
+          );
+        }
+
+        unresolvedPvpJoinDigestRef.current = digest;
+        console.info("[pvp-join] confirmation syncing; starting recovery", {
+          digest,
+          queueId: matchOption.queueId,
+          queueType: matchOption.queueType,
+          targetGrowth: matchOption.targetGrowth,
+          userMessage: PVP_JOIN_SYNCING_MESSAGE,
+        });
+
+        try {
+          const recoveredStatus = await getPvpJoinTransactionStatusFromDigest(
+            digest,
+          );
+          if (recoveredStatus.status === "failed") {
+            unresolvedPvpJoinDigestRef.current = null;
+            throw new Error(recoveredStatus.error);
+          }
+          console.info("[pvp-join] transaction block recovery succeeded", {
+            digest,
+            queueId: matchOption.queueId,
+            queueType: matchOption.queueType,
+            targetGrowth: matchOption.targetGrowth,
+          });
+        } catch (recoveryErr: any) {
+          if (!isTransientPvpJoinConfirmationError(recoveryErr)) {
+            unresolvedPvpJoinDigestRef.current = null;
+            throw new Error(
+              `PvP queue transaction failed on-chain: ${
+                recoveryErr?.message ?? "Unknown transaction status"
+              }`,
+            );
+          }
+          console.warn("[pvp-join] transaction block recovery still syncing", {
+            digest,
+            queueId: matchOption.queueId,
+            queueType: matchOption.queueType,
+            targetGrowth: matchOption.targetGrowth,
+            err: recoveryErr,
+          });
+        }
+
+        try {
+          const matchedBattle = await getBattleStateFromTransaction(
+            suiClient,
+            digest,
+            address,
+          );
+          const hydratedBattle = matchedBattle
+            ? await hydrateActivePvpBattle(matchedBattle, "join_queue recovery")
+            : null;
+          if (hydratedBattle) {
+            unresolvedPvpJoinDigestRef.current = null;
+            return { status: "confirmed" };
+          }
+        } catch (recoveryErr) {
+          console.warn("[pvp-match] could not hydrate joined battle during recovery", recoveryErr);
+        }
+
+        const recoveredQueueState = await getJoinedPvpQueueStateWithRetries(
+          suiClient,
+          address,
+          matchOption,
         );
+        if (recoveredQueueState) {
+          setPvpQueueState(recoveredQueueState);
+          lastConfirmedPvpQueueStateRef.current = recoveredQueueState;
+          setIsWaiting(true);
+          unresolvedPvpJoinDigestRef.current = null;
+          return { status: "confirmed" };
+        }
+
+        const activeBattle = await refreshActivePvpBattle("join confirmation recovery");
+        if (activeBattle) {
+          unresolvedPvpJoinDigestRef.current = null;
+          return { status: "confirmed" };
+        }
+
+        const submittedQueueState = buildSubmittedPvpJoinQueueState({
+          address,
+          entryFeeMist: liveEntryFeeMist,
+          option: matchOption,
+        });
+        setPvpQueueState(submittedQueueState);
+        lastConfirmedPvpQueueStateRef.current = submittedQueueState;
+        setIsWaiting(true);
+        return {
+          status: "syncing",
+          digest,
+          message: PVP_JOIN_SYNCING_MESSAGE,
+        };
       }
 
       try {
@@ -1922,21 +2120,23 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
           ? await hydrateActivePvpBattle(matchedBattle, "join_queue transaction")
           : null;
         if (hydratedBattle) {
-          return;
+          unresolvedPvpJoinDigestRef.current = null;
+          return { status: "confirmed" };
         }
       } catch (err) {
         console.warn("[pvp-match] could not hydrate joined battle from transaction", err);
       }
 
-      setPvpQueueState({
-        queueId: matchOption.queueId,
-        player: address.toLowerCase(),
+      const joinedQueueState = buildSubmittedPvpJoinQueueState({
+        address,
         entryFeeMist: liveEntryFeeMist,
-        targetGrowth: matchOption.targetGrowth,
-        matchLabel: getPvpMatchDisplayLabel(matchOption.targetGrowth),
-        queueType: matchOption.queueType,
+        option: matchOption,
       });
+      setPvpQueueState(joinedQueueState);
+      lastConfirmedPvpQueueStateRef.current = joinedQueueState;
       setIsWaiting(true);
+      unresolvedPvpJoinDigestRef.current = null;
+      return { status: "confirmed" };
     },
     [
       address,
@@ -1948,6 +2148,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
       currentWallet,
       supportedIntents,
       hydrateActivePvpBattle,
+      refreshActivePvpBattle,
     ],
   );
 
@@ -2734,6 +2935,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
 
     setPvpQueueState(null);
     setIsWaiting(false);
+    unresolvedPvpJoinDigestRef.current = null;
     options?.onRefundConfirmed?.(queueState);
 
     const refundedQueueOption: PvpMatchOption = {
@@ -2758,6 +2960,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
 
     setPvpQueueState(null);
     setIsWaiting(false);
+    unresolvedPvpJoinDigestRef.current = null;
 
     return {
       digest: result?.digest,

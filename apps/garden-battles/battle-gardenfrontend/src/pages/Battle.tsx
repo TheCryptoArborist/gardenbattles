@@ -388,11 +388,17 @@ export default function Battle() {
           `Preparing PvP queue entry\n\n${selectedPvpMatchLabel}\n\nChecking on-chain settings before wallet approval.`,
         );
         setPlayerNftImageUrl(nftData.imageUrl || null);
-        await joinBattle(nftData, selectedPvpTarget);
+        const joinResult = await joinBattle(nftData, selectedPvpTarget);
         setLocalPvpQueued(true);
-        setDialogOpen(false);
-        setDialogMessage("");
-        setDialogKind("info");
+        if (joinResult.status === "syncing") {
+          setDialogOpen(true);
+          setDialogKind("info");
+          setDialogMessage(joinResult.message);
+        } else {
+          setDialogOpen(false);
+          setDialogMessage("");
+          setDialogKind("info");
+        }
         setModeCardsExpanded(false);
         setEcosystemExpanded(false);
         scrollToBattleFocus();

@@ -53,6 +53,14 @@ const quickV3Option: PvpMatchOption = {
   queueType: "v3",
 };
 
+const standardV3Option: PvpMatchOption = {
+  targetGrowth: 75,
+  label: "Standard Match",
+  shortLabel: "75 Growth",
+  queueId: "0x2222222222222222222222222222222222222222222222222222222222222222",
+  queueType: "v3",
+};
+
 function queueObject(
   fields: Record<string, unknown>,
   meta: { previousTransaction?: string; version?: string } = {},
@@ -159,6 +167,26 @@ describe("parsePvpQueueStateFromObject", () => {
     assert.deepEqual(getPvpQueueCancelMoveCall(packageId, state!), {
       target: `${packageId}::matchmaking::cancel_queue_v3`,
       queueObjectId: quickV3Option.queueId,
+    });
+  });
+
+  it("keeps recovered 75 Growth v3 queue entries isolated for cancel_queue_v3", () => {
+    const state = parsePvpQueueStateFromObject(
+      queueObject({
+        bank: "3000000000",
+        target_growth: "75",
+        waiting: pending(),
+      }),
+      wallet,
+      standardV3Option,
+    );
+
+    assert.equal(state?.queueId, standardV3Option.queueId);
+    assert.equal(state?.queueType, "v3");
+    assert.equal(state?.targetGrowth, 75);
+    assert.deepEqual(getPvpQueueCancelMoveCall(packageId, state!), {
+      target: `${packageId}::matchmaking::cancel_queue_v3`,
+      queueObjectId: standardV3Option.queueId,
     });
   });
 
