@@ -275,6 +275,15 @@ function normalizeMoveTypeName(value: string): string {
 }
 
 export function parseMoveU8Vector(value: unknown): Uint8Array | null {
+  if (typeof value === "string") {
+    const encoded = value.trim();
+    const isCanonicalBase64 =
+      encoded.length % 4 === 0 &&
+      /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(encoded);
+    if (!isCanonicalBase64) return null;
+    return Uint8Array.from(Buffer.from(encoded, "base64"));
+  }
+
   const raw = Array.isArray(value)
     ? value
     : Array.isArray((value as { fields?: { contents?: unknown[] } } | undefined)?.fields?.contents)

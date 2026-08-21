@@ -26,6 +26,15 @@ test("live FifthMoveConfig field parsers accept canonical Move shapes", () => {
   );
 });
 
+test("live FifthMoveConfig signer parser accepts GraphQL Base64 vectors", () => {
+  const signer = Uint8Array.from(Array.from({ length: 32 }, (_, i) => i));
+  assert.deepEqual(
+    parseMoveU8Vector(Buffer.from(signer).toString("base64")),
+    signer,
+  );
+  assert.equal(parseMoveU8Vector("not base64"), null);
+});
+
 test("live FifthMoveConfig field parsers reject malformed values", () => {
   assert.equal(parseMoveU64("-1"), null);
   assert.equal(parseMoveU64(1.5), null);
