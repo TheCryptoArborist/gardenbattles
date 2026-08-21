@@ -2899,6 +2899,44 @@
     min-height: 48px;
   }
 
+  .gb-mobile-wallet-launchers {
+    display: none;
+    gap: 10px;
+    margin: 4px auto 0;
+    max-width: 520px;
+    text-align: center;
+  }
+
+  .gb-mobile-wallet-launchers p {
+    color: rgba(234, 255, 246, 0.78);
+    font-size: 12px;
+    line-height: 1.45;
+    margin: 0;
+  }
+
+  .gb-mobile-wallet-launchers > div {
+    display: grid;
+    gap: 8px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .gb-mobile-wallet-launchers a {
+    align-items: center;
+    background: rgba(0, 213, 199, 0.12);
+    border: 1px solid rgba(0, 213, 199, 0.48);
+    border-radius: 8px;
+    color: #eafff6;
+    display: flex;
+    font-family: Orbitron, sans-serif;
+    font-size: 11px;
+    font-weight: 800;
+    justify-content: center;
+    min-height: 44px;
+    padding: 8px 10px;
+    text-decoration: none;
+    text-transform: uppercase;
+  }
+
   .gb-ecosystem-compact {
     align-items: center;
     background: rgba(0, 16, 18, 0.78);
@@ -6119,6 +6157,10 @@
   }
 
   @media (max-width: 760px) {
+    .gb-mobile-wallet-launchers {
+      display: grid;
+    }
+
     .gb-leaderboard-header {
       position: static;
     }

@@ -14,6 +14,7 @@ import TreePowerPreview from "@/pages/TreePowerPreview";
 import NotFound from "@/pages/not-found";
 import BadgeGalleryPreview from "@/components/BadgeGalleryPreview";
 import '@mysten/dapp-kit/dist/index.css';
+import { PREFERRED_MOBILE_WALLETS, SLUSH_WALLET_CONFIG } from "@/lib/mobileWalletLinks";
 
 // Use exact SUI MAIN PUBLIC FULL NODE ENDPOINTS
 const networks = {
@@ -45,7 +46,11 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <SuiClientProvider networks={networks} defaultNetwork="mainnet">
-        <WalletProvider autoConnect preferredWallets={['Sui Wallet']}>
+        <WalletProvider
+          autoConnect
+          preferredWallets={[...PREFERRED_MOBILE_WALLETS]}
+          slushWallet={SLUSH_WALLET_CONFIG}
+        >
           <SuiWalletProvider>
             <TooltipProvider>
               <Toaster />

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { Link } from "wouter";
 import { Menu, Trophy, X } from "lucide-react";
 import { ConnectButton } from "@mysten/dapp-kit";
+import MobileWalletLaunchers from "@/components/MobileWalletLaunchers";
 import { useSuiWallet, type PvpQueueState } from "@/hooks/useSuiWallet";
 import { usePracticeBattle } from "@/hooks/usePracticeBattle";
 import {
@@ -1975,6 +1976,7 @@ export default function Battle() {
               <div className="gb-disconnected-wallet-cta">
                 <ConnectButton connectText="Connect Wallet" />
               </div>
+              <MobileWalletLaunchers />
             </section>
           )}
           {activeModeBar}
