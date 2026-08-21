@@ -1,4 +1,14 @@
 [[redirects]]
+  from = "/api/nftree-listings"
+  to = "/.netlify/functions/nftree-listings"
+  status = 200
+
+[[redirects]]
+  from = "/api/nftree-sale-pools"
+  to = "/.netlify/functions/nftree-sale-pools"
+  status = 200
+
+[[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
