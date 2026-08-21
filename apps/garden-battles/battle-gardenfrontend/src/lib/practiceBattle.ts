@@ -6,8 +6,10 @@ export const PRACTICE_PLAYER_ADDRESS = "practice-player";
 export const PRACTICE_BOT_ADDRESS = "practice-garden-bot";
 export const PRACTICE_TARGET_GROWTH = 50;
 
-const ATTACK_MOVES = [1, 2, 3, 4, 5, 6, 7, 10, 11, 12, 13];
-const GROWTH_MOVES = [20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30];
+const ATTACK_MOVES = [1, 2, 3, 4, 5, 6, 7, 10, 11, 12, 13, 16];
+const GROWTH_MOVES = [15, 19, 20, 21, 22, 23, 24, 25, 26, 28, 30];
+const HYBRID_MOVES = [8, 9, 14, 17, 18, 27, 29];
+const ALL_MOVES = [...ATTACK_MOVES, ...GROWTH_MOVES, ...HYBRID_MOVES];
 
 type PracticeStatus = {
   blockTurns: number;
@@ -70,24 +72,23 @@ function drawUnique(pool: number[], count: number, excluded = new Set<number>())
 }
 
 export function createPracticeBattle(): PracticeBattle {
-  const playerGrowthMoves = drawUnique(GROWTH_MOVES, 2);
-  const playerExcluded = new Set(playerGrowthMoves);
-  const playerMoves = [
-    ...drawUnique(ATTACK_MOVES, 2),
-    ...playerGrowthMoves,
-  ].sort(() => Math.random() - 0.5);
-
-  const botGrowthMoves = drawUnique(GROWTH_MOVES, 2);
-  const botMoves = [
-    ...drawUnique(ATTACK_MOVES, 2),
-    ...botGrowthMoves,
-  ].sort(() => Math.random() - 0.5);
+  const drawBalancedHand = () => {
+    const cards = [
+      ...drawUnique(ATTACK_MOVES, 1),
+      ...drawUnique(GROWTH_MOVES, 1),
+      ...drawUnique(HYBRID_MOVES, 1),
+    ];
+    cards.push(...drawUnique(ALL_MOVES, 1, new Set(cards)));
+    return cards.sort(() => Math.random() - 0.5);
+  };
+  const playerMoves = drawBalancedHand();
+  const botMoves = drawBalancedHand();
 
   return {
     battleId: `practice-${Date.now()}-${Math.random().toString(16).slice(2)}`,
     player1: PRACTICE_PLAYER_ADDRESS,
     player2: PRACTICE_BOT_ADDRESS,
-    player1Moves: playerMoves.length === 4 ? playerMoves : [...playerMoves, ...drawUnique(GROWTH_MOVES, 4 - playerMoves.length, playerExcluded)],
+    player1Moves: playerMoves,
     player2Moves: botMoves,
     player1Growth: 0,
     player2Growth: 0,
@@ -176,7 +177,13 @@ function resolveMove(
   actorLabel: string,
   opponentLabel: string,
 ): MoveResolution {
-  const started = applyStartOfTurnStatus(selfGrowth, selfStatus, actorLabel);
+  const started = moveId === 14
+    ? {
+        growth: selfGrowth,
+        status: { ...selfStatus, poisonTicks: 0, poisonDpt: 0, nextTurnPenalty: 0 },
+        notes: [`${actorLabel} cleansed lingering damage before it resolved.`],
+      }
+    : applyStartOfTurnStatus(selfGrowth, selfStatus, actorLabel);
   let nextSelfGrowth = started.growth;
   let nextOpponentGrowth = opponentGrowth;
   let nextSelfStatus = started.status;
@@ -229,6 +236,31 @@ function resolveMove(
       nextOpponentStatus = { ...nextOpponentStatus, nextTurnPenalty: 3 };
       notes.push(`${opponentLabel} will lose 3 growth next turn.`);
       break;
+    case 14:
+      addGrow(8);
+      nextSelfStatus = { ...nextSelfStatus, poisonTicks: 0, poisonDpt: 0, nextTurnPenalty: 0 };
+      notes.push(`${actorLabel} cleared lingering damage effects.`);
+      break;
+    case 15: addGrow(nextSelfGrowth < nextOpponentGrowth ? 14 : 7); break;
+    case 16:
+      if (nextSelfGrowth >= 5) {
+        nextSelfGrowth = clampGrowth(nextSelfGrowth - 5);
+        notes.push(`${actorLabel} spent 5 growth.`);
+        addDamage(15);
+      } else {
+        notes.push(`${actorLabel} needs at least 5 growth to prune.`);
+      }
+      break;
+    case 17: addGrow(6); addBlock(); break;
+    case 18: addGrow(6); addDamage(6); break;
+    case 19:
+      if (Math.random() < 0.6) addGrow(22);
+      else {
+        const lost = Math.min(5, nextSelfGrowth);
+        nextSelfGrowth = clampGrowth(nextSelfGrowth - 5);
+        notes.push(`${actorLabel} lost ${lost} growth to overgrowth.`);
+      }
+      break;
     case 20: addGrow(10); break;
     case 21: addGrow(8 + Math.floor(Math.random() * 5)); break;
     case 22: addGrow(15); break;
@@ -268,6 +300,10 @@ function resolveMove(
 
 function expectedGrowth(moveId: number) {
   if (moveId === 9) return 4;
+  if (moveId === 14) return 8;
+  if (moveId === 15) return 10;
+  if (moveId === 17 || moveId === 18) return 6;
+  if (moveId === 19) return 11;
   if (moveId === 20 || moveId === 23 || moveId === 27) return 10;
   if (moveId === 21 || moveId === 29) return 8;
   if (moveId === 22) return 15;
@@ -292,11 +328,13 @@ function expectedDamage(moveId: number) {
   if (moveId === 11) return 12;
   if (moveId === 12) return 5;
   if (moveId === 13) return 7;
+  if (moveId === 16) return 15;
+  if (moveId === 18) return 6;
   return 0;
 }
 
 function addsBlock(moveId: number) {
-  return moveId === 8 || moveId === 12 || moveId === 27 || moveId === 29;
+  return moveId === 8 || moveId === 12 || moveId === 17 || moveId === 27 || moveId === 29;
 }
 
 function scoreBotMove(moveId: number, battle: PracticeBattle) {

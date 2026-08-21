@@ -14,6 +14,51 @@ module battle_garden::battle_tests {
     /// Minimal NFT for creating bot battles in tests.
     public struct TestNFT has key, store { id: UID }
 
+    #[test]
+    fun new_card_effects_match_their_descriptions() {
+        let mut s = test_scenario::begin(@0xA);
+        test_scenario::next_tx(&mut s, @0x0);
+        random::create_for_testing(test_scenario::ctx(&mut s));
+
+        test_scenario::next_tx(&mut s, @0xA);
+        {
+            let r = test_scenario::take_shared<Random>(&s);
+
+            let (self_14, opp_14, block_14, poison_14, penalty_14) =
+                battle::resolve_move_for_testing(14, 10, 20, &r, test_scenario::ctx(&mut s));
+            assert!(self_14 == 18 && opp_14 == 20 && block_14 == 0, 0);
+            assert!(poison_14 == 0 && penalty_14 == 0, 0);
+            let (cleansed_growth, cleansed_poison, cleansed_penalty) =
+                battle::apply_start_of_turn_status_for_testing(14);
+            assert!(cleansed_growth == 20 && cleansed_poison == 0 && cleansed_penalty == 0, 0);
+
+            let (self_15_behind, _, _, _, _) =
+                battle::resolve_move_for_testing(15, 10, 20, &r, test_scenario::ctx(&mut s));
+            let (self_15_ahead, _, _, _, _) =
+                battle::resolve_move_for_testing(15, 20, 10, &r, test_scenario::ctx(&mut s));
+            assert!(self_15_behind == 24 && self_15_ahead == 27, 0);
+
+            let (self_16, opp_16, _, _, _) =
+                battle::resolve_move_for_testing(16, 10, 30, &r, test_scenario::ctx(&mut s));
+            assert!(self_16 == 5 && opp_16 == 15, 0);
+
+            let (self_17, opp_17, block_17, _, _) =
+                battle::resolve_move_for_testing(17, 10, 20, &r, test_scenario::ctx(&mut s));
+            assert!(self_17 == 16 && opp_17 == 20 && block_17 == 1, 0);
+
+            let (self_18, opp_18, _, _, _) =
+                battle::resolve_move_for_testing(18, 10, 20, &r, test_scenario::ctx(&mut s));
+            assert!(self_18 == 16 && opp_18 == 14, 0);
+
+            let (self_19, opp_19, _, _, _) =
+                battle::resolve_move_for_testing(19, 10, 20, &r, test_scenario::ctx(&mut s));
+            assert!((self_19 == 5 || self_19 == 32) && opp_19 == 20, 0);
+
+            test_scenario::return_shared(r);
+        };
+        test_scenario::end(s);
+    }
+
     // ═══════════════════════════════════════════════════════════════════════════
     //  reroll_moves — Happy path
     // ═══════════════════════════════════════════════════════════════════════════

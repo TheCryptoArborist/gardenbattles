@@ -15,6 +15,7 @@ export interface PvpMoveResolution {
 
 const SUPPORTED_PVP_MOVE_FUNCTIONS = new Set([
   "use_ability_id_pvp_v3",
+  "use_ability_id_pvp_v3_with_fifth_move",
   "use_ability_id_pvp_v2",
   "use_ability_id",
   "use_ability_id_v2",
@@ -207,7 +208,9 @@ export function resolvePvpMoveFromTransactionBlock(
       };
     }
 
-    const moveArg = resolveInputReference(args[1], inputs);
+    const moveArgumentIndex =
+      functionName === "use_ability_id_pvp_v3_with_fifth_move" ? 2 : 1;
+    const moveArg = resolveInputReference(args[moveArgumentIndex], inputs);
     const moveId = parsePureU8(moveArg);
     if (!moveId) {
       return {

@@ -70,6 +70,7 @@ import {
   shouldSuppressQueueRecovery,
 } from "@/lib/pvpQueueLifecycle";
 import { isUsableFifthMoveProof } from "@/lib/fifthMoveRouting";
+import { getBattleMoveFunction, getFifthMoveDraftState } from "@/lib/pvpFifthMoveDraft";
 import { normalizeSuiMoveList } from "@/lib/suiMoveList";
 import {
   buildDirectPvpJoinTransaction,
@@ -120,6 +121,10 @@ function wait(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function readMoveBoolean(value: unknown): boolean {
+  return value === true || value === "true" || value === 1 || value === "1";
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface BattleState {
@@ -141,6 +146,8 @@ export interface BattleState {
   lastTransactionDigest?: string;
   resolvedMoveId?: number | null;
   resolvedMoveSource?: "local" | "transaction" | "unavailable";
+  player1FifthMoveEntitled?: boolean;
+  player2FifthMoveEntitled?: boolean;
 }
 
 export interface PvpQueueState {
@@ -210,7 +217,7 @@ interface SuiWalletContextType {
     nftData: NftData,
     options?: StartBotBattleOptions,
   ) => Promise<void>;
-  useAbility: (abilityId: number) => Promise<void>;
+  useAbility: (abilityId: number, fifthMoveId?: number) => Promise<void>;
   claimTimeoutWin: () => Promise<void>;
   forfeitBattle: () => Promise<void>;
   adminForceClose: (winner?: string) => Promise<void>;
@@ -471,6 +478,8 @@ function parseBattleStateFromEvent(
       targetGrowth,
     }),
     lastTransactionDigest: transactionDigest,
+    player1FifthMoveEntitled: readMoveBoolean(json.p1_fifth_move_entitled),
+    player2FifthMoveEntitled: readMoveBoolean(json.p2_fifth_move_entitled),
   };
 }
 
@@ -642,6 +651,8 @@ function parseBattleStateFromObjectFields(
       battleVersion,
       targetGrowth,
     }),
+    player1FifthMoveEntitled: readMoveBoolean(fields.p1_fifth_move_entitled),
+    player2FifthMoveEntitled: readMoveBoolean(fields.p2_fifth_move_entitled),
   };
 }
 
@@ -871,7 +882,22 @@ async function getBattleStateFromTransaction(
     .find((state: BattleState | null) =>
       isActiveBattleForAddress(state, address),
     );
-  if (eventState) return eventState;
+  if (eventState?.battleId) {
+    // PvP V3 chooses its starting player on-chain. The compatibility update
+    // event predates that field, so hydrate from the shared object before the
+    // UI enables either player's move controls.
+    const liveState = await getLiveBattleState(_suiClient, eventState.battleId);
+    if (liveState && battleBelongsToAddress(liveState, address)) {
+      return {
+        ...liveState,
+        lastTransactionDigest: preserveBattleTransactionDigest({
+          liveDigest: liveState.lastTransactionDigest,
+          eventDigest: eventState.lastTransactionDigest,
+        }),
+      };
+    }
+    return eventState;
+  }
 
   const createdBattle = tx.objectChanges?.find(
     (change: any) =>
@@ -2381,7 +2407,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
 
   // ── 6. Use an ability ─────────────────────────────────────────────────────
   const useAbility = useCallback(
-    async (abilityId: number) => {
+    async (abilityId: number, fifthMoveId?: number) => {
       if (!address || !randomObjectId || !battleState?.battleId) {
         throw new Error("Battle not active");
       }
@@ -2443,28 +2469,41 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
       const availableMoves = isPlayer1
         ? activeState.player1Moves
         : activeState.player2Moves;
-      if (!availableMoves.includes(abilityId)) {
+      const fifthMoveEntitled = isPlayer1
+        ? Boolean(activeState.player1FifthMoveEntitled)
+        : Boolean(activeState.player2FifthMoveEntitled);
+      const draft = getFifthMoveDraftState(availableMoves, fifthMoveEntitled);
+      if (draft.pending && !draft.candidates.includes(fifthMoveId ?? -1)) {
+        throw new Error("Choose your fifth move before submitting a battle move");
+      }
+      const playableMoves = draft.pending
+        ? [...draft.playableMoves, fifthMoveId as number]
+        : draft.playableMoves;
+      if (!playableMoves.includes(abilityId)) {
         throw new Error("That move is not available in this battle");
       }
 
       const tx = new Transaction();
       addPvpMoveRequestNonce(tx);
       lastMoveIdRef.current = abilityId; // track for action log
-      const moveFunction =
-        activeState.battleVersion === "pvp-v3"
-          ? "use_ability_id_pvp_v3"
-          : activeState.battleVersion === "pvp-v2"
-            ? "use_ability_id_pvp_v2"
-            : activeState.battleVersion === "bot-v2"
-              ? "use_ability_id_ranked_bot_v2"
-              : "use_ability_id";
+      const moveFunction = getBattleMoveFunction(
+        activeState.battleVersion,
+        draft.pending,
+      );
       tx.moveCall({
         target: `${SUI_CONFIG.PACKAGE_ID}::${SUI_CONFIG.MODULE}::${moveFunction}`,
-        arguments: [
-          tx.object(battleId),
-          tx.pure.u8(abilityId),
-          tx.object(randomObjectId),
-        ],
+        arguments: draft.pending
+          ? [
+              tx.object(battleId),
+              tx.pure.u8(fifthMoveId as number),
+              tx.pure.u8(abilityId),
+              tx.object(randomObjectId),
+            ]
+          : [
+              tx.object(battleId),
+              tx.pure.u8(abilityId),
+              tx.object(randomObjectId),
+            ],
       });
       tx.setSender(address);
       const txTimingStartedAt = txTimingNow();

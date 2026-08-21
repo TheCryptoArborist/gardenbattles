@@ -32,6 +32,9 @@ module battle_garden::errors {
     const EFifthMoveInvalidTimestampOrdering: u64 = 130;
     const EFifthMoveVersionOverflow: u64 = 131;
     const EFifthMoveConfigNoop: u64 = 132;
+    const EFifthMoveDraftRequired: u64 = 133;
+    const EFifthMoveInvalidDraftChoice: u64 = 134;
+    const EMoveRepeated: u64 = 135;
 
     // ── TREE utility errors ──────────────────────────────────────────────────
     const EIncorrectCoinType: u64 = 200;
@@ -70,6 +73,9 @@ module battle_garden::errors {
     public fun e_fifth_move_invalid_timestamp_ordering(): u64 { EFifthMoveInvalidTimestampOrdering }
     public fun e_fifth_move_version_overflow(): u64 { EFifthMoveVersionOverflow }
     public fun e_fifth_move_config_noop(): u64 { EFifthMoveConfigNoop }
+    public fun e_fifth_move_draft_required(): u64 { EFifthMoveDraftRequired }
+    public fun e_fifth_move_invalid_draft_choice(): u64 { EFifthMoveInvalidDraftChoice }
+    public fun e_move_repeated(): u64 { EMoveRepeated }
     public fun e_incorrect_coin_type(): u64 { EIncorrectCoinType }
     public fun e_tree_insufficient(): u64 { ETreeInsufficient }
 }

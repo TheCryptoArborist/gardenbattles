@@ -272,15 +272,6 @@ module battle_garden::matchmaking_tests {
         }
     }
 
-    fun assert_hand_has_no_move_8(moves: &vector<u8>) {
-        let mut i = 0;
-        let len = vector::length(moves);
-        while (i < len) {
-            assert!(*vector::borrow(moves, i) != 8, 0);
-            i = i + 1;
-        }
-    }
-
     fun assert_hand_unique(moves: &vector<u8>) {
         let len = vector::length(moves);
         let mut i = 0;
@@ -296,13 +287,18 @@ module battle_garden::matchmaking_tests {
 
     fun assert_standard_hand(moves: &vector<u8>) {
         assert!(vector::length(moves) == 4, 0);
-        assert_hand_has_no_move_8(moves);
+        assert_hand_unique(moves);
+        assert!(battle::is_attack_hand_candidate_for_testing(*vector::borrow(moves, 0)), 0);
+        assert!(battle::is_growth_hand_candidate_for_testing(*vector::borrow(moves, 1)), 0);
+        assert!(battle::is_hybrid_hand_candidate_for_testing(*vector::borrow(moves, 2)), 0);
     }
 
-    fun assert_fifth_move_hand(moves: &vector<u8>) {
-        assert!(vector::length(moves) == 5, 0);
-        assert_hand_has_no_move_8(moves);
+    fun assert_fifth_move_draft(moves: &vector<u8>) {
+        assert!(vector::length(moves) == 7, 0);
         assert_hand_unique(moves);
+        assert!(battle::is_attack_hand_candidate_for_testing(*vector::borrow(moves, 4)), 0);
+        assert!(battle::is_growth_hand_candidate_for_testing(*vector::borrow(moves, 5)), 0);
+        assert!(battle::is_hybrid_hand_candidate_for_testing(*vector::borrow(moves, 6)), 0);
     }
 
     fun create_ranked_bot_standard(s: &mut test_scenario::Scenario, player: address) {
@@ -814,7 +810,7 @@ module battle_garden::matchmaking_tests {
     }
 
     #[test]
-    fun v3_entitlement_survives_waiting_and_creates_five_four_battle() {
+    fun v3_entitlement_survives_waiting_and_creates_draft_four_battle() {
         let mut s = setup_v3(TARGET_75);
         join_as_v3_with_fifth(&mut s, PLAYER_A);
 
@@ -833,7 +829,7 @@ module battle_garden::matchmaking_tests {
         {
             let b = test_scenario::take_shared<battle::PvpBattleV3>(&s);
             assert!(battle::pvp_v3_target_growth(&b) == TARGET_75, 0);
-            assert!(vector::length(battle::pvp_v3_p1_moves(&b)) == 5, 0);
+            assert!(vector::length(battle::pvp_v3_p1_moves(&b)) == 7, 0);
             assert!(vector::length(battle::pvp_v3_p2_moves(&b)) == 4, 0);
             assert!(battle::pvp_v3_p1_fifth_move_entitled(&b), 0);
             assert!(!battle::pvp_v3_p2_fifth_move_entitled(&b), 0);
@@ -868,6 +864,7 @@ module battle_garden::matchmaking_tests {
         {
             let mut b = test_scenario::take_shared<battle::PvpBattleV3>(&s);
             let r = test_scenario::take_shared<Random>(&s);
+            battle::set_pvp_v3_turn_for_testing(&mut b, 0);
             battle::set_pvp_v3_p1_moves_for_testing(&mut b, vector[20]);
             battle::set_pvp_v3_p1_growth_for_testing(&mut b, 40);
             battle::use_ability_id_pvp_v3(&mut b, 20, &r, test_scenario::ctx(&mut s));
@@ -888,6 +885,7 @@ module battle_garden::matchmaking_tests {
         test_scenario::next_tx(&mut s, ADMIN);
         {
             let b = test_scenario::take_shared<battle::PvpBattleV3>(&s);
+            assert!(battle::pvp_v3_turn(&b) <= 1, 0);
             assert_standard_hand(battle::pvp_v3_p1_moves(&b));
             assert_standard_hand(battle::pvp_v3_p2_moves(&b));
             assert!(!battle::pvp_v3_p1_fifth_move_entitled(&b), 0);
@@ -900,14 +898,14 @@ module battle_garden::matchmaking_tests {
     }
 
     #[test]
-    fun v3_five_vs_four_hands_preserve_entitlement() {
+    fun v3_draft_vs_four_hands_preserve_entitlement() {
         let mut s = setup_v3(TARGET_50);
         join_as_v3_with_fifth(&mut s, PLAYER_A);
         join_as_v3(&mut s, PLAYER_B);
         test_scenario::next_tx(&mut s, ADMIN);
         {
             let b = test_scenario::take_shared<battle::PvpBattleV3>(&s);
-            assert_fifth_move_hand(battle::pvp_v3_p1_moves(&b));
+            assert_fifth_move_draft(battle::pvp_v3_p1_moves(&b));
             assert_standard_hand(battle::pvp_v3_p2_moves(&b));
             assert!(battle::pvp_v3_p1_fifth_move_entitled(&b), 0);
             assert!(!battle::pvp_v3_p2_fifth_move_entitled(&b), 0);
@@ -919,7 +917,7 @@ module battle_garden::matchmaking_tests {
     }
 
     #[test]
-    fun v3_four_vs_five_hands_preserve_entitlement() {
+    fun v3_four_vs_draft_hands_preserve_entitlement() {
         let mut s = setup_v3(TARGET_75);
         join_as_v3(&mut s, PLAYER_A);
         join_as_v3_with_fifth(&mut s, PLAYER_B);
@@ -927,7 +925,7 @@ module battle_garden::matchmaking_tests {
         {
             let b = test_scenario::take_shared<battle::PvpBattleV3>(&s);
             assert_standard_hand(battle::pvp_v3_p1_moves(&b));
-            assert_fifth_move_hand(battle::pvp_v3_p2_moves(&b));
+            assert_fifth_move_draft(battle::pvp_v3_p2_moves(&b));
             assert!(!battle::pvp_v3_p1_fifth_move_entitled(&b), 0);
             assert!(battle::pvp_v3_p2_fifth_move_entitled(&b), 0);
             test_scenario::return_shared(b);
@@ -936,19 +934,121 @@ module battle_garden::matchmaking_tests {
     }
 
     #[test]
-    fun v3_five_vs_five_hands_are_unique_and_capped_at_five() {
+    fun v3_draft_vs_draft_hands_are_unique_and_category_balanced() {
         let mut s = setup_v3(TARGET_75);
         join_as_v3_with_fifth_and_source(&mut s, PLAYER_A, 15, valid_signature_multi_source());
         join_as_v3_with_fifth(&mut s, PLAYER_B);
         test_scenario::next_tx(&mut s, ADMIN);
         {
             let b = test_scenario::take_shared<battle::PvpBattleV3>(&s);
-            assert_fifth_move_hand(battle::pvp_v3_p1_moves(&b));
-            assert_fifth_move_hand(battle::pvp_v3_p2_moves(&b));
-            assert!(vector::length(battle::pvp_v3_p1_moves(&b)) != 6, 0);
-            assert!(vector::length(battle::pvp_v3_p2_moves(&b)) != 6, 0);
+            assert_fifth_move_draft(battle::pvp_v3_p1_moves(&b));
+            assert_fifth_move_draft(battle::pvp_v3_p2_moves(&b));
             assert!(battle::pvp_v3_p1_fifth_move_entitled(&b), 0);
             assert!(battle::pvp_v3_p2_fifth_move_entitled(&b), 0);
+            test_scenario::return_shared(b);
+        };
+        test_scenario::end(s);
+    }
+
+    #[test]
+    fun v3_fifth_move_draft_locks_one_candidate_and_plays_in_one_transaction() {
+        let mut s = setup_v3(TARGET_50);
+        join_as_v3_with_fifth(&mut s, PLAYER_A);
+        join_as_v3(&mut s, PLAYER_B);
+
+        test_scenario::next_tx(&mut s, ADMIN);
+        {
+            let mut b = test_scenario::take_shared<battle::PvpBattleV3>(&s);
+            battle::set_pvp_v3_turn_for_testing(&mut b, 0);
+            battle::set_pvp_v3_p1_moves_for_testing(&mut b, vector[1, 20, 8, 21, 2, 22, 9]);
+            test_scenario::return_shared(b);
+        };
+
+        test_scenario::next_tx(&mut s, PLAYER_A);
+        {
+            let mut b = test_scenario::take_shared<battle::PvpBattleV3>(&s);
+            let r = test_scenario::take_shared<Random>(&s);
+            battle::use_ability_id_pvp_v3_with_fifth_move(
+                &mut b,
+                22,
+                20,
+                &r,
+                test_scenario::ctx(&mut s),
+            );
+            assert!(vector::length(battle::pvp_v3_p1_moves(&b)) == 5, 0);
+            assert!(*vector::borrow(battle::pvp_v3_p1_moves(&b), 4) == 22, 0);
+            assert!(battle::pvp_v3_p1_growth(&b) == 10, 0);
+            assert!(battle::pvp_v3_turn(&b) == 1, 0);
+            test_scenario::return_shared(r);
+            test_scenario::return_shared(b);
+        };
+        test_scenario::end(s);
+    }
+
+    #[test]
+    #[expected_failure(abort_code = 133)]
+    fun v3_entitled_player_must_lock_draft_before_normal_move() {
+        let mut s = setup_v3(TARGET_50);
+        join_as_v3_with_fifth(&mut s, PLAYER_A);
+        join_as_v3(&mut s, PLAYER_B);
+        test_scenario::next_tx(&mut s, ADMIN);
+        {
+            let mut b = test_scenario::take_shared<battle::PvpBattleV3>(&s);
+            battle::set_pvp_v3_turn_for_testing(&mut b, 0);
+            test_scenario::return_shared(b);
+        };
+        test_scenario::next_tx(&mut s, PLAYER_A);
+        {
+            let mut b = test_scenario::take_shared<battle::PvpBattleV3>(&s);
+            let r = test_scenario::take_shared<Random>(&s);
+            let move_id = *vector::borrow(battle::pvp_v3_p1_moves(&b), 0);
+            battle::use_ability_id_pvp_v3(&mut b, move_id, &r, test_scenario::ctx(&mut s));
+            test_scenario::return_shared(r);
+            test_scenario::return_shared(b);
+        };
+        test_scenario::end(s);
+    }
+
+    #[test]
+    #[expected_failure(abort_code = 135)]
+    fun v3_player_cannot_repeat_the_same_move_consecutively() {
+        let mut s = setup_v3(TARGET_50);
+        join_as_v3(&mut s, PLAYER_A);
+        join_as_v3(&mut s, PLAYER_B);
+
+        test_scenario::next_tx(&mut s, ADMIN);
+        {
+            let mut b = test_scenario::take_shared<battle::PvpBattleV3>(&s);
+            battle::set_pvp_v3_turn_for_testing(&mut b, 0);
+            battle::set_pvp_v3_p1_moves_for_testing(&mut b, vector[20, 21, 8, 1]);
+            test_scenario::return_shared(b);
+        };
+
+        test_scenario::next_tx(&mut s, PLAYER_A);
+        {
+            let mut b = test_scenario::take_shared<battle::PvpBattleV3>(&s);
+            let r = test_scenario::take_shared<Random>(&s);
+            battle::use_ability_id_pvp_v3(&mut b, 20, &r, test_scenario::ctx(&mut s));
+            test_scenario::return_shared(r);
+            test_scenario::return_shared(b);
+        };
+
+        test_scenario::next_tx(&mut s, PLAYER_B);
+        {
+            let mut b = test_scenario::take_shared<battle::PvpBattleV3>(&s);
+            let r = test_scenario::take_shared<Random>(&s);
+            let move_id = *vector::borrow(battle::pvp_v3_p2_moves(&b), 0);
+            battle::use_ability_id_pvp_v3(&mut b, move_id, &r, test_scenario::ctx(&mut s));
+            test_scenario::return_shared(r);
+            test_scenario::return_shared(b);
+        };
+
+        test_scenario::next_tx(&mut s, PLAYER_A);
+        {
+            let mut b = test_scenario::take_shared<battle::PvpBattleV3>(&s);
+            let r = test_scenario::take_shared<Random>(&s);
+            battle::use_ability_id_pvp_v3(&mut b, 20, &r, test_scenario::ctx(&mut s));
+            test_scenario::return_shared(r);
             test_scenario::return_shared(b);
         };
         test_scenario::end(s);
@@ -1046,14 +1146,14 @@ module battle_garden::matchmaking_tests {
     }
 
     #[test]
-    fun ranked_bot_v2_qualified_human_gets_five_moves_and_bot_stays_four() {
+    fun ranked_bot_v2_qualified_human_gets_draft_and_bot_stays_four() {
         let mut s = setup_v3(TARGET_50);
         create_ranked_bot_qualified(&mut s, PLAYER_A);
 
         test_scenario::next_tx(&mut s, ADMIN);
         {
             let b = test_scenario::take_shared<battle::RankedBotBattleV2>(&s);
-            assert_fifth_move_hand(battle::ranked_bot_v2_p1_moves(&b));
+            assert_fifth_move_draft(battle::ranked_bot_v2_p1_moves(&b));
             assert_standard_hand(battle::ranked_bot_v2_p2_moves(&b));
             assert!(battle::ranked_bot_v2_p1_fifth_move_entitled(&b), 0);
             assert!(battle::ranked_bot_v2_eligibility_digest_len(&b) > 0, 0);

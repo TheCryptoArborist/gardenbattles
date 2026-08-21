@@ -58,6 +58,37 @@ function txBlock({
 }
 
 describe("resolvePvpMoveFromTransactionBlock", () => {
+  it("resolves the played card rather than the fifth-card choice from an atomic draft transaction", () => {
+    const result = resolvePvpMoveFromTransactionBlock(
+      {
+        transactionJson: {
+          kind: {
+            programmableTransaction: {
+              inputs: [
+                { objectId: battleId },
+                { value: 22 },
+                { value: 20 },
+              ],
+              commands: [
+                {
+                  MoveCall: {
+                    module: "battle",
+                    function: "use_ability_id_pvp_v3_with_fifth_move",
+                    arguments: [{ Input: 0 }, { Input: 1 }, { Input: 2 }],
+                  },
+                },
+              ],
+            },
+          },
+        },
+      } as any,
+      battleId,
+    );
+
+    assert.equal(result.moveId, 20);
+    assert.equal(result.label, "Roots Up");
+  });
+
   it("resolves a V3 move from the current Sui GraphQL transaction JSON shape", () => {
     const result = resolvePvpMoveFromTransactionBlock(
       {

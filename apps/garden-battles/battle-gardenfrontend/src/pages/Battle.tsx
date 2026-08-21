@@ -23,6 +23,7 @@ import ForestPower from "@/components/ForestPower";
 import { appAsset } from "@/lib/assets";
 import { appRoute } from "@/lib/routes";
 import { resolvePvpQueueUiAfterRefund } from "@/lib/pvpQueueState";
+import { getFifthMoveDraftState } from "@/lib/pvpFifthMoveDraft";
 import {
   formatPvpJoinFailureMessage,
   isWalletCancelMessage,
@@ -334,6 +335,7 @@ export default function Battle() {
     null,
   );
   const [pendingMoveId, setPendingMoveId] = useState<number | null>(null);
+  const [selectedFifthMoveId, setSelectedFifthMoveId] = useState<number | null>(null);
   const [inlineError, setInlineError] = useState<string | null>(null);
   const inlineErrorTimer = useRef<NodeJS.Timeout | null>(null);
 
@@ -843,7 +845,7 @@ export default function Battle() {
       if (isPracticeActive) {
         usePracticeMove(abilityId);
       } else {
-        await useAbility(abilityId);
+        await useAbility(abilityId, selectedFifthMoveId ?? undefined);
       }
     } catch (error: any) {
       resultModalArmedRef.current = false;
@@ -865,6 +867,12 @@ export default function Battle() {
                 lowerMsg.includes("not available") ||
                 /\b109\b/.test(msg)
               ? "That move isn't in your assigned move set."
+              : lowerMsg.includes("e_move_repeated") || /\b135\b/.test(msg)
+                ? "Choose a different card this turn. The same move cannot be played twice in a row."
+              : lowerMsg.includes("fifth move") ||
+                  lowerMsg.includes("fifth_move_draft") ||
+                  /\b13[34]\b/.test(msg)
+                ? "Choose one of your three fifth-move cards before submitting your move."
               : lowerMsg.includes("transaction submitted") &&
                   lowerMsg.includes("confirmation")
                 ? "Transaction submitted, but confirmation could not be loaded. Check your wallet history before trying again."
@@ -886,6 +894,7 @@ export default function Battle() {
   useEffect(() => {
     if (verifiedBattleState?.battleId) {
       clearActionLog();
+      setSelectedFifthMoveId(null);
       setLiveResultKey(null);
       resultModalArmedRef.current = false;
       resultModalArmedBattleIdRef.current = null;
@@ -924,11 +933,25 @@ export default function Battle() {
     : isPlayer1
       ? "player-2"
       : "player-1";
-  const playerMoves = battleState
+  const rawPlayerMoves = battleState
     ? isPlayer1
       ? battleState.player1Moves
       : battleState.player2Moves
     : [];
+  const fifthMoveEntitled = battleState
+    ? isPlayer1
+      ? Boolean(battleState.player1FifthMoveEntitled)
+      : Boolean(battleState.player2FifthMoveEntitled)
+    : false;
+  const fifthMoveDraft = getFifthMoveDraftState(rawPlayerMoves, fifthMoveEntitled);
+  const playerMoves = fifthMoveDraft.pending
+    ? selectedFifthMoveId !== null
+      ? [...fifthMoveDraft.playableMoves, selectedFifthMoveId]
+      : fifthMoveDraft.playableMoves
+    : fifthMoveDraft.playableMoves;
+  const lastPlayerMoveId = [...effectiveActionLog]
+    .reverse()
+    .find((entry) => entry.actor === "you" && entry.moveId > 0)?.moveId;
   const growthMoveCount = playerMoves.filter(moveGrowsSelf).length;
   const attackMoveCount = playerMoves.filter(
     (moveId) => MOVE_META[moveId]?.type === "attack",
@@ -2009,7 +2032,7 @@ export default function Battle() {
               address={address}
               isBattleActive={!battleFinished}
               isPracticeBattle={isPracticeActive}
-              currentMoveCount={playerMoves.length}
+              currentMoveCount={fifthMoveDraft.pending ? 5 : playerMoves.length}
             />
           )}
           <div className="gb-battle-hud-center">
@@ -2833,6 +2856,74 @@ export default function Battle() {
               </div>
             )}
 
+            {fifthMoveDraft.pending && (
+              <section
+                aria-label="Choose your fifth move"
+                style={{
+                  marginBottom: "14px",
+                  padding: "14px",
+                  border: "2px solid #b56cff",
+                  borderRadius: "12px",
+                  background: "rgba(35, 0, 58, 0.82)",
+                  boxShadow: "0 0 18px rgba(181, 108, 255, 0.35)",
+                }}
+              >
+                <div
+                  style={{
+                    color: "#e8c8ff",
+                    fontFamily: "Orbitron, sans-serif",
+                    fontWeight: 900,
+                    textAlign: "center",
+                    textTransform: "uppercase",
+                  }}
+                >
+                  Choose Your Fifth Move
+                </div>
+                <p style={{ color: "#f5eaff", textAlign: "center", fontSize: "12px" }}>
+                  Pick one bonus card for this battle. Your choice locks with your first move—no extra wallet confirmation.
+                </p>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+                    gap: "9px",
+                  }}
+                >
+                  {fifthMoveDraft.candidates.map((moveId) => {
+                    const selected = selectedFifthMoveId === moveId;
+                    const meta = MOVE_META[moveId];
+                    return (
+                      <button
+                        key={`fifth-${moveId}`}
+                        type="button"
+                        aria-pressed={selected}
+                        onClick={() => setSelectedFifthMoveId(moveId)}
+                        disabled={battleFinished || moveControlsLocked}
+                        data-testid={`button-fifth-move-${moveId}`}
+                        style={{
+                          padding: "11px",
+                          borderRadius: "10px",
+                          border: `2px solid ${selected ? "#e8c8ff" : "#8d4cc4"}`,
+                          background: selected ? "rgba(181,108,255,0.4)" : "rgba(15,0,30,0.7)",
+                          color: "white",
+                          cursor: battleFinished || moveControlsLocked ? "not-allowed" : "pointer",
+                          textAlign: "left",
+                          boxShadow: selected ? "0 0 14px #b56cff" : "none",
+                        }}
+                      >
+                        <strong style={{ display: "block", fontFamily: "Orbitron, sans-serif" }}>
+                          {MOVE_LABELS[moveId] || `Move ${moveId}`}
+                        </strong>
+                        <span style={{ display: "block", marginTop: "5px", fontSize: "11px", color: "#e8d8f2" }}>
+                          {meta?.effect}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
+
             {/* Move card grid */}
             <div
               style={{
@@ -2867,7 +2958,11 @@ export default function Battle() {
                 const isHybrid = meta?.type === "hybrid";
                 const isPending = pendingMoveId === moveId;
                 const isDisabled =
-                  battleFinished || moveControlsLocked || !isMyTurn;
+                  battleFinished ||
+                  moveControlsLocked ||
+                  !isMyTurn ||
+                  (fifthMoveDraft.pending && selectedFifthMoveId === null) ||
+                  (!isPracticeActive && lastPlayerMoveId === moveId);
 
                 const borderColor = isGrowth
                   ? "#00ff88"

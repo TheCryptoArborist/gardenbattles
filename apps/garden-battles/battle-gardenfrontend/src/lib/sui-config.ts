@@ -142,6 +142,12 @@ export const MOVE_LABELS: Record<number, string> = {
   11: "Wither Touch",
   12: "Pollen Cloud",
   13: "Fungal Rot",
+  14: "Compost Tea",
+  15: "Mycorrhizal Network",
+  16: "Pruning Shears",
+  17: "Mulch Barrier",
+  18: "Root Graft",
+  19: "Overgrowth Gamble",
   20: "Roots Up",
   21: "Sun Beam",
   22: "Rain Storm",
@@ -180,6 +186,12 @@ export const MOVE_META: Record<number, MoveMeta> = {
   11: { type: "attack", emoji: "", effect: "Drains -15 from opponent (80% hit chance)" },
   12: { type: "attack", emoji: "", effect: "Drains -10 OR gives opponent a block (50/50)" },
   13: { type: "attack", emoji: "", effect: "Drains -7 from opponent + extra -3 next turn" },
+  14: { type: "hybrid", emoji: "", effect: "Grows +8 and clears poison or delayed damage" },
+  15: { type: "growth", emoji: "", effect: "Grows +14 when behind, otherwise +7" },
+  16: { type: "attack", emoji: "", effect: "Spend 5 Growth to drain -15 from opponent" },
+  17: { type: "hybrid", emoji: "", effect: "Grows +6 and blocks the next hit" },
+  18: { type: "hybrid", emoji: "", effect: "Grows +6 and drains -6 from opponent" },
+  19: { type: "growth", emoji: "", effect: "60% chance to grow +22; otherwise lose 5" },
   // Growth moves (boost your own Growth)
   20: { type: "growth", emoji: "", effect: "Grows YOUR tree +10" },
   21: { type: "growth", emoji: "", effect: "Grows YOUR tree +8 to +12" },
@@ -195,7 +207,7 @@ export const MOVE_META: Record<number, MoveMeta> = {
 };
 
 const SELF_GROWTH_MOVE_IDS = new Set([
-  9, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30,
+  9, 14, 15, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30,
 ]);
 
 export function moveGrowsSelf(moveId: number): boolean {
