@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { ConnectButton } from "@mysten/dapp-kit";
-import { ArrowUpRight, CheckCircle2, Gamepad2, ShieldCheck, WalletCards } from "lucide-react";
-import TreeEcosystemStatus from "@/components/TreeEcosystemStatus";
+import { ArrowUpRight, CheckCircle2, ShieldCheck, Sparkles } from "lucide-react";
 import TreePowerPanel from "@/components/TreePowerPanel";
 import UtilityDrawer from "@/components/UtilityDrawer";
+import { useFifthMoveEligibility } from "@/hooks/useFifthMoveEligibility";
+import { useTreeBalance } from "@/hooks/useTreeBalance";
 import { appAsset } from "@/lib/assets";
 
 const UTILITY_TABS = [
@@ -51,12 +52,18 @@ export default function TreeBenefitsDrawer({
 }: TreeBenefitsDrawerProps) {
   const [activeTab, setActiveTab] = useState<(typeof UTILITY_TABS)[number]["id"]>("benefits");
   const selectedTab = UTILITY_TABS.find((tab) => tab.id === activeTab) ?? UTILITY_TABS[0];
+  const treeBalance = useTreeBalance(address);
+  const fifthMoveEligibility = useFifthMoveEligibility(address);
+  const qualification = fifthMoveEligibility.response;
+  const isQualified = qualification?.status === "qualified";
+  const verifiedTree = qualification?.verifiedUnderlyingTree;
 
   return (
     <UtilityDrawer
       eyebrow="TREE Battle Benefits"
       title="TREE Battle Benefits"
       description="See exactly what TREE can unlock, what your wallet qualifies for, and where to buy or put TREE to work."
+      className="gb-tree-benefits-drawer"
       onClose={onClose}
     >
       <nav className="gb-utility-tabs" aria-label="TREE utility choices">
@@ -117,45 +124,60 @@ export default function TreeBenefitsDrawer({
         </section>
       ) : (
         <div className="gb-tree-benefits-layout">
-          <div className="gb-tree-benefits-explainer">
-            <div className="gb-tree-benefits-brand">
-              <img src={appAsset("assets/thick.png")} alt="TREE" />
-              <div>
-                <span>Plain-English guide</span>
-                <strong>What TREE does in a battle</strong>
+          <section className={`gb-tree-benefits-spotlight ${isQualified ? "gb-tree-benefits-spotlight-qualified" : ""}`}>
+            <div className="gb-tree-benefits-spotlight-art">
+              <img src={appAsset("assets/tree.jpg")} alt="NFTree character ready for battle" />
+              <div className="gb-tree-benefits-spotlight-badge">
+                <Sparkles size={18} aria-hidden="true" />
+                <span>{isQualified ? "Battle Ready" : "Power Up"}</span>
               </div>
             </div>
-            <div className="gb-tree-benefit-point">
-              <Gamepad2 size={22} aria-hidden="true" />
-              <div>
-                <strong>Unlock one more move choice</strong>
-                <p>Most players receive four cards. If your connected wallet has a verified TREE liquidity or staking position, eligible paid battles deal you a fifth card. That gives you another strategic option each turn.</p>
+            <div className="gb-tree-benefits-spotlight-copy">
+              <span className="gb-tree-benefits-eyebrow">
+                {isQualified ? "Your wallet qualifies" : "TREE battle advantage"}
+              </span>
+              <h3>{isQualified ? "Your Fifth Card Is Unlocked" : "Turn Four Choices Into Five"}</h3>
+              <p>
+                {isQualified
+                  ? "When an eligible paid battle begins, this wallet receives five move cards instead of the standard four. That extra choice can change your strategy every turn."
+                  : "A verified TREE liquidity or staking position unlocks a fifth move card in eligible paid battles, giving you one more strategic option every turn."}
+              </p>
+              <div className="gb-tree-benefits-reward-row">
+                <div>
+                  <span>Battle hand</span>
+                  <strong>{isQualified ? "5 move cards" : "4 → 5 cards"}</strong>
+                </div>
+                <div>
+                  <span>Verified for eligibility</span>
+                  <strong>{verifiedTree ? `${Number(verifiedTree).toLocaleString(undefined, { maximumFractionDigits: 2 })} TREE` : "Checking wallet"}</strong>
+                </div>
+              </div>
+              <div className="gb-tree-benefits-liquid-note">
+                <img src={appAsset("assets/thick.png")} alt="" aria-hidden="true" />
+                <div>
+                  <span>Loose TREE available in this wallet</span>
+                  <strong>{treeBalance.status === "ready" ? treeBalance.exactLabel : treeBalance.label}</strong>
+                  <small>Loose TREE and TREE committed to liquidity are separate balances. Your V2/V3 positions—not this loose balance—are what qualify the fifth card.</small>
+                </div>
               </div>
             </div>
-            <div className="gb-tree-benefit-point">
-              <WalletCards size={22} aria-hidden="true" />
-              <div>
-                <strong>Your NFTree gets you into the game</strong>
-                <p>Owning an allowed NFTree grants battle access. TREE is the separate utility that can add the fifth card; simply owning an NFTree does not automatically unlock it.</p>
-              </div>
-            </div>
-            <p className="gb-tree-benefits-summary">Connect your wallet below to see what the game can verify. The status cards are informational and never move or spend your tokens.</p>
             {!address && (
               <div className="gb-tree-benefits-connect">
                 <ConnectButton connectText="Connect Wallet in This Panel" />
                 <small>The wallet chooser opens over Garden Battles. Slush may open its own secure approval screen; Garden Battles cannot—and should not—display your wallet credentials.</small>
               </div>
             )}
-          </div>
+          </section>
           <TreePowerPanel
             address={address}
             isBattleActive={isBattleActive}
             isPracticeBattle={isPracticeBattle}
             currentMoveCount={currentMoveCount}
+            treeBalance={treeBalance}
+            fifthMoveEligibilityResponse={qualification ?? undefined}
             isFifthMoveActivationLive
             compact
           />
-          <TreeEcosystemStatus />
         </div>
       )}
     </UtilityDrawer>

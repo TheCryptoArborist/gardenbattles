@@ -5,6 +5,7 @@ type UtilityDrawerProps = {
   title: string;
   eyebrow: string;
   description: string;
+  className?: string;
   onClose: () => void;
   children: ReactNode;
 };
@@ -13,6 +14,7 @@ export default function UtilityDrawer({
   title,
   eyebrow,
   description,
+  className = "",
   onClose,
   children,
 }: UtilityDrawerProps) {
@@ -32,7 +34,7 @@ export default function UtilityDrawer({
   return (
     <div className="gb-utility-drawer-backdrop" role="presentation" onMouseDown={onClose}>
       <section
-        className="gb-utility-drawer"
+        className={`gb-utility-drawer ${className}`.trim()}
         role="dialog"
         aria-modal="true"
         aria-label={title}

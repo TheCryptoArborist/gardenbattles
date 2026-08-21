@@ -166,13 +166,13 @@ export default function TreePowerPanel({
       <header className="gb-tree-power-head">
         <img className="gb-tree-power-head-logo" src={appAsset("assets/thick.png")} alt="TREE" />
         <div className="gb-tree-power-head-copy">
-          <h2 className="gb-tree-power-title">Your TREE Battle Boosts</h2>
-          <p className="gb-tree-power-subtitle">This panel only checks your wallet. It cannot spend or move your tokens.</p>
+          <h2 className="gb-tree-power-title">Why This Wallet Qualifies</h2>
+          <p className="gb-tree-power-subtitle">The game found verified TREE committed to supported ecosystem positions.</p>
         </div>
-        <span className="gb-tree-power-preview-chip">Wallet Check</span>
+        <span className="gb-tree-power-preview-chip">Read Only</span>
       </header>
 
-      {(!compact || balance.status === "ready") && <TreeBalancePill balance={balance} />}
+      {!compact && <TreeBalancePill balance={balance} />}
 
       <section className="gb-tree-power-card gb-tree-power-fifth" aria-label="Fifth Move Unlock">
         <div className="gb-tree-power-fifth-top">
@@ -257,6 +257,15 @@ export default function TreePowerPanel({
           {QUALIFICATION_SOURCES.map((source) => {
             const isActive = activeSources.has(source.id);
             const sourceStatus = responseSourceStatus.get(source.id);
+            const responseSource = eligibilityResponse?.sources.find((entry) => entry.source === source.id);
+            const sourceResult =
+              responseSource?.status === "qualified-data"
+                ? `${Number(responseSource.underlyingTreeDisplay ?? 0).toLocaleString(undefined, { maximumFractionDigits: 2 })} TREE verified`
+                : responseSource?.status === "verified-zero"
+                  ? "No position found — not needed"
+                  : responseSource?.status === "unavailable"
+                    ? "Temporarily unavailable"
+                    : "Checking this source";
             return (
               <span
                 key={source.id}
@@ -272,6 +281,7 @@ export default function TreePowerPanel({
                 <span>
                   <strong>{source.label}</strong>
                   <small>{source.description}</small>
+                  <em>{isActive ? "✓ " : ""}{sourceResult}</em>
                 </span>
               </span>
             );
