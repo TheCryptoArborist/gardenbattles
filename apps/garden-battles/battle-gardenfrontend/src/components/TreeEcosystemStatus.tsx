@@ -31,28 +31,28 @@ export default function TreeEcosystemStatus() {
 
   const rows = [
     {
-      label: "Liquid TREE",
-      description: "Spendable wallet TREE.",
+      label: "TREE in your wallet",
+      description: "TREE you can spend or move. This balance alone does not unlock the fifth card.",
       value: liquidTree.label,
     },
     {
-      label: "SuiDex V2 Position",
-      description: "Verified underlying TREE.",
+      label: "SuiDex V2 liquidity",
+      description: "TREE supplied to the original SuiDex pool. Any verified amount can qualify.",
       value: sourceValues.get("suidex-v2") ?? "Checking...",
     },
     {
-      label: "SuiDex V3 Position",
-      description: "Verified concentrated LP TREE.",
+      label: "SuiDex V3 liquidity",
+      description: "TREE supplied to the current concentrated-liquidity pool. Any verified amount can qualify.",
       value: sourceValues.get("suidex-v3") ?? "Checking...",
     },
     {
-      label: "Moonbags Staking",
-      description: "Verified staked TREE.",
+      label: "Moonbags staking",
+      description: "TREE deposited in the supported staking program. Any verified amount can qualify.",
       value: sourceValues.get("moonbags-staking") ?? "Checking...",
     },
     {
-      label: "Fifth Move",
-      description: "Live battle eligibility.",
+      label: "Your fifth-card result",
+      description: "If qualified, eligible paid battles deal five move cards instead of four.",
       value: fifthMoveValue,
     },
   ];
@@ -61,10 +61,10 @@ export default function TreeEcosystemStatus() {
     <section className="gb-ecosystem-status-card" aria-label="TREE Ecosystem Status">
       <div className="gb-ecosystem-status-head">
         <div>
-          <span>TREE Ecosystem Status</span>
-          <strong>Live wallet utility and qualification signals</strong>
+          <span>What the game found in your wallet</span>
+          <strong>These read-only checks explain whether you qualify for a fifth battle card.</strong>
         </div>
-        <em>Read-only</em>
+        <em>Nothing is spent</em>
       </div>
 
       <div className="gb-ecosystem-status-grid">
@@ -80,7 +80,7 @@ export default function TreeEcosystemStatus() {
       </div>
 
       <p className="gb-ecosystem-note">
-        TREE Reroll is planned but its cost and transaction flow are not configured yet.
+        If a source is temporarily unavailable, the game does not treat it as zero. Wait a moment and check again before changing your position.
       </p>
     </section>
   );

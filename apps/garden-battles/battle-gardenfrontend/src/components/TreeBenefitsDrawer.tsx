@@ -1,20 +1,36 @@
 import { useState } from "react";
+import { ConnectButton } from "@mysten/dapp-kit";
+import { ArrowUpRight, CheckCircle2, Gamepad2, ShieldCheck, WalletCards } from "lucide-react";
 import TreeEcosystemStatus from "@/components/TreeEcosystemStatus";
 import TreePowerPanel from "@/components/TreePowerPanel";
 import UtilityDrawer from "@/components/UtilityDrawer";
+import { appAsset } from "@/lib/assets";
 
 const UTILITY_TABS = [
-  { id: "benefits", label: "Battle Benefits", url: null },
-  { id: "buy", label: "Buy TREE", url: "https://dex.suidex.org/swap?from=SUI&to=Tree" },
+  { id: "benefits", label: "Battle Benefits", url: null, title: null, description: null, action: null },
+  {
+    id: "buy",
+    label: "Buy TREE",
+    url: "https://dex.suidex.org/swap?from=SUI&to=Tree",
+    title: "Swap SUI for TREE",
+    description: "Buy TREE on SuiDex. Holding liquid TREE shows in your wallet status; eligible liquidity or staking positions can unlock the fifth battle card.",
+    action: "Open the TREE swap on SuiDex",
+  },
   {
     id: "liquidity",
     label: "Add V3 Liquidity",
     url: "https://dex.suidex.org/pools/v3/0x39d5ba22e01e45bc4129ec28a0bef52e8fee8db5d07d337adf9540e3cb9074cf/add",
+    title: "Add TREE liquidity on SuiDex V3",
+    description: "Supply TREE to the current concentrated-liquidity pool. A verified, nonzero V3 TREE position qualifies your wallet for the fifth battle card.",
+    action: "Open V3 liquidity on SuiDex",
   },
   {
     id: "stake",
     label: "Stake V2",
     url: "https://dex.suidex.org/zap?pool=0x35a1be1f01f9edf7f5221d226f357d194d43c28f2a65cb38640935518d9a5bfc&stake=true",
+    title: "Add and stake SuiDex V2 liquidity",
+    description: "Use SuiDex's V2 staking flow. A verified, nonzero TREE position in this pool can also qualify your wallet for the fifth battle card.",
+    action: "Open V2 staking on SuiDex",
   },
 ] as const;
 
@@ -38,9 +54,9 @@ export default function TreeBenefitsDrawer({
 
   return (
     <UtilityDrawer
-      eyebrow="TREE Utilities"
+      eyebrow="TREE Battle Benefits"
       title="TREE Battle Benefits"
-      description="Verified TREE support can unlock a fifth battle card. Buy, provide liquidity, or stake without leaving Garden Battles."
+      description="See exactly what TREE can unlock, what your wallet qualifies for, and where to buy or put TREE to work."
       onClose={onClose}
     >
       <nav className="gb-utility-tabs" aria-label="TREE utility choices">
@@ -58,20 +74,78 @@ export default function TreeBenefitsDrawer({
       </nav>
 
       {selectedTab.url ? (
-        <div className="gb-embedded-utility">
-          <div className="gb-embedded-utility-notice">
-            This SuiDex utility stays inside Garden Battles. Your wallet will still request approval for any transaction.
+        <section className="gb-tree-action-panel" aria-label={selectedTab.title || "TREE utility"}>
+          <div className="gb-tree-action-brand">
+            <img src={appAsset("assets/suidex-handshake.png")} alt="SuiDex" />
+            <div>
+              <span>Powered by SuiDex</span>
+              <h3>{selectedTab.title}</h3>
+            </div>
           </div>
-          <iframe src={selectedTab.url} title={selectedTab.label} allow="clipboard-write" />
-        </div>
+
+          <p className="gb-tree-action-description">{selectedTab.description}</p>
+
+          <div className="gb-tree-action-steps">
+            <div>
+              <span>1</span>
+              <section>
+                <strong>Connect to Garden Battles here</strong>
+                <p>This lets the game read your TREE balance and determine whether your wallet qualifies for battle benefits.</p>
+              </section>
+              {address ? (
+                <em><CheckCircle2 size={16} aria-hidden="true" /> Wallet connected</em>
+              ) : (
+                <ConnectButton connectText="Connect Wallet Here" />
+              )}
+            </div>
+            <div>
+              <span>2</span>
+              <section>
+                <strong>Complete the DeFi action directly on SuiDex</strong>
+                <p>Wallet extensions block reliable transaction approval inside third-party embedded windows. SuiDex opens in a new tab so its wallet connection and transaction approval can work correctly; Garden Battles remains open here.</p>
+              </section>
+            </div>
+          </div>
+
+          <a className="gb-tree-action-launch" href={selectedTab.url} target="_blank" rel="noopener noreferrer">
+            {selectedTab.action} <ArrowUpRight size={17} aria-hidden="true" />
+          </a>
+
+          <p className="gb-tree-action-safety">
+            <ShieldCheck size={16} aria-hidden="true" /> No transaction starts from this panel. Review every amount in SuiDex and approve it in your wallet.
+          </p>
+        </section>
       ) : (
         <div className="gb-tree-benefits-layout">
           <div className="gb-tree-benefits-explainer">
-            <strong>What TREE does in Garden Battles</strong>
-            <p>
-              A verified, nonzero TREE position through SuiDex V2, SuiDex V3, or Moonbags staking unlocks a fifth card in eligible battles.
-            </p>
-            <p>TREE Reroll is planned, but its price and transaction flow are not live yet.</p>
+            <div className="gb-tree-benefits-brand">
+              <img src={appAsset("assets/thick.png")} alt="TREE" />
+              <div>
+                <span>Plain-English guide</span>
+                <strong>What TREE does in a battle</strong>
+              </div>
+            </div>
+            <div className="gb-tree-benefit-point">
+              <Gamepad2 size={22} aria-hidden="true" />
+              <div>
+                <strong>Unlock one more move choice</strong>
+                <p>Most players receive four cards. If your connected wallet has a verified TREE liquidity or staking position, eligible paid battles deal you a fifth card. That gives you another strategic option each turn.</p>
+              </div>
+            </div>
+            <div className="gb-tree-benefit-point">
+              <WalletCards size={22} aria-hidden="true" />
+              <div>
+                <strong>Your NFTree gets you into the game</strong>
+                <p>Owning an allowed NFTree grants battle access. TREE is the separate utility that can add the fifth card; simply owning an NFTree does not automatically unlock it.</p>
+              </div>
+            </div>
+            <p className="gb-tree-benefits-summary">Connect your wallet below to see what the game can verify. The status cards are informational and never move or spend your tokens.</p>
+            {!address && (
+              <div className="gb-tree-benefits-connect">
+                <ConnectButton connectText="Connect Wallet in This Panel" />
+                <small>The wallet chooser opens over Garden Battles. Slush may open its own secure approval screen; Garden Battles cannot—and should not—display your wallet credentials.</small>
+              </div>
+            )}
           </div>
           <TreePowerPanel
             address={address}

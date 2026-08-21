@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Link } from "wouter";
-import { Menu, ShoppingBag, Sparkles, Trophy, X } from "lucide-react";
+import { ChevronRight, Gamepad2, House, Menu, ShoppingBag, Sparkles, Trophy, X } from "lucide-react";
 import { ConnectButton } from "@mysten/dapp-kit";
 import MobileWalletLaunchers from "@/components/MobileWalletLaunchers";
 import { useSuiWallet, type PvpQueueState } from "@/hooks/useSuiWallet";
@@ -35,7 +35,7 @@ import TreeBenefitsDrawer from "@/components/TreeBenefitsDrawer";
 import NftreeAcquisitionDrawer from "@/components/NftreeAcquisitionDrawer";
 
 const ecosystemLinks = [
-  { label: "Home", href: "https://tree-token.net/", testId: "home" },
+  { label: "Home", href: "https://www.tree-token.xyz/", testId: "home" },
 ];
 
 function ArboretumComingSoonPromo() {
@@ -1554,25 +1554,6 @@ export default function Battle() {
             <span className="gb-mode-placeholder">Coming Soon</span>
           </div>
         </article>
-        {!hasActiveSession && (
-          <aside className="gb-practice-mode-strip" aria-label="Practice Mode">
-            <div className="gb-practice-mode-strip-copy">
-              <strong>Practice Mode</strong>
-              <span>
-                Try Garden Battles instantly. No wallet needed. No rewards. No
-                leaderboard credit.
-              </span>
-            </div>
-            <button
-              type="button"
-              onClick={handleStartPracticeBattle}
-              className="gb-mode-action gb-mode-action-practice"
-              data-testid="button-start-practice-battle"
-            >
-              Play Practice
-            </button>
-          </aside>
-        )}
         <p className="gb-mode-select-note">
           Single Player and PvP feed ranked leaderboard records. Practice Mode
           is for learning only.
@@ -1770,22 +1751,23 @@ export default function Battle() {
                 <a
                   key={link.href}
                   href={link.href}
-                  className="gb-nav-link"
+                  className="gb-nav-link gb-nav-link-home"
                   target="_blank"
                   rel="noreferrer"
                   data-testid={`link-${link.testId}`}
                 >
-                  {link.label}
+                  <House size={16} aria-hidden="true" />
+                  <span>{link.label}</span>
                 </a>
               ))}
             </div>
             <div className="gb-nav-divider" aria-hidden="true" />
             <div className="gb-nav-group gb-nav-group-suidex" aria-label="Garden Battles utilities">
-              <button type="button" className="gb-nav-link" onClick={() => setUtilityDrawer("nftree")}>
-                <ShoppingBag size={16} aria-hidden="true" /> Get an NFTree
+              <button type="button" className="gb-nav-link gb-nav-link-nftree" onClick={() => setUtilityDrawer("nftree")}>
+                <ShoppingBag size={16} aria-hidden="true" /> <span>Get an NFTree</span>
               </button>
-              <button type="button" className="gb-nav-link" onClick={() => setUtilityDrawer("tree")}>
-                <Sparkles size={16} aria-hidden="true" /> TREE Utilities
+              <button type="button" className="gb-nav-link gb-nav-link-tree" onClick={() => setUtilityDrawer("tree")}>
+                <Sparkles size={16} aria-hidden="true" /> <span>TREE Battle Benefits</span>
               </button>
             </div>
           </nav>
@@ -1845,7 +1827,7 @@ export default function Battle() {
                 <ShoppingBag size={16} aria-hidden="true" /> Get an NFTree
               </button>
               <button type="button" className="gb-nav-link" onClick={() => { setUtilityDrawer("tree"); setHeaderMenuOpen(false); }}>
-                <Sparkles size={16} aria-hidden="true" /> TREE Utilities
+                <Sparkles size={16} aria-hidden="true" /> TREE Battle Benefits
               </button>
             </div>
             {hasRefundablePvpQueue && (
@@ -1867,8 +1849,18 @@ export default function Battle() {
             className="gb-player-status-strip"
             aria-label="Connected player status"
           >
+            <div className="gb-rank-showcase">
+              <aside className="gb-rank-showcase-copy gb-rank-showcase-copy-left" aria-label="Battle rank explanation">
+                <span>Your Competitive Legacy</span>
+                <strong>Every ranked victory grows your reputation.</strong>
+              </aside>
+              <PlayerRecord address={address} />
+              <aside className="gb-rank-showcase-copy gb-rank-showcase-copy-right" aria-label="Leaderboard progression">
+                <span>Climb the Canopy</span>
+                <strong>Build streaks, earn badges, and claim leaderboard glory.</strong>
+              </aside>
+            </div>
             <ForestPower address={address} />
-            <PlayerRecord address={address} />
           </section>
         )}
 
@@ -1896,7 +1888,32 @@ export default function Battle() {
               </p>
             )}
           </section>
-          {!hasActiveSession && <HowToPlay />}
+          {!hasActiveSession && (
+            <div className="gb-quick-start-tools">
+              <HowToPlay />
+              <details className="gb-practice-launcher">
+                <summary>
+                  <span className="gb-practice-launcher-icon" aria-hidden="true"><Gamepad2 size={19} /></span>
+                  <span>
+                    <strong>Practice Mode</strong>
+                    <small>Try it free</small>
+                  </span>
+                  <ChevronRight size={17} aria-hidden="true" />
+                </summary>
+                <div className="gb-practice-launcher-panel">
+                  <p>Learn the cards against a practice opponent. No wallet, entry fee, rewards, or leaderboard record.</p>
+                  <button
+                    type="button"
+                    onClick={handleStartPracticeBattle}
+                    className="gb-mode-action gb-mode-action-practice"
+                    data-testid="button-start-practice-battle"
+                  >
+                    Start Free Practice
+                  </button>
+                </div>
+              </details>
+            </div>
+          )}
           {!isConnected && (
             <section
               className="gb-disconnected-onboarding"
@@ -1921,12 +1938,17 @@ export default function Battle() {
           {hasActiveSession && <HowToPlay />}
           {battleState && (
             <section className="gb-tree-benefits-trigger" aria-label="TREE Battle Benefits">
-              <div>
-                <strong>TREE Battle Benefits</strong>
-                <span>Eligible TREE positions unlock a fifth battle card.</span>
+              <div className="gb-tree-benefits-trigger-art" aria-hidden="true">
+                <img src={appAsset("assets/thick.png")} alt="" />
+                <span>+1</span>
+              </div>
+              <div className="gb-tree-benefits-trigger-copy">
+                <small>Want another strategic option?</small>
+                <strong>Unlock a Fifth Battle Card with TREE</strong>
+                <span>See whether your wallet qualifies, learn how it works, and preview the planned TREE Reroll.</span>
               </div>
               <button type="button" onClick={() => setUtilityDrawer("tree")}>
-                Check Benefits &amp; Get TREE
+                Explore TREE Benefits <ChevronRight size={17} aria-hidden="true" />
               </button>
             </section>
           )}

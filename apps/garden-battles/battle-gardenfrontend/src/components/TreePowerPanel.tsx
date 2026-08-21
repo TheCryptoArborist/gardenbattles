@@ -31,10 +31,30 @@ type TreePowerPanelProps = {
   compact?: boolean;
 };
 
-const QUALIFICATION_SOURCES: Array<{ id: FifthMoveQualificationSource; label: string }> = [
-  { id: "suidex-v2", label: "SuiDex V2" },
-  { id: "suidex-v3", label: "SuiDex V3" },
-  { id: "moonbags-staking", label: "Moonbags" },
+const QUALIFICATION_SOURCES: Array<{
+  id: FifthMoveQualificationSource;
+  label: string;
+  description: string;
+  logo: string;
+}> = [
+  {
+    id: "suidex-v2",
+    label: "SuiDex V2",
+    description: "TREE supplied to and staked through the original SuiDex liquidity pool.",
+    logo: "assets/suidex-handshake.png",
+  },
+  {
+    id: "suidex-v3",
+    label: "SuiDex V3",
+    description: "TREE supplied to the current concentrated-liquidity pool.",
+    logo: "assets/suidex-handshake.png",
+  },
+  {
+    id: "moonbags-staking",
+    label: "Moonbags Staking",
+    description: "TREE deposited in the supported Moonbags staking program.",
+    logo: "assets/thick.png",
+  },
 ];
 
 function TreeBalancePill({ balance }: { balance: TreeBalanceView }) {
@@ -125,6 +145,18 @@ export default function TreePowerPanel({
     eligibilityResponse?.remainingTree && eligibilityResponse.status === "not-qualified"
       ? `${eligibilityResponse.remainingTree} TREE remaining`
       : null;
+  const qualificationLabel =
+    eligibility.status === "qualified"
+      ? "Fifth card qualified"
+      : eligibility.status === "checking"
+        ? "Checking your wallet"
+        : eligibility.status === "not-connected"
+          ? "Connect wallet to check"
+          : eligibility.status === "verification-incomplete"
+            ? "Could not check every source"
+            : eligibility.status === "unavailable"
+              ? "Check temporarily unavailable"
+              : "Fifth card not yet unlocked";
 
   return (
     <aside
@@ -132,11 +164,12 @@ export default function TreePowerPanel({
       aria-label="TREE Power battle utility console"
     >
       <header className="gb-tree-power-head">
-        <div>
-          <h2 className="gb-tree-power-title">TREE POWER</h2>
-          <p className="gb-tree-power-subtitle">Battle Utility Console</p>
+        <img className="gb-tree-power-head-logo" src={appAsset("assets/thick.png")} alt="TREE" />
+        <div className="gb-tree-power-head-copy">
+          <h2 className="gb-tree-power-title">Your TREE Battle Boosts</h2>
+          <p className="gb-tree-power-subtitle">This panel only checks your wallet. It cannot spend or move your tokens.</p>
         </div>
-        <span className="gb-tree-power-preview-chip">Battle Utilities</span>
+        <span className="gb-tree-power-preview-chip">Wallet Check</span>
       </header>
 
       {(!compact || balance.status === "ready") && <TreeBalancePill balance={balance} />}
@@ -146,45 +179,62 @@ export default function TreePowerPanel({
           <span className="gb-tree-power-icon-shell" aria-hidden="true">
             <StatusIcon size={18} strokeWidth={2.4} />
           </span>
-          <h3>Fifth Move</h3>
+          <h3>Extra Card Slot</h3>
           <span
             className={`gb-tree-power-status gb-tree-power-lock-status gb-tree-power-status-${
               fifthMove.isUnlocked ? "active" : "locked"
             }`}
-            aria-label={`Fifth move status: ${fifthMove.statusLabel}`}
+            aria-label={`Fifth card status: ${qualificationLabel}`}
           >
-            {fifthMove.isUnlocked ? "Unlocked" : "Locked"}
+            {qualificationLabel}
           </span>
         </div>
 
-        <div className="gb-tree-power-hand-row">
-          <span>Current Hand</span>
-          <strong>{currentHandValue}</strong>
-        </div>
+        <p className="gb-tree-power-plain-explainer">
+          In eligible paid battles, a qualifying TREE position changes your hand from four move cards to five. The extra card gives you one more attack, growth, defense, or hybrid option to choose from each turn.
+        </p>
 
-        <div className="gb-tree-power-slots" aria-label={fifthMove.handLabel}>
-          {Array.from({ length: fifthMove.slotCount }, (_, index) => {
-            const isFilled = index < fifthMove.filledSlots;
-            const isFifthSlot = index === fifthMove.slotCount - 1;
-            return (
-              <span
-                key={index}
-                className={[
-                  "gb-tree-power-slot",
-                  isFilled ? "gb-tree-power-slot-filled" : "",
-                  isFifthSlot && !isFilled ? "gb-tree-power-slot-fifth-locked" : "",
-                  isFifthSlot && isFilled ? "gb-tree-power-slot-fifth-unlocked" : "",
-                ]
-                  .filter(Boolean)
-                  .join(" ")}
-              />
-            );
-          })}
-        </div>
+        {isBattleActive ? (
+          <>
+            <div className="gb-tree-power-hand-row">
+              <span>Cards currently in your hand</span>
+              <strong>{currentHandValue}</strong>
+            </div>
+
+            <div className="gb-tree-power-slots" aria-label={fifthMove.handLabel}>
+              {Array.from({ length: fifthMove.slotCount }, (_, index) => {
+                const isFilled = index < fifthMove.filledSlots;
+                const isFifthSlot = index === fifthMove.slotCount - 1;
+                return (
+                  <span
+                    key={index}
+                    className={[
+                      "gb-tree-power-slot",
+                      isFilled ? "gb-tree-power-slot-filled" : "",
+                      isFifthSlot && !isFilled ? "gb-tree-power-slot-fifth-locked" : "",
+                      isFifthSlot && isFilled ? "gb-tree-power-slot-fifth-unlocked" : "",
+                    ]
+                      .filter(Boolean)
+                      .join(" ")}
+                  />
+                );
+              })}
+            </div>
+          </>
+        ) : (
+          <div className="gb-tree-power-hand-preview">
+            <span>When an eligible paid battle starts</span>
+            <strong>{eligibility.status === "qualified" ? "You receive five move cards" : "Standard hand: four move cards"}</strong>
+          </div>
+        )}
 
         <div className={`gb-tree-power-qualification gb-tree-power-status-${fifthMove.status}`}>
-          <strong>{fifthMove.statusLabel}</strong>
-          <span>{fifthMove.description}</span>
+          <strong>{isBattleActive ? fifthMove.statusLabel : qualificationLabel}</strong>
+          <span>
+            {isBattleActive
+              ? fifthMove.description
+              : "This is a pre-battle wallet check. When an eligible paid battle starts, the game applies the result automatically."}
+          </span>
           {thresholdLabel && (
             <span className="gb-tree-power-threshold">
               Verified underlying TREE: {thresholdLabel}
@@ -203,7 +253,7 @@ export default function TreePowerPanel({
           )}
         </div>
 
-        <div className="gb-tree-power-source-chips" aria-label="Fifth move qualification sources">
+        <div className="gb-tree-power-source-chips" aria-label="Ways to qualify for the fifth battle card">
           {QUALIFICATION_SOURCES.map((source) => {
             const isActive = activeSources.has(source.id);
             const sourceStatus = responseSourceStatus.get(source.id);
@@ -218,7 +268,11 @@ export default function TreePowerPanel({
                   .filter(Boolean)
                   .join(" ")}
               >
-                {source.label}
+                <img src={appAsset(source.logo)} alt="" aria-hidden="true" />
+                <span>
+                  <strong>{source.label}</strong>
+                  <small>{source.description}</small>
+                </span>
               </span>
             );
           })}
@@ -231,9 +285,10 @@ export default function TreePowerPanel({
       </section>
 
       {compact ? (
-        <details className="gb-tree-power-reroll-compact">
-          <summary>TREE Reroll <span>Coming Soon</span></summary>
-          <p>Once-per-battle hand replacement is planned. Cost and transaction flow are not configured yet.</p>
+        <details className="gb-tree-power-reroll-compact" open>
+          <summary>TREE Reroll <span>Planned Feature</span></summary>
+          <p><strong>What is coming:</strong> TREE Reroll is planned to let you replace your entire hand once during a battle when the dealt cards do not support a useful strategy.</p>
+          <p><strong>What happens today:</strong> Nothing is charged and no reroll transaction is available. The TREE price, final rules, and launch date will be published before this feature can be used.</p>
         </details>
       ) : <section className="gb-tree-power-card gb-tree-power-reroll" aria-label="TREE Reroll">
         <div className="gb-tree-power-card-head">

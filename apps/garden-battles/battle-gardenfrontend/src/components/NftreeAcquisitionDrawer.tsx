@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { ConnectButton, useCurrentAccount, useSignAndExecuteTransaction, useSuiClient } from "@mysten/dapp-kit";
+import { ConnectButton, useCurrentAccount, useSignAndExecuteTransaction } from "@mysten/dapp-kit";
+import { ArrowUpRight, CheckCircle2, ShieldCheck } from "lucide-react";
 import { Transaction } from "@mysten/sui/transactions";
 import UtilityDrawer from "@/components/UtilityDrawer";
 import { SUI_CONFIG } from "@/lib/sui-config";
+import { readSuiBalanceWithRetry } from "@/lib/suiRpc";
 
 type SalePool = { poolId: string; label: string; count?: number };
 type SalePoolResponse = {
@@ -32,7 +34,6 @@ function formatMist(mist: string | number) {
 
 export default function NftreeAcquisitionDrawer({ onClose }: { onClose: () => void }) {
   const account = useCurrentAccount();
-  const suiClient = useSuiClient();
   const { mutate: signAndExecuteTransaction } = useSignAndExecuteTransaction();
   const [tab, setTab] = useState<"mint" | "shop">("mint");
   const [salePools, setSalePools] = useState<SalePoolResponse | null>(null);
@@ -78,7 +79,9 @@ export default function NftreeAcquisitionDrawer({ onClose }: { onClose: () => vo
     setStatus("Checking wallet balance...");
     try {
       const price = BigInt(salePools.mintPriceMist || SUI_CONFIG.COLLECTION_MINT_PRICE_MIST);
-      const balance = await suiClient.getBalance({ owner: account.address });
+      const balance = await readSuiBalanceWithRetry(account.address, {
+        operation: "nftree-mint-balance",
+      });
       const requiredBalance = price + NFTREE_MINT_GAS_BUDGET_MIST;
       if (BigInt(balance.totalBalance) < requiredBalance) {
         setStatus(`This purchase needs ${formatMist(price.toString())} plus up to ${formatMist(NFTREE_MINT_GAS_BUDGET_MIST.toString())} for gas.`);
@@ -106,7 +109,14 @@ export default function NftreeAcquisitionDrawer({ onClose }: { onClose: () => vo
         );
       });
     } catch (error: any) {
-      setStatus(error?.message || "The NFTree purchase was not completed.");
+      const message = String(error?.message || "");
+      if (/failed to fetch|network|transport|rate.?limit|timeout/i.test(message)) {
+        setStatus("The Sui network could not be reached, so no purchase was submitted and nothing was charged. Wait a moment and try again.");
+      } else if (/reject|cancel|denied|declined/i.test(message)) {
+        setStatus("Purchase cancelled in your wallet. Nothing was charged.");
+      } else {
+        setStatus(message || "The NFTree purchase was not completed. Nothing was charged.");
+      }
     } finally {
       setMinting(false);
     }
@@ -150,10 +160,25 @@ export default function NftreeAcquisitionDrawer({ onClose }: { onClose: () => vo
           {status && <p className="gb-acquisition-status" aria-live="polite">{status}</p>}
         </section>
       ) : shopUrl ? (
-        <div className="gb-embedded-utility">
+        <section className="gb-marketplace-handoff" aria-label="Continue NFTree purchase on TradePort">
+          <div>
+            <span>Marketplace checkout</span>
+            <h3>Continue securely on TradePort</h3>
+            <p>Marketplace wallet approvals cannot run reliably inside an embedded window. Open TradePort directly so Slush, Nightly, or Phantom can connect and approve the purchase correctly. Garden Battles stays open in this tab.</p>
+          </div>
+          <div className="gb-marketplace-wallet-state">
+            {account?.address ? (
+              <span><CheckCircle2 size={16} aria-hidden="true" /> Garden wallet connected</span>
+            ) : (
+              <ConnectButton connectText="Connect Garden Wallet Here" />
+            )}
+          </div>
+          <a href={shopUrl} target="_blank" rel="noopener noreferrer">
+            Open this NFTree on TradePort <ArrowUpRight size={17} aria-hidden="true" />
+          </a>
+          <p className="gb-marketplace-security-note"><ShieldCheck size={16} aria-hidden="true" /> Slush will open its own secure approval screen. That wallet-controlled screen cannot be embedded inside Garden Battles.</p>
           <button type="button" className="gb-inline-back" onClick={() => setShopUrl(null)}>Back to NFTree previews</button>
-          <iframe src={shopUrl} title="NFTree marketplace checkout" allow="clipboard-write" />
-        </div>
+        </section>
       ) : (
         <section className="gb-nftree-shop">
           <div className="gb-nftree-shop-summary">
