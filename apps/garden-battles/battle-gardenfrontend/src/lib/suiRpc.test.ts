@@ -83,6 +83,14 @@ function transactionResult(status: "SUCCESS" | "FAILURE" = "SUCCESS") {
     data: {
       transaction: {
         digest: "9digest",
+        transactionJson: {
+          kind: {
+            programmableTransaction: {
+              inputs: [{ kind: "PURE", pure: "Gg==" }],
+              commands: [],
+            },
+          },
+        },
         effects: {
           status,
           executionError:
@@ -143,6 +151,7 @@ describe("Sui GraphQL read migration", () => {
     assert.match(objectBody.query, /object\(address: \$id\)/);
     assert.match(balanceBody.query, /balance\(coinType: \$coinType\)/);
     assert.match(transactionBody.query, /transaction\(digest: \$digest\)/);
+    assert.match(transactionBody.query, /transactionJson/);
     assert.doesNotMatch(JSON.stringify(objectBody), /sui_getObject/);
     assert.doesNotMatch(JSON.stringify(balanceBody), /suix_getBalance/);
     assert.doesNotMatch(JSON.stringify(transactionBody), /sui_getTransactionBlock/);
@@ -355,6 +364,10 @@ describe("Sui GraphQL read migration", () => {
       retryDelaysMs: [],
     });
     assert.equal(result.effects.status.status, "success");
+    assert.equal(
+      result.transactionJson.kind.programmableTransaction.inputs[0].pure,
+      "Gg==",
+    );
     assert.equal(result.events[0].type, "0xpackage::battle::BattleUpdated");
     assert.equal(result.events[0].parsedJson.battle_id, "0xbattle");
     assert.deepEqual(result.objectChanges[0], {

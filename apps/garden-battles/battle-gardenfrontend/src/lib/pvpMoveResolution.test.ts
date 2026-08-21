@@ -58,6 +58,56 @@ function txBlock({
 }
 
 describe("resolvePvpMoveFromTransactionBlock", () => {
+  it("resolves a V3 move from the current Sui GraphQL transaction JSON shape", () => {
+    const result = resolvePvpMoveFromTransactionBlock(
+      {
+        transactionJson: {
+          kind: {
+            kind: "PROGRAMMABLE_TRANSACTION",
+            programmableTransaction: {
+              inputs: [
+                {
+                  kind: "SHARED",
+                  objectId: battleId,
+                  version: "969834593",
+                  mutable: true,
+                },
+                { kind: "PURE", pure: "Gg==" },
+                {
+                  kind: "SHARED",
+                  objectId:
+                    "0x0000000000000000000000000000000000000000000000000000000000000008",
+                  version: "326168368",
+                  mutable: false,
+                },
+              ],
+              commands: [
+                {
+                  moveCall: {
+                    package:
+                      "0x9a80317a43e1d59a4d13f9771a003b773153d729e79da329fa1793d301042edf",
+                    module: "battle",
+                    function: "use_ability_id_pvp_v3",
+                    arguments: [
+                      { kind: "INPUT", input: 0 },
+                      { kind: "INPUT", input: 1 },
+                      { kind: "INPUT", input: 2 },
+                    ],
+                  },
+                },
+              ],
+            },
+          },
+        },
+      },
+      battleId,
+    );
+
+    assert.equal(result.source, "transaction");
+    assert.equal(result.moveId, 26);
+    assert.equal(result.label, "Photosynthetic Surge");
+  });
+
   it("resolves exact move ID from a v2 player-1 transaction", () => {
     const result = resolvePvpMoveFromTransactionBlock(
       txBlock({ moveId: 28 }),

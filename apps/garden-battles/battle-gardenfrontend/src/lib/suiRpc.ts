@@ -74,6 +74,7 @@ const SUI_TRANSACTION_QUERY = `
   query SuiTransaction($digest: String!) {
     transaction(digest: $digest) {
       digest
+      transactionJson
       effects {
         status
         executionError { message }
@@ -1063,6 +1064,7 @@ async function readTransactionBlockViaGraphQL(
 
   return {
     digest: transaction.digest,
+    transactionJson: transaction.transactionJson,
     effects: {
       status: {
         status: status || "success",

@@ -14,6 +14,7 @@ export interface PvpMoveResolution {
 }
 
 const SUPPORTED_PVP_MOVE_FUNCTIONS = new Set([
+  "use_ability_id_pvp_v3",
   "use_ability_id_pvp_v2",
   "use_ability_id",
   "use_ability_id_v2",
@@ -36,11 +37,17 @@ function readPathCandidates(value: any, keys: string[]): any {
 }
 
 function getProgrammableTransaction(tx: SuiTransactionBlockResponse): any {
-  return (
+  const transaction =
+    tx?.transactionJson ??
     readPathCandidates(tx, ["transaction", "data", "transaction"]) ??
     readPathCandidates(tx, ["data", "transaction"]) ??
     readPathCandidates(tx, ["transaction"]) ??
-    tx
+    tx;
+
+  return (
+    transaction?.kind?.programmableTransaction ??
+    transaction?.programmableTransaction ??
+    transaction
   );
 }
 
@@ -141,7 +148,7 @@ function parsePureU8(value: any): number | null {
     value?.fields?.value ??
     value;
 
-  const moveId =
+  let moveId =
     typeof raw === "number"
       ? raw
       : typeof raw === "string" && raw.trim()
@@ -149,6 +156,19 @@ function parsePureU8(value: any): number | null {
         : Array.isArray(raw) && raw.length === 1
           ? Number(raw[0])
           : NaN;
+
+  if (
+    !Number.isInteger(moveId) &&
+    typeof raw === "string" &&
+    /^[A-Za-z0-9+/]+={0,2}$/.test(raw)
+  ) {
+    try {
+      const decoded = globalThis.atob(raw);
+      if (decoded.length === 1) moveId = decoded.charCodeAt(0);
+    } catch {
+      // Leave malformed pure inputs unresolved.
+    }
+  }
 
   return Number.isInteger(moveId) && moveId > 0 && moveId <= 255
     ? moveId
