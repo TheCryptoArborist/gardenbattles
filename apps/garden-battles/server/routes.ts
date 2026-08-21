@@ -21,7 +21,10 @@ import {
 } from "./battle-storage";
 import { startPvpQueueTelegramNotifier } from "./pvp-queue-telegram";
 import { readBattleTransactionViaGraphQL } from "./sui-graphql";
-import { getCachedFifthMoveEligibility } from "./tree-power-eligibility";
+import {
+  createGraphqlTreePowerClient,
+  getCachedFifthMoveEligibility,
+} from "./tree-power-eligibility";
 import {
   TREE_COIN_TYPE,
   normalizeSuiAddress,
@@ -39,6 +42,9 @@ const PACKAGE_ID =
   process.env.BATTLE_PACKAGE_ID ||
   process.env.PACKAGE_ID ||
   "0x50864e060caca53c7c50a355f7550276b52f91a0bd1e7b1e54ac9dbb754ef299";
+const BATTLE_CALL_PACKAGE_ID =
+  process.env.BATTLE_CALL_PACKAGE_ID ||
+  "0xc149945459d83ee116d0004f7c815a8201add24bb23676979e1e610f5bb3e2d1";
 const EVENT_PACKAGE_ID =
   process.env.BATTLE_EVENT_PACKAGE_ID ||
   process.env.BATTLE_ORIGINAL_PACKAGE_ID ||
@@ -209,6 +215,8 @@ function getSuiVerificationClient(): SuiClient {
   return suiVerificationClient;
 }
 
+const treePowerGraphqlClient = createGraphqlTreePowerClient();
+
 function getFifthMoveSigner(): Ed25519Keypair | null {
   if (fifthMoveSigner !== undefined) return fifthMoveSigner;
   if (!FIFTH_MOVE_ATTESTATION_PRIVATE_KEY) {
@@ -364,7 +372,7 @@ async function readLiveFifthMoveConfig(serverSignerPublicKey: Uint8Array): Promi
   if (!fifthMoveConfigReadInFlight) {
     fifthMoveConfigReadInFlight = (async () => {
       const object = await withTimeout(
-        getSuiVerificationClient().getObject({
+        treePowerGraphqlClient.getObject({
           id: FIFTH_MOVE_CONFIG_ID,
           options: { showType: true, showContent: true },
         }),
@@ -427,7 +435,7 @@ export function createFifthMoveAttestationHandler(
   options: FifthMoveAttestationRouteOptions = {},
 ): RequestHandler {
   const getEligibility = options.getEligibility ?? ((wallet: string) =>
-    getCachedFifthMoveEligibility(getSuiVerificationClient(), wallet));
+    getCachedFifthMoveEligibility(treePowerGraphqlClient, wallet));
   const getSigner = options.getSigner ?? getFifthMoveSigner;
   const readConfig = options.readConfig ?? readLiveFifthMoveConfig;
   const checkRateLimit = options.checkRateLimit ?? checkFifthMoveRateLimit;
@@ -949,7 +957,7 @@ async function maybeRunBotTurn(state: BattleState) {
     try {
       const tx = new Transaction();
       tx.moveCall({
-        target: `${PACKAGE_ID}::${MODULE}::use_ability_id`,
+        target: `${BATTLE_CALL_PACKAGE_ID}::${MODULE}::use_ability_id`,
         arguments: [
           tx.object(state.battleId),
           tx.pure.u8(moveId),
@@ -1166,7 +1174,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     try {
       const eligibility = await getCachedFifthMoveEligibility(
-        getSuiVerificationClient(),
+        treePowerGraphqlClient,
         address,
       );
       return res.json(eligibility);

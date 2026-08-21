@@ -25,7 +25,9 @@ export const SUI_CONFIG = {
     ((import.meta as any).env?.VITE_SUI_RPC_FALLBACK_URL as string | undefined) ||
     DEFAULT_PUBLIC_SUI_RPC_URL,
   WS_URL: "wss://fullnode.mainnet.sui.io:443",
-  PACKAGE_ID: "0x9a80317a43e1d59a4d13f9771a003b773153d729e79da329fa1793d301042edf",
+  PACKAGE_ID: "0xc149945459d83ee116d0004f7c815a8201add24bb23676979e1e610f5bb3e2d1",
+  PVP_EVENT_PACKAGE_ID:
+    "0x9a80317a43e1d59a4d13f9771a003b773153d729e79da329fa1793d301042edf",
   ORIGINAL_PACKAGE_ID:
     "0x656ac984c39b952b40ccaaad4c26a3e074c4c99f56e2bac0862b811557de448b",
   BOT_MOVE_RESOLVED_EVENT_PACKAGE_ID: "0x6cae4020693bcfcac9523ce8bc3d0bef7f830900e48b743d002b5d6b676e5142",
@@ -219,15 +221,15 @@ export function getBattleUpdateEvent() {
 }
 
 export function getPvpBattleV2UpdateEvent() {
-  return `${SUI_CONFIG.PACKAGE_ID}::${SUI_CONFIG.MODULE}::PvpBattleV2Update`;
+  return `${SUI_CONFIG.PVP_EVENT_PACKAGE_ID}::${SUI_CONFIG.MODULE}::PvpBattleV2Update`;
 }
 
 export function getPvpBattleV3UpdateEvent() {
-  return `${SUI_CONFIG.PACKAGE_ID}::${SUI_CONFIG.MODULE}::PvpBattleV3Update`;
+  return `${SUI_CONFIG.PVP_EVENT_PACKAGE_ID}::${SUI_CONFIG.MODULE}::PvpBattleV3Update`;
 }
 
 export function getRankedBotBattleV2UpdateEvent() {
-  return `${SUI_CONFIG.PACKAGE_ID}::${SUI_CONFIG.MODULE}::RankedBotBattleV2Update`;
+  return `${SUI_CONFIG.PVP_EVENT_PACKAGE_ID}::${SUI_CONFIG.MODULE}::RankedBotBattleV2Update`;
 }
 
 export function getBotMoveResolvedEvent() {

@@ -7,6 +7,7 @@ import {
   MOONBAGS_TREE_STAKING_POOL_ID,
   MOONBAGS_TREE_STAKING_POOL_TYPE,
   clearTreePowerEligibilityCache,
+  createGraphqlTreePowerClient,
   getCachedFifthMoveEligibility,
 } from "./tree-power-eligibility";
 
@@ -477,4 +478,99 @@ test("V3 provider excludes unrelated, closed, wrong-owner, and zero-liquidity po
   assert.equal(response.sources[1].status, "verified-zero");
   assert.equal(response.sources[1].underlyingTreeRaw, "0");
   assert.equal(response.sources[1].evidence?.positionCount, 0);
+});
+
+test("production GraphQL adapter maps objects, coins, owned positions, and dynamic fields", async () => {
+  const coinId = "0x2222222222222222222222222222222222222222222222222222222222222222";
+  const positionId = "0x3333333333333333333333333333333333333333333333333333333333333333";
+  const accountId = "0x4444444444444444444444444444444444444444444444444444444444444444";
+  globalThis.fetch = async (_input: any, init?: any) => {
+    const body = JSON.parse(String(init?.body ?? "{}"));
+    if (body.query.includes("object(address: $id)")) {
+      return new Response(JSON.stringify({
+        data: {
+          object: {
+            address: CANONICAL_TREE_SUIDEX_V2_POOL_ID,
+            owner: { __typename: "Shared", initialSharedVersion: "1" },
+            asMoveObject: {
+              contents: {
+                type: { repr: "0x2::test::Pool" },
+                json: { reserve1: "100", total_supply: "10" },
+              },
+            },
+          },
+        },
+      }));
+    }
+    if (body.query.includes("dynamicFields(first:")) {
+      return new Response(JSON.stringify({
+        data: {
+          address: {
+            dynamicFields: {
+              pageInfo: { hasNextPage: false, endCursor: null },
+              nodes: [{
+                name: { type: { repr: "address" }, json: wallet },
+                value: {
+                  __typename: "MoveObject",
+                  address: accountId,
+                  contents: {
+                    type: { repr: MOONBAGS_TREE_STAKING_ACCOUNT_TYPE },
+                    json: { staker: wallet, balance: "123" },
+                  },
+                },
+              }],
+            },
+          },
+        },
+      }));
+    }
+    const isCoinRead = String(body.variables?.filter?.type ?? "").includes("::coin::Coin<");
+    return new Response(JSON.stringify({
+      data: {
+        address: {
+          objects: {
+            pageInfo: { hasNextPage: false, endCursor: null },
+            nodes: isCoinRead
+              ? [{
+                  address: coinId,
+                  owner: { __typename: "AddressOwner", address: { address: wallet } },
+                  contents: {
+                    type: { repr: `0x2::coin::Coin<${CANONICAL_TREE_SUIDEX_V2_LP_COIN_TYPE}>` },
+                    json: { balance: "456" },
+                  },
+                }]
+              : [{
+                  address: positionId,
+                  owner: { __typename: "AddressOwner", address: { address: wallet } },
+                  contents: {
+                    type: { repr: "0x2::test::Position" },
+                    json: { liquidity: "789" },
+                  },
+                }],
+          },
+        },
+      },
+    }));
+  };
+
+  const client = createGraphqlTreePowerClient();
+  const object = await client.getObject({ id: CANONICAL_TREE_SUIDEX_V2_POOL_ID });
+  assert.equal((object.data?.content as any)?.fields?.reserve1, "100");
+
+  const coins = await client.getCoins({
+    owner: wallet,
+    coinType: CANONICAL_TREE_SUIDEX_V2_LP_COIN_TYPE,
+  });
+  assert.deepEqual(coins.data, [{ coinObjectId: coinId, balance: "456" }]);
+
+  const positions = await client.getOwnedObjects({ owner: wallet });
+  assert.equal(positions.data[0]?.data?.objectId, positionId);
+  assert.equal((positions.data[0]?.data?.content as any)?.fields?.liquidity, "789");
+
+  const account = await client.getDynamicFieldObject({
+    parentId: MOONBAGS_TREE_STAKING_POOL_ID,
+    name: { type: "address", value: wallet },
+  });
+  assert.equal(account.data?.objectId, accountId);
+  assert.equal((account.data?.content as any)?.fields?.balance, "123");
 });

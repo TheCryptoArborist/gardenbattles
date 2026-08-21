@@ -65,6 +65,11 @@ type GraphqlFarmPositionsResponse = {
 
 const eligibilityCache = new Map<string, CacheEntry>();
 
+export type TreePowerReadClient = Pick<
+  SuiClient,
+  "getCoinMetadata" | "getObject" | "getCoins" | "getOwnedObjects" | "getDynamicFieldObject"
+>;
+
 function withTimeout<T>(promise: Promise<T>, timeoutMs = TREE_POWER_READ_TIMEOUT_MS): Promise<T> {
   let timeout: NodeJS.Timeout | null = null;
   const timeoutPromise = new Promise<never>((_, reject) => {
@@ -76,13 +81,13 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs = TREE_POWER_READ_TIMEOUT
   });
 }
 
-function getFields(object: Awaited<ReturnType<SuiClient["getObject"]>>): Record<string, any> | null {
+function getFields(object: Awaited<ReturnType<TreePowerReadClient["getObject"]>>): Record<string, any> | null {
   const content = object.data?.content;
   return content && "fields" in content ? ((content as any).fields ?? null) : null;
 }
 
 function typeNameToCanonical(typeName: any): string | null {
-  const name = typeName?.fields?.name;
+  const name = typeof typeName === "string" ? typeName : typeName?.fields?.name;
   return typeof name === "string" ? `0x${name}` : null;
 }
 
@@ -117,6 +122,166 @@ async function suiGraphql<T>(query: string, variables: Record<string, unknown>):
   }
   if (!payload.data) throw new Error("sui_graphql_empty_response");
   return payload.data;
+}
+
+function mapGraphqlOwner(owner: any): any {
+  if (owner?.__typename === "AddressOwner") {
+    return { AddressOwner: owner.address?.address };
+  }
+  if (owner?.__typename === "ObjectOwner") {
+    return { ObjectOwner: owner.address?.address };
+  }
+  if (owner?.__typename === "Shared") {
+    return { Shared: { initial_shared_version: String(owner.initialSharedVersion) } };
+  }
+  if (owner?.__typename === "Immutable") return "Immutable";
+  return undefined;
+}
+
+function mapGraphqlMoveObject(node: any): any {
+  const moveObject = node?.asMoveObject ?? node;
+  const contents = moveObject?.contents;
+  const type = contents?.type?.repr;
+  return {
+    data: {
+      objectId: node?.address ?? moveObject?.address,
+      type,
+      owner: mapGraphqlOwner(node?.owner),
+      content: contents
+        ? { dataType: "moveObject", type, fields: contents.json ?? {} }
+        : undefined,
+    },
+  };
+}
+
+async function readGraphqlObject(objectId: string): Promise<any> {
+  const data = await suiGraphql<{ object: any | null }>(
+    `query($id:SuiAddress!) {
+      object(address: $id) {
+        address
+        owner {
+          __typename
+          ... on AddressOwner { address { address } }
+          ... on ObjectOwner { address { address } }
+          ... on Shared { initialSharedVersion }
+        }
+        asMoveObject { contents { type { repr } json } }
+      }
+    }`,
+    { id: objectId },
+  );
+  return data.object ? mapGraphqlMoveObject(data.object) : { data: null };
+}
+
+async function readGraphqlOwnedObjectsPage(input: {
+  owner: string;
+  type?: string;
+  cursor?: string | null;
+  limit?: number;
+}): Promise<any> {
+  const data = await suiGraphql<{ address: { objects: any } | null }>(
+    `query($owner:SuiAddress!, $filter:ObjectFilter, $first:Int, $after:String) {
+      address(address: $owner) {
+        objects(first: $first, after: $after, filter: $filter) {
+          pageInfo { hasNextPage endCursor }
+          nodes {
+            address
+            owner {
+              __typename
+              ... on AddressOwner { address { address } }
+              ... on ObjectOwner { address { address } }
+              ... on Shared { initialSharedVersion }
+            }
+            contents { type { repr } json }
+          }
+        }
+      }
+    }`,
+    {
+      owner: input.owner,
+      filter: input.type ? { type: input.type } : null,
+      first: input.limit ?? 50,
+      after: input.cursor ?? null,
+    },
+  );
+  const page = data.address?.objects;
+  return {
+    data: (page?.nodes ?? []).map(mapGraphqlMoveObject),
+    hasNextPage: Boolean(page?.pageInfo?.hasNextPage),
+    nextCursor: page?.pageInfo?.endCursor ?? null,
+  };
+}
+
+async function readGraphqlDynamicFieldObject(parentId: string, wallet: string): Promise<any> {
+  let cursor: string | null = null;
+  do {
+    const data: { address: { dynamicFields: any } | null } = await suiGraphql(
+      `query($parent:SuiAddress!, $first:Int, $after:String) {
+        address(address: $parent) {
+          dynamicFields(first: $first, after: $after) {
+            pageInfo { hasNextPage endCursor }
+            nodes {
+              name { type { repr } json }
+              value {
+                __typename
+                ... on MoveObject { address contents { type { repr } json } }
+              }
+            }
+          }
+        }
+      }`,
+      { parent: parentId, first: 50, after: cursor },
+    );
+    const page = data.address?.dynamicFields;
+    for (const field of page?.nodes ?? []) {
+      const fieldWallet = normalizeSuiAddress(String(field?.name?.json ?? ""));
+      if (fieldWallet !== wallet || field?.value?.__typename !== "MoveObject") continue;
+      return mapGraphqlMoveObject(field.value);
+    }
+    cursor = page?.pageInfo?.hasNextPage ? (page.pageInfo.endCursor ?? null) : null;
+  } while (cursor);
+  return { data: null, error: { code: "dynamicFieldNotFound" } };
+}
+
+/** GraphQL-only production reader for Fifth Move eligibility. */
+export function createGraphqlTreePowerClient(): TreePowerReadClient {
+  return {
+    async getCoinMetadata({ coinType }: any) {
+      return normalizeMoveTypeName(coinType) === normalizeMoveTypeName(TREE_COIN_TYPE)
+        ? { symbol: "Tree", decimals: VERIFIED_TREE_DECIMALS }
+        : null;
+    },
+    async getObject({ id }: any) {
+      return readGraphqlObject(id);
+    },
+    async getCoins({ owner, coinType, cursor, limit }: any) {
+      const page = await readGraphqlOwnedObjectsPage({
+        owner,
+        type: `0x2::coin::Coin<${coinType}>`,
+        cursor,
+        limit,
+      });
+      return {
+        ...page,
+        data: page.data.map((item: any) => ({
+          coinObjectId: item.data.objectId,
+          balance: String(
+            item.data.content?.fields?.balance?.value ??
+            item.data.content?.fields?.balance ??
+            0,
+          ),
+        })),
+      };
+    },
+    async getOwnedObjects({ owner, cursor, limit }: any) {
+      return readGraphqlOwnedObjectsPage({ owner, cursor, limit });
+    },
+    async getDynamicFieldObject({ parentId, name }: any) {
+      const wallet = normalizeSuiAddress(String(name?.value ?? ""));
+      if (!wallet) return { data: null, error: { code: "invalidDynamicFieldName" } };
+      return readGraphqlDynamicFieldObject(parentId, wallet);
+    },
+  } as TreePowerReadClient;
 }
 
 function graphqlMoveObjectJson(object: any): Record<string, any> | null {
@@ -206,7 +371,7 @@ async function readSuiDexV2FarmedLp(wallet: string): Promise<{ farmedLpRaw: bigi
   return { farmedLpRaw, objectIds };
 }
 
-function isVerifiedTreeV2Pool(object: Awaited<ReturnType<SuiClient["getObject"]>>): boolean {
+function isVerifiedTreeV2Pool(object: Awaited<ReturnType<TreePowerReadClient["getObject"]>>): boolean {
   const type = object.data?.type ?? "";
   return (
     object.data?.objectId?.toLowerCase() === CANONICAL_TREE_SUIDEX_V2_POOL_ID &&
@@ -216,7 +381,7 @@ function isVerifiedTreeV2Pool(object: Awaited<ReturnType<SuiClient["getObject"]>
 }
 
 async function getAllCoinBalanceRaw(
-  client: SuiClient,
+  client: TreePowerReadClient,
   owner: string,
   coinType: string,
 ): Promise<{ total: bigint; objectIds: string[] }> {
@@ -243,14 +408,14 @@ async function getAllCoinBalanceRaw(
   return { total, objectIds };
 }
 
-async function verifyTreeMetadata(client: SuiClient): Promise<void> {
+async function verifyTreeMetadata(client: TreePowerReadClient): Promise<void> {
   const metadata = await client.getCoinMetadata({ coinType: TREE_COIN_TYPE });
   if (!metadata || metadata.symbol !== "Tree" || metadata.decimals !== VERIFIED_TREE_DECIMALS) {
     throw new Error("unexpected_tree_coin_metadata");
   }
 }
 
-async function readSuiDexV2DirectLp(client: SuiClient, wallet: string): Promise<FifthMoveSourceResult> {
+async function readSuiDexV2DirectLp(client: TreePowerReadClient, wallet: string): Promise<FifthMoveSourceResult> {
   try {
     const [poolObject, lpCoins] = await Promise.all([
       client.getObject({
@@ -320,7 +485,7 @@ async function readSuiDexV2DirectLp(client: SuiClient, wallet: string): Promise<
   }
 }
 
-async function readSuiDexV3StatusForWallet(client: SuiClient, wallet: string): Promise<FifthMoveSourceResult> {
+async function readSuiDexV3StatusForWallet(client: TreePowerReadClient, wallet: string): Promise<FifthMoveSourceResult> {
   try {
     const poolObject = await client.getObject({
       id: CANONICAL_TREE_SUIDEX_V3_POOL_ID,
@@ -328,7 +493,7 @@ async function readSuiDexV3StatusForWallet(client: SuiClient, wallet: string): P
     });
     const type = poolObject.data?.type ?? "";
     const fields = getFields(poolObject);
-    const treeIsTypeY = fields?.type_y?.fields?.name === TREE_COIN_TYPE.replace(/^0x/, "");
+    const treeIsTypeY = typeNameToCanonical(fields?.type_y) === TREE_COIN_TYPE;
 
     if (!type.includes("::pool::Pool<") || !type.includes(TREE_COIN_TYPE) || !treeIsTypeY) {
       return {
@@ -417,14 +582,18 @@ async function readSuiDexV3StatusForWallet(client: SuiClient, wallet: string): P
   }
 }
 
-function isVerifiedMoonbagsTreePool(object: Awaited<ReturnType<SuiClient["getObject"]>>): boolean {
+function isVerifiedMoonbagsTreePool(object: Awaited<ReturnType<TreePowerReadClient["getObject"]>>): boolean {
   const type = object.data?.type ?? "";
   const fields = getFields(object);
   const stakingTokenType = fields?.staking_token?.type ?? "";
+  const hasCanonicalStakingBalance = /^\d+$/.test(String(fields?.staking_token?.balance ?? ""));
   return (
     object.data?.objectId?.toLowerCase() === MOONBAGS_TREE_STAKING_POOL_ID &&
     type === MOONBAGS_TREE_STAKING_POOL_TYPE &&
-    stakingTokenType === `0x2::coin::Coin<${TREE_COIN_TYPE}>`
+    (
+      stakingTokenType === `0x2::coin::Coin<${TREE_COIN_TYPE}>` ||
+      (stakingTokenType === "" && hasCanonicalStakingBalance)
+    )
   );
 }
 
@@ -433,7 +602,7 @@ function moonbagsMissingDynamicField(error: unknown): boolean {
   return /dynamic field.*not.*found|object.*not.*exist|not exist|not found/i.test(message);
 }
 
-async function readMoonbagsStatus(client: SuiClient, wallet: string): Promise<FifthMoveSourceResult> {
+async function readMoonbagsStatus(client: TreePowerReadClient, wallet: string): Promise<FifthMoveSourceResult> {
   try {
     const poolObject = await client.getObject({
       id: MOONBAGS_TREE_STAKING_POOL_ID,
@@ -448,7 +617,7 @@ async function readMoonbagsStatus(client: SuiClient, wallet: string): Promise<Fi
       };
     }
 
-    let accountObject: Awaited<ReturnType<SuiClient["getDynamicFieldObject"]>>;
+    let accountObject: Awaited<ReturnType<TreePowerReadClient["getDynamicFieldObject"]>>;
     try {
       accountObject = await client.getDynamicFieldObject({
         parentId: MOONBAGS_TREE_STAKING_POOL_ID,
@@ -529,7 +698,7 @@ async function readMoonbagsStatus(client: SuiClient, wallet: string): Promise<Fi
 }
 
 export async function getFifthMoveEligibility(
-  client: SuiClient,
+  client: TreePowerReadClient,
   address: string,
 ): Promise<FifthMoveEligibilityResult> {
   const wallet = normalizeSuiAddress(address);
@@ -553,7 +722,7 @@ export async function getFifthMoveEligibility(
 }
 
 export async function getCachedFifthMoveEligibility(
-  client: SuiClient,
+  client: TreePowerReadClient,
   address: string,
 ): Promise<FifthMoveEligibilityResponse> {
   const wallet = normalizeSuiAddress(address);
