@@ -1,4 +1,20 @@
-﻿const SUI_RPC_URL = process.env.SUI_RPC_URL || "https://fullnode.mainnet.sui.io:443";
+const SUI_GRAPHQL_URL =
+  process.env.SUI_GRAPHQL_URL || "https://graphql.mainnet.sui.io/graphql";
+
+const SUI_OBJECT_QUERY = `
+  query SuiObject($id: SuiAddress!) {
+    object(address: $id) {
+      address
+      version
+      asMoveObject {
+        contents {
+          type { repr }
+          json
+        }
+      }
+    }
+  }
+`;
 
 const COLLECTION_PACKAGE_ID = "0xf6c6d439ea0da2f3e9ba79e4992a7a4c113215fbf54c442ac9020c315f953705";
 const LATEST_PACKAGE_ID = "0xcfb2af9a22d5a468f15e673c3ec40c76be8da3ec69c66405d832bb4d6985cdf5";
@@ -63,33 +79,40 @@ function rarityBreakdown(nfts) {
   return counts;
 }
 
-async function rpc(method, params, signal) {
-  const response = await fetch(SUI_RPC_URL, {
+async function fetchSuiObject(objectId, signal) {
+  const response = await fetch(SUI_GRAPHQL_URL, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
-      jsonrpc: "2.0",
-      id: Date.now(),
-      method,
-      params,
+      query: SUI_OBJECT_QUERY,
+      variables: { id: objectId },
     }),
     signal,
   });
 
   const payload = await response.json();
-  if (!response.ok || payload.error) {
-    throw new Error(payload.error?.message || `Sui RPC returned ${response.status}.`);
+  if (!response.ok || payload.errors?.length) {
+    throw new Error(
+      payload.errors?.[0]?.message || `Sui GraphQL returned ${response.status}.`,
+    );
   }
-  return payload.result;
+
+  const object = payload.data?.object;
+  const contents = object?.asMoveObject?.contents;
+  if (!object || !contents) {
+    throw new Error(`Sui object ${objectId} was not found.`);
+  }
+
+  return {
+    fields: contents.json || {},
+    objectType: contents.type?.repr || "",
+    version: String(object.version || ""),
+  };
 }
 
 async function fetchSalePool(pool, signal) {
-  const result = await rpc(
-    "sui_getObject",
-    [pool.poolId, { showContent: true, showType: true, showOwner: true }],
-    signal,
-  );
-  const fields = result?.data?.content?.fields || {};
+  const result = await fetchSuiObject(pool.poolId, signal);
+  const fields = result.fields;
   const nfts = nftArrayFromFields(fields);
   const numbers = nfts.map(nftNumber).filter((value) => value !== undefined).sort((left, right) => left - right);
 
@@ -99,18 +122,14 @@ async function fetchSalePool(pool, signal) {
     firstNumber: numbers[0] || null,
     lastNumber: numbers[numbers.length - 1] || null,
     rarityBreakdown: rarityBreakdown(nfts),
-    objectType: result?.data?.type || "",
-    version: result?.data?.version || "",
+    objectType: result.objectType,
+    version: result.version,
   };
 }
 
 async function fetchMintConfig(signal) {
-  const result = await rpc(
-    "sui_getObject",
-    [MINT_CONFIG_ID, { showContent: true, showType: true, showOwner: true }],
-    signal,
-  );
-  const fields = result?.data?.content?.fields || {};
+  const result = await fetchSuiObject(MINT_CONFIG_ID, signal);
+  const fields = result.fields;
 
   return {
     admin: String(fields.admin || ""),
@@ -152,7 +171,7 @@ export default async (request) => {
       activePoolLabel: activePool?.label || "",
       pools,
       fetchedAt: new Date().toISOString(),
-      source: "sui-rpc",
+      source: "sui-graphql",
     });
   } catch (error) {
     return jsonResponse(
@@ -164,7 +183,7 @@ export default async (request) => {
         treasury: FALLBACK_TREASURY,
         error: error instanceof Error ? error.message : "NFTree sale-pool lookup failed.",
         pools: SALE_POOLS,
-        source: "sui-rpc",
+        source: "sui-graphql",
       },
       502,
     );
