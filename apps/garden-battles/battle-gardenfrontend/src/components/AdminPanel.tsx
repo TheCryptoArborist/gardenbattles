@@ -1,6 +1,11 @@
 import { useState, useEffect } from "react";
 import { X, Plus, Trash2 } from "lucide-react";
-import { useSignAndExecuteTransaction } from "@mysten/dapp-kit";
+import {
+  useCurrentAccount,
+  useCurrentWallet,
+  useSignAndExecuteTransaction,
+} from "@mysten/dapp-kit";
+import { signAndExecuteTransaction as walletSignAndExecuteTransaction } from "@mysten/wallet-standard";
 import { Transaction } from "@mysten/sui/transactions";
 import { SUI_CONFIG } from "@/lib/sui-config";
 
@@ -29,6 +34,8 @@ export default function AdminPanel({
   const [isEnablingFifthMove, setIsEnablingFifthMove] = useState(false);
 
   const { mutate: signAndExecuteTransaction } = useSignAndExecuteTransaction();
+  const currentAccount = useCurrentAccount();
+  const { currentWallet, supportedIntents } = useCurrentWallet();
 
   const isAdmin = currentAddress
     ? adminAddresses.some(
@@ -264,6 +271,10 @@ export default function AdminPanel({
     setStatusMessage("Enabling Fifth Move for qualified wallets...");
 
     try {
+      if (!currentAccount || !currentWallet) {
+        throw new Error("Admin wallet is not connected");
+      }
+
       const tx = new Transaction();
       tx.moveCall({
         target: `${SUI_CONFIG.PACKAGE_ID}::fifth_move::set_enabled`,
@@ -273,23 +284,18 @@ export default function AdminPanel({
         ],
       });
 
-      await new Promise<void>((resolve, reject) => {
-        signAndExecuteTransaction(
-          { transaction: tx, chain: SUI_CONFIG.CHAIN },
-          {
-            onSuccess: (result) => {
-              setStatusMessage(`Fifth Move enabled. Transaction: ${result.digest}`);
-              setIsEnablingFifthMove(false);
-              resolve();
-            },
-            onError: (error) => {
-              setStatusMessage(`Failed: ${error.message || "Transaction rejected"}`);
-              setIsEnablingFifthMove(false);
-              reject(error);
-            },
+      const result = await walletSignAndExecuteTransaction(currentWallet, {
+        account: currentAccount,
+        chain: SUI_CONFIG.CHAIN,
+        transaction: {
+          toJSON: async () =>
+            tx.toJSON({
+              supportedIntents,
+            }),
           },
-        );
       });
+      setStatusMessage(`Fifth Move transaction submitted: ${result.digest}`);
+      setIsEnablingFifthMove(false);
     } catch (error: any) {
       setStatusMessage(`Error: ${error.message || "Unknown error"}`);
       setIsEnablingFifthMove(false);
