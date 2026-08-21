@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Link } from "wouter";
-import { Menu, Trophy, X } from "lucide-react";
+import { Menu, ShoppingBag, Sparkles, Trophy, X } from "lucide-react";
 import { ConnectButton } from "@mysten/dapp-kit";
 import MobileWalletLaunchers from "@/components/MobileWalletLaunchers";
 import { useSuiWallet, type PvpQueueState } from "@/hooks/useSuiWallet";
@@ -28,38 +28,14 @@ import {
   formatPvpJoinFailureMessage,
   isWalletCancelMessage,
 } from "@/lib/pvpJoinError";
-import TreePowerPanel from "@/components/TreePowerPanel";
-import TreeEcosystemStatus from "@/components/TreeEcosystemStatus";
 import PrizePayoutPanel from "@/components/PrizePayoutPanel";
 import BattleResultModal from "@/components/BattleResultModal";
 import ModeCrest from "@/components/ModeCrest";
+import TreeBenefitsDrawer from "@/components/TreeBenefitsDrawer";
+import NftreeAcquisitionDrawer from "@/components/NftreeAcquisitionDrawer";
 
 const ecosystemLinks = [
   { label: "Home", href: "https://tree-token.net/", testId: "home" },
-  { label: "NFTree.net", href: "https://nftree.net", testId: "nftree-net" },
-  {
-    label: "NFTree Reward Site",
-    href: "https://treedrop.xyz",
-    testId: "nftree-reward-site",
-  },
-];
-
-const treeUtilityLinks = [
-  {
-    label: "Buy TREE",
-    href: "https://dex.suidex.org/swap?from=SUI&to=Tree",
-    testId: "buy-tree",
-  },
-  {
-    label: "Add V3 LP",
-    href: "https://dex.suidex.org/pools/v3/0x39d5ba22e01e45bc4129ec28a0bef52e8fee8db5d07d337adf9540e3cb9074cf/add",
-    testId: "add-v3-lp",
-  },
-  {
-    label: "Stake V2",
-    href: "https://dex.suidex.org/zap?pool=0x35a1be1f01f9edf7f5221d226f357d194d43c28f2a65cb38640935518d9a5bfc&stake=true",
-    testId: "stake-v2",
-  },
 ];
 
 function ArboretumComingSoonPromo() {
@@ -306,7 +282,7 @@ export default function Battle() {
   const [isAdminClosing, setIsAdminClosing] = useState(false);
   const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
   const [modeCardsExpanded, setModeCardsExpanded] = useState(false);
-  const [ecosystemExpanded, setEcosystemExpanded] = useState(false);
+  const [utilityDrawer, setUtilityDrawer] = useState<"tree" | "nftree" | null>(null);
   const [dismissedResultKeys, setDismissedResultKeys] = useState<string[]>(
     () => readDismissedResultKeys(),
   );
@@ -403,7 +379,7 @@ export default function Battle() {
           setDialogKind("info");
         }
         setModeCardsExpanded(false);
-        setEcosystemExpanded(false);
+        setUtilityDrawer(null);
         scrollToBattleFocus();
       } else {
         setDialogKind("info");
@@ -469,7 +445,7 @@ export default function Battle() {
         setDialogMessage("");
         setDialogKind("info");
         setModeCardsExpanded(false);
-        setEcosystemExpanded(false);
+        setUtilityDrawer(null);
         scrollToBattleFocus();
       } else {
         setDialogKind("info");
@@ -602,7 +578,7 @@ export default function Battle() {
     }
     setLocalPvpQueued(true);
     setModeCardsExpanded(false);
-    setEcosystemExpanded(false);
+    setUtilityDrawer(null);
     if (shouldScroll) scrollToPvpQueuePanel();
   };
 
@@ -1431,7 +1407,7 @@ export default function Battle() {
   const handleStartPracticeBattle = () => {
     startPracticeBattle();
     setModeCardsExpanded(false);
-    setEcosystemExpanded(false);
+    setUtilityDrawer(null);
     setLiveResultKey(null);
     resultModalArmedRef.current = false;
     resultModalArmedBattleIdRef.current = null;
@@ -1804,24 +1780,13 @@ export default function Battle() {
               ))}
             </div>
             <div className="gb-nav-divider" aria-hidden="true" />
-            <div className="gb-nav-group gb-nav-group-suidex" aria-label="SuiDex TREE utilities">
-              <img
-                src={appAsset("assets/suidex-handshake.png")}
-                alt="SuiDex"
-                className="gb-suidex-logo"
-              />
-              {treeUtilityLinks.map((link) => (
-                <a
-                  key={link.href}
-                  href={link.href}
-                  className="gb-nav-link"
-                  target="_blank"
-                  rel="noreferrer"
-                  data-testid={`link-${link.testId}`}
-                >
-                  {link.label}
-                </a>
-              ))}
+            <div className="gb-nav-group gb-nav-group-suidex" aria-label="Garden Battles utilities">
+              <button type="button" className="gb-nav-link" onClick={() => setUtilityDrawer("nftree")}>
+                <ShoppingBag size={16} aria-hidden="true" /> Get an NFTree
+              </button>
+              <button type="button" className="gb-nav-link" onClick={() => setUtilityDrawer("tree")}>
+                <Sparkles size={16} aria-hidden="true" /> TREE Utilities
+              </button>
             </div>
           </nav>
 
@@ -1875,27 +1840,13 @@ export default function Battle() {
                 </a>
               ))}
             </div>
-            <div className="gb-mobile-nav-section" aria-label="SuiDex TREE utilities">
-              <span className="gb-mobile-nav-label">
-                <img
-                  src={appAsset("assets/suidex-handshake.png")}
-                  alt=""
-                  className="gb-suidex-logo"
-                />
-                SuiDex
-              </span>
-              {treeUtilityLinks.map((link) => (
-                <a
-                  key={link.href}
-                  href={link.href}
-                  className="gb-nav-link"
-                  target="_blank"
-                  rel="noreferrer"
-                  data-testid={`mobile-link-${link.testId}`}
-                >
-                  {link.label}
-                </a>
-              ))}
+            <div className="gb-mobile-nav-section" aria-label="Garden Battles utilities">
+              <button type="button" className="gb-nav-link" onClick={() => { setUtilityDrawer("nftree"); setHeaderMenuOpen(false); }}>
+                <ShoppingBag size={16} aria-hidden="true" /> Get an NFTree
+              </button>
+              <button type="button" className="gb-nav-link" onClick={() => { setUtilityDrawer("tree"); setHeaderMenuOpen(false); }}>
+                <Sparkles size={16} aria-hidden="true" /> TREE Utilities
+              </button>
             </div>
             {hasRefundablePvpQueue && (
               <button
@@ -1923,57 +1874,43 @@ export default function Battle() {
 
         <main className="gb-battle-main">
           {/* Title Image with animation */}
-          <section className="gb-battle-hero" aria-label="Garden Battles arena">
+          <section className={hasActiveSession ? "gb-battle-hero gb-battle-hero-active" : "gb-battle-hero"} aria-label="Garden Battles arena">
             <img
               src={appAsset("assets/garden.png")}
               alt="The Garden Battles"
               className="title-image"
               style={{
                 width: "100%",
-                maxWidth: "680px",
+                maxWidth: "420px",
                 height: "auto",
-                maxHeight: "300px",
+                maxHeight: "140px",
                 margin: "0 auto",
                 display: "block",
                 animation: "explodeAndShrink 2s ease-out forwards",
               }}
               data-testid="img-battle-title"
             />
+            {!hasActiveSession && (
+              <p className="gb-battle-hero-tagline">
+                Strategic NFTree battles. Choose a mode and start growing.
+              </p>
+            )}
           </section>
+          {!hasActiveSession && <HowToPlay />}
           {!isConnected && (
             <section
               className="gb-disconnected-onboarding"
               aria-label="Connect wallet to start Garden Battles"
             >
               <div className="gb-disconnected-onboarding-copy">
-                <p className="gb-disconnected-kicker">First step</p>
-                <h1>Connect Wallet to Start</h1>
+                <p className="gb-disconnected-kicker">Ranked or practice</p>
+                <h1>Choose how you want to play</h1>
                 <p>
-                  Connect your Sui wallet for ranked modes, or play Practice
-                  Mode without wallet prompts.
+                  Connect for ranked battles, or start Practice Mode immediately without a wallet.
                 </p>
               </div>
-              <div className="gb-disconnected-mode-notes">
-                <article>
-                  <h2>Single Player</h2>
-                  <p>
-                    Leaderboard eligible Garden Bot battle. Wallet approval
-                    required.
-                  </p>
-                </article>
-                <article>
-                  <h2>PvP Battle</h2>
-                  <p>{entryFeeLabel} entry per battle.</p>
-                </article>
-                <article>
-                  <h2>Practice Mode</h2>
-                  <p>
-                    Fast no-wallet practice. No rewards. No leaderboard credit.
-                  </p>
-                </article>
-              </div>
               <div className="gb-disconnected-wallet-cta">
-                <ConnectButton connectText="Connect Wallet" />
+                <ConnectButton connectText="Connect for Ranked Play" />
               </div>
               <MobileWalletLaunchers />
             </section>
@@ -1981,38 +1918,29 @@ export default function Battle() {
           {activeModeBar}
           {pvpQueuePanel}
           {modeSelect}
-          {/* How to Play */}
-          <HowToPlay />
+          {hasActiveSession && <HowToPlay />}
           {battleState && (
-            <section className="gb-ecosystem-compact" aria-label="TREE Ecosystem Status">
+            <section className="gb-tree-benefits-trigger" aria-label="TREE Battle Benefits">
               <div>
-                <strong>TREE Ecosystem Status</strong>
-                <span>Fifth Move eligibility is live. TREE Reroll is not configured yet.</span>
+                <strong>TREE Battle Benefits</strong>
+                <span>Eligible TREE positions unlock a fifth battle card.</span>
               </div>
-              <button
-                type="button"
-                onClick={() => setEcosystemExpanded((expanded) => !expanded)}
-              >
-                {ecosystemExpanded ? "Collapse" : "Expand"}
+              <button type="button" onClick={() => setUtilityDrawer("tree")}>
+                Check Benefits &amp; Get TREE
               </button>
             </section>
           )}
-          {battleState && ecosystemExpanded && <TreeEcosystemStatus />}
 
-          <div
-            className={battleState ? "gb-battle-hud" : "gb-battle-hud gb-battle-hud-preview"}
+          {battleState && <div
+            className="gb-battle-hud"
             aria-label="Garden Battles HUD"
           >
-          {battleState && (
-            <TreePowerPanel
-              address={address}
-              isBattleActive={!battleFinished}
-              isPracticeBattle={isPracticeActive}
-              currentMoveCount={fifthMoveDraft.pending ? 5 : playerMoves.length}
-              isFifthMoveActivationLive
-            />
-          )}
           <div className="gb-battle-hud-center">
+          <PrizePayoutPanel
+            isGardenBotBattle={isGardenBotBattle}
+            isPracticeBattle={isPracticeActive}
+            growthTarget={growthTarget}
+          />
           {/* Battle Area */}
           <section
             className={
@@ -3213,14 +3141,7 @@ export default function Battle() {
           </div>
         )}
           </div>
-          {battleState && (
-            <PrizePayoutPanel
-              isGardenBotBattle={isGardenBotBattle}
-              isPracticeBattle={isPracticeActive}
-              growthTarget={growthTarget}
-            />
-          )}
-          </div>
+          </div>}
 
         {/* Battle Info */}
         <p
@@ -3300,6 +3221,18 @@ export default function Battle() {
           onClose={handleCloseBattleDialog}
           canClose={canCloseBattleDialog}
         />
+        {utilityDrawer === "tree" && (
+          <TreeBenefitsDrawer
+            address={address}
+            isBattleActive={!!battleState && !battleFinished}
+            isPracticeBattle={isPracticeActive}
+            currentMoveCount={fifthMoveDraft.pending ? 5 : playerMoves.length}
+            onClose={() => setUtilityDrawer(null)}
+          />
+        )}
+        {utilityDrawer === "nftree" && (
+          <NftreeAcquisitionDrawer onClose={() => setUtilityDrawer(null)} />
+        )}
         <BattleResultModal
           open={resultModalOpen}
           title={winnerTitle}

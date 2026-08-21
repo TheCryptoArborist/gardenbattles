@@ -19,6 +19,14 @@ function getDisplayRankTitle(stats: PlayerStats): string {
   return stats.rank_title;
 }
 
+function formatBadgeTitle(badge: string): string {
+  return badge
+    .split("_")
+    .filter(Boolean)
+    .map((word) => `${word.charAt(0).toUpperCase()}${word.slice(1)}`)
+    .join(" ");
+}
+
 function getEmptyStats(address: string, mode: LeaderboardMode): PlayerStats {
   return {
     address,
@@ -141,6 +149,14 @@ export default function PlayerRecord({
             {stats.total_battles} battle{stats.total_battles !== 1 ? "s" : ""}
           </span>
         </span>
+        {stats.badges.length > 0 && (
+          <span className="gb-player-record-badges" aria-label={`${stats.badges.length} earned battle badges`}>
+            {stats.badges.slice(0, 3).map((badge) => (
+              <span key={badge} title={formatBadgeTitle(badge)}>{formatBadgeTitle(badge)}</span>
+            ))}
+            {stats.badges.length > 3 && <span>+{stats.badges.length - 3}</span>}
+          </span>
+        )}
         <span className="gb-player-record-leaderboard-cue">View full leaderboard</span>
       </span>
     </div>

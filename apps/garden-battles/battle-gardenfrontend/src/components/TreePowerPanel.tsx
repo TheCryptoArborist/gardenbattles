@@ -28,6 +28,7 @@ type TreePowerPanelProps = {
   rerollCostTree?: number | null;
   rerollUsed?: boolean;
   onReroll?: () => void;
+  compact?: boolean;
 };
 
 const QUALIFICATION_SOURCES: Array<{ id: FifthMoveQualificationSource; label: string }> = [
@@ -79,6 +80,7 @@ export default function TreePowerPanel({
   rerollCostTree = null,
   rerollUsed = false,
   onReroll,
+  compact = false,
 }: TreePowerPanelProps) {
   const queriedTreeBalance = useTreeBalance(treeBalance ? null : address);
   const queriedFifthMoveEligibility = useFifthMoveEligibility(
@@ -126,7 +128,7 @@ export default function TreePowerPanel({
 
   return (
     <aside
-      className="gb-hud-panel gb-tree-power-panel"
+      className={compact ? "gb-hud-panel gb-tree-power-panel gb-tree-power-panel-compact" : "gb-hud-panel gb-tree-power-panel"}
       aria-label="TREE Power battle utility console"
     >
       <header className="gb-tree-power-head">
@@ -137,7 +139,7 @@ export default function TreePowerPanel({
         <span className="gb-tree-power-preview-chip">Battle Utilities</span>
       </header>
 
-      <TreeBalancePill balance={balance} />
+      {(!compact || balance.status === "ready") && <TreeBalancePill balance={balance} />}
 
       <section className="gb-tree-power-card gb-tree-power-fifth" aria-label="Fifth Move Unlock">
         <div className="gb-tree-power-fifth-top">
@@ -222,13 +224,18 @@ export default function TreePowerPanel({
           })}
         </div>
 
-        <div className="gb-tree-power-note gb-tree-power-explainer">
+        {!compact && <div className="gb-tree-power-note gb-tree-power-explainer">
           <span>NFTree grants access to Garden Battles.</span>
           <span>Support TREE through SuiDex liquidity or Moonbags staking to unlock your fifth move.</span>
-        </div>
+        </div>}
       </section>
 
-      <section className="gb-tree-power-card gb-tree-power-reroll" aria-label="TREE Reroll">
+      {compact ? (
+        <details className="gb-tree-power-reroll-compact">
+          <summary>TREE Reroll <span>Coming Soon</span></summary>
+          <p>Once-per-battle hand replacement is planned. Cost and transaction flow are not configured yet.</p>
+        </details>
+      ) : <section className="gb-tree-power-card gb-tree-power-reroll" aria-label="TREE Reroll">
         <div className="gb-tree-power-card-head">
           <span className="gb-tree-power-icon-shell" aria-hidden="true">
             <RefreshCw size={18} strokeWidth={2.4} />
@@ -266,9 +273,9 @@ export default function TreePowerPanel({
         <p className="gb-tree-power-note" id="gb-tree-power-reroll-help">
           {reroll.helperText}
         </p>
-      </section>
+      </section>}
 
-      <section className="gb-tree-power-buy" aria-label="Buy TREE for Battle Utilities">
+      {!compact && <section className="gb-tree-power-buy" aria-label="Buy TREE for Battle Utilities">
         <div className="gb-tree-power-buy-copy">
           <strong>Get TREE for Battle Utilities</strong>
           <span>Future TREE rerolls will use TREE during active battles.</span>
@@ -282,7 +289,7 @@ export default function TreePowerPanel({
           />
           Buy TREE
         </a>
-      </section>
+      </section>}
     </aside>
   );
 }

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
-import { ConnectButton, useCurrentAccount, useSuiClient } from "@mysten/dapp-kit";
+import { ConnectButton, useCurrentAccount } from "@mysten/dapp-kit";
 import { Crown, Medal, RefreshCw, Swords, Trophy } from "lucide-react";
 import {
   fetchLeaderboard,
@@ -41,15 +41,21 @@ const BADGE_LABELS: Record<string, string> = {
   social_butterfly: "Social Butterfly",
 };
 
-const SUINS_CACHE_PREFIX = "garden-battles:suins:";
-const suinsNameCache = new Map<string, string | null>();
+const BADGE_GUIDE = [
+  { id: "first_blood", description: "Win your first recorded battle." },
+  { id: "hot_streak", description: "Reach a five-win streak." },
+  { id: "undefeated", description: "Reach a ten-win streak." },
+  { id: "battle_hardened", description: "Complete 100 recorded battles." },
+  { id: "veteran", description: "Earn 50 recorded wins." },
+  { id: "legend", description: "Earn 100 recorded wins." },
+  { id: "sharp_pruner", description: "Maintain at least a 70% win rate after 10 battles." },
+  { id: "never_give_up", description: "Keep battling through 50 matches with a win rate below 30%." },
+  { id: "social_butterfly", description: "Battle 10 different opponents." },
+] as const;
 
-type SuiNameResolver = {
-  resolveNameServiceNames?: (input: {
-    address: string;
-    limit?: number;
-  }) => Promise<{ data: string[] }>;
-};
+const SUINS_CACHE_PREFIX = "garden-battles:suins:v3:";
+const suinsNameCache = new Map<string, string | null>();
+const SUI_GRAPHQL_URL = "https://graphql.mainnet.sui.io/graphql";
 
 const LEADERBOARD_MODES: Array<{
   id: LeaderboardMode;
@@ -77,7 +83,8 @@ function readCachedSuiName(address: string): string | null | undefined {
   try {
     const stored = window.sessionStorage.getItem(`${SUINS_CACHE_PREFIX}${normalizedAddress}`);
     if (stored === null) return undefined;
-    const value = stored || null;
+    if (!stored) return undefined;
+    const value = stored;
     suinsNameCache.set(normalizedAddress, value);
     return value;
   } catch {
@@ -87,34 +94,44 @@ function readCachedSuiName(address: string): string | null | undefined {
 
 function writeCachedSuiName(address: string, name: string | null) {
   const normalizedAddress = address.toLowerCase();
-  suinsNameCache.set(normalizedAddress, name);
+  if (name) suinsNameCache.set(normalizedAddress, name);
+  else suinsNameCache.delete(normalizedAddress);
 
   try {
-    window.sessionStorage.setItem(`${SUINS_CACHE_PREFIX}${normalizedAddress}`, name ?? "");
+    if (name) window.sessionStorage.setItem(`${SUINS_CACHE_PREFIX}${normalizedAddress}`, name);
+    else window.sessionStorage.removeItem(`${SUINS_CACHE_PREFIX}${normalizedAddress}`);
   } catch {
     // sessionStorage can be unavailable in strict privacy contexts.
   }
 }
 
-async function resolveSuiNameForAddress(
-  suiClient: SuiNameResolver,
-  address: string,
-): Promise<string | null> {
-  const cached = readCachedSuiName(address);
-  if (cached !== undefined) return cached;
-
-  try {
-    const response = await suiClient.resolveNameServiceNames?.({
-      address,
-      limit: 1,
-    });
-    const name = response?.data?.[0] || null;
-    writeCachedSuiName(address, name);
-    return name;
-  } catch {
-    writeCachedSuiName(address, null);
-    return null;
+async function resolveSuiNames(addresses: string[]): Promise<Record<string, string | null>> {
+  const resolved: Record<string, string | null> = {};
+  for (let offset = 0; offset < addresses.length; offset += 25) {
+    const batch = addresses.slice(offset, offset + 25);
+    const variableDefinitions = batch.map((_, index) => `$address${index}: SuiAddress!`).join(", ");
+    const selections = batch
+      .map((_, index) => `address${index}: address(address: $address${index}) { defaultNameRecord { domain } }`)
+      .join("\n");
+    const variables = Object.fromEntries(batch.map((address, index) => [`address${index}`, address]));
+    try {
+      const response = await fetch(SUI_GRAPHQL_URL, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ query: `query LeaderboardSuiNames(${variableDefinitions}) { ${selections} }`, variables }),
+      });
+      const payload = await response.json();
+      for (let index = 0; index < batch.length; index += 1) {
+        const address = batch[index];
+        const name = payload?.data?.[`address${index}`]?.defaultNameRecord?.domain || null;
+        resolved[address] = name;
+        writeCachedSuiName(address, name);
+      }
+    } catch {
+      for (const address of batch) resolved[address] = null;
+    }
   }
+  return resolved;
 }
 
 function formatLastPlayed(value: number | null | undefined): string {
@@ -270,6 +287,10 @@ function CurrentPlayerCard({
           <span><strong>{stats.recent_result ?? "-"}</strong><small>Recent</small></span>
         </div>
         {mode === "pvp" && <PvpTargetMix counts={stats.pvp_target_counts} />}
+        <div className="gb-leaderboard-current-badges">
+          <span>Earned Battle Badges</span>
+          <BadgeChips badges={stats.badges} />
+        </div>
         <div className="gb-leaderboard-progress-block">
           <div className="gb-leaderboard-progress-head">
             <span>
@@ -341,7 +362,6 @@ function LoadingState() {
 
 export default function Leaderboard() {
   const currentAccount = useCurrentAccount();
-  const suiClient = useSuiClient();
   const address = currentAccount?.address ?? null;
 
   const [mode, setMode] = useState<LeaderboardMode>("pvp");
@@ -381,7 +401,6 @@ export default function Leaderboard() {
     if (leaderboard.length === 0) return;
 
     let cancelled = false;
-    const resolver = suiClient as SuiNameResolver;
     const uniqueAddresses = Array.from(
       new Set(leaderboard.map((entry) => entry.address.toLowerCase())),
     );
@@ -406,26 +425,17 @@ export default function Leaderboard() {
       };
     }
 
-    Promise.all(
-      unresolved.map(async (entryAddress) => {
-        const name = await resolveSuiNameForAddress(resolver, entryAddress);
-        return [entryAddress, name] as const;
-      }),
-    ).then((resolvedNames) => {
+    resolveSuiNames(unresolved).then((resolvedNames) => {
       if (cancelled) return;
       setSuinsNames((current) => {
-        const next = { ...current };
-        for (const [entryAddress, name] of resolvedNames) {
-          next[entryAddress] = name;
-        }
-        return next;
+        return { ...current, ...resolvedNames };
       });
     });
 
     return () => {
       cancelled = true;
     };
-  }, [leaderboard, suiClient]);
+  }, [leaderboard]);
 
   const topPlayers = useMemo(() => selectTopPlayers(leaderboard), [leaderboard]);
   const desktopPodium = useMemo(() => orderPodiumForDesktop(topPlayers), [topPlayers]);
@@ -498,6 +508,23 @@ export default function Leaderboard() {
         </div>
 
         <CurrentPlayerCard stats={address ? myStats : null} mode={mode} />
+
+        <details className="gb-leaderboard-badge-guide">
+          <summary>
+            <span>Battle Badge Guide</span>
+            <small>See how every badge is earned</small>
+          </summary>
+          <div className="gb-leaderboard-badge-guide-grid">
+            {BADGE_GUIDE.map((badge) => (
+              <article key={badge.id}>
+                <span className="gb-leaderboard-badge-chip" title={BADGE_LABELS[badge.id]}>
+                  {BADGE_LABELS[badge.id]}
+                </span>
+                <p>{badge.description}</p>
+              </article>
+            ))}
+          </div>
+        </details>
 
         {loading ? (
           <LoadingState />

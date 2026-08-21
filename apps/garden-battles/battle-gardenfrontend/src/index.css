@@ -6310,4 +6310,695 @@
       grid-template-columns: 1fr;
     }
   }
+
+  /* Focused battle onboarding and in-page utility workspace */
+  .gb-battle-hero {
+    display: grid;
+    gap: 4px;
+    margin-bottom: 6px;
+    padding-block: 4px 8px;
+  }
+
+  .gb-battle-hero-active {
+    display: none;
+  }
+
+  .gb-battle-hero-tagline {
+    color: rgba(234, 255, 246, 0.86);
+    font-size: clamp(12px, 2vw, 15px);
+    line-height: 1.35;
+    margin: 0;
+  }
+
+  .gb-disconnected-onboarding {
+    align-items: center;
+    gap: 12px 20px;
+    grid-template-columns: minmax(0, 1fr) auto;
+    margin-block: 10px 12px;
+    max-width: 1080px;
+    padding: 12px 16px;
+  }
+
+  .gb-disconnected-onboarding-copy {
+    text-align: left;
+  }
+
+  .gb-disconnected-onboarding h1 {
+    font-size: clamp(18px, 3vw, 25px);
+    text-align: left;
+  }
+
+  .gb-disconnected-onboarding-copy > p:last-child {
+    font-size: 13px;
+    margin: 5px 0 0;
+    max-width: 680px;
+  }
+
+  .gb-disconnected-onboarding .gb-mobile-wallet-launchers {
+    grid-column: 1 / -1;
+  }
+
+  .gb-battle-hud {
+    display: block;
+    max-width: 1080px;
+  }
+
+  .gb-battle-hud-center > .gb-prize-payout-panel {
+    align-items: center;
+    display: grid;
+    gap: 5px 14px;
+    grid-template-columns: auto minmax(120px, auto) minmax(0, 1fr);
+    margin: 8px auto 10px;
+    max-width: 980px;
+    padding: 10px 12px;
+    width: 100%;
+  }
+
+  .gb-battle-hud-center > .gb-prize-payout-panel .gb-hud-panel-kicker,
+  .gb-battle-hud-center > .gb-prize-payout-panel h2,
+  .gb-battle-hud-center > .gb-prize-payout-panel .gb-hud-panel-intro {
+    margin: 0;
+  }
+
+  .gb-battle-hud-center > .gb-prize-payout-panel .gb-hud-panel-intro {
+    display: none;
+  }
+
+  .gb-battle-hud-center > .gb-prize-payout-panel .gb-hud-facts {
+    display: grid;
+    gap: 7px;
+    grid-column: 3;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .gb-battle-hud-center > .gb-prize-payout-panel .gb-hud-facts div {
+    gap: 2px;
+    padding: 7px 8px;
+  }
+
+  .gb-tree-benefits-trigger {
+    align-items: center;
+    background: linear-gradient(90deg, rgba(0, 35, 30, 0.9), rgba(15, 25, 48, 0.92));
+    border: 1px solid rgba(168, 120, 255, 0.4);
+    border-radius: 8px;
+    box-shadow: inset 0 0 18px rgba(57, 255, 136, 0.06);
+    display: flex;
+    gap: 12px;
+    justify-content: space-between;
+    margin: 8px auto;
+    max-width: 1080px;
+    padding: 9px 12px;
+    text-align: left;
+  }
+
+  .gb-tree-benefits-trigger div {
+    display: grid;
+    gap: 2px;
+  }
+
+  .gb-tree-benefits-trigger strong {
+    color: var(--gb-tree-green);
+    font-family: Orbitron, sans-serif;
+    font-size: 12px;
+    text-transform: uppercase;
+  }
+
+  .gb-tree-benefits-trigger span {
+    color: rgba(234, 255, 246, 0.78);
+    font-size: 11px;
+  }
+
+  .gb-tree-benefits-trigger button,
+  .gb-primary-utility-action,
+  .gb-inline-back {
+    background: linear-gradient(45deg, var(--gb-tree-green), var(--gb-teal));
+    border: 1px solid rgba(210, 255, 231, 0.76);
+    border-radius: 8px;
+    color: #001414;
+    cursor: pointer;
+    font-family: Orbitron, sans-serif;
+    font-size: 10px;
+    font-weight: 900;
+    min-height: 38px;
+    padding: 8px 11px;
+    text-transform: uppercase;
+  }
+
+  .gb-utility-drawer-backdrop {
+    align-items: center;
+    background: rgba(0, 8, 10, 0.86);
+    display: flex;
+    inset: 0;
+    justify-content: center;
+    padding: 18px;
+    position: fixed;
+    z-index: 500;
+  }
+
+  .gb-utility-drawer {
+    background:
+      radial-gradient(circle at 90% 0%, rgba(168, 120, 255, 0.14), transparent 34%),
+      linear-gradient(160deg, rgba(2, 35, 28, 0.98), rgba(0, 10, 18, 0.99));
+    border: 1px solid rgba(57, 255, 136, 0.52);
+    border-radius: 12px;
+    box-shadow: 0 0 42px rgba(57, 255, 136, 0.24);
+    color: var(--gb-text-main);
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    height: min(900px, calc(100vh - 36px));
+    max-width: 1180px;
+    overflow: hidden;
+    text-align: left;
+    width: min(1180px, calc(100vw - 36px));
+  }
+
+  .gb-utility-drawer-head {
+    align-items: flex-start;
+    border-bottom: 1px solid rgba(57, 255, 136, 0.2);
+    display: flex;
+    gap: 16px;
+    justify-content: space-between;
+    padding: 15px 18px;
+  }
+
+  .gb-utility-drawer-head > div {
+    display: grid;
+    gap: 4px;
+  }
+
+  .gb-utility-drawer-head span {
+    color: var(--gb-cyan);
+    font-family: Orbitron, sans-serif;
+    font-size: 9px;
+    font-weight: 900;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  .gb-utility-drawer-head h2 {
+    color: var(--gb-tree-green);
+    font-family: Orbitron, sans-serif;
+    font-size: clamp(19px, 3vw, 28px);
+    line-height: 1.1;
+    margin: 0;
+    text-transform: uppercase;
+  }
+
+  .gb-utility-drawer-head p {
+    color: rgba(234, 255, 246, 0.76);
+    font-size: 12px;
+    line-height: 1.4;
+    margin: 0;
+    max-width: 760px;
+  }
+
+  .gb-utility-drawer-head > button {
+    align-items: center;
+    background: rgba(57, 255, 136, 0.08);
+    border: 1px solid rgba(57, 255, 136, 0.42);
+    border-radius: 999px;
+    color: var(--gb-tree-green);
+    cursor: pointer;
+    display: inline-flex;
+    flex: 0 0 auto;
+    height: 40px;
+    justify-content: center;
+    width: 40px;
+  }
+
+  .gb-utility-drawer-body {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .gb-utility-tabs {
+    background: rgba(0, 9, 12, 0.66);
+    border-bottom: 1px solid rgba(0, 213, 199, 0.18);
+    display: flex;
+    gap: 7px;
+    overflow-x: auto;
+    padding: 9px 12px;
+  }
+
+  .gb-utility-tab {
+    background: rgba(0, 213, 199, 0.07);
+    border: 1px solid rgba(0, 213, 199, 0.28);
+    border-radius: 8px;
+    color: rgba(234, 255, 246, 0.72);
+    cursor: pointer;
+    flex: 0 0 auto;
+    font-family: Orbitron, sans-serif;
+    font-size: 10px;
+    font-weight: 900;
+    min-height: 38px;
+    padding: 8px 11px;
+    text-transform: uppercase;
+  }
+
+  .gb-utility-tab-active {
+    background: rgba(57, 255, 136, 0.15);
+    border-color: rgba(57, 255, 136, 0.62);
+    color: var(--gb-tree-green);
+  }
+
+  .gb-embedded-utility {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .gb-embedded-utility iframe {
+    background: #071017;
+    border: 0;
+    height: 100%;
+    min-height: 540px;
+    width: 100%;
+  }
+
+  .gb-embedded-utility-notice,
+  .gb-acquisition-loading,
+  .gb-acquisition-status {
+    background: rgba(255, 203, 79, 0.08);
+    border-bottom: 1px solid rgba(255, 203, 79, 0.24);
+    color: #ffe2a1;
+    font-size: 11px;
+    line-height: 1.4;
+    margin: 0;
+    padding: 8px 12px;
+  }
+
+  .gb-tree-benefits-layout {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: minmax(260px, 0.75fr) minmax(340px, 1fr);
+    overflow: auto;
+    padding: 12px;
+  }
+
+  .gb-tree-benefits-explainer,
+  .gb-mint-panel,
+  .gb-nftree-shop {
+    background: rgba(0, 20, 18, 0.68);
+    border: 1px solid rgba(0, 213, 199, 0.24);
+    border-radius: 9px;
+    padding: 14px;
+  }
+
+  .gb-tree-benefits-explainer strong {
+    color: var(--gb-tree-green);
+    font-family: Orbitron, sans-serif;
+    text-transform: uppercase;
+  }
+
+  .gb-tree-benefits-explainer p {
+    color: rgba(234, 255, 246, 0.8);
+    font-size: 12px;
+    line-height: 1.55;
+  }
+
+  .gb-tree-benefits-layout .gb-tree-power-panel {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    width: 100%;
+  }
+
+  .gb-tree-benefits-layout .gb-ecosystem-status-card {
+    margin: 0;
+  }
+
+  .gb-tree-power-panel-compact .gb-tree-power-title {
+    font-size: 18px;
+  }
+
+  .gb-tree-power-panel-compact .gb-tree-power-preview-chip {
+    display: none;
+  }
+
+  .gb-tree-power-reroll-compact {
+    background: rgba(168, 120, 255, 0.08);
+    border: 1px solid rgba(168, 120, 255, 0.3);
+    border-radius: 8px;
+    padding: 9px 10px;
+  }
+
+  .gb-tree-power-reroll-compact summary {
+    color: rgba(234, 255, 246, 0.82);
+    cursor: pointer;
+    font-family: Orbitron, sans-serif;
+    font-size: 10px;
+    font-weight: 900;
+    text-transform: uppercase;
+  }
+
+  .gb-tree-power-reroll-compact summary span {
+    color: var(--gb-gold);
+    float: right;
+  }
+
+  .gb-tree-power-reroll-compact p {
+    color: rgba(234, 255, 246, 0.7);
+    font-size: 11px;
+    line-height: 1.45;
+    margin: 8px 0 0;
+  }
+
+  .gb-mint-panel,
+  .gb-nftree-shop {
+    align-content: start;
+    display: grid;
+    gap: 12px;
+    margin: 12px;
+    overflow: auto;
+  }
+
+  .gb-mint-panel {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .gb-mint-summary {
+    background: rgba(0, 8, 10, 0.62);
+    border: 1px solid rgba(57, 255, 136, 0.2);
+    border-radius: 8px;
+    display: grid;
+    gap: 5px;
+    padding: 14px;
+  }
+
+  .gb-mint-summary span,
+  .gb-mint-summary small {
+    color: rgba(234, 255, 246, 0.64);
+    font-size: 11px;
+  }
+
+  .gb-mint-summary strong {
+    color: var(--gb-tree-green);
+    font-family: Orbitron, sans-serif;
+    font-size: 17px;
+  }
+
+  .gb-mint-panel > button,
+  .gb-mint-panel > [data-dapp-kit],
+  .gb-mint-panel > .gb-acquisition-status {
+    grid-column: 1 / -1;
+  }
+
+  .gb-primary-utility-action:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+
+  .gb-nftree-shop-summary {
+    align-items: center;
+    display: flex;
+    gap: 10px;
+    justify-content: space-between;
+  }
+
+  .gb-nftree-listing-grid {
+    display: grid;
+    gap: 10px;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .gb-nftree-listing-card {
+    background: rgba(0, 8, 10, 0.74);
+    border: 1px solid rgba(57, 255, 136, 0.2);
+    border-radius: 8px;
+    display: grid;
+    gap: 8px;
+    overflow: hidden;
+    padding: 8px;
+  }
+
+  .gb-nftree-listing-card img {
+    aspect-ratio: 1;
+    border-radius: 6px;
+    object-fit: cover;
+    width: 100%;
+  }
+
+  .gb-nftree-listing-card div {
+    display: grid;
+    gap: 3px;
+  }
+
+  .gb-nftree-listing-card strong,
+  .gb-nftree-listing-card b {
+    color: var(--gb-tree-green);
+    font-family: Orbitron, sans-serif;
+    font-size: 10px;
+  }
+
+  .gb-nftree-listing-card span {
+    color: rgba(234, 255, 246, 0.65);
+    font-size: 10px;
+  }
+
+  .gb-nftree-listing-card button,
+  .gb-inline-back {
+    background: rgba(0, 213, 199, 0.1);
+    border: 1px solid rgba(0, 213, 199, 0.38);
+    border-radius: 7px;
+    color: var(--gb-cyan);
+    cursor: pointer;
+    font-family: Orbitron, sans-serif;
+    font-size: 9px;
+    font-weight: 900;
+    min-height: 34px;
+    padding: 7px;
+    text-transform: uppercase;
+  }
+
+  .gb-inline-back {
+    border-radius: 0;
+    justify-self: stretch;
+  }
+
+  .gb-player-status-strip {
+    gap: 16px;
+    padding-block: 12px;
+  }
+
+  .gb-player-record-card.gb-hud-rank-card {
+    min-height: 118px;
+    width: min(100%, 430px);
+  }
+
+  .gb-player-record-card .gb-hud-rank-crest-shell {
+    height: 84px;
+    width: 84px;
+  }
+
+  .gb-player-record-card .gb-hud-rank-crest-shell .gb-tree-badge-crest-lg {
+    height: 74px;
+    width: 74px;
+  }
+
+  .gb-player-record-card .gb-battle-rank-title {
+    font-size: clamp(17px, 2.5vw, 21px);
+  }
+
+  .gb-player-record-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  .gb-player-record-badges > span,
+  .gb-leaderboard-current-badges .gb-leaderboard-badge-chip {
+    background: rgba(255, 203, 79, 0.1);
+    border: 1px solid rgba(255, 203, 79, 0.32);
+    border-radius: 999px;
+    color: var(--gb-gold);
+    font-size: 8px;
+    font-weight: 900;
+    padding: 3px 6px;
+    text-transform: uppercase;
+  }
+
+  .gb-player-record-leaderboard-cue {
+    font-size: 9px;
+  }
+
+  .gb-leaderboard-current-badges {
+    display: grid;
+    gap: 7px;
+  }
+
+  .gb-leaderboard-current-badges > span:first-child {
+    color: var(--gb-gold);
+    font-family: Orbitron, sans-serif;
+    font-size: 10px;
+    font-weight: 900;
+    text-transform: uppercase;
+  }
+
+  .gb-leaderboard-badge-guide {
+    background: linear-gradient(135deg, rgba(0, 38, 32, 0.94), rgba(0, 18, 22, 0.96));
+    border: 1px solid rgba(255, 203, 79, 0.28);
+    border-radius: 12px;
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.22);
+    overflow: hidden;
+  }
+
+  .gb-leaderboard-badge-guide summary {
+    align-items: center;
+    color: var(--gb-gold);
+    cursor: pointer;
+    display: flex;
+    font-family: Orbitron, sans-serif;
+    font-size: 12px;
+    font-weight: 900;
+    justify-content: space-between;
+    list-style: none;
+    padding: 14px 18px;
+    text-transform: uppercase;
+  }
+
+  .gb-leaderboard-badge-guide summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .gb-leaderboard-badge-guide summary small {
+    color: rgba(234, 255, 246, 0.58);
+    font-family: Rajdhani, sans-serif;
+    font-size: 11px;
+    letter-spacing: 0;
+    text-transform: none;
+  }
+
+  .gb-leaderboard-badge-guide-grid {
+    border-top: 1px solid rgba(255, 203, 79, 0.16);
+    display: grid;
+    gap: 8px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    padding: 12px;
+  }
+
+  .gb-leaderboard-badge-guide-grid article {
+    align-items: center;
+    background: rgba(0, 8, 10, 0.5);
+    border: 1px solid rgba(57, 255, 136, 0.12);
+    border-radius: 8px;
+    display: grid;
+    gap: 7px;
+    justify-items: start;
+    min-width: 0;
+    padding: 10px;
+  }
+
+  .gb-leaderboard-badge-guide-grid p {
+    color: rgba(234, 255, 246, 0.7);
+    font-size: 11px;
+    line-height: 1.4;
+    margin: 0;
+  }
+
+  @media (max-width: 899px) {
+    .gb-disconnected-onboarding {
+      grid-template-columns: 1fr;
+      text-align: center;
+    }
+
+    .gb-disconnected-onboarding-copy,
+    .gb-disconnected-onboarding h1 {
+      text-align: center;
+    }
+
+    .gb-tree-benefits-layout {
+      grid-template-columns: 1fr;
+    }
+
+    .gb-tree-benefits-layout .gb-tree-power-panel {
+      grid-column: auto;
+      grid-row: auto;
+    }
+
+    .gb-nftree-listing-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .gb-leaderboard-badge-guide-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 600px) {
+    .gb-utility-drawer-backdrop {
+      align-items: flex-end;
+      padding: 0;
+    }
+
+    .gb-utility-drawer {
+      border-bottom: 0;
+      border-radius: 12px 12px 0 0;
+      height: 92vh;
+      width: 100vw;
+    }
+
+    .gb-utility-drawer-head {
+      padding: 12px;
+    }
+
+    .gb-utility-drawer-head p {
+      font-size: 11px;
+    }
+
+    .gb-tree-benefits-trigger {
+      align-items: stretch;
+      flex-direction: column;
+      text-align: center;
+    }
+
+    .gb-battle-hud-center > .gb-prize-payout-panel {
+      display: grid;
+      grid-template-columns: 1fr;
+      text-align: center;
+    }
+
+    .gb-battle-hud-center > .gb-prize-payout-panel .gb-hud-facts {
+      grid-column: 1;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .gb-mint-panel {
+      grid-template-columns: 1fr;
+    }
+
+    .gb-mint-panel > button,
+    .gb-mint-panel > [data-dapp-kit],
+    .gb-mint-panel > .gb-acquisition-status {
+      grid-column: 1;
+    }
+
+    .gb-player-record-card.gb-hud-rank-card {
+      grid-template-columns: 72px minmax(0, 1fr);
+      min-height: 110px;
+      padding: 10px;
+    }
+
+    .gb-player-record-card .gb-hud-rank-crest-shell {
+      height: 70px;
+      width: 70px;
+    }
+
+    .gb-player-record-card .gb-hud-rank-crest-shell .gb-tree-badge-crest-lg {
+      height: 62px;
+      width: 62px;
+    }
+
+    .gb-leaderboard-badge-guide summary {
+      align-items: flex-start;
+      flex-direction: column;
+      gap: 3px;
+      padding: 12px;
+    }
+
+    .gb-leaderboard-badge-guide-grid {
+      grid-template-columns: 1fr;
+    }
+  }
 }
