@@ -141,6 +141,7 @@ export default function PlayerRecord({
             {stats.total_battles} battle{stats.total_battles !== 1 ? "s" : ""}
           </span>
         </span>
+        <span className="gb-player-record-leaderboard-cue">View full leaderboard</span>
       </span>
     </div>
     </Link>

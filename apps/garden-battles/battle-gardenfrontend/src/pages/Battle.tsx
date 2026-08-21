@@ -1601,16 +1601,6 @@ export default function Battle() {
           Single Player and PvP feed ranked leaderboard records. Practice Mode
           is for learning only.
         </p>
-        <div className="gb-mode-leaderboard-cta">
-          <p>Compare Single Player, PvP, and Overall records.</p>
-          <Link
-            href={leaderboardRoute}
-            className="gb-mode-leaderboard-link"
-            data-testid="link-view-leaderboard"
-          >
-            View Leaderboard
-          </Link>
-        </div>
       </section>
     ) : null;
 
@@ -1812,13 +1802,6 @@ export default function Battle() {
                   {link.label}
                 </a>
               ))}
-              <Link
-                href={leaderboardRoute}
-                className="gb-nav-link"
-                data-testid="link-leaderboard"
-              >
-                Leaderboard
-              </Link>
             </div>
             <div className="gb-nav-divider" aria-hidden="true" />
             <div className="gb-nav-group gb-nav-group-suidex" aria-label="SuiDex TREE utilities">
@@ -1891,13 +1874,6 @@ export default function Battle() {
                   {link.label}
                 </a>
               ))}
-              <Link
-                href={leaderboardRoute}
-                className="gb-nav-link"
-                data-testid="mobile-link-leaderboard"
-              >
-                Leaderboard
-              </Link>
             </div>
             <div className="gb-mobile-nav-section" aria-label="SuiDex TREE utilities">
               <span className="gb-mobile-nav-label">
@@ -2011,7 +1987,7 @@ export default function Battle() {
             <section className="gb-ecosystem-compact" aria-label="TREE Ecosystem Status">
               <div>
                 <strong>TREE Ecosystem Status</strong>
-                <span>Liquid TREE / perks / detection coming soon</span>
+                <span>Fifth Move eligibility is live. TREE Reroll is not configured yet.</span>
               </div>
               <button
                 type="button"
@@ -2033,6 +2009,7 @@ export default function Battle() {
               isBattleActive={!battleFinished}
               isPracticeBattle={isPracticeActive}
               currentMoveCount={fifthMoveDraft.pending ? 5 : playerMoves.length}
+              isFifthMoveActivationLive
             />
           )}
           <div className="gb-battle-hud-center">
@@ -3236,7 +3213,13 @@ export default function Battle() {
           </div>
         )}
           </div>
-          {battleState && <PrizePayoutPanel isGardenBotBattle={isGardenBotBattle} />}
+          {battleState && (
+            <PrizePayoutPanel
+              isGardenBotBattle={isGardenBotBattle}
+              isPracticeBattle={isPracticeActive}
+              growthTarget={growthTarget}
+            />
+          )}
           </div>
 
         {/* Battle Info */}

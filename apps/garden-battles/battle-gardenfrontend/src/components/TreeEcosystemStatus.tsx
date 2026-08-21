@@ -1,9 +1,33 @@
 import { useCurrentAccount } from "@mysten/dapp-kit";
+import { useFifthMoveEligibility } from "@/hooks/useFifthMoveEligibility";
 import { useTreeBalance } from "@/hooks/useTreeBalance";
 
 export default function TreeEcosystemStatus() {
   const account = useCurrentAccount();
   const liquidTree = useTreeBalance(account?.address);
+  const eligibility = useFifthMoveEligibility(account?.address);
+  const sourceValues = new Map(
+    eligibility.response?.sources.map((source) => [
+      source.source,
+      source.status === "qualified-data"
+        ? `${source.underlyingTreeDisplay ?? "Verified"} TREE`
+        : source.status === "verified-zero"
+          ? "Verified: 0 TREE"
+          : "Temporarily unavailable",
+    ]) ?? [],
+  );
+  const fifthMoveValue =
+    eligibility.status === "qualified"
+      ? "Qualified"
+      : eligibility.status === "not-qualified"
+        ? "Not qualified"
+        : eligibility.status === "checking"
+          ? "Checking..."
+          : eligibility.status === "not-connected"
+            ? "Connect wallet"
+            : eligibility.status === "verification-incomplete"
+              ? "Verification incomplete"
+              : "Temporarily unavailable";
 
   const rows = [
     {
@@ -13,23 +37,23 @@ export default function TreeEcosystemStatus() {
     },
     {
       label: "SuiDex V2 Position",
-      description: "LP/staked exposure.",
-      value: "Detection coming soon",
+      description: "Verified underlying TREE.",
+      value: sourceValues.get("suidex-v2") ?? "Checking...",
     },
     {
       label: "SuiDex V3 Position",
-      description: "Concentrated LP exposure.",
-      value: "Detection coming soon",
+      description: "Verified concentrated LP TREE.",
+      value: sourceValues.get("suidex-v3") ?? "Checking...",
     },
     {
-      label: "VICTORY Lock",
-      description: "SuiDex supporter status.",
-      value: "Detection coming soon",
+      label: "Moonbags Staking",
+      description: "Verified staked TREE.",
+      value: sourceValues.get("moonbags-staking") ?? "Checking...",
     },
     {
-      label: "NFTree Status",
-      description: "Holder identity/access layer.",
-      value: "Detection coming soon",
+      label: "Fifth Move",
+      description: "Live battle eligibility.",
+      value: fifthMoveValue,
     },
   ];
 
@@ -38,7 +62,7 @@ export default function TreeEcosystemStatus() {
       <div className="gb-ecosystem-status-head">
         <div>
           <span>TREE Ecosystem Status</span>
-          <strong>Liquid TREE and future qualification signals</strong>
+          <strong>Live wallet utility and qualification signals</strong>
         </div>
         <em>Read-only</em>
       </div>
@@ -55,7 +79,9 @@ export default function TreeEcosystemStatus() {
         ))}
       </div>
 
-      <p className="gb-ecosystem-note">LP exposure is separate from liquid TREE.</p>
+      <p className="gb-ecosystem-note">
+        TREE Reroll is planned but its cost and transaction flow are not configured yet.
+      </p>
     </section>
   );
 }

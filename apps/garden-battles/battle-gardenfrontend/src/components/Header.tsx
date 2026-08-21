@@ -3,7 +3,6 @@ import { Link } from "wouter";
 import { Menu, X } from "lucide-react";
 import { useSuiWallet } from "@/hooks/useSuiWallet";
 import { appAsset } from "@/lib/assets";
-import { appRoute } from "@/lib/routes";
 
 const ecosystemLinks = [
   { label: "Home", href: "https://tree-token.net/" },
@@ -68,9 +67,6 @@ export default function Header() {
               {link.label}
             </a>
           ))}
-          <Link href={appRoute("leaderboard")} className="gb-nav-link">
-            Leaderboard
-          </Link>
         </div>
         <div className="gb-nav-divider" aria-hidden="true" />
         <div className="gb-nav-group gb-nav-group-suidex" aria-label="SuiDex TREE utilities">
@@ -124,9 +120,6 @@ export default function Header() {
               {link.label}
             </a>
           ))}
-          <Link href={appRoute("leaderboard")} className="gb-nav-link">
-            Leaderboard
-          </Link>
         </div>
         <div className="gb-mobile-nav-section" aria-label="SuiDex TREE utilities">
           <span className="gb-mobile-nav-label">

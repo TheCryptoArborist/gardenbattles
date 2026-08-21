@@ -134,7 +134,7 @@ export default function TreePowerPanel({
           <h2 className="gb-tree-power-title">TREE POWER</h2>
           <p className="gb-tree-power-subtitle">Battle Utility Console</p>
         </div>
-        <span className="gb-tree-power-preview-chip">Utility Preview</span>
+        <span className="gb-tree-power-preview-chip">Battle Utilities</span>
       </header>
 
       <TreeBalancePill balance={balance} />
