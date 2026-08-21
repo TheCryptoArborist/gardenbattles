@@ -61,6 +61,7 @@ import {
   resolvePvpMoveFromTransactionDigest,
   type PvpMoveResolution,
 } from "@/lib/pvpMoveResolution";
+import { awaitPvpMovePreflight } from "@/lib/pvpMovePreflight";
 import {
   preserveBattleTransactionDigest,
   resolvePvpHydrationMode,
@@ -2395,7 +2396,17 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
         throw new Error("Battle not active");
       }
 
-      const liveState = await getLiveBattleState(suiClient, battleId);
+      const preflight = await awaitPvpMovePreflight(
+        getLiveBattleState(suiClient, battleId),
+      );
+      const liveState =
+        preflight.status === "completed" ? preflight.value : undefined;
+      if (preflight.status === "timed-out") {
+        console.warn("[pvp-move] live preflight timed out; using cached active battle", {
+          battleId,
+          abilityId,
+        });
+      }
       if (
         liveState === null ||
         (liveState && !isActiveBattleForAddress(liveState, address))
