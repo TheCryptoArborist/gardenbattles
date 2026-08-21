@@ -26,6 +26,7 @@ export default function AdminPanel({
   const [isProcessing, setIsProcessing] = useState(false);
   const [statusMessage, setStatusMessage] = useState("");
   const [isUpdatingFees, setIsUpdatingFees] = useState(false);
+  const [isEnablingFifthMove, setIsEnablingFifthMove] = useState(false);
 
   const { mutate: signAndExecuteTransaction } = useSignAndExecuteTransaction();
 
@@ -258,6 +259,43 @@ export default function AdminPanel({
     }
   };
 
+  const enableFifthMove = async () => {
+    setIsEnablingFifthMove(true);
+    setStatusMessage("Enabling Fifth Move for qualified wallets...");
+
+    try {
+      const tx = new Transaction();
+      tx.moveCall({
+        target: `${SUI_CONFIG.PACKAGE_ID}::fifth_move::set_enabled`,
+        arguments: [
+          tx.object(SUI_CONFIG.FIFTH_MOVE_CONFIG_ID),
+          tx.pure.bool(true),
+        ],
+      });
+
+      await new Promise<void>((resolve, reject) => {
+        signAndExecuteTransaction(
+          { transaction: tx, chain: SUI_CONFIG.CHAIN },
+          {
+            onSuccess: (result) => {
+              setStatusMessage(`Fifth Move enabled. Transaction: ${result.digest}`);
+              setIsEnablingFifthMove(false);
+              resolve();
+            },
+            onError: (error) => {
+              setStatusMessage(`Failed: ${error.message || "Transaction rejected"}`);
+              setIsEnablingFifthMove(false);
+              reject(error);
+            },
+          },
+        );
+      });
+    } catch (error: any) {
+      setStatusMessage(`Error: ${error.message || "Unknown error"}`);
+      setIsEnablingFifthMove(false);
+    }
+  };
+
   if (!isAdmin) {
     return null;
   }
@@ -413,6 +451,44 @@ export default function AdminPanel({
                 data-testid="button-update-fees"
               >
                 {isUpdatingFees ? "Updating..." : "Set Fees to 3 SUI"}
+              </button>
+            </div>
+
+            <div
+              style={{
+                marginBottom: "20px",
+                padding: "15px",
+                background: "rgba(0, 255, 204, 0.1)",
+                border: "2px solid #00ffcc",
+                borderRadius: "8px",
+              }}
+            >
+              <h3 style={{ color: "#00ffcc", fontSize: "16px", marginBottom: "10px" }}>
+                Fifth Move Activation
+              </h3>
+              <p style={{ color: "#fff", fontSize: "14px", marginBottom: "10px", opacity: 0.9 }}>
+                Enable the fifth card only for wallets that pass the verified TREE eligibility check.
+              </p>
+              <button
+                onClick={enableFifthMove}
+                disabled={isEnablingFifthMove}
+                style={{
+                  background: isEnablingFifthMove
+                    ? "rgba(100, 100, 100, 0.5)"
+                    : "linear-gradient(45deg, #00ffcc, #00cc99)",
+                  color: "#001a14",
+                  padding: "10px 20px",
+                  borderRadius: "6px",
+                  border: "2px solid #00ffcc",
+                  fontWeight: "bold",
+                  fontSize: "14px",
+                  cursor: isEnablingFifthMove ? "not-allowed" : "pointer",
+                  fontFamily: "Orbitron, sans-serif",
+                  opacity: isEnablingFifthMove ? 0.5 : 1,
+                }}
+                data-testid="button-enable-fifth-move"
+              >
+                {isEnablingFifthMove ? "Enabling..." : "Enable Fifth Move"}
               </button>
             </div>
 
