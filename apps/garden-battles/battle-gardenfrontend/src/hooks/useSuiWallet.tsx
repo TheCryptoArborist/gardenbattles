@@ -240,6 +240,7 @@ interface CachedBattleState {
 interface BattleUpdateTransactionResult {
   state: BattleState | null;
   botMoveId: number | null;
+  executionError?: string;
   pvpMoveResolution?: PvpMoveResolution;
 }
 
@@ -1029,6 +1030,12 @@ async function getBattleUpdateStateFromTransaction(
       showEvents: true,
     },
   });
+  const transactionStatus = tx.effects?.status?.status;
+  const executionError =
+    transactionStatus && transactionStatus !== "success"
+      ? (tx.effects?.status?.error ??
+        `Move transaction finished with status: ${transactionStatus}`)
+      : undefined;
   if (timingStartedAt !== undefined) {
     logTxTiming("waitForTransaction complete", timingStartedAt, {
       digest,
@@ -1086,6 +1093,7 @@ async function getBattleUpdateStateFromTransaction(
   return {
     state,
     botMoveId,
+    executionError,
   };
 }
 
@@ -2459,10 +2467,10 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
       });
 
       return new Promise<void>((resolve, reject) => {
-        signAndExecuteTransaction(
-          { transaction: tx, chain: SUI_CONFIG.CHAIN },
-          {
-            onSuccess: async (result) => {
+        const callbacks = {
+          onSuccess: async (
+            result: Awaited<ReturnType<typeof walletSignAndExecuteTransaction>>,
+          ) => {
               console.info("[pvp-move] transaction submitted", {
                 battleId,
                 abilityId,
@@ -2484,6 +2492,21 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
                   txTimingStartedAt,
                 );
                 confirmationLoaded = true;
+                if (eventResult.executionError) {
+                  console.warn("[pvp-move] transaction failed on-chain", {
+                    battleId,
+                    abilityId,
+                    digest: result.digest,
+                    error: eventResult.executionError,
+                  });
+                  setMoveLifecycleStage("idle");
+                  reject(
+                    new Error(
+                      `Move transaction failed on-chain: ${eventResult.executionError}`,
+                    ),
+                  );
+                  return;
+                }
                 console.info("[pvp-move] transaction confirmed", {
                   battleId,
                   abilityId,
@@ -2624,17 +2647,42 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
               );
               resolve();
             },
-            onError: (err: any) => {
-              console.warn("[pvp-move] transaction submission failed", {
-                battleId,
-                abilityId,
-                error: err,
-              });
-              setMoveLifecycleStage("idle");
-              reject(new Error(MOVE_NOT_SUBMITTED_MESSAGE));
-            },
+          onError: (err: any) => {
+            console.warn("[pvp-move] transaction submission failed", {
+              battleId,
+              abilityId,
+              error: err,
+            });
+            setMoveLifecycleStage("idle");
+            reject(new Error(MOVE_NOT_SUBMITTED_MESSAGE));
           },
-        );
+        };
+
+        void (async () => {
+          let result: Awaited<
+            ReturnType<typeof walletSignAndExecuteTransaction>
+          >;
+          try {
+            if (!currentWallet || !currentAccount) {
+              throw new Error("Wallet disconnected before move approval");
+            }
+            result = await walletSignAndExecuteTransaction(currentWallet, {
+              account: currentAccount,
+              chain: SUI_CONFIG.CHAIN,
+              transaction: {
+                toJSON: async () =>
+                  tx.toJSON({
+                    supportedIntents,
+                  }),
+              },
+            });
+          } catch (err) {
+            callbacks.onError(err);
+            return;
+          }
+
+          await callbacks.onSuccess(result);
+        })();
       });
     },
     [
@@ -2644,7 +2692,9 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
       suiClient,
       applyBattleState,
       clearBattleState,
-      signAndExecuteTransaction,
+      currentAccount,
+      currentWallet,
+      supportedIntents,
       submitCompletedBattleRecord,
       showRecoverableBattleRefreshError,
     ],
