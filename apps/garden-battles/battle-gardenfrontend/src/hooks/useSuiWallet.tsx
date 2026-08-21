@@ -62,6 +62,7 @@ import {
   type PvpMoveResolution,
 } from "@/lib/pvpMoveResolution";
 import { awaitPvpMovePreflight } from "@/lib/pvpMovePreflight";
+import { addPvpMoveRequestNonce } from "@/lib/pvpMoveTransaction";
 import {
   preserveBattleTransactionDigest,
   resolvePvpHydrationMode,
@@ -2447,6 +2448,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
       }
 
       const tx = new Transaction();
+      addPvpMoveRequestNonce(tx);
       lastMoveIdRef.current = abilityId; // track for action log
       const moveFunction =
         activeState.battleVersion === "pvp-v3"
