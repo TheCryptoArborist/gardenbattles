@@ -15,6 +15,7 @@ describe("readBattleTransactionViaGraphQL", () => {
             transaction: {
               digest: "digest-1",
               effects: {
+                timestamp: "2026-08-21T01:11:54.935Z",
                 status: "SUCCESS",
                 executionError: null,
                 events: {
@@ -41,6 +42,7 @@ describe("readBattleTransactionViaGraphQL", () => {
     assert.equal(requestBody.variables.digest, "digest-1");
     assert.ok(requestBody.query.includes("query BattleTransaction"));
     assert.equal(transaction.effects?.status?.status, "success");
+    assert.equal(transaction.timestampMs, 1787274714935);
     assert.deepEqual(transaction.events, [
       {
         type: "0xpackage::battle::PvpBattleV3Update",

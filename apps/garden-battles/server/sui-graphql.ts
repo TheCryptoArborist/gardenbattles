@@ -5,6 +5,7 @@ const BATTLE_TRANSACTION_QUERY = `
     transaction(digest: $digest) {
       digest
       effects {
+        timestamp
         status
         executionError { message }
         events(first: 50) {
@@ -23,6 +24,7 @@ const BATTLE_TRANSACTION_QUERY = `
 type FetchLike = typeof fetch;
 
 export interface VerifiedBattleTransaction {
+  timestampMs?: number;
   effects?: {
     status?: { status: string; error?: string };
   };
@@ -68,9 +70,11 @@ export async function readBattleTransactionViaGraphQL(
 
   const executionError = transaction.effects?.executionError?.message;
   const status = String(transaction.effects?.status ?? "").toLowerCase();
+  const timestampMs = Date.parse(String(transaction.effects?.timestamp ?? ""));
   const events = transaction.effects?.events?.nodes ?? [];
 
   return {
+    ...(Number.isFinite(timestampMs) ? { timestampMs } : {}),
     effects: {
       status: {
         status,

@@ -342,7 +342,13 @@ const resolveActivePvpQueueAlertsStmt = db.prepare(`
 const getCompletedBattlesStmt = db.prepare(`
   SELECT * FROM battle_records
   WHERE winner IS NOT NULL
-  ORDER BY finished_at DESC, recorded_at DESC
+  ORDER BY finished_at ASC, recorded_at ASC
+`);
+
+const updateBattleFinishedAtByTransactionDigestStmt = db.prepare(`
+  UPDATE battle_records
+  SET finished_at = ?
+  WHERE transaction_digest = ? AND finished_at != ?
 `);
 
 // ─── Public API ─────────────────────────────────────────────────────────────────
@@ -457,6 +463,19 @@ export function trackBattle(input: TrackBattleInput): void {
   }
 }
 
+export function updateBattleFinishedAtByTransactionDigest(
+  transactionDigest: string,
+  finishedAt: number,
+): boolean {
+  return (
+    updateBattleFinishedAtByTransactionDigestStmt.run(
+      finishedAt,
+      transactionDigest,
+      finishedAt,
+    ).changes > 0
+  );
+}
+
 export function getPlayerStatsByAddress(address: string): PlayerStatsRow | null {
   const row = getPlayerStats.get(address.toLowerCase()) as PlayerStatsRow | undefined;
   if (!row) return null;
@@ -524,7 +543,7 @@ function addResult(
     stats.losses += 1;
     stats.current_streak = Math.min(0, stats.current_streak) - 1;
   }
-  if (!stats.last_played || finishedAt > stats.last_played) {
+  if (!stats.last_played || finishedAt >= stats.last_played) {
     stats.last_played = finishedAt;
     stats.recent_result = won ? "Win" : "Loss";
   }

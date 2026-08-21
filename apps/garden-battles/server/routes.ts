@@ -8,6 +8,7 @@ import { Transaction } from "@mysten/sui/transactions";
 import { storage } from "./storage";
 import {
   trackBattle,
+  updateBattleFinishedAtByTransactionDigest,
   getBattleByOnChainId,
   getBattleByTransactionDigest,
   getPlayerStatsByAddress,
@@ -694,6 +695,7 @@ interface BattleState {
   lastEventCursor?: string | null;
   battleVersion?: "legacy" | "pvp-v2" | "pvp-v3" | "bot-v2";
   targetGrowth?: number | null;
+  verifiedTransactionMs?: number;
 }
 
 // battleId → current state
@@ -817,11 +819,14 @@ async function getVerifiedBattleStateFromTransaction(
       )
       .filter((state: BattleState | null): state is BattleState => !!state) ?? [];
 
-  return (
+  const verifiedState = (
     states.find((state) => !!state.winner) ??
     states[states.length - 1] ??
     null
   );
+  return verifiedState
+    ? { ...verifiedState, verifiedTransactionMs: tx.timestampMs }
+    : null;
 }
 
 async function hydrateBattleState(
@@ -1189,14 +1194,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     }
 
-    if (getBattleByTransactionDigest(transactionDigest)) {
-      return res.json({
-        ok: true,
-        recorded: false,
-        reason: "already_recorded",
-      });
-    }
-
     try {
       const verifiedState =
         await getVerifiedBattleStateFromTransaction(transactionDigest);
@@ -1217,6 +1214,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
+      const existingDigestRecord =
+        getBattleByTransactionDigest(transactionDigest);
+      if (existingDigestRecord) {
+        const repaired = verifiedState.verifiedTransactionMs
+          ? updateBattleFinishedAtByTransactionDigest(
+              transactionDigest,
+              verifiedState.verifiedTransactionMs,
+            )
+          : false;
+        return res.json({
+          ok: true,
+          recorded: false,
+          reason: "already_recorded",
+          repaired,
+        });
+      }
+
       if (getBattleByOnChainId(verifiedState.battleId)) {
         return res.json({
           ok: true,
@@ -1234,7 +1248,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         battleVersion: verifiedState.battleVersion ?? "legacy",
         targetGrowth: verifiedState.targetGrowth ?? null,
         transactionDigest,
-        finishedAt: verifiedState.lastMoveMs || Date.now(),
+        finishedAt:
+          verifiedState.verifiedTransactionMs ||
+          verifiedState.lastMoveMs ||
+          Date.now(),
       });
 
       return res.json({
