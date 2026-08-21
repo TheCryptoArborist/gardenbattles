@@ -19,6 +19,7 @@ import {
   type LeaderboardMode,
 } from "./battle-storage";
 import { startPvpQueueTelegramNotifier } from "./pvp-queue-telegram";
+import { readBattleTransactionViaGraphQL } from "./sui-graphql";
 import { getCachedFifthMoveEligibility } from "./tree-power-eligibility";
 import {
   TREE_COIN_TYPE,
@@ -792,13 +793,7 @@ export function parseBattleEvent(
 async function getVerifiedBattleStateFromTransaction(
   digest: string,
 ): Promise<BattleState | null> {
-  const tx = await getSuiVerificationClient().getTransactionBlock({
-    digest,
-    options: {
-      showEffects: true,
-      showEvents: true,
-    },
-  });
+  const tx = await readBattleTransactionViaGraphQL(digest);
 
   const status = tx.effects?.status?.status;
   if (status && status !== "success") {
