@@ -68,6 +68,7 @@ import {
   shouldSuppressQueueRecovery,
 } from "@/lib/pvpQueueLifecycle";
 import { isUsableFifthMoveProof } from "@/lib/fifthMoveRouting";
+import { normalizeSuiMoveList } from "@/lib/suiMoveList";
 import {
   buildDirectPvpJoinTransaction,
   buildKioskPvpJoinTransaction,
@@ -450,8 +451,8 @@ function parseBattleStateFromEvent(
     battleId: json.battle_id,
     player1,
     player2,
-    player1Moves: json.player1_moves ?? [],
-    player2Moves: json.player2_moves ?? [],
+    player1Moves: normalizeSuiMoveList(json.player1_moves),
+    player2Moves: normalizeSuiMoveList(json.player2_moves),
     player1Growth: Number(json.player1_growth ?? 0),
     player2Growth: Number(json.player2_growth ?? 0),
     turn: Number.isFinite(parsedTurn) ? parsedTurn : 0,
@@ -507,10 +508,6 @@ function cacheBattleState(address: string, state: BattleState | null) {
   } catch {
     // localStorage can be unavailable in private or embedded browser contexts.
   }
-}
-
-function normalizeMoveList(value: any): number[] {
-  return Array.isArray(value) ? value.map((move) => Number(move)) : [];
 }
 
 function getLatestAddedMoveId(previousMoves: number[], nextMoves: number[]): number | null {
@@ -626,8 +623,8 @@ function parseBattleStateFromObjectFields(
     battleId,
     player1,
     player2,
-    player1Moves: normalizeMoveList(fields.p1_moves),
-    player2Moves: normalizeMoveList(fields.p2_moves),
+    player1Moves: normalizeSuiMoveList(fields.p1_moves),
+    player2Moves: normalizeSuiMoveList(fields.p2_moves),
     player1Growth: Number(fields.p1_growth ?? 0),
     player2Growth: Number(fields.p2_growth ?? 0),
     turn: Number(fields.turn ?? 0),
