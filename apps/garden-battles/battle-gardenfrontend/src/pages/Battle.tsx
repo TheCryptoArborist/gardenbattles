@@ -23,7 +23,10 @@ import ForestPower from "@/components/ForestPower";
 import { appAsset } from "@/lib/assets";
 import { appRoute } from "@/lib/routes";
 import { resolvePvpQueueUiAfterRefund } from "@/lib/pvpQueueState";
-import { getFifthMoveDraftState } from "@/lib/pvpFifthMoveDraft";
+import {
+  getFifthMoveDraftState,
+  isUnlockedFifthMoveCard,
+} from "@/lib/pvpFifthMoveDraft";
 import {
   formatPvpJoinFailureMessage,
   isWalletCancelMessage,
@@ -2868,12 +2871,17 @@ export default function Battle() {
                   Loading battle moves from chain...
                 </div>
               )}
-              {playerMoves.map((moveId) => {
+              {playerMoves.map((moveId, moveIndex) => {
                 const meta = MOVE_META[moveId];
                 const isAttack = meta?.type === "attack";
                 const isGrowth = meta?.type === "growth";
                 const isHybrid = meta?.type === "hybrid";
                 const isPending = pendingMoveId === moveId;
+                const isFifthMoveCard = isUnlockedFifthMoveCard(
+                  moveIndex,
+                  playerMoves.length,
+                  fifthMoveEntitled,
+                );
                 const isDisabled =
                   battleFinished ||
                   moveControlsLocked ||
@@ -2905,20 +2913,23 @@ export default function Battle() {
                 return (
                   <button
                     key={moveId}
+                    className={`gb-battle-move-card${isFifthMoveCard ? " gb-battle-move-card-fifth" : ""}`}
                     onClick={() => handleUseAbility(moveId)}
                     disabled={isDisabled}
                     style={{
                       background: isPending ? "rgba(200,160,0,0.3)" : bgBase,
-                      border: `2px solid ${borderColor}`,
+                      border: `${isFifthMoveCard ? 3 : 2}px solid ${borderColor}`,
                       borderRadius: "10px",
                       padding: "12px 10px",
                       cursor: isDisabled ? "not-allowed" : "pointer",
-                      opacity: isDisabled && !isPending ? 0.5 : 1,
+                      opacity: isDisabled && !isPending ? (isFifthMoveCard ? 0.74 : 0.5) : 1,
                       textAlign: "left",
                       transition: "all 0.2s ease",
                       boxShadow: isPending
-                        ? `0 0 16px ${borderColor}`
-                        : `0 0 6px ${borderColor}40`,
+                        ? `0 0 20px ${borderColor}, 0 0 34px rgba(181, 108, 255, 0.55)`
+                        : isFifthMoveCard
+                          ? `0 0 12px ${borderColor}, 0 0 24px rgba(255, 216, 75, 0.42)`
+                          : `0 0 6px ${borderColor}40`,
                       display: "flex",
                       flexDirection: "column",
                       gap: "4px",
@@ -2926,15 +2937,25 @@ export default function Battle() {
                     onMouseEnter={(e) => {
                       if (!isDisabled) {
                         e.currentTarget.style.transform = "translateY(-2px)";
-                        e.currentTarget.style.boxShadow = `0 0 20px ${borderColor}`;
+                        e.currentTarget.style.boxShadow = isFifthMoveCard
+                          ? `0 0 20px ${borderColor}, 0 0 34px rgba(255, 216, 75, 0.68)`
+                          : `0 0 20px ${borderColor}`;
                       }
                     }}
                     onMouseLeave={(e) => {
                       e.currentTarget.style.transform = "translateY(0)";
-                      e.currentTarget.style.boxShadow = `0 0 6px ${borderColor}40`;
+                      e.currentTarget.style.boxShadow = isFifthMoveCard
+                        ? `0 0 12px ${borderColor}, 0 0 24px rgba(255, 216, 75, 0.42)`
+                        : `0 0 6px ${borderColor}40`;
                     }}
                     data-testid={`button-ability-${moveId}`}
                   >
+                    {isFifthMoveCard && (
+                      <span className="gb-fifth-move-card-ribbon">
+                        <Sparkles size={12} strokeWidth={2.8} aria-hidden="true" />
+                        Unlocked Fifth Card
+                      </span>
+                    )}
                     {/* Badge */}
                     <span
                       style={{

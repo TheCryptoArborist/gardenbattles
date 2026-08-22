@@ -38,3 +38,11 @@ export function getFifthMoveDraftState(
     candidates: [],
   };
 }
+
+export function isUnlockedFifthMoveCard(
+  moveIndex: number,
+  playableMoveCount: number,
+  entitled: boolean,
+): boolean {
+  return entitled && playableMoveCount === 5 && moveIndex === 4;
+}

@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { getBattleMoveFunction, getFifthMoveDraftState } from "./pvpFifthMoveDraft";
+import {
+  getBattleMoveFunction,
+  getFifthMoveDraftState,
+  isUnlockedFifthMoveCard,
+} from "./pvpFifthMoveDraft";
 
 test("splits an entitled seven-card payload into base hand and draft candidates", () => {
   assert.deepEqual(getFifthMoveDraftState([1, 20, 8, 24, 2, 21, 9], true), {
@@ -34,4 +38,11 @@ test("routes PvP and ranked bot drafts through their atomic selection functions"
   );
   assert.equal(getBattleMoveFunction("pvp-v3", false), "use_ability_id_pvp_v3");
   assert.equal(getBattleMoveFunction("bot-v2", false), "use_ability_id_ranked_bot_v2");
+});
+
+test("identifies only the earned fifth slot after the draft is locked", () => {
+  assert.equal(isUnlockedFifthMoveCard(4, 5, true), true);
+  assert.equal(isUnlockedFifthMoveCard(3, 5, true), false);
+  assert.equal(isUnlockedFifthMoveCard(4, 4, true), false);
+  assert.equal(isUnlockedFifthMoveCard(4, 5, false), false);
 });

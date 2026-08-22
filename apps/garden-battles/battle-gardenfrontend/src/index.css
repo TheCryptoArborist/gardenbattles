@@ -6342,6 +6342,89 @@
     text-shadow: 0 2px 5px #000000;
   }
 
+  .gb-battle-move-card {
+    min-width: 0;
+    position: relative;
+  }
+
+  .gb-battle-move-card-fifth {
+    isolation: isolate;
+    margin: 4px;
+    overflow: visible;
+  }
+
+  .gb-battle-move-card-fifth::before {
+    animation: gb-fifth-card-frame 2.8s ease-in-out infinite;
+    border: 2px solid #ffd84b;
+    border-radius: 15px;
+    box-shadow:
+      0 0 0 1px rgba(181, 108, 255, 0.88),
+      0 0 14px rgba(255, 216, 75, 0.72),
+      0 0 24px rgba(181, 108, 255, 0.52);
+    content: "";
+    inset: -6px;
+    pointer-events: none;
+    position: absolute;
+    z-index: 2;
+  }
+
+  .gb-battle-move-card-fifth::after {
+    background:
+      radial-gradient(circle at 12% 0%, rgba(255, 255, 255, 0.72), transparent 17%),
+      linear-gradient(120deg, transparent 22%, rgba(255, 216, 75, 0.18) 48%, transparent 72%);
+    border-radius: 10px;
+    content: "";
+    inset: 0;
+    pointer-events: none;
+    position: absolute;
+    z-index: 1;
+  }
+
+  .gb-fifth-move-card-ribbon {
+    align-items: center;
+    align-self: flex-start;
+    background: linear-gradient(135deg, #fff4a3, #ffd84b 52%, #ffad32);
+    border: 1px solid rgba(255, 255, 255, 0.82);
+    border-radius: 999px;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.38);
+    color: #241400;
+    display: inline-flex;
+    font-family: Orbitron, sans-serif;
+    font-size: 9px;
+    font-weight: 900;
+    gap: 5px;
+    letter-spacing: 0.055em;
+    margin: -2px 0 3px;
+    padding: 4px 7px;
+    position: relative;
+    text-transform: uppercase;
+    z-index: 3;
+  }
+
+  @keyframes gb-fifth-card-frame {
+    0%,
+    100% {
+      border-color: #ffd84b;
+      box-shadow:
+        0 0 0 1px rgba(181, 108, 255, 0.78),
+        0 0 12px rgba(255, 216, 75, 0.58),
+        0 0 22px rgba(181, 108, 255, 0.42);
+    }
+    50% {
+      border-color: #fff4a3;
+      box-shadow:
+        0 0 0 2px rgba(181, 108, 255, 0.96),
+        0 0 19px rgba(255, 216, 75, 0.88),
+        0 0 32px rgba(181, 108, 255, 0.64);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .gb-battle-move-card-fifth::before {
+      animation: none;
+    }
+  }
+
   .gb-disconnected-onboarding {
     align-items: center;
     gap: 12px 20px;
