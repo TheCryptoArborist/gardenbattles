@@ -7250,6 +7250,48 @@
       line-height: 1.5;
     }
 
+    .gb-rank-tree-benefits-button {
+      align-items: center;
+      background: linear-gradient(135deg, rgba(255, 216, 75, 0.18), rgba(0, 213, 199, 0.16));
+      border: 1px solid rgba(255, 216, 75, 0.58);
+      border-radius: 999px;
+      box-shadow:
+        0 5px 16px rgba(0, 0, 0, 0.26),
+        inset 0 0 13px rgba(255, 216, 75, 0.07);
+      color: #fff0a8;
+      cursor: pointer;
+      display: inline-flex;
+      font-family: Orbitron, sans-serif;
+      font-size: clamp(8px, 0.72vw, 10px);
+      font-weight: 900;
+      gap: 6px;
+      justify-self: start;
+      letter-spacing: 0.045em;
+      line-height: 1.25;
+      margin-top: 3px;
+      min-height: 34px;
+      padding: 7px 10px;
+      text-align: left;
+      text-transform: uppercase;
+      transition:
+        background 0.2s ease,
+        border-color 0.2s ease,
+        box-shadow 0.2s ease,
+        color 0.2s ease,
+        transform 0.2s ease;
+    }
+
+    .gb-rank-tree-benefits-button:hover,
+    .gb-rank-tree-benefits-button:focus-visible {
+      background: linear-gradient(135deg, rgba(255, 216, 75, 0.28), rgba(0, 213, 199, 0.23));
+      border-color: rgba(255, 235, 139, 0.9);
+      box-shadow:
+        0 7px 20px rgba(0, 0, 0, 0.32),
+        0 0 17px rgba(255, 216, 75, 0.23);
+      color: #ffffff;
+      transform: translateY(-1px);
+    }
+
     .gb-rank-showcase > a {
       min-width: 0;
       width: 100%;

@@ -1848,9 +1848,17 @@ export default function Battle() {
                 <strong>Every ranked victory grows your reputation.</strong>
               </aside>
               <PlayerRecord address={address} />
-              <aside className="gb-rank-showcase-copy gb-rank-showcase-copy-right" aria-label="Leaderboard progression">
-                <span>Climb the Canopy</span>
-                <strong>Build streaks, earn badges, and claim leaderboard glory.</strong>
+              <aside className="gb-rank-showcase-copy gb-rank-showcase-copy-right" aria-label="TREE holder battle benefits">
+                <span>TREE Holder Battle Benefits</span>
+                <strong>Put TREE to work through verified liquidity or staking to unlock a fifth battle card.</strong>
+                <button
+                  type="button"
+                  className="gb-rank-tree-benefits-button"
+                  onClick={() => setUtilityDrawer("tree")}
+                >
+                  <Sparkles size={13} aria-hidden="true" />
+                  Explore TREE Benefits
+                </button>
               </aside>
             </div>
             <ForestPower address={address} />
