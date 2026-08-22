@@ -4,6 +4,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { SuiClientProvider, WalletProvider } from '@mysten/dapp-kit';
+import { SuiClient } from "@mysten/sui/client";
 import { SuiWalletProvider } from "@/hooks/useSuiWallet";
 import { SUI_CONFIG } from "@/lib/sui-config";
 import Home from "@/pages/Home";
@@ -15,10 +16,15 @@ import NotFound from "@/pages/not-found";
 import BadgeGalleryPreview from "@/components/BadgeGalleryPreview";
 import '@mysten/dapp-kit/dist/index.css';
 import { PREFERRED_MOBILE_WALLETS, SLUSH_WALLET_CONFIG } from "@/lib/mobileWalletLinks";
+import { createSuiFailoverTransport } from "@/lib/suiFailoverTransport";
 
-// Use exact SUI MAIN PUBLIC FULL NODE ENDPOINTS
 const networks = {
-  mainnet: { url: SUI_CONFIG.RPC_URL },
+  mainnet: new SuiClient({
+    transport: createSuiFailoverTransport([
+      SUI_CONFIG.RPC_URL,
+      SUI_CONFIG.RPC_FALLBACK_URL,
+    ]),
+  }),
 };
 
 function Router() {

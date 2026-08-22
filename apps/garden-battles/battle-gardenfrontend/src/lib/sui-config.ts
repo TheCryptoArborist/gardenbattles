@@ -1,5 +1,10 @@
-// Sui Blockchain Configuration - SUI MAIN PUBLIC FULL NODE ENDPOINTS
-const DEFAULT_PUBLIC_SUI_RPC_URL = "https://fullnode.mainnet.sui.io:443";
+// Sui Blockchain Configuration - SUI MAINNET
+// Sui Foundation mainnet fullnodes disabled JSON-RPC in July 2026. The legacy
+// dApp Kit still needs JSON-RPC while the app is migrated to gRPC, so keep two
+// independent compatibility providers and fail over between them in App.tsx.
+const DEFAULT_PUBLIC_SUI_RPC_URL = "https://sui-rpc.publicnode.com";
+const DEFAULT_PUBLIC_SUI_RPC_FALLBACK_URL =
+  "https://sui-mainnet-endpoint.blockvision.org";
 const DEFAULT_GARDEN_BATTLES_API_BASE =
   "https://gardenbattles-production.up.railway.app";
 const GARDEN_BATTLES_API_BASE = (
@@ -13,17 +18,17 @@ export const SUI_CONFIG = {
   CHAIN: "sui:mainnet",
   RPC_URL:
     ((import.meta as any).env?.VITE_SUI_RPC_URL as string | undefined) ||
-    DEFAULT_GARDEN_BATTLES_SUI_RPC_PROXY,
+    DEFAULT_PUBLIC_SUI_RPC_URL,
   READ_RPC_URL:
     ((import.meta as any).env?.VITE_SUI_READ_RPC_URL as string | undefined) ||
     DEFAULT_GARDEN_BATTLES_SUI_RPC_PROXY,
   RPC_FALLBACK_URL:
     ((import.meta as any).env?.VITE_SUI_RPC_FALLBACK_URL as string | undefined) ||
-    DEFAULT_PUBLIC_SUI_RPC_URL,
+    DEFAULT_PUBLIC_SUI_RPC_FALLBACK_URL,
   READ_RPC_FALLBACK_URL:
     ((import.meta as any).env?.VITE_SUI_READ_RPC_FALLBACK_URL as string | undefined) ||
     ((import.meta as any).env?.VITE_SUI_RPC_FALLBACK_URL as string | undefined) ||
-    DEFAULT_PUBLIC_SUI_RPC_URL,
+    DEFAULT_PUBLIC_SUI_RPC_FALLBACK_URL,
   WS_URL: "wss://fullnode.mainnet.sui.io:443",
   PACKAGE_ID: "0xb1656e809b744345bee628ca4c4b10357c30bc518166228c0913312509edbf45",
   PVP_EVENT_PACKAGE_ID:

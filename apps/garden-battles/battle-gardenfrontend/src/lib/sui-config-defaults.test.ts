@@ -6,12 +6,16 @@ import {
   SUI_CONFIG,
 } from "./sui-config";
 
-test("production defaults route app Sui client through the Garden Battles RPC proxy", () => {
+test("production defaults use independent JSON-RPC compatibility providers", () => {
   assert.equal(
     SUI_CONFIG.RPC_URL,
-    "https://gardenbattles-production.up.railway.app/api/sui-rpc",
+    "https://sui-rpc.publicnode.com",
   );
-  assert.equal(SUI_CONFIG.READ_RPC_URL, SUI_CONFIG.RPC_URL);
+  assert.equal(
+    SUI_CONFIG.RPC_FALLBACK_URL,
+    "https://sui-mainnet-endpoint.blockvision.org",
+  );
+  assert.notEqual(SUI_CONFIG.RPC_URL, SUI_CONFIG.RPC_FALLBACK_URL);
 });
 
 test("production defaults use live v3 queue and FifthMoveConfig IDs", () => {
