@@ -12,24 +12,21 @@ const QUALIFICATION_ACTIONS = [
     eyebrow: "Need TREE first?",
     label: "Buy TREE",
     url: "https://www.tree-token.xyz/dapp/#swap",
-    description: "Swap SUI for TREE in the Command Center. TREE held in your wallet is the starting point, but it must be added to a supported position to count toward the fifth card.",
-    action: "Open TREE Swap",
+    description: "Get TREE first. Wallet-held TREE alone does not unlock the card.",
   },
   {
     id: "liquidity",
     eyebrow: "Way to qualify",
     label: "Add V3 Liquidity",
     url: "https://www.tree-token.xyz/dapp/#v3",
-    description: "Create a supported SUI/TREE V3 liquidity position. The TREE represented by this position counts toward the 1,000,000 TREE requirement.",
-    action: "Open V3 Workspace",
+    description: "Qualifying route. Counts toward the 1,000,000 TREE requirement.",
   },
   {
     id: "stake",
     eyebrow: "Way to qualify",
     label: "Add & Stake V2",
     url: "https://www.tree-token.xyz/dapp/#earn",
-    description: "Create V2 liquidity and stake the LP position. The TREE represented by this position counts toward the 1,000,000 TREE requirement.",
-    action: "Open V2 Zap & Stake",
+    description: "Qualifying route. Counts toward the 1,000,000 TREE requirement.",
   },
 ] as const;
 
@@ -106,6 +103,28 @@ export default function TreeBenefitsDrawer({
                   <small>This wallet balance does not unlock the fifth card by itself. Only TREE represented by supported V2/V3 liquidity or Moonbags staking positions counts toward the 1,000,000 TREE requirement.</small>
                 </div>
               </div>
+              <section className="gb-tree-benefits-actions-compact" aria-labelledby="gb-tree-benefits-actions-title">
+                <div className="gb-tree-benefits-actions-compact-head">
+                  <span>Next step</span>
+                  <strong id="gb-tree-benefits-actions-title">Choose the route that fits you</strong>
+                </div>
+                <div className="gb-tree-benefits-action-grid-compact">
+                  {QUALIFICATION_ACTIONS.map((action) => (
+                    <a
+                      key={action.id}
+                      className={`gb-tree-benefits-action-compact gb-tree-benefits-action-${action.id}`}
+                      href={action.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <span>{action.eyebrow}</span>
+                      <strong>{action.label}</strong>
+                      <small>{action.description}</small>
+                      <ArrowUpRight size={16} aria-hidden="true" />
+                    </a>
+                  ))}
+                </div>
+              </section>
             </div>
             {!address && (
               <div className="gb-tree-benefits-connect">
@@ -126,26 +145,6 @@ export default function TreeBenefitsDrawer({
           />
       </div>
 
-      <section className="gb-tree-benefits-actions" aria-labelledby="gb-tree-benefits-actions-title">
-        <div className="gb-tree-benefits-actions-head">
-          <span>Next step</span>
-          <h3 id="gb-tree-benefits-actions-title">Choose your next step</h3>
-          <p>Need TREE? Buy it first. Already have TREE? Put it to work through a supported V3 or staked V2 position. Each button opens the correct TREE Command Center workspace.</p>
-        </div>
-        <div className="gb-tree-benefits-action-grid">
-          {QUALIFICATION_ACTIONS.map((action) => (
-            <article key={action.id} className={`gb-tree-benefits-action-card gb-tree-benefits-action-${action.id}`}>
-              <span>{action.eyebrow}</span>
-              <h4>{action.label}</h4>
-              <p>{action.description}</p>
-              <a href={action.url} target="_blank" rel="noopener noreferrer">
-                {action.action} <ArrowUpRight size={17} aria-hidden="true" />
-              </a>
-            </article>
-          ))}
-        </div>
-        <small className="gb-tree-benefits-action-safety">Garden Battles stays open. Review every amount in the TREE Command Center and approve transactions in your wallet.</small>
-      </section>
     </UtilityDrawer>
   );
 }

@@ -8639,15 +8639,50 @@
     text-transform: none;
   }
 
+  .gb-tree-benefits-drawer .gb-tree-power-fifth-top {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: flex-start;
+  }
+
+  .gb-tree-benefits-drawer .gb-tree-power-fifth-top h3 {
+    flex: 0 1 auto;
+  }
+
   .gb-tree-benefits-drawer .gb-tree-power-lock-status {
-    background: rgba(126, 243, 160, 0.12);
-    border-color: rgba(126, 243, 160, 0.46);
-    color: var(--nftree-green);
     font-family: Inter, ui-sans-serif, system-ui, sans-serif;
     font-size: 10px;
+    font-weight: 950;
     line-height: 1.25;
     max-width: 190px;
     padding: 7px 10px;
+  }
+
+  .gb-tree-benefits-drawer .gb-tree-power-lock-status.gb-tree-power-status-locked {
+    animation: gb-fifth-access-locked-pulse 2.2s ease-in-out infinite;
+    background: linear-gradient(180deg, #ffe96d, #ffb928);
+    border-color: #fff1a4;
+    box-shadow: 0 0 0 1px rgba(255, 224, 89, 0.2), 0 0 18px rgba(255, 196, 44, 0.46);
+    color: #181000;
+  }
+
+  .gb-tree-benefits-drawer .gb-tree-power-lock-status.gb-tree-power-status-active {
+    animation: gb-fifth-access-active-pulse 2.8s ease-in-out infinite;
+    background: linear-gradient(180deg, #8bffc0, #27e886);
+    border-color: #c6ffdc;
+    box-shadow: 0 0 0 1px rgba(126, 243, 160, 0.18), 0 0 18px rgba(57, 255, 136, 0.38);
+    color: #03130b;
+  }
+
+  @keyframes gb-fifth-access-locked-pulse {
+    0%, 100% { box-shadow: 0 0 0 1px rgba(255, 224, 89, 0.2), 0 0 12px rgba(255, 196, 44, 0.34); transform: scale(1); }
+    50% { box-shadow: 0 0 0 2px rgba(255, 224, 89, 0.3), 0 0 24px rgba(255, 196, 44, 0.64); transform: scale(1.025); }
+  }
+
+  @keyframes gb-fifth-access-active-pulse {
+    0%, 100% { box-shadow: 0 0 0 1px rgba(126, 243, 160, 0.18), 0 0 12px rgba(57, 255, 136, 0.26); }
+    50% { box-shadow: 0 0 0 2px rgba(126, 243, 160, 0.26), 0 0 22px rgba(57, 255, 136, 0.52); }
   }
 
   .gb-tree-benefits-drawer .gb-tree-power-plain-explainer {
@@ -8750,110 +8785,111 @@
     font-size: 10px;
   }
 
-  .gb-tree-benefits-actions {
-    border-top: 1px solid rgba(114, 213, 226, 0.22);
+  .gb-tree-benefits-actions-compact {
+    background: rgba(1, 10, 18, 0.72);
+    border: 1px solid rgba(114, 213, 226, 0.24);
+    border-radius: 12px;
     display: grid;
-    gap: 14px;
-    padding: 18px 16px 20px;
+    gap: 8px;
+    padding: 10px;
   }
 
-  .gb-tree-benefits-actions-head {
+  .gb-tree-benefits-actions-compact-head {
     display: grid;
-    gap: 5px;
+    gap: 2px;
   }
 
-  .gb-tree-benefits-actions-head > span {
+  .gb-tree-benefits-actions-compact-head > span {
     color: var(--nftree-gold);
-    font-size: 10px;
-    font-weight: 900;
-    letter-spacing: 1.3px;
-    text-transform: uppercase;
-  }
-
-  .gb-tree-benefits-actions-head h3 {
-    color: var(--nftree-text);
-    font-family: Inter, ui-sans-serif, system-ui, sans-serif;
-    font-size: clamp(18px, 2vw, 24px);
-    font-weight: 900;
-    letter-spacing: -0.35px;
-    margin: 0;
-  }
-
-  .gb-tree-benefits-actions-head p {
-    color: var(--nftree-muted);
-    font-size: 12px;
-    line-height: 1.5;
-    margin: 0;
-  }
-
-  .gb-tree-benefits-action-grid {
-    display: grid;
-    gap: 10px;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  .gb-tree-benefits-action-card {
-    background: rgba(1, 10, 18, 0.88);
-    border: 1px solid rgba(114, 213, 226, 0.25);
-    border-radius: 14px;
-    display: flex;
-    flex-direction: column;
-    min-width: 0;
-    padding: 14px;
-  }
-
-  .gb-tree-benefits-action-card > span {
-    color: var(--nftree-cyan);
-    font-size: 9px;
+    font-size: 8px;
     font-weight: 900;
     letter-spacing: 1px;
     text-transform: uppercase;
   }
 
-  .gb-tree-benefits-action-card h4 {
+  .gb-tree-benefits-actions-compact-head > strong {
     color: var(--nftree-text);
-    font-family: Inter, ui-sans-serif, system-ui, sans-serif;
-    font-size: 16px;
-    margin: 5px 0 0;
+    font-size: 13px;
+    font-weight: 900;
   }
 
-  .gb-tree-benefits-action-card p {
-    color: var(--nftree-muted);
-    flex: 1;
-    font-size: 11px;
-    line-height: 1.5;
-    margin: 8px 0 12px;
+  .gb-tree-benefits-action-grid-compact {
+    display: grid;
+    gap: 6px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
-  .gb-tree-benefits-action-card a {
+  .gb-tree-benefits-action-compact {
     align-items: center;
-    background: linear-gradient(90deg, #2ff590, #0bd4cb);
-    border: 1px solid rgba(185, 255, 237, 0.75);
+    background: linear-gradient(90deg, rgba(0, 241, 210, 0.08), rgba(126, 243, 160, 0.04));
+    border: 1px solid rgba(114, 213, 226, 0.25);
     border-radius: 9px;
-    color: #031014;
-    display: flex;
-    font-size: 11px;
-    font-weight: 950;
-    gap: 7px;
-    justify-content: center;
-    min-height: 40px;
-    padding: 8px 10px;
-    text-align: center;
+    color: var(--nftree-text);
+    display: grid;
+    gap: 1px 8px;
+    grid-template-columns: minmax(0, 1fr) auto;
+    min-width: 0;
+    padding: 7px 9px;
     text-decoration: none;
+  }
+
+  .gb-tree-benefits-action-compact > span {
+    color: var(--nftree-cyan);
+    font-size: 7px;
+    font-weight: 900;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+  }
+
+  .gb-tree-benefits-action-compact > strong {
+    color: var(--nftree-text);
+    font-size: 12px;
+    grid-column: 1;
+  }
+
+  .gb-tree-benefits-action-compact > small {
+    color: var(--nftree-muted);
+    font-size: 8px;
+    grid-column: 1;
+    line-height: 1.3;
+  }
+
+  .gb-tree-benefits-action-compact > svg {
+    color: var(--nftree-cyan);
+    grid-column: 2;
+    grid-row: 1 / span 3;
   }
 
   .gb-tree-benefits-action-buy {
     border-color: rgba(255, 216, 75, 0.38);
   }
 
-  .gb-tree-benefits-action-buy > span {
+  .gb-tree-benefits-action-compact.gb-tree-benefits-action-buy > span,
+  .gb-tree-benefits-action-compact.gb-tree-benefits-action-buy > svg {
     color: var(--nftree-gold);
   }
 
-  .gb-tree-benefits-action-safety {
-    color: var(--nftree-muted);
-    font-size: 10px;
-    line-height: 1.45;
+  .gb-tree-benefits-action-compact:hover {
+    background: rgba(0, 241, 210, 0.13);
+    border-color: rgba(0, 241, 210, 0.5);
+  }
+
+  @media (min-width: 900px) {
+    .gb-tree-benefits-drawer {
+      height: min(980px, calc(100vh - 16px));
+    }
+
+    .gb-tree-benefits-drawer .gb-tree-power-panel-compact .gb-tree-power-source-chips {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .gb-tree-benefits-drawer .gb-tree-power-panel-compact .gb-tree-power-source-chip:last-child {
+      grid-column: 1 / -1;
+    }
+
+    .gb-tree-benefits-drawer .gb-tree-benefits-spotlight-art {
+      min-height: 165px;
+    }
   }
 
   @media (max-width: 899px) {
@@ -8865,9 +8901,10 @@
       min-height: 260px;
     }
 
-    .gb-tree-benefits-action-grid {
+    .gb-tree-benefits-action-grid-compact {
       grid-template-columns: 1fr;
     }
+
   }
 
   @media (max-width: 600px) {
@@ -8898,8 +8935,14 @@
       grid-template-columns: 1fr;
     }
 
-    .gb-tree-benefits-actions {
-      padding: 16px 10px;
+    .gb-tree-benefits-drawer .gb-tree-power-fifth-top {
+      align-items: flex-start;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .gb-tree-benefits-drawer .gb-tree-power-lock-status {
+      animation: none !important;
     }
   }
 }

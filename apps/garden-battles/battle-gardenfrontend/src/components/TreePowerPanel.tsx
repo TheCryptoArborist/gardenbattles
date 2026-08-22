@@ -339,7 +339,7 @@ export default function TreePowerPanel({
       </section>
 
       {compact ? (
-        <details className="gb-tree-power-reroll-compact" open>
+        <details className="gb-tree-power-reroll-compact">
           <summary>TREE Reroll <span>Planned Feature</span></summary>
           <p><strong>What is planned:</strong> TREE Reroll will let you replace your entire hand once during a battle when you do not like the cards you were dealt.</p>
           <p><strong>What happens today:</strong> Reroll is not active. Nothing is charged, and no reroll transaction can be submitted. The TREE price and final rules will be shown before launch.</p>
