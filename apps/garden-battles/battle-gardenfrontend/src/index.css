@@ -8361,7 +8361,45 @@
       radial-gradient(circle at 8% 12%, rgba(255, 173, 50, 0.12), transparent 26%),
       radial-gradient(circle at 92% 85%, rgba(0, 241, 210, 0.1), transparent 30%),
       #040810;
+    display: block;
+    overflow-x: hidden;
+    overflow-y: auto;
     position: relative;
+  }
+
+  .gb-tree-benefits-at-a-glance {
+    align-items: center;
+    background: linear-gradient(90deg, rgba(255, 216, 75, 0.11), rgba(0, 241, 210, 0.08));
+    border-bottom: 1px solid rgba(114, 213, 226, 0.24);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 12px 16px;
+  }
+
+  .gb-tree-benefits-at-a-glance > strong {
+    color: var(--nftree-text);
+    font-size: 13px;
+    margin-right: 4px;
+  }
+
+  .gb-tree-benefits-at-a-glance > span {
+    align-items: center;
+    background: rgba(0, 241, 210, 0.09);
+    border: 1px solid rgba(0, 241, 210, 0.26);
+    border-radius: 999px;
+    color: #dffefa;
+    display: inline-flex;
+    font-size: 11px;
+    font-weight: 800;
+    gap: 6px;
+    padding: 7px 10px;
+  }
+
+  .gb-tree-benefits-at-a-glance .gb-tree-benefits-practice-note {
+    background: rgba(168, 190, 212, 0.07);
+    border-color: rgba(168, 190, 212, 0.2);
+    color: var(--nftree-muted);
   }
 
   .gb-tree-benefits-drawer .gb-tree-benefits-layout {
@@ -8369,6 +8407,7 @@
     background: transparent;
     gap: 16px;
     grid-template-columns: minmax(330px, 0.92fr) minmax(420px, 1.08fr);
+    overflow: visible;
     padding: 16px;
     position: relative;
   }
@@ -8595,7 +8634,8 @@
   .gb-tree-benefits-drawer .gb-tree-power-fifth-top h3 {
     color: var(--nftree-text);
     font-family: Inter, ui-sans-serif, system-ui, sans-serif;
-    font-size: 14px;
+    font-size: 18px;
+    font-weight: 900;
     text-transform: none;
   }
 
@@ -8604,14 +8644,19 @@
     border-color: rgba(126, 243, 160, 0.46);
     color: var(--nftree-green);
     font-family: Inter, ui-sans-serif, system-ui, sans-serif;
-    font-size: 9px;
+    font-size: 10px;
+    line-height: 1.25;
+    max-width: 190px;
+    padding: 7px 10px;
   }
 
   .gb-tree-benefits-drawer .gb-tree-power-plain-explainer {
     background: rgba(255, 216, 75, 0.06);
     border-left-color: var(--nftree-gold);
     color: #d3e7fb;
-    font-size: 11px;
+    font-size: 13px;
+    line-height: 1.55;
+    padding: 12px;
   }
 
   .gb-tree-benefits-drawer .gb-tree-power-hand-preview {
@@ -8651,18 +8696,20 @@
   .gb-tree-benefits-drawer .gb-tree-power-source-chip strong {
     color: var(--nftree-text);
     font-family: Inter, ui-sans-serif, system-ui, sans-serif;
-    font-size: 11px;
+    font-size: 12px;
     text-transform: none;
   }
 
   .gb-tree-benefits-drawer .gb-tree-power-source-chip small {
     color: var(--nftree-muted);
-    font-size: 10px;
+    font-size: 11px;
+    line-height: 1.35;
   }
 
   .gb-tree-benefits-drawer .gb-tree-power-source-chip em {
     color: var(--nftree-gold);
-    font-size: 10px;
+    font-size: 11px;
+    line-height: 1.35;
     font-style: normal;
     font-weight: 900;
   }
@@ -8703,6 +8750,112 @@
     font-size: 10px;
   }
 
+  .gb-tree-benefits-actions {
+    border-top: 1px solid rgba(114, 213, 226, 0.22);
+    display: grid;
+    gap: 14px;
+    padding: 18px 16px 20px;
+  }
+
+  .gb-tree-benefits-actions-head {
+    display: grid;
+    gap: 5px;
+  }
+
+  .gb-tree-benefits-actions-head > span {
+    color: var(--nftree-gold);
+    font-size: 10px;
+    font-weight: 900;
+    letter-spacing: 1.3px;
+    text-transform: uppercase;
+  }
+
+  .gb-tree-benefits-actions-head h3 {
+    color: var(--nftree-text);
+    font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+    font-size: clamp(18px, 2vw, 24px);
+    font-weight: 900;
+    letter-spacing: -0.35px;
+    margin: 0;
+  }
+
+  .gb-tree-benefits-actions-head p {
+    color: var(--nftree-muted);
+    font-size: 12px;
+    line-height: 1.5;
+    margin: 0;
+  }
+
+  .gb-tree-benefits-action-grid {
+    display: grid;
+    gap: 10px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .gb-tree-benefits-action-card {
+    background: rgba(1, 10, 18, 0.88);
+    border: 1px solid rgba(114, 213, 226, 0.25);
+    border-radius: 14px;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    padding: 14px;
+  }
+
+  .gb-tree-benefits-action-card > span {
+    color: var(--nftree-cyan);
+    font-size: 9px;
+    font-weight: 900;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  .gb-tree-benefits-action-card h4 {
+    color: var(--nftree-text);
+    font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+    font-size: 16px;
+    margin: 5px 0 0;
+  }
+
+  .gb-tree-benefits-action-card p {
+    color: var(--nftree-muted);
+    flex: 1;
+    font-size: 11px;
+    line-height: 1.5;
+    margin: 8px 0 12px;
+  }
+
+  .gb-tree-benefits-action-card a {
+    align-items: center;
+    background: linear-gradient(90deg, #2ff590, #0bd4cb);
+    border: 1px solid rgba(185, 255, 237, 0.75);
+    border-radius: 9px;
+    color: #031014;
+    display: flex;
+    font-size: 11px;
+    font-weight: 950;
+    gap: 7px;
+    justify-content: center;
+    min-height: 40px;
+    padding: 8px 10px;
+    text-align: center;
+    text-decoration: none;
+  }
+
+  .gb-tree-benefits-action-buy {
+    border-color: rgba(255, 216, 75, 0.38);
+  }
+
+  .gb-tree-benefits-action-buy > span {
+    color: var(--nftree-gold);
+  }
+
+  .gb-tree-benefits-action-safety {
+    color: var(--nftree-muted);
+    font-size: 10px;
+    line-height: 1.45;
+  }
+
   @media (max-width: 899px) {
     .gb-tree-benefits-drawer .gb-tree-benefits-layout {
       grid-template-columns: 1fr;
@@ -8711,6 +8864,10 @@
     .gb-tree-benefits-spotlight-art {
       min-height: 260px;
     }
+
+    .gb-tree-benefits-action-grid {
+      grid-template-columns: 1fr;
+    }
   }
 
   @media (max-width: 600px) {
@@ -8718,14 +8875,15 @@
       font-size: 25px;
     }
 
-    .gb-tree-benefits-drawer .gb-utility-tabs {
+    .gb-tree-benefits-at-a-glance {
+      align-items: stretch;
       display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-template-columns: 1fr;
+      padding: 10px;
     }
 
-    .gb-tree-benefits-drawer .gb-utility-tab {
-      justify-content: center;
-      white-space: normal;
+    .gb-tree-benefits-at-a-glance > span {
+      border-radius: 10px;
     }
 
     .gb-tree-benefits-drawer .gb-tree-benefits-layout {
@@ -8738,6 +8896,10 @@
 
     .gb-tree-benefits-reward-row {
       grid-template-columns: 1fr;
+    }
+
+    .gb-tree-benefits-actions {
+      padding: 16px 10px;
     }
   }
 }

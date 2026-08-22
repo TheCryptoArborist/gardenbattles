@@ -1,37 +1,35 @@
-import { useState } from "react";
 import { ConnectButton } from "@mysten/dapp-kit";
-import { ArrowUpRight, CheckCircle2, ShieldCheck, Sparkles } from "lucide-react";
+import { ArrowUpRight, Bot, Sparkles, Swords } from "lucide-react";
 import TreePowerPanel from "@/components/TreePowerPanel";
 import UtilityDrawer from "@/components/UtilityDrawer";
 import { useFifthMoveEligibility } from "@/hooks/useFifthMoveEligibility";
 import { useTreeBalance } from "@/hooks/useTreeBalance";
 import { appAsset } from "@/lib/assets";
 
-const UTILITY_TABS = [
-  { id: "benefits", label: "Battle Benefits", url: null, title: null, description: null, action: null },
+const QUALIFICATION_ACTIONS = [
   {
     id: "buy",
+    eyebrow: "Need TREE first?",
     label: "Buy TREE",
     url: "https://www.tree-token.xyz/dapp/#swap",
-    title: "Swap SUI for TREE",
-    description: "Buy TREE through the native TREE Command Center swap. It compares supported on-chain routes for a protected quote. TREE held directly in your wallet does not unlock the fifth card by itself.",
-    action: "Open TREE Swap in Command Center",
+    description: "Swap SUI for TREE in the Command Center. TREE held in your wallet is the starting point, but it must be added to a supported position to count toward the fifth card.",
+    action: "Open TREE Swap",
   },
   {
     id: "liquidity",
+    eyebrow: "Way to qualify",
     label: "Add V3 Liquidity",
     url: "https://www.tree-token.xyz/dapp/#v3",
-    title: "Add TREE liquidity on SuiDex V3",
-    description: "Use the TREE Command Center V3 workspace to create a supported SUI/TREE position. The TREE represented by the position counts toward the combined 1,000,000 TREE fifth-card requirement.",
-    action: "Open V3 Workspace in Command Center",
+    description: "Create a supported SUI/TREE V3 liquidity position. The TREE represented by this position counts toward the 1,000,000 TREE requirement.",
+    action: "Open V3 Workspace",
   },
   {
     id: "stake",
-    label: "Stake V2",
+    eyebrow: "Way to qualify",
+    label: "Add & Stake V2",
     url: "https://www.tree-token.xyz/dapp/#earn",
-    title: "Add and stake SuiDex V2 liquidity",
-    description: "Use the TREE Command Center V2 Zap & Stake flow to create liquidity and stake the LP position. The TREE represented by that position counts toward the combined 1,000,000 TREE fifth-card requirement.",
-    action: "Open V2 Zap & Stake in Command Center",
+    description: "Create V2 liquidity and stake the LP position. The TREE represented by this position counts toward the 1,000,000 TREE requirement.",
+    action: "Open V2 Zap & Stake",
   },
 ] as const;
 
@@ -50,8 +48,6 @@ export default function TreeBenefitsDrawer({
   currentMoveCount,
   onClose,
 }: TreeBenefitsDrawerProps) {
-  const [activeTab, setActiveTab] = useState<(typeof UTILITY_TABS)[number]["id"]>("benefits");
-  const selectedTab = UTILITY_TABS.find((tab) => tab.id === activeTab) ?? UTILITY_TABS[0];
   const treeBalance = useTreeBalance(address);
   const fifthMoveEligibility = useFifthMoveEligibility(address);
   const qualification = fifthMoveEligibility.response;
@@ -62,68 +58,18 @@ export default function TreeBenefitsDrawer({
     <UtilityDrawer
       eyebrow="TREE Battle Benefits"
       title="TREE Battle Benefits"
-      description="Learn how the fifth battle card works, see what counts toward eligibility, and check your connected wallet."
+      description="Unlock a fifth move card for Garden Bot and paid PvP. See what your wallet qualifies for and how to power up."
       className="gb-tree-benefits-drawer"
       onClose={onClose}
     >
-      <nav className="gb-utility-tabs" aria-label="TREE utility choices">
-        {UTILITY_TABS.map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            className={activeTab === tab.id ? "gb-utility-tab gb-utility-tab-active" : "gb-utility-tab"}
-            aria-pressed={activeTab === tab.id}
-            onClick={() => setActiveTab(tab.id)}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </nav>
+      <section className="gb-tree-benefits-at-a-glance" aria-label="Where the fifth card works">
+        <strong>Where your fifth card works</strong>
+        <span><Bot size={17} aria-hidden="true" /> Garden Bot: included</span>
+        <span><Swords size={17} aria-hidden="true" /> Paid PvP: included</span>
+        <span className="gb-tree-benefits-practice-note">Practice Mode: four-card training hand</span>
+      </section>
 
-      {selectedTab.url ? (
-        <section className="gb-tree-action-panel" aria-label={selectedTab.title || "TREE utility"}>
-          <div className="gb-tree-action-brand">
-            <img src={appAsset("assets/thick.png")} alt="TREE Command Center" />
-            <div>
-              <span>TREE Command Center</span>
-              <h3>{selectedTab.title}</h3>
-            </div>
-          </div>
-
-          <p className="gb-tree-action-description">{selectedTab.description}</p>
-
-          <div className="gb-tree-action-steps">
-            <div>
-              <span>1</span>
-              <section>
-                <strong>Connect to Garden Battles here</strong>
-                <p>This lets the game read your TREE balance and determine whether your wallet qualifies for battle benefits.</p>
-              </section>
-              {address ? (
-                <em><CheckCircle2 size={16} aria-hidden="true" /> Wallet connected</em>
-              ) : (
-                <ConnectButton connectText="Connect Wallet Here" />
-              )}
-            </div>
-            <div>
-              <span>2</span>
-              <section>
-                <strong>Continue in the TREE Command Center</strong>
-                <p>The Command Center opens in a new tab so its wallet connection and transaction approval can work correctly. Garden Battles remains open here. Supported SuiDex pools or other verified routes may still be used underneath.</p>
-              </section>
-            </div>
-          </div>
-
-          <a className="gb-tree-action-launch" href={selectedTab.url} target="_blank" rel="noopener noreferrer">
-            {selectedTab.action} <ArrowUpRight size={17} aria-hidden="true" />
-          </a>
-
-          <p className="gb-tree-action-safety">
-            <ShieldCheck size={16} aria-hidden="true" /> No transaction starts from this panel. Review every amount in the TREE Command Center and approve it in your wallet.
-          </p>
-        </section>
-      ) : (
-        <div className="gb-tree-benefits-layout">
+      <div className="gb-tree-benefits-layout">
           <section className={`gb-tree-benefits-spotlight ${isQualified ? "gb-tree-benefits-spotlight-qualified" : ""}`}>
             <div className="gb-tree-benefits-spotlight-art">
               <img src={appAsset("assets/tree.jpg")} alt="NFTree character ready for battle" />
@@ -139,8 +85,8 @@ export default function TreeBenefitsDrawer({
               <h3>{isQualified ? "Your Fifth Card Is Unlocked" : "Turn Four Choices Into Five"}</h3>
               <p>
                 {isQualified
-                  ? "When an eligible paid battle begins, this wallet receives five move cards instead of the standard four. That extra choice can change your strategy every turn."
-                  : "A verified TREE liquidity or staking position unlocks a fifth move card in eligible paid battles, giving you one more strategic option every turn."}
+                  ? "Start Garden Bot or a paid PvP match with this wallet and your fifth move card is added automatically. Practice Mode keeps the standard four-card training hand."
+                  : "Build a combined qualifying position of 1,000,000 TREE to receive a fifth move card in Garden Bot and paid PvP. Practice Mode always uses four cards."}
               </p>
               <div className="gb-tree-benefits-reward-row">
                 <div>
@@ -178,8 +124,28 @@ export default function TreeBenefitsDrawer({
             isFifthMoveActivationLive
             compact
           />
+      </div>
+
+      <section className="gb-tree-benefits-actions" aria-labelledby="gb-tree-benefits-actions-title">
+        <div className="gb-tree-benefits-actions-head">
+          <span>Next step</span>
+          <h3 id="gb-tree-benefits-actions-title">Choose your next step</h3>
+          <p>Need TREE? Buy it first. Already have TREE? Put it to work through a supported V3 or staked V2 position. Each button opens the correct TREE Command Center workspace.</p>
         </div>
-      )}
+        <div className="gb-tree-benefits-action-grid">
+          {QUALIFICATION_ACTIONS.map((action) => (
+            <article key={action.id} className={`gb-tree-benefits-action-card gb-tree-benefits-action-${action.id}`}>
+              <span>{action.eyebrow}</span>
+              <h4>{action.label}</h4>
+              <p>{action.description}</p>
+              <a href={action.url} target="_blank" rel="noopener noreferrer">
+                {action.action} <ArrowUpRight size={17} aria-hidden="true" />
+              </a>
+            </article>
+          ))}
+        </div>
+        <small className="gb-tree-benefits-action-safety">Garden Battles stays open. Review every amount in the TREE Command Center and approve transactions in your wallet.</small>
+      </section>
     </UtilityDrawer>
   );
 }

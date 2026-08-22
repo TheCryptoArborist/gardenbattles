@@ -188,7 +188,7 @@ export default function TreePowerPanel({
             : "Qualifying TREE can be combined across the supported positions shown below.";
   const preBattleExplanation =
     eligibility.status === "qualified"
-      ? "You are ready. Start an eligible paid battle and the fifth card is added automatically. This check does not move or spend your TREE."
+      ? "You are ready. Start Garden Bot or a paid PvP match and the fifth card is added automatically. This check does not move or spend your TREE."
       : eligibility.status === "checking"
         ? "This is a read-only wallet check. No TREE is moved or spent while the game checks your positions."
         : eligibility.status === "not-connected"
@@ -218,7 +218,7 @@ export default function TreePowerPanel({
           <span className="gb-tree-power-icon-shell" aria-hidden="true">
             <StatusIcon size={18} strokeWidth={2.4} />
           </span>
-          <h3>Extra Card Slot</h3>
+          <h3>Your Fifth Move Card</h3>
           <span
             className={`gb-tree-power-status gb-tree-power-lock-status gb-tree-power-status-${
               fifthMove.isUnlocked ? "active" : "locked"
@@ -230,7 +230,7 @@ export default function TreePowerPanel({
         </div>
 
         <p className="gb-tree-power-plain-explainer">
-          In eligible paid battles, a qualifying TREE position changes your hand from four move cards to five. The extra card gives you one more attack, growth, defense, or hybrid option to choose from each turn.
+          This benefit works in Garden Bot and paid PvP. A qualifying TREE position changes your hand from four move cards to five, giving you one more strategic option every turn. Practice Mode keeps a four-card training hand.
         </p>
 
         {isBattleActive ? (
@@ -262,7 +262,7 @@ export default function TreePowerPanel({
           </>
         ) : (
           <div className="gb-tree-power-hand-preview">
-            <span>If you start an eligible paid battle now</span>
+            <span>If you start Garden Bot or paid PvP now</span>
             <strong>{eligibility.status === "qualified" ? "You receive five move cards" : "Standard hand: four move cards"}</strong>
           </div>
         )}
