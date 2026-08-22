@@ -1342,7 +1342,7 @@ export default function Battle() {
     battleState && isPracticeActive
       ? "Practice Mode - No rewards - No leaderboard credit"
       : battleState && isGardenBotBattle
-      ? "Single Player Garden Bot - Leaderboard eligible - Wallet approval required"
+      ? "Single-player Garden Bot battle"
       : battleState && !isGardenBotBattle
         ? `${activePvpMatchLabel} - ${entryFeeLabel} entry`
         : isWaiting
@@ -1476,8 +1476,8 @@ export default function Battle() {
     : isPvpQueued
       ? `${activePvpMatchLabel} - ${pvpQueueEntryFeeLabel} deposited - Waiting for opponent`
       : isGardenBotBattle
-        ? "Leaderboard eligible - Wallet approval required"
-        : `${activePvpMatchLabel} - ${entryFeeLabel} entry - Leaderboard eligible`;
+        ? "Single-player battle"
+        : `${activePvpMatchLabel} - ${entryFeeLabel} entry`;
 
   const handleStartPracticeBattle = () => {
     startPracticeBattle();
@@ -1497,12 +1497,8 @@ export default function Battle() {
         <article className="gb-mode-card gb-mode-card-bot gb-mode-card-garden-bot">
           <ModeCrest type="garden-bot" alt="Garden Bot robotic plant medallion" />
           <h2>Garden Bot</h2>
-          <p>Single Player battle</p>
+          <p>Single-player battle</p>
           <div className="gb-mode-card-details">
-            <div className="gb-mode-card-chips" aria-label="Single Player details">
-              <span>Leaderboard eligible</span>
-              <span>Wallet approval required</span>
-            </div>
             <button
               onClick={handleStartBotBattle}
               disabled={!isConnected || modeActionsDisabled}
@@ -1523,8 +1519,6 @@ export default function Battle() {
               <span>{shouldShowPvpQueuePanel ? "Already in queue" : `Entry: ${entryFeeLabel}`}</span>
               <span>Winner receives {pvpWinnerPayoutLabel}</span>
               <span>{pvpTreeSupportLabel} supports TREE buybacks</span>
-              <span>Wallet approval required</span>
-              <span>Leaderboard eligible</span>
             </div>
             {!shouldShowPvpQueuePanel && (
               <div className="gb-pvp-target-selector" aria-label="Choose PvP match length">
@@ -1558,10 +1552,6 @@ export default function Battle() {
                     </button>
                   ))}
                 </div>
-                <p className="gb-pvp-target-note">
-                  Choose your battle length. Quick Match is first to 50 Growth.
-                  Standard Match is first to 75 Growth.
-                </p>
               </div>
             )}
             {shouldShowPvpQueuePanel ? (
@@ -1621,18 +1611,9 @@ export default function Battle() {
           <h2>Canopy Clash</h2>
           <p>Tournament mode</p>
           <div className="gb-mode-card-details">
-            <div className="gb-mode-card-chips" aria-label="Canopy Clash details">
-              <span>Prize structure coming soon</span>
-              <span>Leaderboard mode coming soon</span>
-              <span>Not live yet</span>
-            </div>
             <span className="gb-mode-placeholder">Coming Soon</span>
           </div>
         </article>
-        <p className="gb-mode-select-note">
-          Single Player and PvP feed ranked leaderboard records. Practice Mode
-          is for learning only.
-        </p>
       </section>
     ) : null;
 
@@ -1947,7 +1928,7 @@ export default function Battle() {
               <div className="gb-rank-showcase">
                 <aside className="gb-rank-showcase-copy gb-rank-showcase-copy-left" aria-label="Battle rank explanation">
                   <span>Your Competitive Legacy</span>
-                  <strong>Every ranked victory grows your reputation.</strong>
+                  <strong>Garden Bot and PvP wins grow your Battle Rank.</strong>
                 </aside>
                 <PlayerRecord address={address} />
                 <aside className="gb-rank-showcase-copy gb-rank-showcase-copy-right" aria-label="TREE holder battle benefits">
@@ -1969,14 +1950,6 @@ export default function Battle() {
         )}
 
         <main className="gb-battle-main">
-          {/* Compact page introduction; the Garden Battles logo now lives in the header. */}
-          <section className={hasActiveSession ? "gb-battle-hero gb-battle-hero-active" : "gb-battle-hero"} aria-label="Garden Battles arena">
-            {!hasActiveSession && (
-              <p className="gb-battle-hero-tagline">
-                Strategic NFTree battles. Choose a mode and start growing.
-              </p>
-            )}
-          </section>
           <section
             className={`gb-tree-benefits-trigger gb-tree-benefits-trigger-featured gb-tree-benefits-trigger-${fifthCardPromo.tone}`}
             aria-label={fifthCardPromo.title}

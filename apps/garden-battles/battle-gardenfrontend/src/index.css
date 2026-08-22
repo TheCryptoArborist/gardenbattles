@@ -3146,13 +3146,6 @@
       inset 0 0 14px rgba(57, 255, 136, 0.08);
   }
 
-  .gb-pvp-target-note {
-    color: rgba(234, 255, 246, 0.62);
-    font-size: 11px;
-    line-height: 1.35;
-    margin: 0;
-  }
-
   .gb-mode-crest {
     align-items: center;
     aspect-ratio: 1;
@@ -3441,24 +3434,13 @@
     color: var(--gb-gold);
   }
 
-  .gb-mode-select-note {
-    color: rgba(234, 255, 246, 0.86);
-    font-size: clamp(12px, 2.5vw, 15px);
-    grid-column: 1 / -1;
-    line-height: 1.5;
-    margin: 0 auto;
-    max-width: 680px;
-    padding: 0 10px;
-  }
-
   @media (min-width: 900px) {
     .gb-mode-select {
       align-items: start;
       grid-template-areas:
         "pvp bot"
         "pvp clash"
-        "practice practice"
-        "note note";
+        "practice practice";
       grid-template-columns: minmax(0, 1.7fr) minmax(280px, 0.9fr);
       max-width: 1180px;
     }
@@ -3512,10 +3494,6 @@
 
     .gb-practice-mode-strip {
       grid-area: practice;
-    }
-
-    .gb-mode-select-note {
-      grid-area: note;
     }
 
   }
