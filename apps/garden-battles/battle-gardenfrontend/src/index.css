@@ -7313,6 +7313,94 @@
     z-index: 4;
   }
 
+  .gb-tree-arcade-link {
+    align-items: center;
+    background:
+      radial-gradient(circle at 10% 20%, rgba(57, 255, 136, 0.16), transparent 34%),
+      linear-gradient(135deg, rgba(4, 44, 42, 0.97), rgba(9, 24, 43, 0.98));
+    border: 1px solid rgba(0, 213, 199, 0.52);
+    border-radius: 12px;
+    box-shadow:
+      0 10px 26px rgba(0, 0, 0, 0.26),
+      inset 0 0 24px rgba(57, 255, 136, 0.05);
+    display: grid;
+    gap: 14px;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    margin: 12px auto 18px;
+    max-width: 1080px;
+    padding: 14px 16px;
+    position: relative;
+  }
+
+  .gb-tree-arcade-link-icon {
+    align-items: center;
+    background: linear-gradient(145deg, rgba(57, 255, 136, 0.2), rgba(0, 213, 199, 0.15));
+    border: 1px solid rgba(57, 255, 136, 0.58);
+    border-radius: 12px;
+    box-shadow: 0 0 18px rgba(57, 255, 136, 0.12);
+    color: #84ffb4;
+    display: inline-flex;
+    height: 48px;
+    justify-content: center;
+    width: 48px;
+  }
+
+  .gb-tree-arcade-link-copy {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+  }
+
+  .gb-tree-arcade-link-copy small {
+    color: var(--gb-gold);
+    font-family: Orbitron, sans-serif;
+    font-size: 9px;
+    font-weight: 900;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  .gb-tree-arcade-link-copy strong {
+    color: #f1fff7;
+    font-family: Orbitron, sans-serif;
+    font-size: clamp(12px, 1.15vw, 15px);
+    line-height: 1.35;
+  }
+
+  .gb-tree-arcade-link-copy p {
+    color: rgba(226, 255, 239, 0.68);
+    font-size: 11px;
+    line-height: 1.45;
+    margin: 0;
+  }
+
+  .gb-tree-arcade-link > a {
+    align-items: center;
+    background: linear-gradient(135deg, #39ff88, #00d5c7);
+    border: 1px solid rgba(226, 255, 239, 0.82);
+    border-radius: 9px;
+    box-shadow: 0 7px 18px rgba(0, 213, 199, 0.16);
+    color: #001b18;
+    display: inline-flex;
+    font-family: Orbitron, sans-serif;
+    font-size: 10px;
+    font-weight: 900;
+    gap: 7px;
+    justify-content: center;
+    min-height: 42px;
+    padding: 9px 14px;
+    text-decoration: none;
+    text-transform: uppercase;
+    transition: box-shadow 0.2s ease, transform 0.2s ease;
+    white-space: nowrap;
+  }
+
+  .gb-tree-arcade-link > a:hover,
+  .gb-tree-arcade-link > a:focus-visible {
+    box-shadow: 0 9px 22px rgba(57, 255, 136, 0.3);
+    transform: translateY(-1px);
+  }
+
   .gb-quick-start-tools .gb-how-to-play-trigger-wrap {
     margin: 0;
     max-width: none;
@@ -7857,6 +7945,23 @@
       left: auto;
       min-width: min(330px, calc(100vw - 20px));
       right: 0;
+    }
+
+    .gb-tree-arcade-link {
+      gap: 11px;
+      grid-template-columns: auto minmax(0, 1fr);
+      margin: 12px 10px 18px;
+      padding: 13px;
+    }
+
+    .gb-tree-arcade-link-icon {
+      height: 42px;
+      width: 42px;
+    }
+
+    .gb-tree-arcade-link > a {
+      grid-column: 1 / -1;
+      width: 100%;
     }
 
     .gb-tree-benefits-trigger {

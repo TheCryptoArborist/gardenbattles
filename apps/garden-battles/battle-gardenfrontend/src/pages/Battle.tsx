@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Link } from "wouter";
-import { ChevronRight, Gamepad2, House, Menu, ShoppingBag, Sparkles, Trophy, X } from "lucide-react";
+import { ArrowUpRight, ChevronRight, Gamepad2, House, Menu, ShoppingBag, Sparkles, Trophy, X } from "lucide-react";
 import { ConnectButton } from "@mysten/dapp-kit";
 import MobileWalletLaunchers from "@/components/MobileWalletLaunchers";
 import { useSuiWallet, type PvpQueueState } from "@/hooks/useSuiWallet";
@@ -1936,6 +1936,26 @@ export default function Battle() {
           {activeModeBar}
           {pvpQueuePanel}
           {modeSelect}
+          {!hasActiveSession && (
+            <aside className="gb-tree-arcade-link" aria-label="Explore more TREE ecosystem games">
+              <span className="gb-tree-arcade-link-icon" aria-hidden="true">
+                <Gamepad2 size={24} />
+              </span>
+              <div className="gb-tree-arcade-link-copy">
+                <small>More TREE Ecosystem Games</small>
+                <strong>Continue Your Adventure in the TREE Arcade</strong>
+                <p>Discover more games and experiences from across the TREE ecosystem.</p>
+              </div>
+              <a
+                href="https://tree-token.xyz/play/"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Explore TREE Arcade
+                <ArrowUpRight size={17} aria-hidden="true" />
+              </a>
+            </aside>
+          )}
           {hasActiveSession && <HowToPlay />}
           {battleState && (
             <section className="gb-tree-benefits-trigger" aria-label="TREE Battle Benefits">
