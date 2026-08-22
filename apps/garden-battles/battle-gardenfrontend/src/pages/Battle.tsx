@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Link } from "wouter";
-import { ArrowUpRight, ChevronRight, Gamepad2, House, Menu, ShoppingBag, Sparkles, Trophy, X } from "lucide-react";
+import { ChevronRight, Gamepad2, House, Menu, ShoppingBag, Sparkles, Trophy, X } from "lucide-react";
 import { ConnectButton } from "@mysten/dapp-kit";
 import MobileWalletLaunchers from "@/components/MobileWalletLaunchers";
 import { useSuiWallet, type PvpQueueState } from "@/hooks/useSuiWallet";
@@ -1728,12 +1728,9 @@ export default function Battle() {
         >
           <div className="gb-header-brand" aria-label="Garden Battles">
             <img
-              src={appAsset("assets/thick.png")}
-              alt="TREE token logo"
-              style={{
-                width: "clamp(60px, 10vw, 80px)",
-                filter: "drop-shadow(0 0 15px #00ff00)",
-              }}
+              src={appAsset("assets/garden.png")}
+              alt="The Garden Battles"
+              className="gb-header-game-logo"
               data-testid="logo-brand"
             />
           </div>
@@ -1762,6 +1759,14 @@ export default function Battle() {
               <button type="button" className="gb-nav-link gb-nav-link-tree" onClick={() => setUtilityDrawer("tree")}>
                 <Sparkles size={16} aria-hidden="true" /> <span>TREE Battle Benefits</span>
               </button>
+              <a
+                href="https://tree-token.xyz/play/"
+                className="gb-nav-link gb-nav-link-arcade"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <Gamepad2 size={16} aria-hidden="true" /> <span>TREE Arcade</span>
+              </a>
             </div>
           </nav>
 
@@ -1822,6 +1827,14 @@ export default function Battle() {
               <button type="button" className="gb-nav-link" onClick={() => { setUtilityDrawer("tree"); setHeaderMenuOpen(false); }}>
                 <Sparkles size={16} aria-hidden="true" /> TREE Battle Benefits
               </button>
+              <a
+                href="https://tree-token.xyz/play/"
+                className="gb-nav-link gb-nav-link-arcade"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <Gamepad2 size={16} aria-hidden="true" /> TREE Arcade
+              </a>
             </div>
             {hasRefundablePvpQueue && (
               <button
@@ -1866,28 +1879,27 @@ export default function Battle() {
         )}
 
         <main className="gb-battle-main">
-          {/* Title Image with animation */}
+          {/* Compact page introduction; the Garden Battles logo now lives in the header. */}
           <section className={hasActiveSession ? "gb-battle-hero gb-battle-hero-active" : "gb-battle-hero"} aria-label="Garden Battles arena">
-            <img
-              src={appAsset("assets/garden.png")}
-              alt="The Garden Battles"
-              className="title-image"
-              style={{
-                width: "100%",
-                maxWidth: "420px",
-                height: "auto",
-                maxHeight: "140px",
-                margin: "0 auto",
-                display: "block",
-                animation: "explodeAndShrink 2s ease-out forwards",
-              }}
-              data-testid="img-battle-title"
-            />
             {!hasActiveSession && (
               <p className="gb-battle-hero-tagline">
                 Strategic NFTree battles. Choose a mode and start growing.
               </p>
             )}
+          </section>
+          <section className="gb-tree-benefits-trigger gb-tree-benefits-trigger-featured" aria-label="Unlock a fifth battle card with TREE">
+            <div className="gb-tree-benefits-trigger-art" aria-hidden="true">
+              <img src={appAsset("assets/thick.png")} alt="" />
+              <span>+1</span>
+            </div>
+            <div className="gb-tree-benefits-trigger-copy">
+              <small>TREE Holder Battle Advantage</small>
+              <strong>Unlock a Fifth Battle Card with TREE</strong>
+              <span>Check your wallet, see the three ways to qualify, and learn how the extra card works.</span>
+            </div>
+            <button type="button" onClick={() => setUtilityDrawer("tree")}>
+              Explore TREE Benefits <ChevronRight size={17} aria-hidden="true" />
+            </button>
           </section>
           {!hasActiveSession && (
             <div className="gb-quick-start-tools">
@@ -1936,44 +1948,7 @@ export default function Battle() {
           {activeModeBar}
           {pvpQueuePanel}
           {modeSelect}
-          {!hasActiveSession && (
-            <aside className="gb-tree-arcade-link" aria-label="Explore more TREE ecosystem games">
-              <span className="gb-tree-arcade-link-icon" aria-hidden="true">
-                <Gamepad2 size={24} />
-              </span>
-              <div className="gb-tree-arcade-link-copy">
-                <small>More TREE Ecosystem Games</small>
-                <strong>Continue Your Adventure in the TREE Arcade</strong>
-                <p>Discover more games and experiences from across the TREE ecosystem.</p>
-              </div>
-              <a
-                href="https://tree-token.xyz/play/"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                Explore TREE Arcade
-                <ArrowUpRight size={17} aria-hidden="true" />
-              </a>
-            </aside>
-          )}
           {hasActiveSession && <HowToPlay />}
-          {battleState && (
-            <section className="gb-tree-benefits-trigger" aria-label="TREE Battle Benefits">
-              <div className="gb-tree-benefits-trigger-art" aria-hidden="true">
-                <img src={appAsset("assets/thick.png")} alt="" />
-                <span>+1</span>
-              </div>
-              <div className="gb-tree-benefits-trigger-copy">
-                <small>Want another strategic option?</small>
-                <strong>Unlock a Fifth Battle Card with TREE</strong>
-                <span>See whether your wallet qualifies, learn how it works, and preview the planned TREE Reroll.</span>
-              </div>
-              <button type="button" onClick={() => setUtilityDrawer("tree")}>
-                Explore TREE Benefits <ChevronRight size={17} aria-hidden="true" />
-              </button>
-            </section>
-          )}
-
           {battleState && <div
             className="gb-battle-hud"
             aria-label="Garden Battles HUD"
