@@ -38,6 +38,11 @@ import TreeBenefitsDrawer from "@/components/TreeBenefitsDrawer";
 import NftreeAcquisitionDrawer from "@/components/NftreeAcquisitionDrawer";
 import { useFifthMoveEligibility } from "@/hooks/useFifthMoveEligibility";
 import { getFifthCardPromoPresentation } from "@/lib/fifthCardPromo";
+import {
+  buildBattleResultShareText,
+  buildSmsShareUrl,
+  getBattleResultShareOptions,
+} from "@/lib/battleResultShare";
 
 const ecosystemLinks = [
   { label: "Home", href: "https://www.tree-token.xyz/", testId: "home" },
@@ -300,6 +305,8 @@ export default function Battle() {
   );
   const [liveResultKey, setLiveResultKey] = useState<string | null>(null);
   const [isResultPlayAgainStarting, setIsResultPlayAgainStarting] = useState(false);
+  const [selectedResultShareOptionId, setSelectedResultShareOptionId] =
+    useState("");
   const entryFeeLabel = formatSuiAmount(entryFeeMist);
   const activePvpQueueState = recoveredPvpQueueState ?? pvpQueueState;
   const pvpQueueEntryFeeLabel = formatSuiAmount(
@@ -1287,7 +1294,6 @@ export default function Battle() {
           ? "ready"
           : "waiting";
 
-  const nftreeUrl = "https://nftree.net";
   const shareUrl = "https://nftree.net/battle";
   const leaderboardRoute = appRoute("leaderboard");
   const winnerTitle =
@@ -1313,22 +1319,33 @@ export default function Battle() {
   const winnerStageVisual =
     winner === "player" ? playerStageVisual : opponentStageVisual;
   const winnerImage = winnerStageVisual.imageUrl;
-  const opponentName = isGardenBotBattle ? "Garden Bot" : "my opponent";
-  const finalScoreText = `Final: ${playerGrowth}/${growthTarget} vs ${opponentGrowth}/${growthTarget}`;
-  const shareText =
-    isPracticeActive
-      ? `I just finished a Garden Battles Practice Mode run.\n${finalScoreText}\n\nPractice Mode has no rewards or verified leaderboard credit.\nJoin the fight:\n${shareUrl}`
-      : winner === "player"
-      ? `${opponentName === "Garden Bot" ? "Garden Bot got rooted." : "My opponent got rooted."}\n\nI just took the W in Garden Battles.\n${finalScoreText}\n\nThink your NFTree can do better?\nBuy an NFTree at ${nftreeUrl} and join the fight:\n${shareUrl}`
-      : `${opponentName === "Garden Bot" ? "The Garden Bot clipped my branches this round." : "My opponent clipped my branches this round."}\n\n${finalScoreText}\n\nI'm running it back.\nBuy an NFTree at ${nftreeUrl} and join the fight:\n${shareUrl}`;
-  const xShareText =
-    isPracticeActive
-      ? `I just finished a Garden Battles Practice Mode run. ${finalScoreText}. No rewards or verified leaderboard credit.`
-      : winner === "player"
-      ? `Garden Bot got rooted. I just took the W in Garden Battles. ${finalScoreText}. Think your NFTree can do better? Join the fight:`
-      : `The Garden Bot clipped my branches this round. ${finalScoreText}. I'm running it back. Join the fight:`;
-  const encodedShareText = encodeURIComponent(xShareText);
+  const resultShareOutcome = isPracticeActive
+    ? "practice"
+    : winner === "player"
+      ? "win"
+      : "loss";
+  const resultShareOptions = getBattleResultShareOptions({
+    outcome: resultShareOutcome,
+    playerGrowth,
+    opponentGrowth,
+    targetGrowth: growthTarget,
+  });
+  const selectedResultShareOption =
+    resultShareOptions.find(
+      (option) => option.id === selectedResultShareOptionId,
+    ) ?? resultShareOptions[0];
+  const selectedResultShareText = selectedResultShareOption?.message ?? "";
+  const shareText = buildBattleResultShareText(
+    selectedResultShareText,
+    shareUrl,
+  );
+  const encodedShareText = encodeURIComponent(selectedResultShareText);
   const encodedShareUrl = encodeURIComponent(shareUrl);
+  const isAppleShareDevice =
+    typeof navigator !== "undefined" &&
+    /iPad|iPhone|iPod/.test(navigator.userAgent);
+  const smsShareUrl = buildSmsShareUrl(shareText, isAppleShareDevice);
+  const facebookShareUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodedShareUrl}`;
   const resultModalKey =
     battleState && winner
       ? `battleResult:${battleState.battleId || "unknown"}:${winner}:${playerGrowth}:${opponentGrowth}`
@@ -1357,6 +1374,7 @@ export default function Battle() {
     !!resultModalKey &&
     liveResultKey === resultModalKey &&
     !dismissedResultKeys.includes(resultModalKey);
+
   const markResultDismissed = () => {
     if (!resultModalKey) return;
     setLiveResultKey(null);
@@ -1436,14 +1454,17 @@ export default function Battle() {
     try {
       if (navigator.share) {
         await navigator.share({
-          title: "Garden Battles",
-          text: shareText,
+          title:
+            winner === "player"
+              ? "Garden Battles Victory"
+              : "Garden Battles Result",
+          text: selectedResultShareText,
           url: shareUrl,
         });
       } else {
         await navigator.clipboard.writeText(shareText);
         setDialogOpen(true);
-        setDialogMessage("Result share text copied.");
+        setDialogMessage("Battle caption copied.");
       }
     } catch {
       // User cancelled the native share sheet.
@@ -1453,7 +1474,7 @@ export default function Battle() {
   const handleCopyWin = async () => {
     await navigator.clipboard.writeText(shareText);
     setDialogOpen(true);
-    setDialogMessage("Result share text copied.");
+    setDialogMessage("Battle caption copied.");
   };
 
   // Check if user is admin to show admin panel
@@ -3434,12 +3455,15 @@ export default function Battle() {
           summary={resultSummary}
           imageUrl={winnerImage}
           imageAlt={winnerStageVisual.alt}
+          shareOptions={resultShareOptions}
+          selectedShareOptionId={selectedResultShareOption?.id ?? ""}
           xShareUrl={`https://twitter.com/intent/tweet?text=${encodedShareText}&url=${encodedShareUrl}`}
-          buyNftreeUrl={nftreeUrl}
-          battleUrl={shareUrl}
+          smsShareUrl={smsShareUrl}
+          facebookShareUrl={facebookShareUrl}
           leaderboardUrl={leaderboardRoute}
           canPlayAgain={isGardenBotBattle && !isPracticeActive}
           isPlayingAgain={isResultPlayAgainStarting}
+          onSelectShareOption={setSelectedResultShareOptionId}
           onShare={handleNativeShareWin}
           onCopy={handleCopyWin}
           onClose={handleCloseResultModal}
