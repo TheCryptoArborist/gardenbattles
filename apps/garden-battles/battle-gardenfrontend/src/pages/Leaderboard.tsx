@@ -1,7 +1,23 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
 import { ConnectButton, useCurrentAccount } from "@mysten/dapp-kit";
-import { Award, ChevronDown, Crown, Medal, RefreshCw, Swords, Trophy } from "lucide-react";
+import {
+  Award,
+  ChevronDown,
+  Crown,
+  Flame,
+  HeartPulse,
+  Medal,
+  RefreshCw,
+  Scissors,
+  Shield,
+  ShieldCheck,
+  Sprout,
+  Swords,
+  Trophy,
+  Users,
+  type LucideIcon,
+} from "lucide-react";
 import {
   fetchLeaderboard,
   fetchPlayerStats,
@@ -40,6 +56,33 @@ const BADGE_LABELS: Record<string, string> = {
   never_give_up: "Never Give Up",
   social_butterfly: "Social Butterfly",
 };
+
+const BADGE_ICONS: Record<string, LucideIcon> = {
+  first_blood: Sprout,
+  hot_streak: Flame,
+  undefeated: ShieldCheck,
+  battle_hardened: Shield,
+  veteran: Medal,
+  legend: Crown,
+  sharp_pruner: Scissors,
+  never_give_up: HeartPulse,
+  social_butterfly: Users,
+};
+
+function AchievementBadgeIcon({ badge, size = "sm" }: { badge: string; size?: "sm" | "lg" }) {
+  const Icon = BADGE_ICONS[badge] || Award;
+  const label = BADGE_LABELS[badge] || badge.replace(/_/g, " ");
+
+  return (
+    <span
+      className={`gb-achievement-badge-icon gb-achievement-badge-icon-${size} gb-achievement-badge-icon-${badge.replace(/_/g, "-")}`}
+      aria-hidden="true"
+      title={label}
+    >
+      <Icon size={size === "lg" ? 22 : 13} strokeWidth={2.4} />
+    </span>
+  );
+}
 
 const BADGE_GUIDE = [
   { id: "first_blood", description: "Win your first recorded battle." },
@@ -197,6 +240,7 @@ function BadgeChips({ badges }: { badges: string[] }) {
           key={badge}
           title={BADGE_LABELS[badge] || badge}
         >
+          <AchievementBadgeIcon badge={badge} />
           {BADGE_LABELS[badge] || badge.replace(/_/g, " ")}
         </span>
       ))}
@@ -525,11 +569,12 @@ export default function Leaderboard() {
           </summary>
           <div className="gb-leaderboard-badge-guide-grid">
             {BADGE_GUIDE.map((badge) => (
-              <article key={badge.id}>
-                <span className="gb-leaderboard-badge-chip" title={BADGE_LABELS[badge.id]}>
-                  {BADGE_LABELS[badge.id]}
-                </span>
-                <p>{badge.description}</p>
+              <article key={badge.id} title={BADGE_LABELS[badge.id]}>
+                <AchievementBadgeIcon badge={badge.id} size="lg" />
+                <div>
+                  <strong>{BADGE_LABELS[badge.id]}</strong>
+                  <p>{badge.description}</p>
+                </div>
               </article>
             ))}
           </div>

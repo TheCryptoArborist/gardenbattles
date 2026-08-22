@@ -5908,11 +5908,72 @@
   }
 
   .gb-leaderboard-badge-chip {
+    align-items: center;
     background:
       linear-gradient(135deg, rgba(255, 211, 78, 0.22), rgba(0, 213, 199, 0.1));
     border: 1px solid rgba(255, 211, 78, 0.46);
     box-shadow: inset 0 0 10px rgba(255, 211, 78, 0.06);
     color: var(--gb-gold);
+    gap: 5px;
+  }
+
+  .gb-achievement-badge-icon {
+    align-items: center;
+    background:
+      radial-gradient(circle at 35% 25%, rgba(255, 255, 255, 0.25), transparent 28%),
+      linear-gradient(145deg, rgba(255, 203, 79, 0.24), rgba(0, 213, 199, 0.16));
+    border: 1px solid rgba(255, 218, 112, 0.66);
+    border-radius: 50%;
+    box-shadow:
+      0 0 10px rgba(255, 203, 79, 0.16),
+      inset 0 0 8px rgba(255, 255, 255, 0.07);
+    color: #ffe17c;
+    display: inline-flex;
+    flex: 0 0 auto;
+    justify-content: center;
+  }
+
+  .gb-achievement-badge-icon-sm {
+    height: 22px;
+    margin: -3px 0 -3px -5px;
+    width: 22px;
+  }
+
+  .gb-achievement-badge-icon-lg {
+    height: 46px;
+    width: 46px;
+  }
+
+  .gb-achievement-badge-icon-hot-streak,
+  .gb-achievement-badge-icon-legend {
+    background: linear-gradient(145deg, rgba(255, 113, 46, 0.34), rgba(255, 203, 79, 0.18));
+    border-color: rgba(255, 181, 79, 0.78);
+    color: #ffbf57;
+  }
+
+  .gb-achievement-badge-icon-undefeated,
+  .gb-achievement-badge-icon-battle-hardened {
+    background: linear-gradient(145deg, rgba(111, 104, 255, 0.3), rgba(0, 213, 199, 0.16));
+    border-color: rgba(151, 148, 255, 0.76);
+    color: #c2c4ff;
+  }
+
+  .gb-achievement-badge-icon-sharp-pruner {
+    background: linear-gradient(145deg, rgba(57, 255, 136, 0.26), rgba(0, 213, 199, 0.17));
+    border-color: rgba(90, 255, 157, 0.74);
+    color: #7dffb0;
+  }
+
+  .gb-achievement-badge-icon-never-give-up {
+    background: linear-gradient(145deg, rgba(255, 80, 118, 0.3), rgba(255, 203, 79, 0.14));
+    border-color: rgba(255, 119, 151, 0.74);
+    color: #ff94ad;
+  }
+
+  .gb-achievement-badge-icon-social-butterfly {
+    background: linear-gradient(145deg, rgba(181, 108, 255, 0.32), rgba(0, 213, 199, 0.16));
+    border-color: rgba(203, 143, 255, 0.74);
+    color: #d8a9ff;
   }
 
   .gb-leaderboard-no-badges {
@@ -7031,10 +7092,25 @@
     border: 1px solid rgba(57, 255, 136, 0.12);
     border-radius: 8px;
     display: grid;
-    gap: 7px;
-    justify-items: start;
+    gap: 10px;
+    grid-template-columns: auto minmax(0, 1fr);
     min-width: 0;
     padding: 10px;
+  }
+
+  .gb-leaderboard-badge-guide-grid article > div {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+  }
+
+  .gb-leaderboard-badge-guide-grid article strong {
+    color: var(--gb-gold);
+    font-family: Orbitron, sans-serif;
+    font-size: 10px;
+    font-weight: 900;
+    line-height: 1.25;
+    text-transform: uppercase;
   }
 
   .gb-leaderboard-badge-guide-grid p {
