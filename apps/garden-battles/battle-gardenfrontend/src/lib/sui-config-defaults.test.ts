@@ -17,7 +17,7 @@ test("production defaults route app Sui client through the Garden Battles RPC pr
 test("production defaults use live v3 queue and FifthMoveConfig IDs", () => {
   assert.equal(
     SUI_CONFIG.PACKAGE_ID,
-    "0xc149945459d83ee116d0004f7c815a8201add24bb23676979e1e610f5bb3e2d1",
+    "0xb1656e809b744345bee628ca4c4b10357c30bc518166228c0913312509edbf45",
   );
   assert.equal(
     getPvpBattleV3UpdateEvent(),
@@ -34,6 +34,10 @@ test("production defaults use live v3 queue and FifthMoveConfig IDs", () => {
   assert.equal(
     SUI_CONFIG.FIFTH_MOVE_CONFIG_ID,
     "0x083a9303bd13b789e87f3e746b817a8723290f25414f3686ac8868f90a5020b3",
+  );
+  assert.equal(
+    SUI_CONFIG.TREE_CONFIG_ID,
+    "0x828da1764a6c1d4d9c31cc2dc54eac9e1096172e9b68a629510818c5475119a1",
   );
 
   const quick = getPvpMatchOption(50);

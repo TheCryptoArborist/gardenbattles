@@ -25,7 +25,7 @@ export const SUI_CONFIG = {
     ((import.meta as any).env?.VITE_SUI_RPC_FALLBACK_URL as string | undefined) ||
     DEFAULT_PUBLIC_SUI_RPC_URL,
   WS_URL: "wss://fullnode.mainnet.sui.io:443",
-  PACKAGE_ID: "0xc149945459d83ee116d0004f7c815a8201add24bb23676979e1e610f5bb3e2d1",
+  PACKAGE_ID: "0xb1656e809b744345bee628ca4c4b10357c30bc518166228c0913312509edbf45",
   PVP_EVENT_PACKAGE_ID:
     "0x9a80317a43e1d59a4d13f9771a003b773153d729e79da329fa1793d301042edf",
   ORIGINAL_PACKAGE_ID:
@@ -52,7 +52,8 @@ export const SUI_CONFIG = {
     ((import.meta as any).env?.VITE_FIFTH_MOVE_CONFIG_ID as string | undefined) ||
     "0x083a9303bd13b789e87f3e746b817a8723290f25414f3686ac8868f90a5020b3",
   TREE_CONFIG_ID:
-    ((import.meta as any).env?.VITE_TREE_CONFIG_ID as string | undefined) || "",
+    ((import.meta as any).env?.VITE_TREE_CONFIG_ID as string | undefined) ||
+    "0x828da1764a6c1d4d9c31cc2dc54eac9e1096172e9b68a629510818c5475119a1",
   BOT_ADDRESS:
     "0xbbe518c2a2025d2d95b9e5b6435911771f64d7d9fe037fbf2ec661981890d5b4",
   SAPLING_STRUCT:
