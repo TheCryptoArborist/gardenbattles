@@ -1,4 +1,4 @@
-import { ArrowUpRight, Lock, RefreshCw, Unlock, WalletCards } from "lucide-react";
+import { ArrowUpRight, CheckCircle2, Lock, RefreshCw, Unlock, WalletCards } from "lucide-react";
 import {
   mapFifthMoveResponseToPanelEligibility,
   useFifthMoveEligibility,
@@ -131,7 +131,7 @@ export default function TreePowerPanel({
     rerollStatus: rerollUsed ? "used" : rerollStatus,
     rerollCostTree,
   });
-  const StatusIcon = fifthMove.isUnlocked ? Unlock : Lock;
+  const StatusIcon = eligibility.status === "qualified" ? Unlock : Lock;
   const currentHandValue = isBattleActive
     ? `${fifthMove.filledSlots} / ${fifthMove.slotCount}`
     : `- / ${fifthMove.slotCount}`;
@@ -232,7 +232,10 @@ export default function TreePowerPanel({
             className={`gb-tree-power-status gb-tree-power-lock-status gb-tree-power-status-${qualificationTone}`}
             aria-label={`Fifth card status: ${qualificationLabel}`}
           >
-            {qualificationLabel}
+            {qualificationTone === "active" && (
+              <CheckCircle2 className="gb-tree-power-unlocked-check" size={16} strokeWidth={3} aria-hidden="true" />
+            )}
+            <span>{qualificationLabel}</span>
           </span>
         </div>
 

@@ -50,6 +50,12 @@ export default function TreeBenefitsDrawer({
   const qualification = fifthMoveEligibility.response;
   const isQualified = qualification?.status === "qualified";
   const verifiedTree = qualification?.verifiedUnderlyingTree;
+  const handleChooseBattle = () => {
+    onClose();
+    window.requestAnimationFrame(() => {
+      document.querySelector(".gb-mode-select")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  };
 
   return (
     <UtilityDrawer
@@ -106,24 +112,35 @@ export default function TreeBenefitsDrawer({
               <section className="gb-tree-benefits-actions-compact" aria-labelledby="gb-tree-benefits-actions-title">
                 <div className="gb-tree-benefits-actions-compact-head">
                   <span>Next step</span>
-                      <strong id="gb-tree-benefits-actions-title">Buy TREE, then choose an unlock route</strong>
+                  <strong id="gb-tree-benefits-actions-title">
+                    {isQualified ? "Choose a battle—your fifth card is ready" : "Buy TREE, then choose an unlock route"}
+                  </strong>
                 </div>
-                <div className="gb-tree-benefits-action-grid-compact">
-                  {QUALIFICATION_ACTIONS.map((action) => (
-                    <a
-                      key={action.id}
-                      className={`gb-tree-benefits-action-compact gb-tree-benefits-action-${action.id}`}
-                      href={action.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      <span>{action.eyebrow}</span>
-                      <strong>{action.label}</strong>
-                      <small>{action.description}</small>
-                      <ArrowUpRight size={16} aria-hidden="true" />
-                    </a>
-                  ))}
-                </div>
+                {isQualified ? (
+                  <div className="gb-tree-benefits-ready-action">
+                    <p>Your qualifying TREE is already verified. Start Garden Bot or paid PvP and the fifth move card will be added automatically.</p>
+                    <button type="button" onClick={handleChooseBattle}>
+                      <Swords size={17} aria-hidden="true" /> Choose a Battle
+                    </button>
+                  </div>
+                ) : (
+                  <div className="gb-tree-benefits-action-grid-compact">
+                    {QUALIFICATION_ACTIONS.map((action) => (
+                      <a
+                        key={action.id}
+                        className={`gb-tree-benefits-action-compact gb-tree-benefits-action-${action.id}`}
+                        href={action.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <span>{action.eyebrow}</span>
+                        <strong>{action.label}</strong>
+                        <small>{action.description}</small>
+                        <ArrowUpRight size={16} aria-hidden="true" />
+                      </a>
+                    ))}
+                  </div>
+                )}
               </section>
             </div>
             {!address && (

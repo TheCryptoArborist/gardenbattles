@@ -8816,10 +8816,14 @@
   }
 
   .gb-tree-benefits-drawer .gb-tree-power-lock-status {
+    align-items: center;
+    display: inline-flex;
     font-family: Inter, ui-sans-serif, system-ui, sans-serif;
     font-size: 11px;
     font-weight: 950;
+    gap: 8px;
     grid-column: 1 / -1;
+    justify-content: center;
     justify-self: stretch;
     letter-spacing: 0.65px;
     line-height: 1.3;
@@ -8827,6 +8831,12 @@
     padding: 10px 14px;
     text-align: center;
     width: 100%;
+  }
+
+  .gb-tree-power-unlocked-check {
+    animation: gb-fifth-unlocked-check 1.8s ease-in-out infinite;
+    filter: drop-shadow(0 0 7px rgba(3, 19, 11, 0.35));
+    flex: 0 0 auto;
   }
 
   .gb-tree-benefits-drawer .gb-tree-power-lock-status.gb-tree-power-status-locked {
@@ -8854,6 +8864,12 @@
   @keyframes gb-fifth-access-active-pulse {
     0%, 100% { box-shadow: 0 0 0 1px rgba(126, 243, 160, 0.18), 0 0 12px rgba(57, 255, 136, 0.26); }
     50% { box-shadow: 0 0 0 2px rgba(126, 243, 160, 0.26), 0 0 22px rgba(57, 255, 136, 0.52); }
+  }
+
+  @keyframes gb-fifth-unlocked-check {
+    0%, 100% { transform: scale(1) rotate(0deg); }
+    45% { transform: scale(1.16) rotate(-6deg); }
+    65% { transform: scale(1.08) rotate(4deg); }
   }
 
   .gb-tree-benefits-drawer .gb-tree-power-plain-explainer {
@@ -9141,6 +9157,49 @@
     border-color: rgba(0, 241, 210, 0.5);
   }
 
+  .gb-tree-benefits-ready-action {
+    align-items: center;
+    background: linear-gradient(90deg, rgba(57, 255, 136, 0.13), rgba(0, 241, 210, 0.08));
+    border: 1px solid rgba(126, 243, 160, 0.4);
+    border-radius: 10px;
+    display: grid;
+    gap: 10px;
+    grid-template-columns: minmax(0, 1fr) auto;
+    padding: 10px 12px;
+  }
+
+  .gb-tree-benefits-ready-action p {
+    color: #d7ffea;
+    font-size: 10px;
+    line-height: 1.45;
+    margin: 0;
+  }
+
+  .gb-tree-benefits-ready-action button {
+    align-items: center;
+    background: linear-gradient(180deg, #8bffc0, #27e886);
+    border: 1px solid #c6ffdc;
+    border-radius: 8px;
+    box-shadow: 0 0 15px rgba(57, 255, 136, 0.25);
+    color: #03130b;
+    cursor: pointer;
+    display: inline-flex;
+    font-family: Orbitron, sans-serif;
+    font-size: 10px;
+    font-weight: 950;
+    gap: 7px;
+    justify-content: center;
+    min-height: 40px;
+    padding: 8px 14px;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .gb-tree-benefits-ready-action button:hover {
+    box-shadow: 0 0 23px rgba(57, 255, 136, 0.5);
+    transform: translateY(-1px);
+  }
+
   @media (min-width: 900px) {
     .gb-tree-benefits-drawer {
       height: min(980px, calc(100vh - 16px));
@@ -9169,6 +9228,10 @@
     }
 
     .gb-tree-benefits-action-grid-compact {
+      grid-template-columns: 1fr;
+    }
+
+    .gb-tree-benefits-ready-action {
       grid-template-columns: 1fr;
     }
 
@@ -9215,7 +9278,8 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .gb-tree-benefits-drawer .gb-tree-power-lock-status {
+    .gb-tree-benefits-drawer .gb-tree-power-lock-status,
+    .gb-tree-power-unlocked-check {
       animation: none !important;
     }
   }
