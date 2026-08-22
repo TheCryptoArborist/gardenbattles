@@ -69,7 +69,7 @@ export default function TreeBenefitsDrawer({
       <div className="gb-tree-benefits-layout">
           <section className={`gb-tree-benefits-spotlight ${isQualified ? "gb-tree-benefits-spotlight-qualified" : ""}`}>
             <div className="gb-tree-benefits-spotlight-art">
-              <img src={appAsset("assets/tree.jpg")} alt="NFTree character ready for battle" />
+              <img src={appAsset("assets/tree-battle-benefits-hero.png")} alt="Flexing NFTree character ready for battle" />
               <div className="gb-tree-benefits-spotlight-badge">
                 <Sparkles size={18} aria-hidden="true" />
                 <span>{isQualified ? "Battle Ready" : "Power Up"}</span>
