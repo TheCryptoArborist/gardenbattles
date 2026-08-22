@@ -14,6 +14,9 @@ export type FifthMoveDisplayStatus =
   | "active";
 export type TreeRerollStatus =
   | "unavailable"
+  | "available-in-pvp"
+  | "waiting-turn"
+  | "mode-excluded"
   | "available"
   | "insufficient-tree"
   | "awaiting-approval"
@@ -197,12 +200,12 @@ export function getTreeRerollPresentation(options: {
 }): TreeRerollPresentation {
   if (options.isPracticeBattle) {
     return {
-      status: "unavailable",
-      statusLabel: "Unavailable",
-      costLabel: "Payment utilities disabled",
-      buttonLabel: "Unavailable in Practice",
+      status: "mode-excluded",
+      statusLabel: "Paid PvP Only",
+      costLabel: "No Practice Mode payment",
+      buttonLabel: "Not Used in Practice",
       disabled: true,
-      helperText: "Practice Mode has no wallet payments, rewards, or leaderboard credit.",
+      helperText: "TREE Reroll is a live paid-PvP feature. Practice Mode has no wallet payments.",
     };
   }
 
@@ -225,11 +228,38 @@ export function getTreeRerollPresentation(options: {
     case "unavailable":
       return {
         status,
-        statusLabel: "Unavailable",
+        statusLabel: "Status Temporarily Unavailable",
         costLabel,
-        buttonLabel: "TREE Reroll Unavailable",
+        buttonLabel: "Check Again Shortly",
         disabled: true,
-        helperText: "Reroll is available only during active paid PvP battles.",
+        helperText: "The game could not confirm the live reroll configuration. No TREE has been charged.",
+      };
+    case "available-in-pvp":
+      return {
+        status,
+        statusLabel: "Live in Paid PvP",
+        costLabel,
+        buttonLabel: "Available During Paid PvP",
+        disabled: true,
+        helperText: "Start a current paid PvP match. During your turn, you may replace your entire hand once for 20,000 TREE.",
+      };
+    case "waiting-turn":
+      return {
+        status,
+        statusLabel: "Ready on Your Turn",
+        costLabel,
+        buttonLabel: "Wait for Your Turn",
+        disabled: true,
+        helperText: "Your reroll is unused and will become available when it is your turn.",
+      };
+    case "mode-excluded":
+      return {
+        status,
+        statusLabel: "Paid PvP Only",
+        costLabel,
+        buttonLabel: "Not Used in This Mode",
+        disabled: true,
+        helperText: "TREE Reroll is live in paid PvP. Garden Bot and Practice Mode do not include paid rerolls.",
       };
     case "insufficient-tree":
       return {

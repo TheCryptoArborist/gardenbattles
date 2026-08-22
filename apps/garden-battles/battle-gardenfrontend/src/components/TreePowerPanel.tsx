@@ -356,8 +356,9 @@ export default function TreePowerPanel({
       {compact ? (
         <details className="gb-tree-power-reroll-compact">
           <summary>TREE Reroll <span>{reroll.statusLabel}</span></summary>
-          <p><strong>What it does:</strong> Replace your entire hand once during Garden Bot or paid PvP without losing your turn.</p>
+          <p><strong>Live paid-PvP feature:</strong> Replace your entire hand once during your turn without losing the turn.</p>
           <p><strong>Payment:</strong> {reroll.costLabel}. The battle screen always shows a final confirmation before your wallet opens.</p>
+          <p>{reroll.helperText}</p>
         </details>
       ) : <section className="gb-tree-power-card gb-tree-power-reroll" aria-label="TREE Reroll">
         <div className="gb-tree-power-card-head">

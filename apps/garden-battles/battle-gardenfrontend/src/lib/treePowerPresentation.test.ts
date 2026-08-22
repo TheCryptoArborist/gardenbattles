@@ -143,10 +143,10 @@ test("practice mode disables TREE payment utilities", () => {
     rerollCostTree: 100,
   });
 
-  assert.equal(reroll.status, "unavailable");
+  assert.equal(reroll.status, "mode-excluded");
   assert.equal(reroll.disabled, true);
-  assert.equal(reroll.buttonLabel, "Unavailable in Practice");
-  assert.match(reroll.helperText, /no wallet payments/i);
+  assert.equal(reroll.buttonLabel, "Not Used in Practice");
+  assert.match(reroll.helperText, /live paid-PvP feature/i);
 });
 
 test("reroll design state is not live without a configured cost", () => {
@@ -165,6 +165,9 @@ test("reroll design state is not live without a configured cost", () => {
 test("all reroll states return deterministic presentation", () => {
   const states: TreeRerollStatus[] = [
     "unavailable",
+    "available-in-pvp",
+    "waiting-turn",
+    "mode-excluded",
     "available",
     "insufficient-tree",
     "awaiting-approval",
@@ -183,6 +186,19 @@ test("all reroll states return deterministic presentation", () => {
     assert.ok(reroll.buttonLabel.length > 0);
     assert.ok(reroll.helperText.length > 0);
   }
+});
+
+test("reroll is advertised as live when no paid PvP match is active", () => {
+  const reroll = getTreeRerollPresentation({
+    isPracticeBattle: false,
+    rerollStatus: "available-in-pvp",
+    rerollCostTree: 20_000,
+  });
+
+  assert.equal(reroll.statusLabel, "Live in Paid PvP");
+  assert.equal(reroll.costLabel, "20,000 TREE");
+  assert.doesNotMatch(`${reroll.statusLabel} ${reroll.buttonLabel}`, /unavailable/i);
+  assert.match(reroll.helperText, /replace your entire hand once/i);
 });
 
 test("Buy TREE URL opens the TREE Command Center swap", () => {

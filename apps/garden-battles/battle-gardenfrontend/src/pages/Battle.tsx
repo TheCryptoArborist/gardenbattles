@@ -3448,8 +3448,10 @@ export default function Battle() {
             isPracticeBattle={isPracticeActive}
             currentMoveCount={fifthMoveDraft.pending ? 5 : playerMoves.length}
             rerollStatus={
-              isPracticeActive || !rerollBattleSupported
-                ? "unavailable"
+              isPracticeActive || isGardenBotBattle
+                ? "mode-excluded"
+                : !rerollBattleSupported
+                  ? "available-in-pvp"
                 : rerollUsed
                   ? "used"
                   : isTreeRerollTransactionPending
@@ -3460,7 +3462,7 @@ export default function Battle() {
                       ? "not-live"
                       : isMyTurn
                         ? "available"
-                        : "unavailable"
+                        : "waiting-turn"
             }
             rerollCostTree={treeRerollCostTree}
             rerollUsed={rerollUsed}

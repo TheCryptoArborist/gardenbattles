@@ -1292,7 +1292,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
   const activeTreeRerollCostRaw =
     treeRerollCostRaw === null
       ? null
-      : getTreeRerollCostRaw(treeRerollCostRaw, battleState?.battleVersion);
+      : getTreeRerollCostRaw(treeRerollCostRaw, battleState?.battleVersion ?? "pvp-v3");
   const treeRerollCostTree =
     activeTreeRerollCostRaw === null ? null : formatTreeRerollCost(activeTreeRerollCostRaw);
 
