@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Link } from "wouter";
-import { ChevronRight, Gamepad2, House, Menu, ShoppingBag, Sparkles, Trophy, X } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronRight, Gamepad2, House, LoaderCircle, Menu, ShoppingBag, Sparkles, Trophy, WalletCards, X } from "lucide-react";
 import { ConnectButton } from "@mysten/dapp-kit";
 import MobileWalletLaunchers from "@/components/MobileWalletLaunchers";
 import { useSuiWallet, type PvpQueueState } from "@/hooks/useSuiWallet";
@@ -36,6 +36,8 @@ import BattleResultModal from "@/components/BattleResultModal";
 import ModeCrest from "@/components/ModeCrest";
 import TreeBenefitsDrawer from "@/components/TreeBenefitsDrawer";
 import NftreeAcquisitionDrawer from "@/components/NftreeAcquisitionDrawer";
+import { useFifthMoveEligibility } from "@/hooks/useFifthMoveEligibility";
+import { getFifthCardPromoPresentation } from "@/lib/fifthCardPromo";
 
 const ecosystemLinks = [
   { label: "Home", href: "https://www.tree-token.xyz/", testId: "home" },
@@ -245,6 +247,8 @@ export default function Battle() {
     dismissRecoverableBattleError,
     getFirstValidSaplingNft,
   } = useSuiWallet();
+  const fifthCardEligibility = useFifthMoveEligibility(address);
+  const fifthCardPromo = getFifthCardPromoPresentation(fifthCardEligibility.status);
   const {
     battleState: practiceBattleState,
     actionLog: practiceActionLog,
@@ -1908,18 +1912,26 @@ export default function Battle() {
               </p>
             )}
           </section>
-          <section className="gb-tree-benefits-trigger gb-tree-benefits-trigger-featured" aria-label="Unlock a fifth battle card with TREE">
+          <section
+            className={`gb-tree-benefits-trigger gb-tree-benefits-trigger-featured gb-tree-benefits-trigger-${fifthCardPromo.tone}`}
+            aria-label={fifthCardPromo.title}
+          >
             <div className="gb-tree-benefits-trigger-art" aria-hidden="true">
               <img src={appAsset("assets/thick.png")} alt="" />
-              <span>+1</span>
+              <span className={`gb-tree-benefits-trigger-badge gb-tree-benefits-trigger-badge-${fifthCardPromo.badge}`}>
+                {fifthCardPromo.badge === "check" ? <CheckCircle2 size={17} strokeWidth={3} /> :
+                  fifthCardPromo.badge === "wallet" ? <WalletCards size={16} /> :
+                    fifthCardPromo.badge === "checking" ? <LoaderCircle size={16} /> :
+                      fifthCardPromo.badge === "alert" ? <AlertTriangle size={15} /> : "+1"}
+              </span>
             </div>
             <div className="gb-tree-benefits-trigger-copy">
-              <small>TREE Holder Battle Advantage</small>
-              <strong>Unlock a Fifth Battle Card with TREE</strong>
-              <span>Check your wallet, see the three ways to qualify, and learn how the extra card works.</span>
+              <small>{fifthCardPromo.eyebrow}</small>
+              <strong>{fifthCardPromo.title}</strong>
+              <span>{fifthCardPromo.description}</span>
             </div>
             <button type="button" onClick={() => setUtilityDrawer("tree")}>
-              Explore TREE Benefits <ChevronRight size={17} aria-hidden="true" />
+              {fifthCardPromo.action} <ChevronRight size={17} aria-hidden="true" />
             </button>
           </section>
           {!hasActiveSession && (
