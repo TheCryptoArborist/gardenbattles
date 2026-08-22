@@ -1476,7 +1476,7 @@ export default function Battle() {
     : isPvpQueued
       ? `${activePvpMatchLabel} - ${pvpQueueEntryFeeLabel} deposited - Waiting for opponent`
       : isGardenBotBattle
-        ? "Single-player battle"
+        ? "Single-Player Battle"
         : `${activePvpMatchLabel} - ${entryFeeLabel} entry`;
 
   const handleStartPracticeBattle = () => {
@@ -1497,7 +1497,7 @@ export default function Battle() {
         <article className="gb-mode-card gb-mode-card-bot gb-mode-card-garden-bot">
           <ModeCrest type="garden-bot" alt="Garden Bot robotic plant medallion" />
           <h2>Garden Bot</h2>
-          <p>Single-player battle</p>
+          <p>Single-Player Battle</p>
           <div className="gb-mode-card-details">
             <button
               onClick={handleStartBotBattle}
@@ -1513,7 +1513,7 @@ export default function Battle() {
         <article className="gb-mode-card gb-mode-card-pvp">
           <ModeCrest type="pvp-battle" alt="PvP Battle duel medallion" />
           <h2>PvP Battle</h2>
-          <p>Player-vs-player queue</p>
+          <p>Player-vs-Player Queue</p>
           <div className="gb-mode-card-details">
             <div className="gb-mode-card-chips" aria-label="PvP Battle details">
               <span>{shouldShowPvpQueuePanel ? "Already in queue" : `Entry: ${entryFeeLabel}`}</span>
@@ -1609,7 +1609,7 @@ export default function Battle() {
         >
           <ModeCrest type="canopy-clash" alt="Canopy Clash tournament medallion" />
           <h2>Canopy Clash</h2>
-          <p>Tournament mode</p>
+          <p>Tournament Mode</p>
           <div className="gb-mode-card-details">
             <span className="gb-mode-placeholder">Coming Soon</span>
           </div>
