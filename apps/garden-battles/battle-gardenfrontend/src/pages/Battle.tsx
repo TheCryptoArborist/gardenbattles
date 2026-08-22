@@ -43,6 +43,7 @@ import {
   buildSmsShareUrl,
   getBattleResultShareOptions,
 } from "@/lib/battleResultShare";
+import { createBattleResultShareImage } from "@/lib/battleResultShareImage";
 
 const ecosystemLinks = [
   { label: "Home", href: "https://www.tree-token.xyz/", testId: "home" },
@@ -1453,14 +1454,35 @@ export default function Battle() {
   const handleNativeShareWin = async () => {
     try {
       if (navigator.share) {
-        await navigator.share({
-          title:
-            winner === "player"
-              ? "Garden Battles Victory"
-              : "Garden Battles Result",
-          text: selectedResultShareText,
-          url: shareUrl,
+        const shareTitle =
+          winner === "player"
+            ? "Garden Battles Victory"
+            : "Garden Battles Result";
+        const resultImage = await createBattleResultShareImage({
+          title: winnerTitle,
+          score: `Final score: ${resultScore}`,
+          message: selectedResultShareText,
+          battleUrl: shareUrl,
+          won: winner === "player",
         });
+        const canShareImage =
+          !!resultImage &&
+          !!navigator.canShare &&
+          navigator.canShare({ files: [resultImage] });
+
+        await navigator.share(
+          canShareImage
+            ? {
+                title: shareTitle,
+                text: shareText,
+                files: [resultImage],
+              }
+            : {
+                title: shareTitle,
+                text: selectedResultShareText,
+                url: shareUrl,
+              },
+        );
       } else {
         await navigator.clipboard.writeText(shareText);
         setDialogOpen(true);
