@@ -30,7 +30,7 @@ test("active four-move hand remains locked without inferred qualification", () =
   assert.equal(fifth.statusLabel, "No Qualifying TREE Position");
   assert.equal(fifth.handLabel, "Current Hand: 4 / 5");
   assert.equal(fifth.filledSlots, 4);
-  assert.match(fifth.description, /Add SuiDex liquidity/i);
+  assert.match(fifth.description, /combined 1,000,000 TREE position/i);
   assert.doesNotMatch(fifth.description, /NFTree/i);
 });
 
@@ -185,8 +185,8 @@ test("all reroll states return deterministic presentation", () => {
   }
 });
 
-test("Buy TREE URL remains the SuiDex TREE swap URL", () => {
-  assert.equal(TREE_POWER_BUY_URL, "https://dex.suidex.org/swap?from=SUI&to=Tree");
+test("Buy TREE URL opens the TREE Command Center swap", () => {
+  assert.equal(TREE_POWER_BUY_URL, "https://www.tree-token.xyz/dapp/#swap");
 });
 
 test("presentation copy avoids removed utility placeholders", () => {

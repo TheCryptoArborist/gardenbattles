@@ -1,6 +1,6 @@
 import type { FifthMoveEligibility } from "@/lib/suiDexTreePosition";
 
-export const TREE_POWER_BUY_URL = "https://dex.suidex.org/swap?from=SUI&to=Tree";
+export const TREE_POWER_BUY_URL = "https://www.tree-token.xyz/dapp/#swap";
 
 export type FifthMoveDisplayStatus =
   | "inactive"
@@ -169,7 +169,7 @@ export function getFifthMovePresentation(options: {
       statusLabel: `Unlocked via ${sourceLabel}`,
       handLabel: `Current Hand: ${filledSlots} / 5`,
       title: "Fifth Move Unlock",
-      description: `Hold an active, verifiable, nonzero TREE position through ${sourceLabel}.`,
+      description: `Your verified TREE through ${sourceLabel} meets the combined 1,000,000 TREE fifth-card requirement.`,
       explainer,
       slotCount,
       filledSlots: slotCount,
@@ -182,7 +182,7 @@ export function getFifthMovePresentation(options: {
     statusLabel: "No Qualifying TREE Position",
     handLabel: `Current Hand: ${filledSlots} / 5`,
     title: "Fifth Move Unlock",
-    description: "Add SuiDex liquidity or Moonbags TREE staking to unlock the fifth move.",
+    description: "Build a combined 1,000,000 TREE position through supported SuiDex liquidity or Moonbags staking to unlock the fifth move.",
     explainer,
     slotCount,
     filledSlots,

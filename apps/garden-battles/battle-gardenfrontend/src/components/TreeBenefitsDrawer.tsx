@@ -12,26 +12,26 @@ const UTILITY_TABS = [
   {
     id: "buy",
     label: "Buy TREE",
-    url: "https://dex.suidex.org/swap?from=SUI&to=Tree",
+    url: "https://www.tree-token.xyz/dapp/#swap",
     title: "Swap SUI for TREE",
-    description: "Buy TREE on SuiDex. Holding liquid TREE shows in your wallet status; eligible liquidity or staking positions can unlock the fifth battle card.",
-    action: "Open the TREE swap on SuiDex",
+    description: "Buy TREE through the native TREE Command Center swap. It compares supported on-chain routes for a protected quote. TREE held directly in your wallet does not unlock the fifth card by itself.",
+    action: "Open TREE Swap in Command Center",
   },
   {
     id: "liquidity",
     label: "Add V3 Liquidity",
-    url: "https://dex.suidex.org/pools/v3/0x39d5ba22e01e45bc4129ec28a0bef52e8fee8db5d07d337adf9540e3cb9074cf/add",
+    url: "https://www.tree-token.xyz/dapp/#v3",
     title: "Add TREE liquidity on SuiDex V3",
-    description: "Supply TREE to the current concentrated-liquidity pool. A verified, nonzero V3 TREE position qualifies your wallet for the fifth battle card.",
-    action: "Open V3 liquidity on SuiDex",
+    description: "Use the TREE Command Center V3 workspace to create a supported SUI/TREE position. The TREE represented by the position counts toward the combined 1,000,000 TREE fifth-card requirement.",
+    action: "Open V3 Workspace in Command Center",
   },
   {
     id: "stake",
     label: "Stake V2",
-    url: "https://dex.suidex.org/zap?pool=0x35a1be1f01f9edf7f5221d226f357d194d43c28f2a65cb38640935518d9a5bfc&stake=true",
+    url: "https://www.tree-token.xyz/dapp/#earn",
     title: "Add and stake SuiDex V2 liquidity",
-    description: "Use SuiDex's V2 staking flow. A verified, nonzero TREE position in this pool can also qualify your wallet for the fifth battle card.",
-    action: "Open V2 staking on SuiDex",
+    description: "Use the TREE Command Center V2 Zap & Stake flow to create liquidity and stake the LP position. The TREE represented by that position counts toward the combined 1,000,000 TREE fifth-card requirement.",
+    action: "Open V2 Zap & Stake in Command Center",
   },
 ] as const;
 
@@ -62,7 +62,7 @@ export default function TreeBenefitsDrawer({
     <UtilityDrawer
       eyebrow="TREE Battle Benefits"
       title="TREE Battle Benefits"
-      description="See exactly what TREE can unlock, what your wallet qualifies for, and where to buy or put TREE to work."
+      description="Learn how the fifth battle card works, see what counts toward eligibility, and check your connected wallet."
       className="gb-tree-benefits-drawer"
       onClose={onClose}
     >
@@ -83,9 +83,9 @@ export default function TreeBenefitsDrawer({
       {selectedTab.url ? (
         <section className="gb-tree-action-panel" aria-label={selectedTab.title || "TREE utility"}>
           <div className="gb-tree-action-brand">
-            <img src={appAsset("assets/suidex-handshake.png")} alt="SuiDex" />
+            <img src={appAsset("assets/thick.png")} alt="TREE Command Center" />
             <div>
-              <span>Powered by SuiDex</span>
+              <span>TREE Command Center</span>
               <h3>{selectedTab.title}</h3>
             </div>
           </div>
@@ -108,8 +108,8 @@ export default function TreeBenefitsDrawer({
             <div>
               <span>2</span>
               <section>
-                <strong>Complete the DeFi action directly on SuiDex</strong>
-                <p>Wallet extensions block reliable transaction approval inside third-party embedded windows. SuiDex opens in a new tab so its wallet connection and transaction approval can work correctly; Garden Battles remains open here.</p>
+                <strong>Continue in the TREE Command Center</strong>
+                <p>The Command Center opens in a new tab so its wallet connection and transaction approval can work correctly. Garden Battles remains open here. Supported SuiDex pools or other verified routes may still be used underneath.</p>
               </section>
             </div>
           </div>
@@ -119,7 +119,7 @@ export default function TreeBenefitsDrawer({
           </a>
 
           <p className="gb-tree-action-safety">
-            <ShieldCheck size={16} aria-hidden="true" /> No transaction starts from this panel. Review every amount in SuiDex and approve it in your wallet.
+            <ShieldCheck size={16} aria-hidden="true" /> No transaction starts from this panel. Review every amount in the TREE Command Center and approve it in your wallet.
           </p>
         </section>
       ) : (
@@ -148,16 +148,16 @@ export default function TreeBenefitsDrawer({
                   <strong>{isQualified ? "5 move cards" : "4 → 5 cards"}</strong>
                 </div>
                 <div>
-                  <span>Verified for eligibility</span>
-                  <strong>{verifiedTree ? `${Number(verifiedTree).toLocaleString(undefined, { maximumFractionDigits: 2 })} TREE` : "Checking wallet"}</strong>
+                  <span>Qualifying TREE found</span>
+                  <strong>{verifiedTree !== undefined ? `${Number(verifiedTree).toLocaleString(undefined, { maximumFractionDigits: 2 })} TREE` : "Checking…"}</strong>
                 </div>
               </div>
               <div className="gb-tree-benefits-liquid-note">
                 <img src={appAsset("assets/thick.png")} alt="" aria-hidden="true" />
                 <div>
-                  <span>Loose TREE available in this wallet</span>
+                  <span>TREE held directly in this wallet</span>
                   <strong>{treeBalance.status === "ready" ? treeBalance.exactLabel : treeBalance.label}</strong>
-                  <small>Loose TREE and TREE committed to liquidity are separate balances. Your V2/V3 positions—not this loose balance—are what qualify the fifth card.</small>
+                  <small>This wallet balance does not unlock the fifth card by itself. Only TREE represented by supported V2/V3 liquidity or Moonbags staking positions counts toward the 1,000,000 TREE requirement.</small>
                 </div>
               </div>
             </div>

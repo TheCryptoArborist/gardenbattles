@@ -8640,6 +8640,14 @@
     box-shadow: 0 0 16px rgba(0, 241, 210, 0.08);
   }
 
+  .gb-tree-benefits-drawer .gb-tree-power-source-chip-has-tree {
+    border-color: rgba(126, 243, 160, 0.46);
+  }
+
+  .gb-tree-benefits-drawer .gb-tree-power-source-chip-empty {
+    background: rgba(114, 213, 226, 0.035);
+  }
+
   .gb-tree-benefits-drawer .gb-tree-power-source-chip strong {
     color: var(--nftree-text);
     font-family: Inter, ui-sans-serif, system-ui, sans-serif;
@@ -8657,6 +8665,19 @@
     font-size: 10px;
     font-style: normal;
     font-weight: 900;
+  }
+
+  .gb-tree-benefits-drawer .gb-tree-power-source-chip-has-tree em {
+    color: var(--nftree-green);
+  }
+
+  .gb-tree-benefits-drawer .gb-tree-power-source-chip-empty em {
+    color: #c8d9ee;
+    font-weight: 700;
+  }
+
+  .gb-tree-benefits-drawer .gb-tree-power-source-chip-unavailable em {
+    color: var(--nftree-amber);
   }
 
   .gb-tree-benefits-drawer .gb-tree-power-reroll-compact {

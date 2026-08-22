@@ -40,22 +40,29 @@ const QUALIFICATION_SOURCES: Array<{
   {
     id: "suidex-v2",
     label: "SuiDex V2",
-    description: "TREE supplied to and staked through the original SuiDex liquidity pool.",
+    description: "TREE committed to the original supported SuiDex liquidity and staking pool.",
     logo: "assets/suidex-handshake.png",
   },
   {
     id: "suidex-v3",
     label: "SuiDex V3",
-    description: "TREE supplied to the current concentrated-liquidity pool.",
+    description: "TREE currently supplied to the supported SuiDex V3 liquidity pool.",
     logo: "assets/suidex-handshake.png",
   },
   {
     id: "moonbags-staking",
     label: "Moonbags Staking",
-    description: "TREE deposited in the supported Moonbags staking program.",
+    description: "TREE currently deposited in the supported Moonbags staking program.",
     logo: "assets/thick.png",
   },
 ];
+
+function formatTreeAmount(value: string | number | null | undefined): string {
+  if (value === null || value === undefined || value === "") return "0";
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) return String(value);
+  return numericValue.toLocaleString(undefined, { maximumFractionDigits: 2 });
+}
 
 function TreeBalancePill({ balance }: { balance: TreeBalanceView }) {
   const title =
@@ -139,35 +146,67 @@ export default function TreePowerPanel({
       .filter((source) => source.status === "unavailable")
       .map((source) => source.source) ?? [];
   const thresholdLabel = eligibilityResponse
-    ? `${eligibilityResponse.verifiedUnderlyingTree} / ${eligibilityResponse.thresholdTree} TREE`
+    ? `${formatTreeAmount(eligibilityResponse.verifiedUnderlyingTree)} of ${formatTreeAmount(eligibilityResponse.thresholdTree)} TREE required`
     : null;
   const remainingLabel =
     eligibilityResponse?.remainingTree && eligibilityResponse.status === "not-qualified"
-      ? `${eligibilityResponse.remainingTree} TREE remaining`
+      ? `${formatTreeAmount(eligibilityResponse.remainingTree)} more qualifying TREE needed`
       : null;
   const qualificationLabel =
     eligibility.status === "qualified"
-      ? "Fifth card qualified"
+      ? "Fifth card unlocked"
       : eligibility.status === "checking"
-        ? "Checking your wallet"
+        ? "Checking supported TREE positions"
         : eligibility.status === "not-connected"
           ? "Connect wallet to check"
           : eligibility.status === "verification-incomplete"
-            ? "Could not check every source"
+            ? "Some positions could not be checked"
             : eligibility.status === "unavailable"
-              ? "Check temporarily unavailable"
-              : "Fifth card not yet unlocked";
+              ? "Eligibility check temporarily unavailable"
+              : "Fifth card locked — qualifying TREE needed";
+  const panelHeading =
+    eligibility.status === "qualified"
+      ? "Your Fifth Card Is Ready"
+      : eligibility.status === "checking"
+        ? "Checking Your TREE Benefits"
+        : eligibility.status === "not-connected"
+          ? "Connect to Check Your TREE Benefits"
+          : eligibility.status === "verification-incomplete"
+            ? "We Could Not Check Every Position"
+            : eligibility.status === "unavailable"
+              ? "Eligibility Check Temporarily Unavailable"
+              : "Your Path to a Fifth Card";
+  const panelSubtitle =
+    eligibility.status === "qualified"
+      ? "Your supported liquidity and staking positions meet the fifth-card requirement."
+      : eligibility.status === "checking"
+        ? "The game is checking SuiDex V2, SuiDex V3, and Moonbags Staking."
+        : eligibility.status === "not-connected"
+          ? "Connect a wallet to check supported liquidity and staking positions."
+          : eligibility.status === "verification-incomplete" || eligibility.status === "unavailable"
+            ? "Nothing is treated as zero when a supported service cannot be checked."
+            : "Qualifying TREE can be combined across the supported positions shown below.";
+  const preBattleExplanation =
+    eligibility.status === "qualified"
+      ? "You are ready. Start an eligible paid battle and the fifth card is added automatically. This check does not move or spend your TREE."
+      : eligibility.status === "checking"
+        ? "This is a read-only wallet check. No TREE is moved or spent while the game checks your positions."
+        : eligibility.status === "not-connected"
+          ? "Connect your wallet to run a read-only eligibility check. Checking does not move or spend your TREE."
+          : eligibility.status === "verification-incomplete" || eligibility.status === "unavailable"
+            ? "Try again shortly. A source that cannot be checked is not counted as zero."
+            : "This read-only check found less than the required qualifying TREE. Add or increase a supported position, then check again.";
 
   return (
     <aside
       className={compact ? "gb-hud-panel gb-tree-power-panel gb-tree-power-panel-compact" : "gb-hud-panel gb-tree-power-panel"}
-      aria-label="TREE Power battle utility console"
+      aria-label="TREE battle benefits and fifth card eligibility"
     >
       <header className="gb-tree-power-head">
         <img className="gb-tree-power-head-logo" src={appAsset("assets/thick.png")} alt="TREE" />
         <div className="gb-tree-power-head-copy">
-          <h2 className="gb-tree-power-title">Why This Wallet Qualifies</h2>
-          <p className="gb-tree-power-subtitle">The game found verified TREE committed to supported ecosystem positions.</p>
+          <h2 className="gb-tree-power-title">{panelHeading}</h2>
+          <p className="gb-tree-power-subtitle">{panelSubtitle}</p>
         </div>
         <span className="gb-tree-power-preview-chip">Read Only</span>
       </header>
@@ -223,7 +262,7 @@ export default function TreePowerPanel({
           </>
         ) : (
           <div className="gb-tree-power-hand-preview">
-            <span>When an eligible paid battle starts</span>
+            <span>If you start an eligible paid battle now</span>
             <strong>{eligibility.status === "qualified" ? "You receive five move cards" : "Standard hand: four move cards"}</strong>
           </div>
         )}
@@ -233,22 +272,22 @@ export default function TreePowerPanel({
           <span>
             {isBattleActive
               ? fifthMove.description
-              : "This is a pre-battle wallet check. When an eligible paid battle starts, the game applies the result automatically."}
+              : preBattleExplanation}
           </span>
           {thresholdLabel && (
             <span className="gb-tree-power-threshold">
-              Verified underlying TREE: {thresholdLabel}
+              Qualifying TREE found: {thresholdLabel}
             </span>
           )}
-          {remainingLabel && <span className="gb-tree-power-threshold">{remainingLabel}</span>}
+          {remainingLabel && <span className="gb-tree-power-threshold">To unlock: {remainingLabel}.</span>}
           {eligibilityResponse?.status === "verification-incomplete" && (
             <span className="gb-tree-power-threshold">
-              Verification incomplete. Known TREE is shown; unavailable sources are not counted as zero.
+              We could not check every supported position. Verified amounts are shown, and unavailable sources are not counted as zero.
             </span>
           )}
           {unavailableSources.length > 0 && eligibilityResponse?.status !== "qualified" && (
             <span className="gb-tree-power-threshold">
-              Unavailable: {unavailableSources.map((source) => source.replace("-staking", "")).join(", ")}
+              Could not check: {unavailableSources.map((source) => source.replace("-staking", "")).join(", ")}. Try again shortly.
             </span>
           )}
         </div>
@@ -258,20 +297,25 @@ export default function TreePowerPanel({
             const isActive = activeSources.has(source.id);
             const sourceStatus = responseSourceStatus.get(source.id);
             const responseSource = eligibilityResponse?.sources.find((entry) => entry.source === source.id);
+            const hasVerifiedTree = responseSource?.status === "qualified-data";
             const sourceResult =
               responseSource?.status === "qualified-data"
-                ? `${Number(responseSource.underlyingTreeDisplay ?? 0).toLocaleString(undefined, { maximumFractionDigits: 2 })} TREE verified`
+                ? `Counts toward requirement: ${formatTreeAmount(responseSource.underlyingTreeDisplay)} TREE`
                 : responseSource?.status === "verified-zero"
-                  ? "No position found — not needed"
+                  ? eligibility.status === "qualified"
+                    ? "No TREE found here. Your other supported positions already meet the requirement."
+                    : "No qualifying TREE found in this position."
                   : responseSource?.status === "unavailable"
-                    ? "Temporarily unavailable"
-                    : "Checking this source";
+                    ? "Could not check this position right now."
+                    : "Checking this position now…";
             return (
               <span
                 key={source.id}
                 className={[
                   "gb-tree-power-source-chip",
                   isActive ? "gb-tree-power-source-chip-active" : "",
+                  hasVerifiedTree ? "gb-tree-power-source-chip-has-tree" : "",
+                  sourceStatus === "verified-zero" ? "gb-tree-power-source-chip-empty" : "",
                   sourceStatus === "unavailable" ? "gb-tree-power-source-chip-unavailable" : "",
                 ]
                   .filter(Boolean)
@@ -281,7 +325,7 @@ export default function TreePowerPanel({
                 <span>
                   <strong>{source.label}</strong>
                   <small>{source.description}</small>
-                  <em>{isActive ? "✓ " : ""}{sourceResult}</em>
+                  <em>{hasVerifiedTree ? "✓ " : ""}{sourceResult}</em>
                 </span>
               </span>
             );
@@ -297,8 +341,8 @@ export default function TreePowerPanel({
       {compact ? (
         <details className="gb-tree-power-reroll-compact" open>
           <summary>TREE Reroll <span>Planned Feature</span></summary>
-          <p><strong>What is coming:</strong> TREE Reroll is planned to let you replace your entire hand once during a battle when the dealt cards do not support a useful strategy.</p>
-          <p><strong>What happens today:</strong> Nothing is charged and no reroll transaction is available. The TREE price, final rules, and launch date will be published before this feature can be used.</p>
+          <p><strong>What is planned:</strong> TREE Reroll will let you replace your entire hand once during a battle when you do not like the cards you were dealt.</p>
+          <p><strong>What happens today:</strong> Reroll is not active. Nothing is charged, and no reroll transaction can be submitted. The TREE price and final rules will be shown before launch.</p>
         </details>
       ) : <section className="gb-tree-power-card gb-tree-power-reroll" aria-label="TREE Reroll">
         <div className="gb-tree-power-card-head">
