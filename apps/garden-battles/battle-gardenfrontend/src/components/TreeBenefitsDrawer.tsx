@@ -16,17 +16,17 @@ const QUALIFICATION_ACTIONS = [
   },
   {
     id: "liquidity",
-    eyebrow: "Way to qualify",
+    eyebrow: "Unlock route",
     label: "Add V3 Liquidity",
     url: "https://www.tree-token.xyz/dapp/#v3",
-    description: "Qualifying route. Counts toward the 1,000,000 TREE requirement.",
+    description: "TREE placed here counts toward the 1,000,000 TREE unlock requirement.",
   },
   {
     id: "stake",
-    eyebrow: "Way to qualify",
+    eyebrow: "Unlock route",
     label: "Add & Stake V2",
     url: "https://www.tree-token.xyz/dapp/#earn",
-    description: "Qualifying route. Counts toward the 1,000,000 TREE requirement.",
+    description: "TREE placed here counts toward the 1,000,000 TREE unlock requirement.",
   },
 ] as const;
 
@@ -55,7 +55,7 @@ export default function TreeBenefitsDrawer({
     <UtilityDrawer
       eyebrow="TREE Battle Benefits"
       title="TREE Battle Benefits"
-      description="Unlock a fifth move card for Garden Bot and paid PvP. See what your wallet qualifies for and how to power up."
+      description="Unlock a fifth move card for Garden Bot and paid PvP. See whether your wallet has unlocked it and exactly what to do next."
       className="gb-tree-benefits-drawer"
       onClose={onClose}
     >
@@ -77,13 +77,13 @@ export default function TreeBenefitsDrawer({
             </div>
             <div className="gb-tree-benefits-spotlight-copy">
               <span className="gb-tree-benefits-eyebrow">
-                {isQualified ? "Your wallet qualifies" : "TREE battle advantage"}
+                {isQualified ? "Fifth card unlocked" : "TREE battle advantage"}
               </span>
               <h3>{isQualified ? "Your Fifth Card Is Unlocked" : "Turn Four Choices Into Five"}</h3>
               <p>
                 {isQualified
                   ? "Start Garden Bot or a paid PvP match with this wallet and your fifth move card is added automatically. Practice Mode keeps the standard four-card training hand."
-                  : "Build a combined qualifying position of 1,000,000 TREE to receive a fifth move card in Garden Bot and paid PvP. Practice Mode always uses four cards."}
+                  : "Get TREE, then place a combined total of 1,000,000 TREE into supported SuiDex liquidity or Moonbags staking to unlock a fifth move card. Practice Mode always uses four cards."}
               </p>
               <div className="gb-tree-benefits-reward-row">
                 <div>
@@ -91,7 +91,7 @@ export default function TreeBenefitsDrawer({
                   <strong>{isQualified ? "5 move cards" : "4 → 5 cards"}</strong>
                 </div>
                 <div>
-                  <span>Qualifying TREE found</span>
+                  <span>TREE counted toward unlock</span>
                   <strong>{verifiedTree !== undefined ? `${Number(verifiedTree).toLocaleString(undefined, { maximumFractionDigits: 2 })} TREE` : "Checking…"}</strong>
                 </div>
               </div>
@@ -106,7 +106,7 @@ export default function TreeBenefitsDrawer({
               <section className="gb-tree-benefits-actions-compact" aria-labelledby="gb-tree-benefits-actions-title">
                 <div className="gb-tree-benefits-actions-compact-head">
                   <span>Next step</span>
-                  <strong id="gb-tree-benefits-actions-title">Choose the route that fits you</strong>
+                      <strong id="gb-tree-benefits-actions-title">Buy TREE, then choose an unlock route</strong>
                 </div>
                 <div className="gb-tree-benefits-action-grid-compact">
                   {QUALIFICATION_ACTIONS.map((action) => (

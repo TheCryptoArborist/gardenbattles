@@ -8669,31 +8669,37 @@
   }
 
   .gb-tree-benefits-drawer .gb-tree-power-fifth-top {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    justify-content: flex-start;
+    align-items: center;
+    display: grid;
+    gap: 8px 10px;
+    grid-template-columns: auto minmax(0, 1fr);
   }
 
   .gb-tree-benefits-drawer .gb-tree-power-fifth-top h3 {
-    flex: 0 1 auto;
+    min-width: 0;
   }
 
   .gb-tree-benefits-drawer .gb-tree-power-lock-status {
     font-family: Inter, ui-sans-serif, system-ui, sans-serif;
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 950;
-    line-height: 1.25;
-    max-width: 190px;
-    padding: 7px 10px;
+    grid-column: 1 / -1;
+    justify-self: stretch;
+    letter-spacing: 0.65px;
+    line-height: 1.3;
+    max-width: none;
+    padding: 10px 14px;
+    text-align: center;
+    width: 100%;
   }
 
   .gb-tree-benefits-drawer .gb-tree-power-lock-status.gb-tree-power-status-locked {
     animation: gb-fifth-access-locked-pulse 2.2s ease-in-out infinite;
-    background: linear-gradient(180deg, #ffe96d, #ffb928);
-    border-color: #fff1a4;
-    box-shadow: 0 0 0 1px rgba(255, 224, 89, 0.2), 0 0 18px rgba(255, 196, 44, 0.46);
-    color: #181000;
+    background: linear-gradient(180deg, #ef334f, #a40822);
+    border-color: #ff8b99;
+    box-shadow: 0 0 0 1px rgba(255, 75, 98, 0.3), 0 0 22px rgba(239, 35, 69, 0.56);
+    color: #fff8fa;
+    text-shadow: 0 1px 2px rgba(45, 0, 7, 0.72);
   }
 
   .gb-tree-benefits-drawer .gb-tree-power-lock-status.gb-tree-power-status-active {
@@ -8705,8 +8711,8 @@
   }
 
   @keyframes gb-fifth-access-locked-pulse {
-    0%, 100% { box-shadow: 0 0 0 1px rgba(255, 224, 89, 0.2), 0 0 12px rgba(255, 196, 44, 0.34); transform: scale(1); }
-    50% { box-shadow: 0 0 0 2px rgba(255, 224, 89, 0.3), 0 0 24px rgba(255, 196, 44, 0.64); transform: scale(1.025); }
+    0%, 100% { box-shadow: 0 0 0 1px rgba(255, 75, 98, 0.28), 0 0 14px rgba(239, 35, 69, 0.4); transform: scale(1); }
+    50% { box-shadow: 0 0 0 2px rgba(255, 115, 133, 0.42), 0 0 30px rgba(239, 35, 69, 0.72); transform: scale(1.012); }
   }
 
   @keyframes gb-fifth-access-active-pulse {
@@ -8735,6 +8741,70 @@
   .gb-tree-benefits-drawer .gb-tree-power-qualification {
     background: rgba(126, 243, 160, 0.07);
     border-color: rgba(126, 243, 160, 0.2);
+  }
+
+  .gb-tree-benefits-drawer .gb-tree-power-fifth-locked {
+    border-color: rgba(255, 77, 101, 0.46);
+    box-shadow: inset 0 0 26px rgba(159, 8, 34, 0.08);
+  }
+
+  .gb-tree-benefits-drawer .gb-tree-power-fifth-locked .gb-tree-power-icon-shell {
+    background: rgba(239, 51, 79, 0.13);
+    border-color: rgba(255, 111, 130, 0.52);
+    color: #ff91a0;
+  }
+
+  .gb-tree-benefits-drawer .gb-tree-power-fifth-locked .gb-tree-power-plain-explainer {
+    background: rgba(20, 31, 43, 0.86);
+    border-left-color: #ff536c;
+    color: #eef7ff;
+  }
+
+  .gb-tree-benefits-drawer .gb-tree-power-qualification-locked {
+    background: linear-gradient(135deg, rgba(116, 5, 26, 0.34), rgba(32, 12, 24, 0.9));
+    border: 1px solid rgba(255, 91, 114, 0.54);
+    box-shadow: inset 0 0 22px rgba(239, 35, 69, 0.08);
+    gap: 8px;
+    padding: 12px;
+  }
+
+  .gb-tree-benefits-drawer .gb-tree-power-qualification-locked > strong {
+    color: #ff9aa8;
+    font-size: 12px;
+  }
+
+  .gb-tree-benefits-drawer .gb-tree-power-qualification-locked > span {
+    color: #f4e7eb;
+  }
+
+  .gb-tree-benefits-drawer .gb-tree-power-qualification-locked .gb-tree-power-threshold {
+    color: #ffffff;
+  }
+
+  .gb-tree-power-unlock-cta {
+    align-items: center;
+    background: linear-gradient(180deg, #ff6178, #c20c2d);
+    border: 1px solid #ff9aa8;
+    border-radius: 8px;
+    box-shadow: 0 0 16px rgba(239, 35, 69, 0.28);
+    color: #ffffff;
+    display: inline-flex;
+    font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+    font-size: 11px;
+    font-weight: 950;
+    gap: 6px;
+    justify-content: center;
+    min-height: 38px;
+    padding: 8px 12px;
+    text-decoration: none;
+    text-transform: uppercase;
+  }
+
+  .gb-tree-power-unlock-cta:hover,
+  .gb-tree-power-unlock-cta:focus-visible {
+    background: linear-gradient(180deg, #ff7c90, #e3183c);
+    box-shadow: 0 0 22px rgba(255, 64, 95, 0.48);
+    outline: none;
   }
 
   .gb-tree-benefits-drawer .gb-tree-power-source-chip {

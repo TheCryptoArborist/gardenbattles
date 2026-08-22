@@ -1,4 +1,4 @@
-import { Lock, RefreshCw, Unlock, WalletCards } from "lucide-react";
+import { ArrowUpRight, Lock, RefreshCw, Unlock, WalletCards } from "lucide-react";
 import {
   mapFifthMoveResponseToPanelEligibility,
   useFifthMoveEligibility,
@@ -150,8 +150,17 @@ export default function TreePowerPanel({
     : null;
   const remainingLabel =
     eligibilityResponse?.remainingTree && eligibilityResponse.status === "not-qualified"
-      ? `${formatTreeAmount(eligibilityResponse.remainingTree)} more qualifying TREE needed`
+      ? `${formatTreeAmount(eligibilityResponse.remainingTree)} more TREE must be added to supported positions`
       : null;
+  const qualificationTone = fifthMove.isUnlocked
+    ? "active"
+    : eligibility.status === "checking"
+      ? "checking"
+      : eligibility.status === "not-connected"
+        ? "connect"
+        : eligibility.status === "verification-incomplete" || eligibility.status === "unavailable"
+          ? "unavailable"
+          : "locked";
   const qualificationLabel =
     eligibility.status === "qualified"
       ? "Fifth card unlocked"
@@ -163,7 +172,7 @@ export default function TreePowerPanel({
             ? "Some positions could not be checked"
             : eligibility.status === "unavailable"
               ? "Eligibility check temporarily unavailable"
-              : "Fifth card locked — qualifying TREE needed";
+              : "Fifth card locked — action required";
   const panelHeading =
     eligibility.status === "qualified"
       ? "Your Fifth Card Is Ready"
@@ -175,7 +184,7 @@ export default function TreePowerPanel({
             ? "We Could Not Check Every Position"
             : eligibility.status === "unavailable"
               ? "Eligibility Check Temporarily Unavailable"
-              : "Your Path to a Fifth Card";
+              : "Unlock Your Fifth Card";
   const panelSubtitle =
     eligibility.status === "qualified"
       ? "Your supported liquidity and staking positions meet the fifth-card requirement."
@@ -185,7 +194,7 @@ export default function TreePowerPanel({
           ? "Connect a wallet to check supported liquidity and staking positions."
           : eligibility.status === "verification-incomplete" || eligibility.status === "unavailable"
             ? "Nothing is treated as zero when a supported service cannot be checked."
-            : "Qualifying TREE can be combined across the supported positions shown below.";
+            : "Your wallet needs 1,000,000 TREE placed in the supported liquidity or staking options shown below.";
   const preBattleExplanation =
     eligibility.status === "qualified"
       ? "You are ready. Start Garden Bot or a paid PvP match and the fifth card is added automatically. This check does not move or spend your TREE."
@@ -195,7 +204,7 @@ export default function TreePowerPanel({
           ? "Connect your wallet to run a read-only eligibility check. Checking does not move or spend your TREE."
           : eligibility.status === "verification-incomplete" || eligibility.status === "unavailable"
             ? "Try again shortly. A source that cannot be checked is not counted as zero."
-            : "This read-only check found less than the required qualifying TREE. Add or increase a supported position, then check again.";
+            : "Your wallet has not unlocked the fifth card yet. First get TREE, then place a total of 1,000,000 TREE into supported SuiDex liquidity or Moonbags staking. TREE sitting loose in your wallet does not count toward this unlock.";
 
   return (
     <aside
@@ -213,16 +222,14 @@ export default function TreePowerPanel({
 
       {!compact && <TreeBalancePill balance={balance} />}
 
-      <section className="gb-tree-power-card gb-tree-power-fifth" aria-label="Fifth Move Unlock">
+      <section className={`gb-tree-power-card gb-tree-power-fifth gb-tree-power-fifth-${qualificationTone}`} aria-label="Fifth Move Unlock">
         <div className="gb-tree-power-fifth-top">
           <span className="gb-tree-power-icon-shell" aria-hidden="true">
             <StatusIcon size={18} strokeWidth={2.4} />
           </span>
           <h3>Your Fifth Move Card</h3>
           <span
-            className={`gb-tree-power-status gb-tree-power-lock-status gb-tree-power-status-${
-              fifthMove.isUnlocked ? "active" : "locked"
-            }`}
+            className={`gb-tree-power-status gb-tree-power-lock-status gb-tree-power-status-${qualificationTone}`}
             aria-label={`Fifth card status: ${qualificationLabel}`}
           >
             {qualificationLabel}
@@ -230,7 +237,7 @@ export default function TreePowerPanel({
         </div>
 
         <p className="gb-tree-power-plain-explainer">
-          This benefit works in Garden Bot and paid PvP. A qualifying TREE position changes your hand from four move cards to five, giving you one more strategic option every turn. Practice Mode keeps a four-card training hand.
+          This benefit works in Garden Bot and paid PvP. Put enough TREE into one or more supported liquidity or staking options and your hand changes from four move cards to five. Practice Mode keeps a four-card training hand.
         </p>
 
         {isBattleActive ? (
@@ -267,7 +274,7 @@ export default function TreePowerPanel({
           </div>
         )}
 
-        <div className={`gb-tree-power-qualification gb-tree-power-status-${fifthMove.status}`}>
+        <div className={`gb-tree-power-qualification gb-tree-power-qualification-${qualificationTone} gb-tree-power-status-${fifthMove.status}`}>
           <strong>{isBattleActive ? fifthMove.statusLabel : qualificationLabel}</strong>
           <span>
             {isBattleActive
@@ -276,10 +283,15 @@ export default function TreePowerPanel({
           </span>
           {thresholdLabel && (
             <span className="gb-tree-power-threshold">
-              Qualifying TREE found: {thresholdLabel}
+              TREE currently counted toward your unlock: {thresholdLabel}
             </span>
           )}
           {remainingLabel && <span className="gb-tree-power-threshold">To unlock: {remainingLabel}.</span>}
+          {!isBattleActive && eligibility.status === "not-qualified" && (
+            <a className="gb-tree-power-unlock-cta" href={TREE_POWER_BUY_URL} target="_blank" rel="noopener noreferrer">
+              Step 1: Buy TREE <ArrowUpRight size={14} aria-hidden="true" />
+            </a>
+          )}
           {eligibilityResponse?.status === "verification-incomplete" && (
             <span className="gb-tree-power-threshold">
               We could not check every supported position. Verified amounts are shown, and unavailable sources are not counted as zero.
@@ -304,7 +316,7 @@ export default function TreePowerPanel({
                 : responseSource?.status === "verified-zero"
                   ? eligibility.status === "qualified"
                     ? "No TREE found here. Your other supported positions already meet the requirement."
-                    : "No qualifying TREE found in this position."
+                    : "No TREE is currently counted from this supported position."
                   : responseSource?.status === "unavailable"
                     ? "Could not check this position right now."
                     : "Checking this position now…";
