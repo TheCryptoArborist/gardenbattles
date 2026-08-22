@@ -9,9 +9,8 @@ export type TreeCoinInput = {
 
 export function getTreeRerollMoveFunction(
   battleVersion?: PvpBattleVersion,
-): "reroll_pvp_v3_moves" | "reroll_ranked_bot_v2_moves" | null {
+): "reroll_pvp_v3_moves" | null {
   if (battleVersion === "pvp-v3") return "reroll_pvp_v3_moves";
-  if (battleVersion === "bot-v2") return "reroll_ranked_bot_v2_moves";
   return null;
 }
 
@@ -74,7 +73,7 @@ export function buildTreeRerollTransaction(options: {
 }): Transaction {
   const moveFunction = getTreeRerollMoveFunction(options.battleVersion);
   if (!moveFunction) {
-    throw new Error("TREE Reroll is available only in Garden Bot and current paid PvP battles.");
+    throw new Error("TREE Reroll is available only in current paid PvP battles.");
   }
   if (!options.treeConfigId || options.coinObjectIds.length === 0 || options.costRaw <= BigInt(0)) {
     throw new Error("TREE Reroll is not configured.");

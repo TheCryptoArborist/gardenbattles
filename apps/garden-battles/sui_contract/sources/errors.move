@@ -41,6 +41,7 @@ module battle_garden::errors {
     const ETreeInsufficient: u64 = 201;
     const ERerollAlreadyUsed: u64 = 202;
     const ERerollNotPlayersTurn: u64 = 203;
+    const ERerollDisabledForMode: u64 = 204;
 
     public fun e_admin_only(): u64 { EAdminOnly }
     public fun e_nft_not_whitelisted(): u64 { ENftNotWhitelisted }
@@ -82,4 +83,5 @@ module battle_garden::errors {
     public fun e_tree_insufficient(): u64 { ETreeInsufficient }
     public fun e_reroll_already_used(): u64 { ERerollAlreadyUsed }
     public fun e_reroll_not_players_turn(): u64 { ERerollNotPlayersTurn }
+    public fun e_reroll_disabled_for_mode(): u64 { ERerollDisabledForMode }
 }

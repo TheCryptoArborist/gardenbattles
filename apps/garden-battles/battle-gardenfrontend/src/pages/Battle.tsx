@@ -1008,8 +1008,7 @@ export default function Battle() {
     isTreeRerollTransactionPending ||
     isBattleRefreshPending ||
     (!!recoverableBattleError && !isPracticeActive && !!battleState);
-  const rerollBattleSupported =
-    battleState?.battleVersion === "pvp-v3" || battleState?.battleVersion === "bot-v2";
+  const rerollBattleSupported = battleState?.battleVersion === "pvp-v3";
   const rerollCanReview =
     !isPracticeActive &&
     rerollBattleSupported &&

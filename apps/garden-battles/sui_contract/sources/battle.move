@@ -2036,29 +2036,15 @@ module battle_garden::battle {
         emit_update_v3(battle);
     }
 
-    /// Replaces the Garden Bot player's entire hand once per battle without
-    /// consuming or advancing the player's move.
+    /// Retained for package compatibility. Garden Bot rerolls are disabled.
     public entry fun reroll_ranked_bot_v2_moves<T>(
-        battle: &mut RankedBotBattleV2,
-        tree_config: &TreeConfig,
-        payment: coin::Coin<T>,
-        rand: &Random,
-        ctx: &mut TxContext,
+        _battle: &mut RankedBotBattleV2,
+        _tree_config: &TreeConfig,
+        _payment: coin::Coin<T>,
+        _rand: &Random,
+        _ctx: &mut TxContext,
     ) {
-        assert!(!battle.finished, errors::e_battle_finished());
-        assert!(tx_context::sender(ctx) == battle.player1, errors::e_unauthorized_player());
-        assert!(battle.turn == 0, errors::e_reroll_not_players_turn());
-        assert!(!battle.p1_reroll_used, errors::e_reroll_already_used());
-
-        charge_reroll(tree_config, payment, 1, ctx);
-        battle.p1_moves = gen_reroll_moves(
-            &battle.p1_moves,
-            battle.p1_fifth_move_entitled,
-            rand,
-            ctx,
-        );
-        battle.p1_reroll_used = true;
-        emit_update_ranked_bot_v2(battle);
+        abort errors::e_reroll_disabled_for_mode()
     }
 
     /// Spend the configured utility coin (e.g. $TREE) for an instant growth boost.

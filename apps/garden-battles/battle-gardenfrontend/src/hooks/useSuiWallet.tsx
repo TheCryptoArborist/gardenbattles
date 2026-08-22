@@ -2870,7 +2870,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
       throw new Error("Battle not active");
     }
     if (!getTreeRerollMoveFunction(activeState.battleVersion)) {
-      throw new Error("TREE Reroll is available only in Garden Bot and current paid PvP battles.");
+      throw new Error("TREE Reroll is available only in current paid PvP battles.");
     }
     const isPlayer1 = activeState.player1?.toLowerCase() === address.toLowerCase();
     const isPlayer2 = activeState.player2?.toLowerCase() === address.toLowerCase();

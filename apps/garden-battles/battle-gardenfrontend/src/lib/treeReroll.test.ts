@@ -8,9 +8,9 @@ import {
   selectTreeCoinInputs,
 } from "./treeReroll";
 
-test("reroll routes only to the active paid battle types", () => {
+test("reroll routes only to active paid PvP", () => {
   assert.equal(getTreeRerollMoveFunction("pvp-v3"), "reroll_pvp_v3_moves");
-  assert.equal(getTreeRerollMoveFunction("bot-v2"), "reroll_ranked_bot_v2_moves");
+  assert.equal(getTreeRerollMoveFunction("bot-v2"), null);
   assert.equal(getTreeRerollMoveFunction("pvp-v2"), null);
   assert.equal(getTreeRerollMoveFunction("legacy"), null);
 });

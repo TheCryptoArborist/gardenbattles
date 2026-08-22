@@ -254,7 +254,8 @@ module battle_garden::battle_tests {
     }
 
     #[test]
-    fun ranked_bot_v2_entitled_reroll_returns_fresh_fifth_card_draft() {
+    #[expected_failure(abort_code = 204)]
+    fun ranked_bot_v2_entitled_reroll_is_disabled() {
         let admin = @0xA;
         let player = @0xB;
         let bot = @0xC;
@@ -322,8 +323,8 @@ module battle_garden::battle_tests {
     }
 
     #[test]
-    #[expected_failure(abort_code = 202)]
-    fun ranked_bot_v2_second_reroll_aborts() {
+    #[expected_failure(abort_code = 204)]
+    fun ranked_bot_v2_standard_reroll_is_disabled() {
         let admin = @0xA;
         let player = @0xB;
         let bot = @0xC;

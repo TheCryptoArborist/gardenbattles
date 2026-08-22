@@ -30,7 +30,7 @@ export const SUI_CONFIG = {
     ((import.meta as any).env?.VITE_SUI_RPC_FALLBACK_URL as string | undefined) ||
     DEFAULT_PUBLIC_SUI_RPC_FALLBACK_URL,
   WS_URL: "wss://fullnode.mainnet.sui.io:443",
-  PACKAGE_ID: "0xa772816913604633fa3f291adfdf907a096c6ff2bd618b8850b564fc8639eea2",
+  PACKAGE_ID: "0x28c2222bad60e98c272874878b92f29a6df85fb4afca6bb64cd83d51a5381020",
   PVP_EVENT_PACKAGE_ID:
     "0x9a80317a43e1d59a4d13f9771a003b773153d729e79da329fa1793d301042edf",
   ORIGINAL_PACKAGE_ID:

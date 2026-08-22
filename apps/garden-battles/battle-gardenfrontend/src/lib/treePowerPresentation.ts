@@ -229,7 +229,7 @@ export function getTreeRerollPresentation(options: {
         costLabel,
         buttonLabel: "TREE Reroll Unavailable",
         disabled: true,
-        helperText: "Reroll is available only during eligible active battles.",
+        helperText: "Reroll is available only during active paid PvP battles.",
       };
     case "insufficient-tree":
       return {
