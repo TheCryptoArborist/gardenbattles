@@ -61,6 +61,15 @@ import {
   resolvePvpMoveFromTransactionDigest,
   type PvpMoveResolution,
 } from "@/lib/pvpMoveResolution";
+import {
+  mergeBattleLogEntries,
+  readBattleLogCache,
+  reconstructPvpBattleLog,
+  removeBattleLogCache,
+  selectPvpBattleLogMoveDigests,
+  writeBattleLogCache,
+  type PvpBattleLogEvent,
+} from "@/lib/pvpBattleLogRecovery";
 import { awaitPvpMovePreflight } from "@/lib/pvpMovePreflight";
 import { addPvpMoveRequestNonce } from "@/lib/pvpMoveTransaction";
 import {
@@ -983,6 +992,43 @@ async function getBattleStateFromTransaction(
   return null;
 }
 
+async function recoverActivePvpBattleLog(
+  state: BattleState,
+  address: string,
+): Promise<ActionEntry[]> {
+  if (!state.battleId || state.isBotBattle) return [];
+
+  const eventType =
+    state.battleVersion === "pvp-v3"
+      ? getPvpBattleV3UpdateEvent()
+      : state.battleVersion === "pvp-v2"
+        ? getPvpBattleV2UpdateEvent()
+        : getBattleUpdateEvent();
+  const response = await readSuiEventsWithRetry(eventType, {
+    operation: "pvp-battle-log-recovery",
+    limit: 300,
+  });
+  const events = response.data as PvpBattleLogEvent[];
+  const digests = selectPvpBattleLogMoveDigests(events, state.battleId);
+  const resolutions = new Map<string, PvpMoveResolution>();
+
+  await Promise.all(
+    digests.map(async (digest) => {
+      resolutions.set(
+        digest,
+        await resolvePvpMoveFromTransactionDigest(digest, state.battleId),
+      );
+    }),
+  );
+
+  return reconstructPvpBattleLog({
+    eventsNewestFirst: events,
+    battleId: state.battleId,
+    address,
+    resolutions,
+  });
+}
+
 async function getPvpJoinTransactionStatusFromDigest(
   digest: string,
 ): Promise<ReturnType<typeof classifyPvpJoinTransactionStatus>> {
@@ -1219,6 +1265,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
   const queueClearDiscoveryInFlightRef = useRef(false);
   const lastQueueClearDiscoveryKeyRef = useRef<string | null>(null);
   const unresolvedPvpJoinDigestRef = useRef<string | null>(null);
+  const battleLogHydrationKeyRef = useRef<string | null>(null);
 
   const address = currentAccount?.address ?? null;
   const isConnected = !!currentAccount;
@@ -1274,7 +1321,12 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
     setRecoverableBattleError(null);
   }, []);
 
-  const clearActionLog = useCallback(() => setActionLog([]), []);
+  const clearActionLog = useCallback(() => {
+    setActionLog([]);
+    if (address && battleState?.battleId) {
+      removeBattleLogCache(localStorage, address, battleState.battleId);
+    }
+  }, [address, battleState?.battleId]);
 
   const showRecoverableBattleRefreshError = useCallback(
     (detail?: string, digest?: string) => {
@@ -1744,6 +1796,64 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
     if (!address) return;
     cacheBattleState(address, battleState);
   }, [address, battleState]);
+
+  useEffect(() => {
+    if (!address || !battleState?.battleId) return;
+    const state = battleState;
+    const battleId = state.battleId;
+    if (!battleId) return;
+    const hydrationKey = `${address.toLowerCase()}:${battleId.toLowerCase()}`;
+    if (battleLogHydrationKeyRef.current === hydrationKey) return;
+    battleLogHydrationKeyRef.current = hydrationKey;
+
+    const cachedEntries = readBattleLogCache(
+      localStorage,
+      address,
+      battleId,
+    );
+    setActionLog(cachedEntries);
+    if (state.isBotBattle) {
+      battleLogDebug("Garden Bot battle history restored from cache", {
+        battleId,
+        cachedEntries: cachedEntries.length,
+      });
+      return;
+    }
+    let cancelled = false;
+
+    void recoverActivePvpBattleLog(state, address)
+      .then((recoveredEntries) => {
+        if (cancelled || battleLogHydrationKeyRef.current !== hydrationKey) return;
+        setActionLog((existingEntries) => {
+          const mergedEntries = mergeBattleLogEntries(
+            existingEntries,
+            recoveredEntries,
+          );
+          writeBattleLogCache(
+            localStorage,
+            address,
+            battleId,
+            mergedEntries,
+          );
+          return mergedEntries;
+        });
+        battleLogDebug("PvP battle history recovered", {
+          battleId: state.battleId,
+          cachedEntries: cachedEntries.length,
+          recoveredEntries: recoveredEntries.length,
+        });
+      })
+      .catch((error) => {
+        console.warn("[battle-log] on-chain history recovery failed", {
+          battleId: state.battleId,
+          error,
+        });
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [address, battleState?.battleId, battleState?.battleVersion, battleState?.isBotBattle]);
 
   useEffect(() => {
     refreshEntryFee().catch((err) => {
@@ -2985,21 +3095,30 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
     const isP1 = completedState.player1?.toLowerCase() === address.toLowerCase();
     const playerGrowth = isP1 ? completedState.player1Growth : completedState.player2Growth;
     const opponentGrowth = isP1 ? completedState.player2Growth : completedState.player1Growth;
-    setActionLog((log) => [
-      ...log,
-      {
-        id: `${Date.now()}-tree-reroll`,
-        timestamp: Date.now(),
-        actor: "you",
-        moveId: 0,
-        prevPlayerGrowth: playerGrowth,
-        nextPlayerGrowth: playerGrowth,
-        prevOpponentGrowth: opponentGrowth,
-        nextOpponentGrowth: opponentGrowth,
-        label: "TREE Reroll",
-        details: [`Entire hand replaced for ${formatTreeRerollCost(costRaw).toLocaleString()} TREE`, "Your turn was preserved"],
-      },
-    ]);
+    setActionLog((log) => {
+      const nextLog: ActionEntry[] = [
+        ...log,
+        {
+          id: `${Date.now()}-tree-reroll`,
+          timestamp: Date.now(),
+          actor: "you",
+          moveId: 0,
+          prevPlayerGrowth: playerGrowth,
+          nextPlayerGrowth: playerGrowth,
+          prevOpponentGrowth: opponentGrowth,
+          nextOpponentGrowth: opponentGrowth,
+          label: "TREE Reroll",
+          details: [`Entire hand replaced for ${formatTreeRerollCost(costRaw).toLocaleString()} TREE`, "Your turn was preserved"],
+        },
+      ];
+      writeBattleLogCache(
+        localStorage,
+        address,
+        completedState!.battleId!,
+        nextLog,
+      );
+      return nextLog;
+    });
     setTreeRerollLifecycleStage("idle");
   }, [
     address,
@@ -3715,7 +3834,13 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
       );
     }
 
-    setActionLog((log) => [...log, ...entries]);
+    setActionLog((log) => {
+      const nextLog = [...log, ...entries];
+      if (next.battleId) {
+        writeBattleLogCache(localStorage, myAddress, next.battleId, nextLog);
+      }
+      return nextLog;
+    });
     lastLoggedActionKeyRef.current = transitionKey;
     lastMoveIdRef.current = 0;
   }

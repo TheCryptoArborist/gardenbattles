@@ -229,7 +229,6 @@ export default function Battle() {
     entryFeeMist,
     isMyTurn: isVerifiedTurn,
     actionLog,
-    clearActionLog,
     joinBattle,
     startBotBattle,
     useAbility,
@@ -879,10 +878,10 @@ export default function Battle() {
     }
   };
 
-  // Clear action log when a new battle starts
+  // Reset battle-specific presentation state when a new battle starts.
+  // The provider restores or initializes the persisted action log for this id.
   useEffect(() => {
     if (verifiedBattleState?.battleId) {
-      clearActionLog();
       setSelectedFifthMoveId(null);
       setLiveResultKey(null);
       resultModalArmedRef.current = false;
