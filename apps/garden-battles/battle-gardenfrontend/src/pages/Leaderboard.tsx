@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
 import { ConnectButton, useCurrentAccount } from "@mysten/dapp-kit";
-import { Crown, Medal, RefreshCw, Swords, Trophy } from "lucide-react";
+import { Award, ChevronDown, Crown, Medal, RefreshCw, Swords, Trophy } from "lucide-react";
 import {
   fetchLeaderboard,
   fetchPlayerStats,
@@ -449,18 +449,18 @@ export default function Leaderboard() {
     >
       <header className="gb-leaderboard-header">
         <div className="gb-leaderboard-header-inner">
-          <Link href="/" className="gb-leaderboard-brand">
+          <div className="gb-leaderboard-brand" aria-label="Garden Battles">
             <img
               src={appAsset("assets/thick.png")}
               alt="Thickquidity Logo"
               className="gb-leaderboard-logo"
-              data-testid="logo-home"
+              data-testid="logo-brand"
             />
             <span className="gb-leaderboard-brand-text">Garden Battles</span>
-          </Link>
+          </div>
 
           <nav className="gb-leaderboard-nav">
-            <a href="https://tree-token.net/" target="_blank" rel="noopener noreferrer">Home</a>
+            <a href="https://www.tree-token.xyz/" target="_blank" rel="noopener noreferrer">Home</a>
             <Link href="/battle">Battle</Link>
             <a href="https://nftree.net" target="_blank" rel="noopener noreferrer">Buy NFTree</a>
           </nav>
@@ -507,12 +507,21 @@ export default function Leaderboard() {
           </button>
         </div>
 
-        <CurrentPlayerCard stats={address ? myStats : null} mode={mode} />
-
-        <details className="gb-leaderboard-badge-guide">
+        <details className="gb-leaderboard-badge-guide" open>
           <summary>
-            <span>Battle Badge Guide</span>
-            <small>See how every badge is earned</small>
+            <span className="gb-leaderboard-badge-guide-heading">
+              <span className="gb-leaderboard-badge-guide-icon" aria-hidden="true">
+                <Award size={21} />
+              </span>
+              <span>
+                <strong>Battle Badge Guide</strong>
+                <small>See all nine achievements and exactly how each one is earned.</small>
+              </span>
+            </span>
+            <span className="gb-leaderboard-badge-guide-toggle">
+              9 Badges
+              <ChevronDown size={17} aria-hidden="true" />
+            </span>
           </summary>
           <div className="gb-leaderboard-badge-guide-grid">
             {BADGE_GUIDE.map((badge) => (
@@ -525,6 +534,8 @@ export default function Leaderboard() {
             ))}
           </div>
         </details>
+
+        <CurrentPlayerCard stats={address ? myStats : null} mode={mode} />
 
         {loading ? (
           <LoadingState />

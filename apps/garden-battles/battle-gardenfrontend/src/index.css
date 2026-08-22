@@ -6932,37 +6932,89 @@
   }
 
   .gb-leaderboard-badge-guide {
-    background: linear-gradient(135deg, rgba(0, 38, 32, 0.94), rgba(0, 18, 22, 0.96));
-    border: 1px solid rgba(255, 203, 79, 0.28);
+    background:
+      radial-gradient(circle at 8% 30%, rgba(255, 203, 79, 0.12), transparent 30%),
+      linear-gradient(135deg, rgba(0, 38, 32, 0.96), rgba(0, 18, 22, 0.98));
+    border: 1px solid rgba(255, 203, 79, 0.48);
     border-radius: 12px;
-    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.22);
+    box-shadow:
+      0 12px 28px rgba(0, 0, 0, 0.22),
+      inset 0 0 24px rgba(255, 203, 79, 0.04);
     overflow: hidden;
   }
 
   .gb-leaderboard-badge-guide summary {
     align-items: center;
-    color: var(--gb-gold);
     cursor: pointer;
     display: flex;
-    font-family: Orbitron, sans-serif;
-    font-size: 12px;
-    font-weight: 900;
     justify-content: space-between;
     list-style: none;
-    padding: 14px 18px;
-    text-transform: uppercase;
+    padding: 15px 18px;
   }
 
   .gb-leaderboard-badge-guide summary::-webkit-details-marker {
     display: none;
   }
 
+  .gb-leaderboard-badge-guide-heading {
+    align-items: center;
+    display: flex;
+    gap: 12px;
+    min-width: 0;
+  }
+
+  .gb-leaderboard-badge-guide-heading > span:last-child {
+    display: grid;
+    gap: 3px;
+  }
+
+  .gb-leaderboard-badge-guide-heading strong {
+    color: var(--gb-gold);
+    font-family: Orbitron, sans-serif;
+    font-size: 13px;
+    font-weight: 900;
+    text-transform: uppercase;
+  }
+
   .gb-leaderboard-badge-guide summary small {
     color: rgba(234, 255, 246, 0.58);
     font-family: Rajdhani, sans-serif;
-    font-size: 11px;
+    font-size: 12px;
     letter-spacing: 0;
     text-transform: none;
+  }
+
+  .gb-leaderboard-badge-guide-icon {
+    align-items: center;
+    background: linear-gradient(145deg, rgba(255, 203, 79, 0.2), rgba(0, 213, 199, 0.12));
+    border: 1px solid rgba(255, 203, 79, 0.52);
+    border-radius: 10px;
+    color: var(--gb-gold);
+    display: inline-flex;
+    flex: 0 0 auto;
+    height: 42px;
+    justify-content: center;
+    width: 42px;
+  }
+
+  .gb-leaderboard-badge-guide-toggle {
+    align-items: center;
+    color: var(--gb-tree-green);
+    display: inline-flex;
+    font-family: Orbitron, sans-serif;
+    font-size: 10px;
+    font-weight: 900;
+    gap: 7px;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .gb-leaderboard-badge-guide-toggle svg {
+    transition: transform 0.2s ease;
+  }
+
+  .gb-leaderboard-badge-guide[open] .gb-leaderboard-badge-guide-toggle svg {
+    transform: rotate(180deg);
   }
 
   .gb-leaderboard-badge-guide-grid {
@@ -6990,6 +7042,44 @@
     font-size: 11px;
     line-height: 1.4;
     margin: 0;
+  }
+
+  /* Keep the leaderboard header rank cards compact after the larger battle-page
+     showcase rules that appear earlier in the cascade. */
+  .gb-leaderboard-header .gb-leaderboard-status-cluster .gb-tree-status-card,
+  .gb-leaderboard-header .gb-leaderboard-status-cluster .gb-player-record-card.gb-hud-rank-card {
+    height: 82px;
+    min-height: 82px;
+  }
+
+  .gb-leaderboard-header .gb-leaderboard-status-cluster .gb-hud-rank-card {
+    gap: 9px;
+    grid-template-columns: 56px minmax(0, 1fr);
+    overflow: hidden;
+    padding: 9px 11px;
+  }
+
+  .gb-leaderboard-header .gb-leaderboard-status-cluster .gb-hud-rank-crest-shell,
+  .gb-leaderboard-header .gb-leaderboard-status-cluster .gb-hud-rank-loading-crest {
+    height: 56px;
+    width: 56px;
+  }
+
+  .gb-leaderboard-header .gb-leaderboard-status-cluster .gb-hud-rank-card .gb-tree-badge-crest-lg {
+    height: 49px;
+    width: 49px;
+  }
+
+  .gb-leaderboard-header .gb-leaderboard-status-cluster .gb-battle-rank-title,
+  .gb-leaderboard-header .gb-leaderboard-status-cluster .gb-holder-rank-title {
+    font-size: 13px;
+    line-height: 1.05;
+  }
+
+  .gb-leaderboard-header .gb-leaderboard-status-cluster .gb-player-record-badges,
+  .gb-leaderboard-header .gb-leaderboard-status-cluster .gb-player-record-leaderboard-cue,
+  .gb-leaderboard-header .gb-leaderboard-status-cluster .gb-player-record-streak {
+    display: none;
   }
 
   @media (max-width: 899px) {
@@ -7086,10 +7176,18 @@
     }
 
     .gb-leaderboard-badge-guide summary {
-      align-items: flex-start;
-      flex-direction: column;
-      gap: 3px;
+      align-items: center;
+      gap: 8px;
       padding: 12px;
+    }
+
+    .gb-leaderboard-badge-guide-toggle {
+      font-size: 0;
+    }
+
+    .gb-leaderboard-badge-guide-toggle svg {
+      height: 20px;
+      width: 20px;
     }
 
     .gb-leaderboard-badge-guide-grid {
