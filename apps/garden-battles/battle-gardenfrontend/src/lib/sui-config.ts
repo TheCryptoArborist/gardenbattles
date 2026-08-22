@@ -51,6 +51,8 @@ export const SUI_CONFIG = {
   FIFTH_MOVE_CONFIG_ID:
     ((import.meta as any).env?.VITE_FIFTH_MOVE_CONFIG_ID as string | undefined) ||
     "0x083a9303bd13b789e87f3e746b817a8723290f25414f3686ac8868f90a5020b3",
+  TREE_CONFIG_ID:
+    ((import.meta as any).env?.VITE_TREE_CONFIG_ID as string | undefined) || "",
   BOT_ADDRESS:
     "0xbbe518c2a2025d2d95b9e5b6435911771f64d7d9fe037fbf2ec661981890d5b4",
   SAPLING_STRUCT:

@@ -238,7 +238,7 @@ export function getTreeRerollPresentation(options: {
         costLabel,
         buttonLabel: "Insufficient TREE",
         disabled: true,
-        helperText: "A future reroll will require enough liquid TREE.",
+        helperText: "Add enough liquid TREE to this wallet before rerolling.",
       };
     case "awaiting-approval":
       return {

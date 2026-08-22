@@ -1,12 +1,15 @@
 #[test_only]
 module battle_garden::battle_tests {
     use sui::coin::{Self, Coin};
+    use sui::balance;
     use sui::test_scenario;
     use sui::random::{Self, Random};
     use sui::object;
 
     use battle_garden::battle;
     use battle_garden::config::{Self, Config, TreeConfig};
+    use battle_garden::fifth_move;
+    use battle_garden::utils;
 
     /// Fake TREE coin for testing TREE utility functions.
     public struct TREE has drop {}
@@ -128,6 +131,196 @@ module battle_garden::battle_tests {
             test_scenario::return_shared(b);
         };
         test_scenario::end(s);
+    }
+
+    #[test]
+    fun pvp_v3_reroll_replaces_hand_once_without_advancing_turn() {
+        let admin = @0xA;
+        let player = @0xB;
+        let opponent = @0xC;
+        let mut s = test_scenario::begin(admin);
+
+        test_scenario::next_tx(&mut s, admin);
+        {
+            config::create_config_for_testing(test_scenario::ctx(&mut s));
+            config::create_tree_config_for_testing(test_scenario::ctx(&mut s));
+        };
+        test_scenario::next_tx(&mut s, @0x0);
+        random::create_for_testing(test_scenario::ctx(&mut s));
+        test_scenario::next_tx(&mut s, admin);
+        {
+            let mut tc = test_scenario::take_shared<TreeConfig>(&s);
+            config::set_utility_coin<TREE>(&mut tc, test_scenario::ctx(&mut s));
+            config::set_tree_params(&mut tc, 100, 0, 0, 0, 0, 0, test_scenario::ctx(&mut s));
+            test_scenario::return_shared(tc);
+        };
+        test_scenario::next_tx(&mut s, player);
+        {
+            let c = test_scenario::take_shared<Config>(&s);
+            let r = test_scenario::take_shared<Random>(&s);
+            battle::create_pvp_battle_v3(
+                player,
+                opponent,
+                0,
+                &c,
+                balance::zero(),
+                50,
+                fifth_move::standard_eligibility(),
+                fifth_move::standard_eligibility(),
+                &r,
+                test_scenario::ctx(&mut s),
+            );
+            test_scenario::return_shared(r);
+            test_scenario::return_shared(c);
+        };
+        test_scenario::next_tx(&mut s, player);
+        {
+            let mut b = test_scenario::take_shared<battle::PvpBattleV3>(&s);
+            let tc = test_scenario::take_shared<TreeConfig>(&s);
+            let r = test_scenario::take_shared<Random>(&s);
+            battle::set_pvp_v3_turn_for_testing(&mut b, 0);
+            let old_moves = utils::clone_vec_u8(battle::pvp_v3_p1_moves(&b));
+            let payment = coin::mint_for_testing<TREE>(100, test_scenario::ctx(&mut s));
+
+            battle::reroll_pvp_v3_moves<TREE>(&mut b, &tc, payment, &r, test_scenario::ctx(&mut s));
+
+            assert!(battle::pvp_v3_turn(&b) == 0, 0);
+            assert!(battle::pvp_v3_p1_reroll_used(&b), 0);
+            assert!(vector::length(battle::pvp_v3_p1_moves(&b)) == 4, 0);
+            let mut i = 0;
+            while (i < vector::length(&old_moves)) {
+                assert!(!utils::contains_u8(battle::pvp_v3_p1_moves(&b), *vector::borrow(&old_moves, i)), 0);
+                i = i + 1;
+            };
+
+            test_scenario::return_shared(r);
+            test_scenario::return_shared(tc);
+            test_scenario::return_shared(b);
+        };
+        test_scenario::end(s);
+    }
+
+    #[test]
+    fun ranked_bot_v2_entitled_reroll_returns_fresh_fifth_card_draft() {
+        let admin = @0xA;
+        let player = @0xB;
+        let bot = @0xC;
+        let mut s = test_scenario::begin(admin);
+
+        test_scenario::next_tx(&mut s, admin);
+        {
+            config::create_config_for_testing(test_scenario::ctx(&mut s));
+            config::create_tree_config_for_testing(test_scenario::ctx(&mut s));
+        };
+        test_scenario::next_tx(&mut s, @0x0);
+        random::create_for_testing(test_scenario::ctx(&mut s));
+        test_scenario::next_tx(&mut s, admin);
+        {
+            let mut c = test_scenario::take_shared<Config>(&s);
+            config::whitelist_collection<TestNFT>(&mut c, test_scenario::ctx(&mut s));
+            test_scenario::return_shared(c);
+            let mut tc = test_scenario::take_shared<TreeConfig>(&s);
+            config::set_utility_coin<TREE>(&mut tc, test_scenario::ctx(&mut s));
+            config::set_tree_params(&mut tc, 100, 0, 0, 0, 0, 0, test_scenario::ctx(&mut s));
+            test_scenario::return_shared(tc);
+        };
+        test_scenario::next_tx(&mut s, player);
+        {
+            let c = test_scenario::take_shared<Config>(&s);
+            let r = test_scenario::take_shared<Random>(&s);
+            let nft = TestNFT { id: object::new(test_scenario::ctx(&mut s)) };
+            let eligibility = fifth_move::snapshot_eligibility(true, 1, 1, 1, vector[1]);
+            battle::create_ranked_bot_battle_v2<TestNFT>(
+                &c,
+                &nft,
+                bot,
+                eligibility,
+                &r,
+                test_scenario::ctx(&mut s),
+            );
+            let TestNFT { id } = nft;
+            object::delete(id);
+            test_scenario::return_shared(r);
+            test_scenario::return_shared(c);
+        };
+        test_scenario::next_tx(&mut s, player);
+        {
+            let mut b = test_scenario::take_shared<battle::RankedBotBattleV2>(&s);
+            let tc = test_scenario::take_shared<TreeConfig>(&s);
+            let r = test_scenario::take_shared<Random>(&s);
+            let old_moves = utils::clone_vec_u8(battle::ranked_bot_v2_p1_moves(&b));
+            let payment = coin::mint_for_testing<TREE>(100, test_scenario::ctx(&mut s));
+
+            battle::reroll_ranked_bot_v2_moves<TREE>(&mut b, &tc, payment, &r, test_scenario::ctx(&mut s));
+
+            assert!(battle::ranked_bot_v2_p1_reroll_used(&b), 0);
+            assert!(vector::length(battle::ranked_bot_v2_p1_moves(&b)) == 7, 0);
+            let mut i = 0;
+            while (i < vector::length(&old_moves)) {
+                assert!(!utils::contains_u8(battle::ranked_bot_v2_p1_moves(&b), *vector::borrow(&old_moves, i)), 0);
+                i = i + 1;
+            };
+
+            test_scenario::return_shared(r);
+            test_scenario::return_shared(tc);
+            test_scenario::return_shared(b);
+        };
+        test_scenario::end(s);
+    }
+
+    #[test]
+    #[expected_failure(abort_code = 202)]
+    fun ranked_bot_v2_second_reroll_aborts() {
+        let admin = @0xA;
+        let player = @0xB;
+        let bot = @0xC;
+        let mut s = test_scenario::begin(admin);
+
+        test_scenario::next_tx(&mut s, admin);
+        {
+            config::create_config_for_testing(test_scenario::ctx(&mut s));
+            config::create_tree_config_for_testing(test_scenario::ctx(&mut s));
+        };
+        test_scenario::next_tx(&mut s, @0x0);
+        random::create_for_testing(test_scenario::ctx(&mut s));
+        test_scenario::next_tx(&mut s, admin);
+        {
+            let mut c = test_scenario::take_shared<Config>(&s);
+            config::whitelist_collection<TestNFT>(&mut c, test_scenario::ctx(&mut s));
+            test_scenario::return_shared(c);
+            let mut tc = test_scenario::take_shared<TreeConfig>(&s);
+            config::set_utility_coin<TREE>(&mut tc, test_scenario::ctx(&mut s));
+            config::set_tree_params(&mut tc, 100, 0, 0, 0, 0, 0, test_scenario::ctx(&mut s));
+            test_scenario::return_shared(tc);
+        };
+        test_scenario::next_tx(&mut s, player);
+        {
+            let c = test_scenario::take_shared<Config>(&s);
+            let r = test_scenario::take_shared<Random>(&s);
+            let nft = TestNFT { id: object::new(test_scenario::ctx(&mut s)) };
+            battle::create_ranked_bot_battle_v2_standard<TestNFT>(
+                &c,
+                &nft,
+                bot,
+                &r,
+                test_scenario::ctx(&mut s),
+            );
+            let TestNFT { id } = nft;
+            object::delete(id);
+            test_scenario::return_shared(r);
+            test_scenario::return_shared(c);
+        };
+        test_scenario::next_tx(&mut s, player);
+        {
+            let mut b = test_scenario::take_shared<battle::RankedBotBattleV2>(&s);
+            let tc = test_scenario::take_shared<TreeConfig>(&s);
+            let r = test_scenario::take_shared<Random>(&s);
+            let payment1 = coin::mint_for_testing<TREE>(100, test_scenario::ctx(&mut s));
+            battle::reroll_ranked_bot_v2_moves<TREE>(&mut b, &tc, payment1, &r, test_scenario::ctx(&mut s));
+            let payment2 = coin::mint_for_testing<TREE>(100, test_scenario::ctx(&mut s));
+            battle::reroll_ranked_bot_v2_moves<TREE>(&mut b, &tc, payment2, &r, test_scenario::ctx(&mut s));
+            abort 999
+        };
     }
 
     // ═══════════════════════════════════════════════════════════════════════════

@@ -233,6 +233,7 @@ export default function Battle() {
     joinBattle,
     startBotBattle,
     useAbility,
+    rerollHand,
     claimTimeoutWin,
     forfeitBattle,
     adminForceClose,
@@ -242,6 +243,9 @@ export default function Battle() {
     refreshCurrentBattleState,
     moveLifecycleStage,
     isMoveTransactionPending,
+    treeRerollLifecycleStage,
+    isTreeRerollTransactionPending,
+    treeRerollCostTree,
     isBattleRefreshPending,
     recoverableBattleError,
     dismissRecoverableBattleError,
@@ -287,6 +291,7 @@ export default function Battle() {
   const [isClaimingTimeout, setIsClaimingTimeout] = useState(false);
   const [isForfeiting, setIsForfeiting] = useState(false);
   const [isAdminClosing, setIsAdminClosing] = useState(false);
+  const [rerollReviewOpen, setRerollReviewOpen] = useState(false);
   const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
   const [mobileProfileExpanded, setMobileProfileExpanded] = useState(false);
   const [modeCardsExpanded, setModeCardsExpanded] = useState(false);
@@ -927,6 +932,11 @@ export default function Battle() {
       ? Boolean(battleState.player1FifthMoveEntitled)
       : Boolean(battleState.player2FifthMoveEntitled)
     : false;
+  const rerollUsed = battleState
+    ? isPlayer1
+      ? Boolean(battleState.player1RerollUsed)
+      : Boolean(battleState.player2RerollUsed)
+    : false;
   const fifthMoveDraft = getFifthMoveDraftState(rawPlayerMoves, fifthMoveEntitled);
   const playerMoves = fifthMoveDraft.pending
     ? selectedFifthMoveId !== null
@@ -995,8 +1005,41 @@ export default function Battle() {
   const moveControlsLocked =
     pendingMoveId !== null ||
     isMoveTransactionPending ||
+    isTreeRerollTransactionPending ||
     isBattleRefreshPending ||
-    (!!recoverableBattleError && !isPracticeActive && hasActivePvpBattle);
+    (!!recoverableBattleError && !isPracticeActive && !!battleState);
+  const rerollBattleSupported =
+    battleState?.battleVersion === "pvp-v3" || battleState?.battleVersion === "bot-v2";
+  const rerollCanReview =
+    !isPracticeActive &&
+    rerollBattleSupported &&
+    !battleFinished &&
+    isMyTurn &&
+    !rerollUsed &&
+    treeRerollCostTree !== null &&
+    !moveControlsLocked;
+
+  const handleConfirmReroll = async () => {
+    if (!rerollCanReview) return;
+    setRerollReviewOpen(false);
+    setInlineError(null);
+    try {
+      await rerollHand();
+      setSelectedFifthMoveId(null);
+    } catch (error: any) {
+      const message = error?.message ?? "TREE Reroll could not be completed.";
+      const friendly = /202|already.*used/i.test(message)
+        ? "Your one TREE Reroll has already been used in this battle."
+        : /203|turn/i.test(message)
+          ? "Wait for your turn before rerolling."
+          : /insufficient|need at least/i.test(message)
+            ? message
+            : /cancel/i.test(message)
+              ? "TREE Reroll was cancelled. No TREE was charged."
+              : message;
+      showInlineError(friendly);
+    }
+  };
   const isPvpQueued =
     isConnected &&
     !isPracticeActive &&
@@ -1220,7 +1263,11 @@ export default function Battle() {
   }
 
   const matchLiveStatus =
-    pendingMoveId !== null || isMoveTransactionPending
+    isTreeRerollTransactionPending
+      ? treeRerollLifecycleStage === "awaiting-wallet-approval"
+        ? "Approve TREE Reroll in wallet"
+        : "TREE Reroll pending"
+      : pendingMoveId !== null || isMoveTransactionPending
       ? "Move transaction pending"
       : isBattleRefreshPending
         ? "Refreshing match"
@@ -1232,7 +1279,7 @@ export default function Battle() {
               ? "Garden Bot thinking"
               : "Waiting on opponent";
   const matchStatusTone =
-    pendingMoveId !== null || isMoveTransactionPending || isBattleRefreshPending
+    pendingMoveId !== null || isMoveTransactionPending || isTreeRerollTransactionPending || isBattleRefreshPending
       ? "processing"
       : canClaimTimeout
         ? "action"
@@ -2565,27 +2612,27 @@ export default function Battle() {
             data-testid="battle-options"
           >
             {/* Transaction and refresh feedback. Normal turn state lives in the compact match bar. */}
-            {(pendingMoveId !== null || isMoveTransactionPending || isBattleRefreshPending) && <div
+            {(pendingMoveId !== null || isMoveTransactionPending || isTreeRerollTransactionPending || isBattleRefreshPending) && <div
               style={{
                 textAlign: "center",
                 marginBottom: "10px",
                 padding: "8px 16px",
                 borderRadius: "8px",
                 background:
-                  pendingMoveId !== null || isMoveTransactionPending
+                  pendingMoveId !== null || isMoveTransactionPending || isTreeRerollTransactionPending
                     ? "rgba(80,60,0,0.7)"
                     : isBattleRefreshPending
                       ? "rgba(0, 70, 80, 0.78)"
                     : "rgba(0,40,80,0.7)",
                 border: `1px solid ${
-                  pendingMoveId !== null || isMoveTransactionPending
+                  pendingMoveId !== null || isMoveTransactionPending || isTreeRerollTransactionPending
                     ? "#ffcc00"
                     : isBattleRefreshPending
                       ? "#00e5ff"
                       : "#44aaff"
                 }`,
                 color:
-                  pendingMoveId !== null || isMoveTransactionPending
+                  pendingMoveId !== null || isMoveTransactionPending || isTreeRerollTransactionPending
                     ? "#ffcc00"
                     : isBattleRefreshPending
                       ? "#c9fbff"
@@ -2596,7 +2643,13 @@ export default function Battle() {
                 transition: "all 0.3s ease",
               }}
             >
-              {isBattleRefreshPending
+              {isTreeRerollTransactionPending
+                ? treeRerollLifecycleStage === "awaiting-wallet-approval"
+                  ? "Review and approve the TREE Reroll in your wallet..."
+                  : treeRerollLifecycleStage === "refreshing-battle"
+                    ? "Reroll confirmed. Loading your new hand..."
+                    : "TREE Reroll submitted. Waiting for confirmation..."
+                : isBattleRefreshPending
                   ? "Refreshing battle state from chain..."
                 : pendingMoveId !== null
                   ? `Waiting for transaction... (${MOVE_LABELS[pendingMoveId] || "Move"})`
@@ -2725,7 +2778,7 @@ export default function Battle() {
               </div>
             )}
 
-            {recoverableBattleError && hasActivePvpBattle && (
+            {recoverableBattleError && battleState && !isPracticeActive && !battleFinished && (
               <div
                 role="alert"
                 style={{
@@ -2823,6 +2876,75 @@ export default function Battle() {
                   </button>
                 </div>
               </div>
+            )}
+
+            {!isPracticeActive && rerollBattleSupported && (
+              <section
+                aria-label="TREE Reroll"
+                style={{
+                  marginBottom: "14px",
+                  padding: "12px 14px",
+                  border: `1px solid ${rerollUsed ? "#66736d" : "#c8ff3d"}`,
+                  borderRadius: "11px",
+                  background: rerollUsed
+                    ? "rgba(20, 31, 28, 0.84)"
+                    : "linear-gradient(135deg, rgba(20, 52, 20, 0.92), rgba(35, 25, 0, 0.9))",
+                  boxShadow: rerollUsed ? "none" : "0 0 16px rgba(200, 255, 61, 0.14)",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", flexWrap: "wrap" }}>
+                  <div style={{ minWidth: 0, flex: "1 1 250px" }}>
+                    <strong style={{ display: "block", color: rerollUsed ? "#a8b5ae" : "#eaffad", fontSize: "13px", letterSpacing: "0.05em" }}>
+                      TREE REROLL · {rerollUsed ? "USED" : "ONE PER BATTLE"}
+                    </strong>
+                    <span style={{ display: "block", marginTop: "4px", color: "#e7f2e9", fontSize: "12px", lineHeight: 1.4 }}>
+                      Replace every card in your hand without losing your turn.
+                      {treeRerollCostTree === null ? " Activation is not complete yet." : ` Cost: ${treeRerollCostTree.toLocaleString()} TREE.`}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setRerollReviewOpen(true)}
+                    disabled={!rerollCanReview}
+                    style={{
+                      minHeight: "44px",
+                      padding: "10px 16px",
+                      borderRadius: "9px",
+                      border: "1px solid rgba(234, 255, 173, 0.8)",
+                      background: rerollCanReview ? "linear-gradient(135deg, #c8ff3d, #28e6a2)" : "rgba(85, 103, 92, 0.35)",
+                      color: rerollCanReview ? "#07170d" : "#a5b2aa",
+                      cursor: rerollCanReview ? "pointer" : "not-allowed",
+                      fontWeight: 900,
+                    }}
+                  >
+                    {rerollUsed
+                      ? "Reroll Used"
+                      : isTreeRerollTransactionPending
+                        ? "Reroll Pending"
+                        : !isMyTurn
+                          ? "Available on Your Turn"
+                          : treeRerollCostTree === null
+                            ? "Not Active Yet"
+                            : "Review Reroll"}
+                  </button>
+                </div>
+                {rerollReviewOpen && !rerollUsed && treeRerollCostTree !== null && (
+                  <div role="dialog" aria-label="Confirm TREE Reroll" style={{ marginTop: "12px", paddingTop: "12px", borderTop: "1px solid rgba(200,255,61,0.35)" }}>
+                    <strong style={{ color: "#fff4ad" }}>Confirm before opening your wallet</strong>
+                    <p style={{ margin: "6px 0 10px", color: "#f3f7ee", fontSize: "12px", lineHeight: 1.5 }}>
+                      This spends exactly {treeRerollCostTree.toLocaleString()} TREE, replaces your entire hand, and cannot be undone. Your turn and Growth score stay the same.
+                    </p>
+                    <div style={{ display: "flex", gap: "9px", flexWrap: "wrap" }}>
+                      <button type="button" onClick={handleConfirmReroll} disabled={!rerollCanReview} style={{ minHeight: "44px", padding: "10px 15px", borderRadius: "8px", border: "1px solid #ecffae", background: "#c8ff3d", color: "#07170d", fontWeight: 900 }}>
+                        Approve {treeRerollCostTree.toLocaleString()} TREE Reroll
+                      </button>
+                      <button type="button" onClick={() => setRerollReviewOpen(false)} style={{ minHeight: "44px", padding: "10px 15px", borderRadius: "8px", border: "1px solid #8ca094", background: "rgba(0,0,0,0.3)", color: "#e8f0ea", fontWeight: 800 }}>
+                        Keep Current Hand
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </section>
             )}
 
             {fifthMoveDraft.pending && (
@@ -3309,6 +3431,23 @@ export default function Battle() {
             isBattleActive={!!battleState && !battleFinished}
             isPracticeBattle={isPracticeActive}
             currentMoveCount={fifthMoveDraft.pending ? 5 : playerMoves.length}
+            rerollStatus={
+              isPracticeActive || !rerollBattleSupported
+                ? "unavailable"
+                : rerollUsed
+                  ? "used"
+                  : isTreeRerollTransactionPending
+                    ? treeRerollLifecycleStage === "awaiting-wallet-approval"
+                      ? "awaiting-approval"
+                      : "submitted"
+                    : treeRerollCostTree === null
+                      ? "not-live"
+                      : isMyTurn
+                        ? "available"
+                        : "unavailable"
+            }
+            rerollCostTree={treeRerollCostTree}
+            rerollUsed={rerollUsed}
             onClose={() => setUtilityDrawer(null)}
           />
         )}

@@ -98,6 +98,14 @@ import {
   classifyPvpJoinTransactionStatus,
   isTransientPvpJoinConfirmationError,
 } from "@/lib/pvpJoinRecovery";
+import { TREE_COIN_TYPE } from "@/lib/treeBalance";
+import {
+  buildTreeRerollTransaction,
+  formatTreeRerollCost,
+  getTreeRerollMoveFunction,
+  parseTreeRerollCostRaw,
+  selectTreeCoinInputs,
+} from "@/lib/treeReroll";
 
 const POST_REFUND_VERIFICATION_RETRY_DELAYS_MS = [
   750,
@@ -148,6 +156,8 @@ export interface BattleState {
   resolvedMoveSource?: "local" | "transaction" | "unavailable";
   player1FifthMoveEntitled?: boolean;
   player2FifthMoveEntitled?: boolean;
+  player1RerollUsed?: boolean;
+  player2RerollUsed?: boolean;
 }
 
 export interface PvpQueueState {
@@ -167,6 +177,12 @@ export type MoveLifecycleStage =
   | "battle-refresh-running"
   | "battle-refresh-failed"
   | "leaderboard-sync-failed";
+
+export type TreeRerollLifecycleStage =
+  | "idle"
+  | "awaiting-wallet-approval"
+  | "transaction-submitted"
+  | "refreshing-battle";
 
 export interface RecoverableBattleError {
   title: string;
@@ -218,6 +234,7 @@ interface SuiWalletContextType {
     options?: StartBotBattleOptions,
   ) => Promise<void>;
   useAbility: (abilityId: number, fifthMoveId?: number) => Promise<void>;
+  rerollHand: () => Promise<void>;
   claimTimeoutWin: () => Promise<void>;
   forfeitBattle: () => Promise<void>;
   adminForceClose: (winner?: string) => Promise<void>;
@@ -227,6 +244,9 @@ interface SuiWalletContextType {
   refreshCurrentBattleState: (reason?: string) => Promise<BattleState | null>;
   moveLifecycleStage: MoveLifecycleStage;
   isMoveTransactionPending: boolean;
+  treeRerollLifecycleStage: TreeRerollLifecycleStage;
+  isTreeRerollTransactionPending: boolean;
+  treeRerollCostTree: number | null;
   isBattleRefreshPending: boolean;
   recoverableBattleError: RecoverableBattleError | null;
   dismissRecoverableBattleError: () => void;
@@ -480,6 +500,8 @@ function parseBattleStateFromEvent(
     lastTransactionDigest: transactionDigest,
     player1FifthMoveEntitled: readMoveBoolean(json.p1_fifth_move_entitled),
     player2FifthMoveEntitled: readMoveBoolean(json.p2_fifth_move_entitled),
+    player1RerollUsed: readMoveBoolean(json.p1_reroll_used),
+    player2RerollUsed: readMoveBoolean(json.p2_reroll_used),
   };
 }
 
@@ -653,7 +675,45 @@ function parseBattleStateFromObjectFields(
     }),
     player1FifthMoveEntitled: readMoveBoolean(fields.p1_fifth_move_entitled),
     player2FifthMoveEntitled: readMoveBoolean(fields.p2_fifth_move_entitled),
+    player1RerollUsed: readMoveBoolean(fields.p1_reroll_used),
+    player2RerollUsed: readMoveBoolean(fields.p2_reroll_used),
   };
+}
+
+function rerollUsedForAddress(state: BattleState, address: string): boolean {
+  if (state.player1?.toLowerCase() === address.toLowerCase()) {
+    return Boolean(state.player1RerollUsed);
+  }
+  if (state.player2?.toLowerCase() === address.toLowerCase()) {
+    return Boolean(state.player2RerollUsed);
+  }
+  return false;
+}
+
+async function getTreeCoinInputsForCost(
+  suiClient: any,
+  address: string,
+  costRaw: bigint,
+) {
+  const coins: Array<{ coinObjectId: string; balance: string }> = [];
+  let cursor: string | null | undefined = null;
+  do {
+    const page: {
+      data: Array<{ coinObjectId: string; balance: string }>;
+      hasNextPage: boolean;
+      nextCursor: string | null;
+    } = await suiClient.getCoins({
+      owner: address,
+      coinType: TREE_COIN_TYPE,
+      cursor,
+      limit: 50,
+    });
+    coins.push(...(page.data ?? []));
+    const selected = selectTreeCoinInputs(coins, costRaw);
+    if (selected) return selected;
+    cursor = page.hasNextPage ? page.nextCursor : null;
+  } while (cursor);
+  return null;
 }
 
 async function getRefundablePvpQueueState(
@@ -1141,6 +1201,9 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
   const [actionLog, setActionLog] = useState<ActionEntry[]>([]);
   const [moveLifecycleStage, setMoveLifecycleStage] =
     useState<MoveLifecycleStage>("idle");
+  const [treeRerollLifecycleStage, setTreeRerollLifecycleStage] =
+    useState<TreeRerollLifecycleStage>("idle");
+  const [treeRerollCostRaw, setTreeRerollCostRaw] = useState<bigint | null>(null);
   const [isBattleRefreshPending, setIsBattleRefreshPending] = useState(false);
   const [recoverableBattleError, setRecoverableBattleError] =
     useState<RecoverableBattleError | null>(null);
@@ -1174,6 +1237,33 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
     moveLifecycleStage === "awaiting-wallet-approval" ||
     moveLifecycleStage === "transaction-submitted" ||
     moveLifecycleStage === "transaction-confirmed";
+  const isTreeRerollTransactionPending = treeRerollLifecycleStage !== "idle";
+  const treeRerollCostTree =
+    treeRerollCostRaw === null ? null : formatTreeRerollCost(treeRerollCostRaw);
+
+  useEffect(() => {
+    const treeConfigId = SUI_CONFIG.TREE_CONFIG_ID.trim();
+    if (!treeConfigId) {
+      setTreeRerollCostRaw(null);
+      return;
+    }
+    let cancelled = false;
+    void readSuiObjectWithRetry(
+      suiClient,
+      { id: treeConfigId, options: { showContent: true } },
+      { operation: "tree-reroll-config" },
+    )
+      .then((response) => {
+        if (!cancelled) setTreeRerollCostRaw(parseTreeRerollCostRaw(response));
+      })
+      .catch((error) => {
+        console.warn("[tree-reroll] config read failed", error);
+        if (!cancelled) setTreeRerollCostRaw(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [suiClient]);
 
   const dismissRecoverableBattleError = useCallback(() => {
     setRecoverableBattleError(null);
@@ -2752,6 +2842,174 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
     ],
   );
 
+  const rerollHand = useCallback(async () => {
+    if (!address || !currentAccount || !currentWallet || !randomObjectId || !battleState?.battleId) {
+      throw new Error("Connect your wallet and start a battle before using TREE Reroll.");
+    }
+    if (isMoveTransactionPending || isBattleRefreshPending || isTreeRerollTransactionPending) {
+      throw new Error("Wait for the current battle action to finish before rerolling.");
+    }
+
+    const treeConfigId = SUI_CONFIG.TREE_CONFIG_ID.trim();
+    if (!treeConfigId) {
+      throw new Error("TREE Reroll is not active yet.");
+    }
+
+    let activeState = battleState;
+    const liveState = await getLiveBattleState(suiClient, battleState.battleId);
+    if (liveState) {
+      activeState = { ...liveState, isBotBattle: battleState.isBotBattle };
+      await applyBattleState(activeState);
+    }
+    if (!isActiveBattleForAddress(activeState, address)) {
+      throw new Error("Battle not active");
+    }
+    if (!getTreeRerollMoveFunction(activeState.battleVersion)) {
+      throw new Error("TREE Reroll is available only in Garden Bot and current paid PvP battles.");
+    }
+    const isPlayer1 = activeState.player1?.toLowerCase() === address.toLowerCase();
+    const isPlayer2 = activeState.player2?.toLowerCase() === address.toLowerCase();
+    const isCurrentTurn =
+      (isPlayer1 && activeState.turn === 0) ||
+      (isPlayer2 && activeState.turn === 1);
+    if (!isCurrentTurn) throw new Error("Wait for your turn before rerolling.");
+    if (rerollUsedForAddress(activeState, address)) {
+      throw new Error("Your one TREE Reroll has already been used in this battle.");
+    }
+
+    const configResponse = await readSuiObjectWithRetry(
+      suiClient,
+      { id: treeConfigId, options: { showContent: true } },
+      { operation: "tree-reroll-config-preflight" },
+    );
+    const costRaw = parseTreeRerollCostRaw(configResponse);
+    if (costRaw === null) {
+      setTreeRerollCostRaw(null);
+      throw new Error("TREE Reroll is not active yet.");
+    }
+    setTreeRerollCostRaw(costRaw);
+
+    const selectedCoins = await getTreeCoinInputsForCost(suiClient, address, costRaw);
+    if (!selectedCoins) {
+      throw new Error(`You need at least ${formatTreeRerollCost(costRaw).toLocaleString()} liquid TREE to reroll.`);
+    }
+
+    const tx = buildTreeRerollTransaction({
+      address,
+      battleId: activeState.battleId!,
+      battleVersion: activeState.battleVersion,
+      treeConfigId,
+      randomObjectId,
+      costRaw,
+      coinObjectIds: selectedCoins.coinObjectIds,
+    });
+    setTreeRerollLifecycleStage("awaiting-wallet-approval");
+
+    let result: Awaited<ReturnType<typeof walletSignAndExecuteTransaction>>;
+    try {
+      result = await walletSignAndExecuteTransaction(currentWallet, {
+        account: currentAccount,
+        chain: SUI_CONFIG.CHAIN,
+        transaction: {
+          toJSON: async () => tx.toJSON({ supportedIntents }),
+        },
+      });
+    } catch (error: any) {
+      setTreeRerollLifecycleStage("idle");
+      const message = error?.message ?? "TREE Reroll was not submitted.";
+      if (/reject|cancel|denied|declined/i.test(message)) {
+        throw new Error("TREE Reroll was cancelled in your wallet. No TREE was charged.");
+      }
+      throw new Error(message);
+    }
+
+    if (!result.digest) {
+      setTreeRerollLifecycleStage("idle");
+      throw new Error("TREE Reroll was submitted, but no transaction digest was returned. Check your wallet history before trying again.");
+    }
+    setTreeRerollLifecycleStage("transaction-submitted");
+    recentBattleDigestRef.current = result.digest;
+
+    let completedState: BattleState | null = null;
+    try {
+      const confirmation = await getBattleUpdateStateFromTransaction(
+        suiClient,
+        result.digest,
+        address,
+        activeState.battleId,
+      );
+      if (confirmation.executionError) {
+        throw new Error(`TREE Reroll failed on-chain: ${confirmation.executionError}`);
+      }
+      completedState = confirmation.state;
+    } catch (error: any) {
+      if (/failed on-chain/i.test(error?.message ?? "")) {
+        setTreeRerollLifecycleStage("idle");
+        throw error;
+      }
+      console.warn("[tree-reroll] confirmation read interrupted", {
+        digest: result.digest,
+        error,
+      });
+    }
+
+    setTreeRerollLifecycleStage("refreshing-battle");
+    if (!completedState || !rerollUsedForAddress(completedState, address)) {
+      try {
+        const refreshed = await getLiveBattleState(suiClient, activeState.battleId!);
+        if (refreshed) completedState = { ...refreshed, isBotBattle: activeState.isBotBattle };
+      } catch (error) {
+        console.warn("[tree-reroll] post-digest battle refresh interrupted", {
+          digest: result.digest,
+          error,
+        });
+      }
+    }
+
+    if (!completedState || !rerollUsedForAddress(completedState, address)) {
+      setTreeRerollLifecycleStage("idle");
+      showRecoverableBattleRefreshError(
+        "TREE Reroll was submitted, but the refreshed hand could not be loaded yet. Check the transaction in your wallet and refresh the battle before trying again.",
+        result.digest,
+      );
+      return;
+    }
+
+    await applyBattleState(completedState);
+    const isP1 = completedState.player1?.toLowerCase() === address.toLowerCase();
+    const playerGrowth = isP1 ? completedState.player1Growth : completedState.player2Growth;
+    const opponentGrowth = isP1 ? completedState.player2Growth : completedState.player1Growth;
+    setActionLog((log) => [
+      ...log,
+      {
+        id: `${Date.now()}-tree-reroll`,
+        timestamp: Date.now(),
+        actor: "you",
+        moveId: 0,
+        prevPlayerGrowth: playerGrowth,
+        nextPlayerGrowth: playerGrowth,
+        prevOpponentGrowth: opponentGrowth,
+        nextOpponentGrowth: opponentGrowth,
+        label: "TREE Reroll",
+        details: [`Entire hand replaced for ${formatTreeRerollCost(costRaw).toLocaleString()} TREE`, "Your turn was preserved"],
+      },
+    ]);
+    setTreeRerollLifecycleStage("idle");
+  }, [
+    address,
+    applyBattleState,
+    battleState,
+    currentAccount,
+    currentWallet,
+    isBattleRefreshPending,
+    isMoveTransactionPending,
+    isTreeRerollTransactionPending,
+    randomObjectId,
+    showRecoverableBattleRefreshError,
+    suiClient,
+    supportedIntents,
+  ]);
+
   const claimTimeoutWin = useCallback(async () => {
     if (!address || !battleState?.battleId) {
       throw new Error("Battle not active");
@@ -3471,6 +3729,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
         joinBattle,
         startBotBattle,
         useAbility,
+        rerollHand,
         claimTimeoutWin,
         forfeitBattle,
         adminForceClose,
@@ -3480,6 +3739,9 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
         refreshCurrentBattleState,
         moveLifecycleStage,
         isMoveTransactionPending,
+        treeRerollLifecycleStage,
+        isTreeRerollTransactionPending,
+        treeRerollCostTree,
         isBattleRefreshPending,
         recoverableBattleError,
         dismissRecoverableBattleError,

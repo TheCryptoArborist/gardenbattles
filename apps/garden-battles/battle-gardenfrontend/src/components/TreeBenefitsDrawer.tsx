@@ -5,6 +5,7 @@ import UtilityDrawer from "@/components/UtilityDrawer";
 import { useFifthMoveEligibility } from "@/hooks/useFifthMoveEligibility";
 import { useTreeBalance } from "@/hooks/useTreeBalance";
 import { appAsset } from "@/lib/assets";
+import type { TreeRerollStatus } from "@/lib/treePowerPresentation";
 
 const QUALIFICATION_ACTIONS = [
   {
@@ -35,6 +36,9 @@ type TreeBenefitsDrawerProps = {
   isBattleActive: boolean;
   isPracticeBattle: boolean;
   currentMoveCount: number;
+  rerollStatus?: TreeRerollStatus;
+  rerollCostTree?: number | null;
+  rerollUsed?: boolean;
   onClose: () => void;
 };
 
@@ -43,6 +47,9 @@ export default function TreeBenefitsDrawer({
   isBattleActive,
   isPracticeBattle,
   currentMoveCount,
+  rerollStatus,
+  rerollCostTree,
+  rerollUsed,
   onClose,
 }: TreeBenefitsDrawerProps) {
   const treeBalance = useTreeBalance(address);
@@ -158,6 +165,9 @@ export default function TreeBenefitsDrawer({
             treeBalance={treeBalance}
             fifthMoveEligibilityResponse={qualification ?? undefined}
             isFifthMoveActivationLive
+            rerollStatus={rerollStatus}
+            rerollCostTree={rerollCostTree}
+            rerollUsed={rerollUsed}
             compact
           />
       </div>

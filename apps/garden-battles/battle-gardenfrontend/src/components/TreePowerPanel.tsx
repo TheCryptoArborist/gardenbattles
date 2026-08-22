@@ -355,9 +355,9 @@ export default function TreePowerPanel({
 
       {compact ? (
         <details className="gb-tree-power-reroll-compact">
-          <summary>TREE Reroll <span>Planned Feature</span></summary>
-          <p><strong>What is planned:</strong> TREE Reroll will let you replace your entire hand once during a battle when you do not like the cards you were dealt.</p>
-          <p><strong>What happens today:</strong> Reroll is not active. Nothing is charged, and no reroll transaction can be submitted. The TREE price and final rules will be shown before launch.</p>
+          <summary>TREE Reroll <span>{reroll.statusLabel}</span></summary>
+          <p><strong>What it does:</strong> Replace your entire hand once during Garden Bot or paid PvP without losing your turn.</p>
+          <p><strong>Payment:</strong> {reroll.costLabel}. The battle screen always shows a final confirmation before your wallet opens.</p>
         </details>
       ) : <section className="gb-tree-power-card gb-tree-power-reroll" aria-label="TREE Reroll">
         <div className="gb-tree-power-card-head">
@@ -379,7 +379,7 @@ export default function TreePowerPanel({
         <div className="gb-tree-power-reroll-facts">
           <span>Once per battle</span>
           <span>Paid in TREE</span>
-          <span>Payment routes to treasury</span>
+          <span>TREE removed from circulation</span>
         </div>
         <div className="gb-tree-power-cost">
           <WalletCards size={16} aria-hidden="true" />
@@ -402,7 +402,7 @@ export default function TreePowerPanel({
       {!compact && <section className="gb-tree-power-buy" aria-label="Buy TREE for Battle Utilities">
         <div className="gb-tree-power-buy-copy">
           <strong>Get TREE for Battle Utilities</strong>
-          <span>Future TREE rerolls will use TREE during active battles.</span>
+          <span>Active TREE rerolls use liquid TREE held directly in your wallet.</span>
         </div>
         <a href={TREE_POWER_BUY_URL} target="_blank" rel="noopener noreferrer">
           <img

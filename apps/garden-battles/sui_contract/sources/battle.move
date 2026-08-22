@@ -335,6 +335,76 @@ module battle_garden::battle {
         moves
     }
 
+    /// Generates a completely fresh hand. None of the replacement cards are
+    /// present in the old hand, so a paid reroll can never return the same set.
+    /// Entitled players receive a fresh three-card fifth-move draft after the
+    /// four-card base hand, matching the battle-start flow.
+    fun gen_reroll_moves(
+        old_moves: &vector<u8>,
+        entitled: bool,
+        rand: &Random,
+        ctx: &mut TxContext,
+    ): vector<u8> {
+        let attacks = candidates_excluding(&attack_hand_candidate_moves(), old_moves);
+        let growths = candidates_excluding(&growth_hand_candidate_moves(), old_moves);
+        let hybrids = candidates_excluding(&hybrid_hand_candidate_moves(), old_moves);
+        let mut rng = random::new_generator(rand, ctx);
+
+        let mut moves = vector::empty<u8>();
+        let attack_idx = random::generate_u64(&mut rng) % vector::length(&attacks);
+        let growth_idx = random::generate_u64(&mut rng) % vector::length(&growths);
+        let hybrid_idx = random::generate_u64(&mut rng) % vector::length(&hybrids);
+        vector::push_back(&mut moves, *vector::borrow(&attacks, attack_idx));
+        vector::push_back(&mut moves, *vector::borrow(&growths, growth_idx));
+        vector::push_back(&mut moves, *vector::borrow(&hybrids, hybrid_idx));
+
+        let all = all_hand_candidate_moves();
+        let without_old = candidates_excluding(&all, old_moves);
+        let remaining = candidates_excluding(&without_old, &moves);
+        let flexible_idx = random::generate_u64(&mut rng) % vector::length(&remaining);
+        vector::push_back(&mut moves, *vector::borrow(&remaining, flexible_idx));
+
+        if (!entitled) {
+            return moves
+        };
+
+        let fifth_attacks_without_old = candidates_excluding(&attack_hand_candidate_moves(), old_moves);
+        let fifth_growths_without_old = candidates_excluding(&growth_hand_candidate_moves(), old_moves);
+        let fifth_hybrids_without_old = candidates_excluding(&hybrid_hand_candidate_moves(), old_moves);
+        let fifth_attacks = candidates_excluding(&fifth_attacks_without_old, &moves);
+        let fifth_growths = candidates_excluding(&fifth_growths_without_old, &moves);
+        let fifth_hybrids = candidates_excluding(&fifth_hybrids_without_old, &moves);
+        let fifth_attack_idx = random::generate_u64(&mut rng) % vector::length(&fifth_attacks);
+        let fifth_growth_idx = random::generate_u64(&mut rng) % vector::length(&fifth_growths);
+        let fifth_hybrid_idx = random::generate_u64(&mut rng) % vector::length(&fifth_hybrids);
+        vector::push_back(&mut moves, *vector::borrow(&fifth_attacks, fifth_attack_idx));
+        vector::push_back(&mut moves, *vector::borrow(&fifth_growths, fifth_growth_idx));
+        vector::push_back(&mut moves, *vector::borrow(&fifth_hybrids, fifth_hybrid_idx));
+        moves
+    }
+
+    fun charge_reroll<T>(
+        tree_config: &TreeConfig,
+        mut payment: coin::Coin<T>,
+        ctx: &mut TxContext,
+    ) {
+        assert!(config::is_utility_coin<T>(tree_config), errors::e_incorrect_coin_type());
+        let cost = config::reroll_cost(tree_config);
+        assert!(cost > 0, errors::e_tree_insufficient());
+        assert!(coin::value(&payment) >= cost, errors::e_insufficient_payment());
+
+        // TREE has an external TreasuryCap, so this package cannot destroy its
+        // supply directly. Sending the exact fee to 0x0 permanently removes it
+        // from circulation while returning any accidental surplus.
+        let spent = coin::split(&mut payment, cost, ctx);
+        transfer::public_transfer(spent, @0x0);
+        if (coin::value(&payment) > 0) {
+            transfer::public_transfer(payment, tx_context::sender(ctx));
+        } else {
+            coin::destroy_zero(payment);
+        };
+    }
+
     fun emit_update(arg0: &Battle) {
         let update = BattleUpdate {
             battle_id: object::uid_to_inner(&arg0.id),
@@ -1923,6 +1993,72 @@ module battle_garden::battle {
         emit_update(battle);
     }
 
+    /// Replaces the current PvP V3 player's entire hand once per battle.
+    /// The reroll is only available on that player's turn and never advances it.
+    public entry fun reroll_pvp_v3_moves<T>(
+        battle: &mut PvpBattleV3,
+        tree_config: &TreeConfig,
+        payment: coin::Coin<T>,
+        rand: &Random,
+        ctx: &mut TxContext,
+    ) {
+        assert!(!battle.finished, errors::e_battle_finished());
+        let sender = tx_context::sender(ctx);
+
+        if (sender == battle.player1) {
+            assert!(battle.turn == 0, errors::e_reroll_not_players_turn());
+            assert!(!battle.p1_reroll_used, errors::e_reroll_already_used());
+            charge_reroll(tree_config, payment, ctx);
+            battle.p1_moves = gen_reroll_moves(
+                &battle.p1_moves,
+                battle.p1_fifth_move_entitled,
+                rand,
+                ctx,
+            );
+            battle.p1_reroll_used = true;
+        } else if (sender == battle.player2) {
+            assert!(battle.turn == 1, errors::e_reroll_not_players_turn());
+            assert!(!battle.p2_reroll_used, errors::e_reroll_already_used());
+            charge_reroll(tree_config, payment, ctx);
+            battle.p2_moves = gen_reroll_moves(
+                &battle.p2_moves,
+                battle.p2_fifth_move_entitled,
+                rand,
+                ctx,
+            );
+            battle.p2_reroll_used = true;
+        } else {
+            abort errors::e_unauthorized_player()
+        };
+
+        emit_update_v3(battle);
+    }
+
+    /// Replaces the Garden Bot player's entire hand once per battle without
+    /// consuming or advancing the player's move.
+    public entry fun reroll_ranked_bot_v2_moves<T>(
+        battle: &mut RankedBotBattleV2,
+        tree_config: &TreeConfig,
+        payment: coin::Coin<T>,
+        rand: &Random,
+        ctx: &mut TxContext,
+    ) {
+        assert!(!battle.finished, errors::e_battle_finished());
+        assert!(tx_context::sender(ctx) == battle.player1, errors::e_unauthorized_player());
+        assert!(battle.turn == 0, errors::e_reroll_not_players_turn());
+        assert!(!battle.p1_reroll_used, errors::e_reroll_already_used());
+
+        charge_reroll(tree_config, payment, ctx);
+        battle.p1_moves = gen_reroll_moves(
+            &battle.p1_moves,
+            battle.p1_fifth_move_entitled,
+            rand,
+            ctx,
+        );
+        battle.p1_reroll_used = true;
+        emit_update_ranked_bot_v2(battle);
+    }
+
     /// Spend the configured utility coin (e.g. $TREE) for an instant growth boost.
     /// Does NOT advance or replace your turn — you still play a move after.
     public entry fun tree_boost<T>(
@@ -2191,6 +2327,10 @@ module battle_garden::battle {
     #[test_only]
     public fun pvp_v3_p2_fifth_move_entitled(battle: &PvpBattleV3): bool { battle.p2_fifth_move_entitled }
     #[test_only]
+    public fun pvp_v3_p1_reroll_used(battle: &PvpBattleV3): bool { battle.p1_reroll_used }
+    #[test_only]
+    public fun pvp_v3_p2_reroll_used(battle: &PvpBattleV3): bool { battle.p2_reroll_used }
+    #[test_only]
     public fun pvp_v3_p1_eligibility_digest_len(battle: &PvpBattleV3): u64 { vector::length(&battle.p1_eligibility_digest) }
     #[test_only]
     public fun pvp_v3_p2_eligibility_digest_len(battle: &PvpBattleV3): u64 { vector::length(&battle.p2_eligibility_digest) }
@@ -2201,6 +2341,8 @@ module battle_garden::battle {
     public fun ranked_bot_v2_p2_moves(battle: &RankedBotBattleV2): &vector<u8> { &battle.p2_moves }
     #[test_only]
     public fun ranked_bot_v2_p1_fifth_move_entitled(battle: &RankedBotBattleV2): bool { battle.p1_fifth_move_entitled }
+    #[test_only]
+    public fun ranked_bot_v2_p1_reroll_used(battle: &RankedBotBattleV2): bool { battle.p1_reroll_used }
     #[test_only]
     public fun ranked_bot_v2_target_growth(battle: &RankedBotBattleV2): u64 { battle.target_growth }
     #[test_only]
