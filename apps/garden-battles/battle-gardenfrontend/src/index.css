@@ -7431,6 +7431,14 @@
     display: none;
   }
 
+  .gb-mobile-profile-heading {
+    display: none;
+  }
+
+  .gb-player-profile-content {
+    display: contents;
+  }
+
   .gb-nav-link > svg {
     flex: 0 0 auto;
     filter: drop-shadow(0 0 6px currentColor);
@@ -8339,6 +8347,167 @@
   }
 
   @media (max-width: 700px) {
+    .gb-player-status-strip {
+      align-items: stretch;
+      background:
+        radial-gradient(circle at 8% 20%, rgba(255, 203, 79, 0.1), transparent 32%),
+        linear-gradient(145deg, rgba(0, 29, 25, 0.97), rgba(7, 20, 35, 0.98));
+      border: 1px solid rgba(93, 237, 179, 0.38);
+      border-radius: 14px;
+      box-shadow: 0 9px 25px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(225, 255, 239, 0.08);
+      display: block;
+      margin: 10px;
+      padding: 9px;
+    }
+
+    .gb-mobile-profile-heading {
+      align-items: center;
+      border-bottom: 1px solid rgba(93, 237, 179, 0.16);
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 8px;
+      padding: 0 2px 8px;
+    }
+
+    .gb-mobile-profile-heading > span {
+      align-items: center;
+      color: #b8ffd4;
+      display: inline-flex;
+      font-family: Orbitron, sans-serif;
+      font-size: 10px;
+      font-weight: 900;
+      gap: 7px;
+      letter-spacing: 0.75px;
+      text-transform: uppercase;
+    }
+
+    .gb-mobile-profile-heading > div {
+      align-items: center;
+      display: flex;
+      gap: 6px;
+    }
+
+    .gb-mobile-profile-heading a,
+    .gb-mobile-profile-heading button {
+      align-items: center;
+      background: rgba(0, 213, 199, 0.08);
+      border: 1px solid rgba(0, 213, 199, 0.32);
+      border-radius: 999px;
+      color: #7ffff0;
+      display: inline-flex;
+      font-family: Orbitron, sans-serif;
+      font-size: 8px;
+      font-weight: 900;
+      gap: 3px;
+      min-height: 28px;
+      padding: 5px 8px;
+      text-decoration: none;
+      text-transform: uppercase;
+    }
+
+    .gb-mobile-profile-heading button {
+      cursor: pointer;
+    }
+
+    .gb-mobile-profile-heading button svg {
+      transition: transform 0.2s ease;
+    }
+
+    .gb-player-status-strip[data-expanded="true"] .gb-mobile-profile-heading button svg {
+      transform: rotate(180deg);
+    }
+
+    .gb-player-profile-content {
+      display: grid;
+      gap: 7px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .gb-player-profile-content .gb-rank-showcase {
+      display: contents;
+    }
+
+    .gb-player-profile-content > a,
+    .gb-player-profile-content .gb-rank-showcase > a {
+      min-width: 0;
+      width: 100%;
+    }
+
+    .gb-player-profile-content .gb-player-record-card.gb-hud-rank-card,
+    .gb-player-profile-content .gb-tree-status-card {
+      border-radius: 10px;
+      gap: 7px;
+      grid-template-columns: 42px minmax(0, 1fr);
+      min-height: 82px;
+      min-width: 0;
+      padding: 7px;
+      width: 100%;
+    }
+
+    .gb-player-profile-content .gb-hud-rank-crest-shell {
+      border-radius: 10px;
+      height: 42px;
+      width: 42px;
+    }
+
+    .gb-player-profile-content .gb-hud-rank-card .gb-tree-badge-crest-lg,
+    .gb-player-profile-content .gb-player-record-card .gb-hud-rank-crest-shell .gb-tree-badge-crest-lg {
+      height: 38px;
+      width: 38px;
+    }
+
+    .gb-player-profile-content .gb-hud-rank-content {
+      gap: 2px;
+    }
+
+    .gb-player-profile-content .gb-hud-rank-card .gb-holder-rank-kicker,
+    .gb-player-profile-content .gb-hud-rank-card .gb-battle-rank-kicker {
+      font-size: 7px;
+      letter-spacing: 0.65px;
+    }
+
+    .gb-player-profile-content .gb-hud-rank-card .gb-holder-rank-title,
+    .gb-player-profile-content .gb-hud-rank-card .gb-battle-rank-title {
+      font-size: clamp(10px, 3vw, 13px);
+      line-height: 1.05;
+    }
+
+    .gb-player-profile-content .gb-hud-rank-card .gb-holder-rank-balance {
+      font-size: 8px;
+      padding-top: 4px;
+    }
+
+    .gb-player-profile-content .gb-player-record-stats,
+    .gb-player-profile-content .gb-player-record-streak,
+    .gb-player-profile-content .gb-player-record-meta,
+    .gb-player-profile-content .gb-player-record-badges,
+    .gb-player-profile-content .gb-player-record-leaderboard-cue {
+      display: none;
+    }
+
+    .gb-player-status-strip[data-expanded="true"] .gb-player-profile-content {
+      grid-template-columns: 1fr;
+    }
+
+    .gb-player-status-strip[data-expanded="true"] .gb-player-profile-content .gb-player-record-card.gb-hud-rank-card,
+    .gb-player-status-strip[data-expanded="true"] .gb-player-profile-content .gb-tree-status-card {
+      grid-template-columns: 58px minmax(0, 1fr);
+      min-height: 96px;
+      padding: 10px;
+    }
+
+    .gb-player-status-strip[data-expanded="true"] .gb-player-profile-content .gb-hud-rank-crest-shell {
+      height: 58px;
+      width: 58px;
+    }
+
+    .gb-player-status-strip[data-expanded="true"] .gb-player-profile-content .gb-player-record-stats,
+    .gb-player-status-strip[data-expanded="true"] .gb-player-profile-content .gb-player-record-streak,
+    .gb-player-status-strip[data-expanded="true"] .gb-player-profile-content .gb-player-record-meta,
+    .gb-player-status-strip[data-expanded="true"] .gb-player-profile-content .gb-player-record-badges {
+      display: flex;
+    }
+
     .gb-quick-start-tools {
       grid-template-columns: 1fr 1fr;
       margin-inline: 10px;

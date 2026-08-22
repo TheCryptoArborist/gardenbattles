@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Link } from "wouter";
-import { AlertTriangle, CheckCircle2, ChevronRight, Gamepad2, House, LoaderCircle, Menu, ShoppingBag, Sparkles, Trophy, WalletCards, X } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, Gamepad2, House, LoaderCircle, Menu, ShoppingBag, Sparkles, Trophy, WalletCards, X } from "lucide-react";
 import { ConnectButton } from "@mysten/dapp-kit";
 import MobileWalletLaunchers from "@/components/MobileWalletLaunchers";
 import { useSuiWallet, type PvpQueueState } from "@/hooks/useSuiWallet";
@@ -288,6 +288,7 @@ export default function Battle() {
   const [isForfeiting, setIsForfeiting] = useState(false);
   const [isAdminClosing, setIsAdminClosing] = useState(false);
   const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
+  const [mobileProfileExpanded, setMobileProfileExpanded] = useState(false);
   const [modeCardsExpanded, setModeCardsExpanded] = useState(false);
   const [utilityDrawer, setUtilityDrawer] = useState<"tree" | "nftree" | null>(null);
   const [dismissedResultKeys, setDismissedResultKeys] = useState<string[]>(
@@ -1879,27 +1880,45 @@ export default function Battle() {
           <section
             className="gb-player-status-strip"
             aria-label="Connected player status"
+            data-expanded={mobileProfileExpanded}
           >
-            <div className="gb-rank-showcase">
-              <aside className="gb-rank-showcase-copy gb-rank-showcase-copy-left" aria-label="Battle rank explanation">
-                <span>Your Competitive Legacy</span>
-                <strong>Every ranked victory grows your reputation.</strong>
-              </aside>
-              <PlayerRecord address={address} />
-              <aside className="gb-rank-showcase-copy gb-rank-showcase-copy-right" aria-label="TREE holder battle benefits">
-                <span>TREE Holder Battle Benefits</span>
-                <strong>Put TREE to work through verified liquidity or staking to unlock a fifth battle card.</strong>
+            <div className="gb-mobile-profile-heading">
+              <span><Trophy size={15} aria-hidden="true" /> Player Profile</span>
+              <div>
+                <Link href={leaderboardRoute}>Leaderboard</Link>
                 <button
                   type="button"
-                  className="gb-rank-tree-benefits-button"
-                  onClick={() => setUtilityDrawer("tree")}
+                  aria-expanded={mobileProfileExpanded}
+                  aria-label={mobileProfileExpanded ? "Hide player statistics" : "Show player statistics and badges"}
+                  onClick={() => setMobileProfileExpanded((expanded) => !expanded)}
                 >
-                  <Sparkles size={13} aria-hidden="true" />
-                  Explore TREE Benefits
+                  {mobileProfileExpanded ? "Less" : "Stats"}
+                  <ChevronDown size={15} aria-hidden="true" />
                 </button>
-              </aside>
+              </div>
             </div>
-            <ForestPower address={address} />
+            <div className="gb-player-profile-content">
+              <div className="gb-rank-showcase">
+                <aside className="gb-rank-showcase-copy gb-rank-showcase-copy-left" aria-label="Battle rank explanation">
+                  <span>Your Competitive Legacy</span>
+                  <strong>Every ranked victory grows your reputation.</strong>
+                </aside>
+                <PlayerRecord address={address} />
+                <aside className="gb-rank-showcase-copy gb-rank-showcase-copy-right" aria-label="TREE holder battle benefits">
+                  <span>TREE Holder Battle Benefits</span>
+                  <strong>Put TREE to work through verified liquidity or staking to unlock a fifth battle card.</strong>
+                  <button
+                    type="button"
+                    className="gb-rank-tree-benefits-button"
+                    onClick={() => setUtilityDrawer("tree")}
+                  >
+                    <Sparkles size={13} aria-hidden="true" />
+                    Explore TREE Benefits
+                  </button>
+                </aside>
+              </div>
+              <ForestPower address={address} />
+            </div>
           </section>
         )}
 
