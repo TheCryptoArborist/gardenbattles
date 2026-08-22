@@ -6429,9 +6429,13 @@
   }
 
   .gb-battle-move-card-fifth {
+    grid-column: 1 / -1;
     isolation: isolate;
-    margin: 4px;
+    justify-self: center;
+    margin: 8px 4px 4px;
+    max-width: 320px;
     overflow: visible;
+    width: min(100%, 320px);
   }
 
   .gb-battle-move-card-fifth::before {

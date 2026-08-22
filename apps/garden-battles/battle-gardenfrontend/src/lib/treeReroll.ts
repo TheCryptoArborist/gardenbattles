@@ -31,6 +31,13 @@ export function formatTreeRerollCost(raw: bigint): number {
   return Number(raw) / 10 ** FALLBACK_TREE_DECIMALS;
 }
 
+export function getTreeRerollCostRaw(
+  baseCostRaw: bigint,
+  battleVersion?: PvpBattleVersion,
+): bigint {
+  return battleVersion === "pvp-v3" ? baseCostRaw * BigInt(2) : baseCostRaw;
+}
+
 export function selectTreeCoinInputs(
   coins: TreeCoinInput[],
   costRaw: bigint,

@@ -3124,7 +3124,7 @@ export default function Battle() {
                     {isFifthMoveCard && (
                       <span className="gb-fifth-move-card-ribbon">
                         <Sparkles size={12} strokeWidth={2.8} aria-hidden="true" />
-                        Unlocked Fifth Card
+                        Your Bonus Fifth Move
                       </span>
                     )}
                     {/* Badge */}

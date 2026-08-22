@@ -180,7 +180,7 @@ module battle_garden::battle_tests {
             let r = test_scenario::take_shared<Random>(&s);
             battle::set_pvp_v3_turn_for_testing(&mut b, 0);
             let old_moves = utils::clone_vec_u8(battle::pvp_v3_p1_moves(&b));
-            let payment = coin::mint_for_testing<TREE>(100, test_scenario::ctx(&mut s));
+            let payment = coin::mint_for_testing<TREE>(200, test_scenario::ctx(&mut s));
 
             battle::reroll_pvp_v3_moves<TREE>(&mut b, &tc, payment, &r, test_scenario::ctx(&mut s));
 
@@ -198,6 +198,59 @@ module battle_garden::battle_tests {
             test_scenario::return_shared(b);
         };
         test_scenario::end(s);
+    }
+
+    #[test]
+    #[expected_failure(abort_code = 104)]
+    fun pvp_v3_reroll_rejects_the_garden_bot_base_fee() {
+        let admin = @0xA;
+        let player = @0xB;
+        let opponent = @0xC;
+        let mut s = test_scenario::begin(admin);
+
+        test_scenario::next_tx(&mut s, admin);
+        {
+            config::create_config_for_testing(test_scenario::ctx(&mut s));
+            config::create_tree_config_for_testing(test_scenario::ctx(&mut s));
+        };
+        test_scenario::next_tx(&mut s, @0x0);
+        random::create_for_testing(test_scenario::ctx(&mut s));
+        test_scenario::next_tx(&mut s, admin);
+        {
+            let mut tc = test_scenario::take_shared<TreeConfig>(&s);
+            config::set_utility_coin<TREE>(&mut tc, test_scenario::ctx(&mut s));
+            config::set_tree_params(&mut tc, 100, 0, 0, 0, 0, 0, test_scenario::ctx(&mut s));
+            test_scenario::return_shared(tc);
+        };
+        test_scenario::next_tx(&mut s, player);
+        {
+            let c = test_scenario::take_shared<Config>(&s);
+            let r = test_scenario::take_shared<Random>(&s);
+            battle::create_pvp_battle_v3(
+                player,
+                opponent,
+                0,
+                &c,
+                balance::zero(),
+                50,
+                fifth_move::standard_eligibility(),
+                fifth_move::standard_eligibility(),
+                &r,
+                test_scenario::ctx(&mut s),
+            );
+            test_scenario::return_shared(r);
+            test_scenario::return_shared(c);
+        };
+        test_scenario::next_tx(&mut s, player);
+        {
+            let mut b = test_scenario::take_shared<battle::PvpBattleV3>(&s);
+            let tc = test_scenario::take_shared<TreeConfig>(&s);
+            let r = test_scenario::take_shared<Random>(&s);
+            battle::set_pvp_v3_turn_for_testing(&mut b, 0);
+            let payment = coin::mint_for_testing<TREE>(100, test_scenario::ctx(&mut s));
+            battle::reroll_pvp_v3_moves<TREE>(&mut b, &tc, payment, &r, test_scenario::ctx(&mut s));
+            abort 999
+        };
     }
 
     #[test]

@@ -102,6 +102,7 @@ import { TREE_COIN_TYPE } from "@/lib/treeBalance";
 import {
   buildTreeRerollTransaction,
   formatTreeRerollCost,
+  getTreeRerollCostRaw,
   getTreeRerollMoveFunction,
   parseTreeRerollCostRaw,
   selectTreeCoinInputs,
@@ -1238,8 +1239,12 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
     moveLifecycleStage === "transaction-submitted" ||
     moveLifecycleStage === "transaction-confirmed";
   const isTreeRerollTransactionPending = treeRerollLifecycleStage !== "idle";
+  const activeTreeRerollCostRaw =
+    treeRerollCostRaw === null
+      ? null
+      : getTreeRerollCostRaw(treeRerollCostRaw, battleState?.battleVersion);
   const treeRerollCostTree =
-    treeRerollCostRaw === null ? null : formatTreeRerollCost(treeRerollCostRaw);
+    activeTreeRerollCostRaw === null ? null : formatTreeRerollCost(activeTreeRerollCostRaw);
 
   useEffect(() => {
     const treeConfigId = SUI_CONFIG.TREE_CONFIG_ID.trim();
@@ -2882,12 +2887,13 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
       { id: treeConfigId, options: { showContent: true } },
       { operation: "tree-reroll-config-preflight" },
     );
-    const costRaw = parseTreeRerollCostRaw(configResponse);
-    if (costRaw === null) {
+    const baseCostRaw = parseTreeRerollCostRaw(configResponse);
+    if (baseCostRaw === null) {
       setTreeRerollCostRaw(null);
       throw new Error("TREE Reroll is not active yet.");
     }
-    setTreeRerollCostRaw(costRaw);
+    setTreeRerollCostRaw(baseCostRaw);
+    const costRaw = getTreeRerollCostRaw(baseCostRaw, activeState.battleVersion);
 
     const selectedCoins = await getTreeCoinInputsForCost(suiClient, address, costRaw);
     if (!selectedCoins) {

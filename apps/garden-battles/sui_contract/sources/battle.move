@@ -1,5 +1,6 @@
 #[allow(lint(public_random))]
 module battle_garden::battle {
+    const PVP_V3_REROLL_COST_MULTIPLIER: u64 = 2;
     use sui::event;
     use sui::balance::{Self, Balance};
     use sui::coin;
@@ -386,10 +387,11 @@ module battle_garden::battle {
     fun charge_reroll<T>(
         tree_config: &TreeConfig,
         mut payment: coin::Coin<T>,
+        cost_multiplier: u64,
         ctx: &mut TxContext,
     ) {
         assert!(config::is_utility_coin<T>(tree_config), errors::e_incorrect_coin_type());
-        let cost = config::reroll_cost(tree_config);
+        let cost = config::reroll_cost(tree_config) * cost_multiplier;
         assert!(cost > 0, errors::e_tree_insufficient());
         assert!(coin::value(&payment) >= cost, errors::e_insufficient_payment());
 
@@ -2008,7 +2010,7 @@ module battle_garden::battle {
         if (sender == battle.player1) {
             assert!(battle.turn == 0, errors::e_reroll_not_players_turn());
             assert!(!battle.p1_reroll_used, errors::e_reroll_already_used());
-            charge_reroll(tree_config, payment, ctx);
+            charge_reroll(tree_config, payment, PVP_V3_REROLL_COST_MULTIPLIER, ctx);
             battle.p1_moves = gen_reroll_moves(
                 &battle.p1_moves,
                 battle.p1_fifth_move_entitled,
@@ -2019,7 +2021,7 @@ module battle_garden::battle {
         } else if (sender == battle.player2) {
             assert!(battle.turn == 1, errors::e_reroll_not_players_turn());
             assert!(!battle.p2_reroll_used, errors::e_reroll_already_used());
-            charge_reroll(tree_config, payment, ctx);
+            charge_reroll(tree_config, payment, PVP_V3_REROLL_COST_MULTIPLIER, ctx);
             battle.p2_moves = gen_reroll_moves(
                 &battle.p2_moves,
                 battle.p2_fifth_move_entitled,
@@ -2048,7 +2050,7 @@ module battle_garden::battle {
         assert!(battle.turn == 0, errors::e_reroll_not_players_turn());
         assert!(!battle.p1_reroll_used, errors::e_reroll_already_used());
 
-        charge_reroll(tree_config, payment, ctx);
+        charge_reroll(tree_config, payment, 1, ctx);
         battle.p1_moves = gen_reroll_moves(
             &battle.p1_moves,
             battle.p1_fifth_move_entitled,

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   formatTreeRerollCost,
+  getTreeRerollCostRaw,
   getTreeRerollMoveFunction,
   parseTreeRerollCostRaw,
   selectTreeCoinInputs,
@@ -20,6 +21,12 @@ test("reroll cost is read from the on-chain TreeConfig", () => {
   assert.equal(cost, BigInt(10_000_000_000));
   assert.equal(formatTreeRerollCost(cost!), 10_000);
   assert.equal(parseTreeRerollCostRaw({ data: { content: { fields: { reroll_cost: "0" } } } }), null);
+});
+
+test("PvP rerolls cost twice the Garden Bot base fee", () => {
+  const baseCost = BigInt(10_000_000_000);
+  assert.equal(getTreeRerollCostRaw(baseCost, "bot-v2"), BigInt(10_000_000_000));
+  assert.equal(getTreeRerollCostRaw(baseCost, "pvp-v3"), BigInt(20_000_000_000));
 });
 
 test("TREE coin selection combines only as many objects as the fee needs", () => {
