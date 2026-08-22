@@ -841,10 +841,12 @@ export default function Battle() {
       // Friendly messages for common contract errors
       const lowerMsg = msg.toLowerCase();
       const friendly =
-        lowerMsg.includes("e_unauthorized_player") ||
-        lowerMsg.includes("unauthorized") ||
-        /\b102\b/.test(msg)
-          ? "Not your turn yet — wait for your opponent to move."
+        lowerMsg.includes("insufficient gas")
+          ? "The move was not applied because the wallet submitted too little gas. This battle is still active; refresh and try the move again."
+          : lowerMsg.includes("e_unauthorized_player") ||
+              lowerMsg.includes("unauthorized") ||
+              /\b102\b/.test(msg)
+            ? "Not your turn yet — wait for your opponent to move."
           : lowerMsg.includes("battle not active") ||
               lowerMsg.includes("e_battle_finished") ||
               lowerMsg.includes("finished") ||

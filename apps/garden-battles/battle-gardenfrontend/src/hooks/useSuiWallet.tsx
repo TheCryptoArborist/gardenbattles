@@ -71,7 +71,10 @@ import {
   type PvpBattleLogEvent,
 } from "@/lib/pvpBattleLogRecovery";
 import { awaitPvpMovePreflight } from "@/lib/pvpMovePreflight";
-import { addPvpMoveRequestNonce } from "@/lib/pvpMoveTransaction";
+import {
+  addPvpMoveRequestNonce,
+  setBattleMoveGasBudget,
+} from "@/lib/pvpMoveTransaction";
 import {
   preserveBattleTransactionDigest,
   resolvePvpHydrationMode,
@@ -2690,6 +2693,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
 
       const tx = new Transaction();
       addPvpMoveRequestNonce(tx);
+      setBattleMoveGasBudget(tx);
       lastMoveIdRef.current = abilityId; // track for action log
       const moveFunction = getBattleMoveFunction(
         activeState.battleVersion,
