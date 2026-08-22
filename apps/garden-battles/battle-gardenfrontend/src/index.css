@@ -6539,37 +6539,151 @@
     max-width: 1080px;
   }
 
-  .gb-battle-hud-center > .gb-prize-payout-panel {
+  .gb-match-status-bar {
     align-items: center;
+    background:
+      linear-gradient(105deg, rgba(1, 30, 27, 0.96), rgba(7, 23, 38, 0.96));
+    border: 1px solid rgba(0, 213, 199, 0.38);
+    border-radius: 10px;
+    box-shadow:
+      0 8px 24px rgba(0, 0, 0, 0.25),
+      inset 0 1px 0 rgba(223, 255, 244, 0.06);
     display: grid;
-    gap: 5px 14px;
-    grid-template-columns: auto minmax(120px, auto) minmax(0, 1fr);
+    gap: 10px 16px;
+    grid-template-columns: minmax(190px, 1fr) auto auto;
     margin: 8px auto 10px;
     max-width: 980px;
-    padding: 10px 12px;
+    padding: 8px 10px;
+    position: relative;
+    text-align: left;
     width: 100%;
+    z-index: 4;
   }
 
-  .gb-battle-hud-center > .gb-prize-payout-panel .gb-hud-panel-kicker,
-  .gb-battle-hud-center > .gb-prize-payout-panel h2,
-  .gb-battle-hud-center > .gb-prize-payout-panel .gb-hud-panel-intro {
-    margin: 0;
+  .gb-match-status-summary {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
   }
 
-  .gb-battle-hud-center > .gb-prize-payout-panel .gb-hud-panel-intro {
+  .gb-match-status-summary span {
+    color: var(--gb-cyan);
+    font-family: Orbitron, sans-serif;
+    font-size: 9px;
+    font-weight: 900;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+  }
+
+  .gb-match-status-summary strong {
+    color: var(--gb-text-main);
+    font-family: Orbitron, sans-serif;
+    font-size: clamp(12px, 1.6vw, 15px);
+  }
+
+  .gb-match-status-live {
+    align-items: center;
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(116, 219, 255, 0.26);
+    border-radius: 999px;
+    color: #c8efff;
+    display: inline-flex;
+    font-size: 10px;
+    gap: 7px;
+    min-height: 32px;
+    padding: 6px 10px;
+    white-space: nowrap;
+  }
+
+  .gb-match-status-live > span {
+    background: currentColor;
+    border-radius: 50%;
+    box-shadow: 0 0 10px currentColor;
+    height: 7px;
+    width: 7px;
+  }
+
+  .gb-match-status-live-ready {
+    border-color: rgba(57, 255, 136, 0.42);
+    color: #7effa9;
+  }
+
+  .gb-match-status-live-waiting {
+    color: #8bdcff;
+  }
+
+  .gb-match-status-live-processing {
+    border-color: rgba(255, 203, 79, 0.48);
+    color: #ffd96e;
+  }
+
+  .gb-match-status-live-action {
+    border-color: rgba(255, 102, 121, 0.55);
+    color: #ff8b9b;
+  }
+
+  .gb-match-terms-details {
+    position: relative;
+  }
+
+  .gb-match-terms-details summary {
+    align-items: center;
+    border: 1px solid rgba(255, 203, 79, 0.36);
+    border-radius: 8px;
+    color: #ffe39a;
+    cursor: pointer;
+    display: inline-flex;
+    font-family: Orbitron, sans-serif;
+    font-size: 9px;
+    font-weight: 900;
+    justify-content: center;
+    min-height: 32px;
+    padding: 6px 10px;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .gb-match-terms-details summary::-webkit-details-marker {
     display: none;
   }
 
-  .gb-battle-hud-center > .gb-prize-payout-panel .gb-hud-facts {
+  .gb-match-terms-details dl {
+    background: rgba(1, 13, 19, 0.98);
+    border: 1px solid rgba(255, 203, 79, 0.38);
+    border-radius: 10px;
+    box-shadow: 0 16px 34px rgba(0, 0, 0, 0.42);
     display: grid;
-    gap: 7px;
-    grid-column: 3;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+    grid-template-columns: repeat(3, minmax(120px, 1fr));
+    margin: 7px 0 0;
+    min-width: min(520px, 82vw);
+    padding: 10px;
+    position: absolute;
+    right: 0;
+    top: 100%;
   }
 
-  .gb-battle-hud-center > .gb-prize-payout-panel .gb-hud-facts div {
-    gap: 2px;
-    padding: 7px 8px;
+  .gb-match-terms-details dl > div {
+    background: rgba(0, 213, 199, 0.05);
+    border: 1px solid rgba(0, 213, 199, 0.18);
+    border-radius: 7px;
+    display: grid;
+    gap: 3px;
+    padding: 8px;
+  }
+
+  .gb-match-terms-details dt {
+    color: var(--gb-cyan);
+    font-family: Orbitron, sans-serif;
+    font-size: 8px;
+    font-weight: 900;
+    text-transform: uppercase;
+  }
+
+  .gb-match-terms-details dd {
+    color: var(--gb-text-main);
+    font-size: 10px;
+    margin: 0;
   }
 
   .gb-tree-benefits-trigger {
@@ -7234,15 +7348,30 @@
       text-align: center;
     }
 
-    .gb-battle-hud-center > .gb-prize-payout-panel {
-      display: grid;
-      grid-template-columns: 1fr;
-      text-align: center;
+    .gb-match-status-bar {
+      gap: 8px;
+      grid-template-columns: minmax(0, 1fr) auto;
+      margin-top: 4px;
+      padding: 8px;
     }
 
-    .gb-battle-hud-center > .gb-prize-payout-panel .gb-hud-facts {
-      grid-column: 1;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
+    .gb-match-status-live {
+      justify-self: end;
+    }
+
+    .gb-match-terms-details {
+      grid-column: 1 / -1;
+    }
+
+    .gb-match-terms-details summary {
+      width: 100%;
+    }
+
+    .gb-match-terms-details dl {
+      grid-template-columns: 1fr;
+      min-width: 0;
+      position: static;
+      width: 100%;
     }
 
     .gb-mint-panel {
@@ -8457,11 +8586,18 @@
   }
 
   .gb-tree-benefits-spotlight-qualified {
-    border-color: rgba(255, 216, 75, 0.74);
+    border-color: rgba(57, 255, 136, 0.78);
     box-shadow:
       0 24px 65px rgba(0, 0, 0, 0.46),
-      0 0 28px rgba(255, 216, 75, 0.1),
+      0 0 32px rgba(57, 255, 136, 0.18),
       inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  }
+
+  .gb-tree-benefits-spotlight-qualified .gb-tree-benefits-spotlight-badge {
+    background: linear-gradient(180deg, #9dffc3, #29e77f);
+    border-color: #d1ffe1;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.34), 0 0 24px rgba(57, 255, 136, 0.38);
+    color: #03140b;
   }
 
   .gb-tree-benefits-spotlight-art {
@@ -8748,6 +8884,19 @@
     box-shadow: inset 0 0 26px rgba(159, 8, 34, 0.08);
   }
 
+  .gb-tree-benefits-drawer .gb-tree-power-fifth-active {
+    border-color: rgba(57, 255, 136, 0.68);
+    box-shadow:
+      inset 0 0 28px rgba(57, 255, 136, 0.09),
+      0 0 22px rgba(57, 255, 136, 0.12);
+  }
+
+  .gb-tree-benefits-drawer .gb-tree-power-fifth-active .gb-tree-power-icon-shell {
+    background: rgba(57, 255, 136, 0.15);
+    border-color: rgba(126, 255, 174, 0.64);
+    color: #86ffb3;
+  }
+
   .gb-tree-benefits-drawer .gb-tree-power-fifth-locked .gb-tree-power-icon-shell {
     background: rgba(239, 51, 79, 0.13);
     border-color: rgba(255, 111, 130, 0.52);
@@ -8766,6 +8915,25 @@
     box-shadow: inset 0 0 22px rgba(239, 35, 69, 0.08);
     gap: 8px;
     padding: 12px;
+  }
+
+  .gb-tree-benefits-drawer .gb-tree-power-qualification-active {
+    background: linear-gradient(135deg, rgba(17, 111, 61, 0.34), rgba(5, 38, 26, 0.92));
+    border: 1px solid rgba(81, 255, 145, 0.58);
+    box-shadow: inset 0 0 24px rgba(57, 255, 136, 0.1);
+    gap: 8px;
+    padding: 12px;
+  }
+
+  .gb-tree-benefits-drawer .gb-tree-power-qualification-active > strong {
+    color: #83ffaf;
+    font-size: 12px;
+    text-shadow: 0 0 12px rgba(57, 255, 136, 0.34);
+  }
+
+  .gb-tree-benefits-drawer .gb-tree-power-qualification-active > span,
+  .gb-tree-benefits-drawer .gb-tree-power-qualification-active .gb-tree-power-threshold {
+    color: #e7fff0;
   }
 
   .gb-tree-benefits-drawer .gb-tree-power-qualification-locked > strong {

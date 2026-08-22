@@ -152,7 +152,7 @@ export default function TreePowerPanel({
     eligibilityResponse?.remainingTree && eligibilityResponse.status === "not-qualified"
       ? `${formatTreeAmount(eligibilityResponse.remainingTree)} more TREE must be added to supported positions`
       : null;
-  const qualificationTone = fifthMove.isUnlocked
+  const qualificationTone = eligibility.status === "qualified"
     ? "active"
     : eligibility.status === "checking"
       ? "checking"

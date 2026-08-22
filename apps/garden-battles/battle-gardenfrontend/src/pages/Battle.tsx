@@ -1214,6 +1214,27 @@ export default function Battle() {
     battleStatus = "Battle ended.";
   }
 
+  const matchLiveStatus =
+    pendingMoveId !== null || isMoveTransactionPending
+      ? "Move transaction pending"
+      : isBattleRefreshPending
+        ? "Refreshing match"
+        : canClaimTimeout
+          ? "Timeout win available"
+          : isPracticeActive || isMyTurn
+            ? "Your turn"
+            : isGardenBotBattle
+              ? "Garden Bot thinking"
+              : "Waiting on opponent";
+  const matchStatusTone =
+    pendingMoveId !== null || isMoveTransactionPending || isBattleRefreshPending
+      ? "processing"
+      : canClaimTimeout
+        ? "action"
+        : isPracticeActive || isMyTurn
+          ? "ready"
+          : "waiting";
+
   const nftreeUrl = "https://nftree.net";
   const shareUrl = "https://nftree.net/battle";
   const leaderboardRoute = appRoute("leaderboard");
@@ -1958,6 +1979,8 @@ export default function Battle() {
             isGardenBotBattle={isGardenBotBattle}
             isPracticeBattle={isPracticeActive}
             growthTarget={growthTarget}
+            liveStatus={matchLiveStatus}
+            statusTone={matchStatusTone}
           />
           {/* Battle Area */}
           <section
@@ -2510,8 +2533,8 @@ export default function Battle() {
             }}
             data-testid="battle-options"
           >
-            {/* Turn indicator */}
-            <div
+            {/* Transaction and refresh feedback. Normal turn state lives in the compact match bar. */}
+            {(pendingMoveId !== null || isMoveTransactionPending || isBattleRefreshPending) && <div
               style={{
                 textAlign: "center",
                 marginBottom: "10px",
@@ -2542,20 +2565,12 @@ export default function Battle() {
                 transition: "all 0.3s ease",
               }}
             >
-              {winner
-                ? "Battle Over!"
-                : isPracticeActive
-                  ? "Practice Mode - choose a move. No wallet prompt."
-                : isBattleRefreshPending
+              {isBattleRefreshPending
                   ? "Refreshing battle state from chain..."
                 : pendingMoveId !== null
                   ? `Waiting for transaction... (${MOVE_LABELS[pendingMoveId] || "Move"})`
-                  : isMoveTransactionPending
-                    ? "Waiting for transaction confirmation..."
-                  : !isMyTurn
-                    ? "Waiting for your opponent to move."
-                    : "Choose your move - each turn = 1 wallet confirmation"}
-            </div>
+                  : "Waiting for transaction confirmation..."}
+            </div>}
 
             {isGardenBotBattle && playerMoves.length > 0 && (
               <div
