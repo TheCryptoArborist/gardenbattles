@@ -1723,27 +1723,17 @@ export default function Battle() {
         <header
           className="gb-app-header"
         >
-          <Link href="/">
+          <div className="gb-header-brand" aria-label="Garden Battles">
             <img
               src={appAsset("assets/thick.png")}
-              alt="Thickquidity Logo"
+              alt="TREE token logo"
               style={{
                 width: "clamp(60px, 10vw, 80px)",
-                cursor: "pointer",
                 filter: "drop-shadow(0 0 15px #00ff00)",
-                transition: "transform 0.3s ease, filter 0.3s ease",
               }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = "scale(1.1)";
-                e.currentTarget.style.filter = "drop-shadow(0 0 25px #00cc00)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = "scale(1)";
-                e.currentTarget.style.filter = "drop-shadow(0 0 15px #00ff00)";
-              }}
-              data-testid="logo-home"
+              data-testid="logo-brand"
             />
-          </Link>
+          </div>
 
           <nav className="gb-header-nav" aria-label="TREE ecosystem navigation">
             <div className="gb-nav-group" aria-label="TREE ecosystem links">
