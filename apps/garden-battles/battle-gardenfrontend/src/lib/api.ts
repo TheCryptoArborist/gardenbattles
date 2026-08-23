@@ -320,11 +320,8 @@ export async function fetchTodayArboristTrial(
 export async function submitArboristTrialResult(input: {
   challengeId: string;
   wallet: string;
-  won: boolean;
-  rounds: number;
-  playerGrowth: number;
-  botGrowth: number;
-  uniqueMoves: number;
+  playerMoves: number[];
+  signature: string;
 }): Promise<{
   ok: boolean;
   recorded: boolean;

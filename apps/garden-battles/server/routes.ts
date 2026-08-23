@@ -1306,8 +1306,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return res.json(getTodayArboristTrial(wallet));
   });
 
-  app.post("/api/arborist-trials/results", (req, res) => {
-    const submission = submitTodayArboristTrial(req.body ?? {});
+  app.post("/api/arborist-trials/results", async (req, res) => {
+    const submission = await submitTodayArboristTrial(req.body ?? {}, new Date(), {
+      getFifthMoveUnlocked: async (wallet) => {
+        const eligibility = await getCachedFifthMoveEligibility(
+          treePowerGraphqlClient,
+          wallet,
+        );
+        return eligibility.status === "qualified";
+      },
+    });
     return res.status(submission.status).json(submission.body);
   });
 

@@ -22,6 +22,19 @@ export type ArboristTrialResultInput = {
   uniqueMoves: number;
 };
 
+export function createArboristTrialProofMessage(
+  challengeId: string,
+  wallet: string,
+  playerMoves: number[],
+): string {
+  return [
+    "Garden Battles Arborist Trial",
+    `Challenge: ${challengeId}`,
+    `Wallet: ${wallet.toLowerCase()}`,
+    `Moves: ${playerMoves.join(",")}`,
+  ].join("\n");
+}
+
 const TRIAL_VARIANTS = [
   {
     title: "Root Rush",

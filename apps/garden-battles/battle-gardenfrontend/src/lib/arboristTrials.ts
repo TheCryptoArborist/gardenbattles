@@ -31,6 +31,6 @@ export function getArboristTrialResult(battle: PracticeBattle) {
     rounds: Math.max(1, Math.ceil(battle.totalTurns / 2)),
     playerGrowth: battle.player1Growth,
     botGrowth: battle.player2Growth,
-    uniqueMoves: new Set(battle.playerMoveHistory).size,
+    uniqueMoves: new Set(battle.allPlayerMoves).size,
   };
 }

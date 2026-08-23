@@ -1,8 +1,17 @@
 import {
   calculateArboristTrialScore,
+  createArboristTrialProofMessage,
   getArboristTrialChallenge,
+  type ArboristTrialChallenge,
   type ArboristTrialResultInput,
 } from "../shared/arborist-trials";
+import { verifyPersonalMessage } from "@mysten/sui.js/verify";
+import {
+  createArboristTrialBattle,
+  getArboristTrialResult as getReplayedTrialResult,
+  getDailyTrialFifthMoveId,
+} from "../battle-gardenfrontend/src/lib/arboristTrials";
+import { playPracticeRound } from "../battle-gardenfrontend/src/lib/practiceBattle";
 import {
   getArboristTrialLeaderboard,
   getArboristTrialResult,
@@ -66,9 +75,56 @@ function readBoundedInteger(
     : null;
 }
 
-export function submitTodayArboristTrial(
+export type ArboristTrialSubmissionOptions = {
+  getFifthMoveUnlocked?: (wallet: string) => Promise<boolean>;
+  verifyWalletProof?: (
+    message: Uint8Array,
+    signature: string,
+    wallet: string,
+  ) => Promise<boolean>;
+};
+
+async function verifyWalletProof(
+  message: Uint8Array,
+  signature: string,
+  wallet: string,
+): Promise<boolean> {
+  try {
+    const publicKey = await verifyPersonalMessage(message, signature);
+    return publicKey.toSuiAddress().toLowerCase() === wallet.toLowerCase();
+  } catch {
+    return false;
+  }
+}
+
+export function replayArboristTrial(
+  challenge: ArboristTrialChallenge,
+  moves: number[],
+  fifthMoveUnlocked: boolean,
+):
+  | { ok: true; result: ArboristTrialResultInput }
+  | { ok: false; reason: string } {
+  let replay = createArboristTrialBattle(challenge, fifthMoveUnlocked);
+  try {
+    for (let index = 0; index < moves.length; index += 1) {
+      const moveId = moves[index];
+      if (replay.finished) return { ok: false, reason: "moves_after_battle_finished" };
+      replay = playPracticeRound(replay, moveId).battle;
+      if (replay.finished && index !== moves.length - 1) {
+        return { ok: false, reason: "moves_after_battle_finished" };
+      }
+    }
+  } catch {
+    return { ok: false, reason: "invalid_move_sequence" };
+  }
+  if (!replay.finished) return { ok: false, reason: "incomplete_trial" };
+  return { ok: true, result: getReplayedTrialResult(replay) };
+}
+
+export async function submitTodayArboristTrial(
   body: Record<string, unknown>,
   now = new Date(),
+  options: ArboristTrialSubmissionOptions = {},
 ) {
   const wallet = normalizeSuiAddress(typeof body.wallet === "string" ? body.wallet : null);
   if (!wallet) return { status: 400, body: { ok: false, reason: "valid_wallet_required" } };
@@ -78,35 +134,58 @@ export function submitTodayArboristTrial(
     return { status: 409, body: { ok: false, reason: "challenge_expired" } };
   }
 
-  const rounds = readBoundedInteger(body.rounds, 1, 100);
-  const playerGrowth = readBoundedInteger(body.playerGrowth, 0, 100);
-  const botGrowth = readBoundedInteger(body.botGrowth, 0, 100);
-  const uniqueMoves = readBoundedInteger(body.uniqueMoves, 1, 5);
-  const won = body.won === true;
-  if (rounds === null || playerGrowth === null || botGrowth === null || uniqueMoves === null) {
+  const playerMoves = Array.isArray(body.playerMoves)
+    ? body.playerMoves.map((value) => readBoundedInteger(value, 1, 39))
+    : [];
+  if (
+    playerMoves.length < 1 ||
+    playerMoves.length > 100 ||
+    playerMoves.some((moveId) => moveId === null)
+  ) {
     return { status: 400, body: { ok: false, reason: "invalid_trial_result" } };
   }
-  if (won && playerGrowth < challenge.targetGrowth) {
-    return { status: 400, body: { ok: false, reason: "invalid_winning_growth" } };
+
+  const moves = playerMoves as number[];
+  const signature = typeof body.signature === "string" ? body.signature : "";
+  const message = new TextEncoder().encode(
+    createArboristTrialProofMessage(challenge.id, wallet, moves),
+  );
+  const proofIsValid = await (options.verifyWalletProof ?? verifyWalletProof)(
+    message,
+    signature,
+    wallet,
+  );
+  if (!proofIsValid) {
+    return { status: 401, body: { ok: false, reason: "wallet_signature_required" } };
   }
 
-  const resultInput: ArboristTrialResultInput = {
-    won,
-    rounds,
-    playerGrowth,
-    botGrowth,
-    uniqueMoves,
-  };
+  const fifthMoveId = getDailyTrialFifthMoveId(challenge);
+  const usesFifthMove = moves.some((moveId) => moveId >= 31);
+  if (usesFifthMove && moves.some((moveId) => moveId >= 31 && moveId !== fifthMoveId)) {
+    return { status: 400, body: { ok: false, reason: "invalid_fifth_move" } };
+  }
+  if (usesFifthMove) {
+    const unlocked = await (options.getFifthMoveUnlocked ?? (async () => false))(wallet);
+    if (!unlocked) {
+      return { status: 403, body: { ok: false, reason: "fifth_move_not_unlocked" } };
+    }
+  }
+
+  const replayed = replayArboristTrial(challenge, moves, usesFifthMove);
+  if (!replayed.ok) {
+    return { status: 400, body: { ok: false, reason: replayed.reason } };
+  }
+  const resultInput = replayed.result;
   const row: ArboristTrialResultRow = {
     challenge_id: challenge.id,
     challenge_date: challenge.date,
     wallet,
     score: calculateArboristTrialScore(resultInput),
-    won: won ? 1 : 0,
-    rounds,
-    player_growth: playerGrowth,
-    bot_growth: botGrowth,
-    unique_moves: uniqueMoves,
+    won: resultInput.won ? 1 : 0,
+    rounds: resultInput.rounds,
+    player_growth: resultInput.playerGrowth,
+    bot_growth: resultInput.botGrowth,
+    unique_moves: resultInput.uniqueMoves,
     completed_at: now.getTime(),
   };
   const recorded = insertArboristTrialResult(row);

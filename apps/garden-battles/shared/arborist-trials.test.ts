@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   calculateArboristTrialScore,
+  createArboristTrialProofMessage,
   getArboristTrialChallenge,
 } from "./arborist-trials";
 
@@ -19,6 +20,17 @@ test("daily challenges rotate when the UTC date changes", () => {
   const second = getArboristTrialChallenge(new Date("2026-08-24T12:00:00.000Z"));
   assert.notEqual(first.id, second.id);
   assert.notEqual(first.seed, second.seed);
+});
+
+test("ranked proof messages bind the wallet, challenge, and complete move sequence", () => {
+  assert.equal(
+    createArboristTrialProofMessage(
+      "arborist-trial-v1-2026-08-23",
+      `0x${"A".repeat(64)}`,
+      [22, 5, 15],
+    ),
+    `Garden Battles Arborist Trial\nChallenge: arborist-trial-v1-2026-08-23\nWallet: 0x${"a".repeat(64)}\nMoves: 22,5,15`,
+  );
 });
 
 test("winning efficiently and using more cards improves the score", () => {

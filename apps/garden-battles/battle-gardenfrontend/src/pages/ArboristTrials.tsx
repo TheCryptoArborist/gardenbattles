@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ConnectButton, useCurrentAccount } from "@mysten/dapp-kit";
+import { ConnectButton, useCurrentAccount, useSignPersonalMessage } from "@mysten/dapp-kit";
 import { ArrowLeft, CalendarDays, Flame, RotateCcw, ShieldCheck, Trophy } from "lucide-react";
 import { Link } from "wouter";
 import BattleLog, { type ActionEntry } from "@/components/BattleLog";
@@ -17,7 +17,10 @@ import {
 } from "@/lib/arboristTrials";
 import { playPracticeRound, type PracticeBattle } from "@/lib/practiceBattle";
 import { useFifthMoveEligibility } from "@/hooks/useFifthMoveEligibility";
-import { getArboristTrialChallenge } from "@shared/arborist-trials";
+import {
+  createArboristTrialProofMessage,
+  getArboristTrialChallenge,
+} from "@shared/arborist-trials";
 import "@/arborist-trials.css";
 
 const LOCAL_PREVIEW_ENABLED = import.meta.env.VITE_ARB_TRIAL_LOCAL_PREVIEW === "true";
@@ -42,6 +45,7 @@ function TreePortrait({ growth, bot }: { growth: number; bot?: boolean }) {
 
 export default function ArboristTrials() {
   const account = useCurrentAccount();
+  const signPersonalMessage = useSignPersonalMessage();
   const address = account?.address ?? null;
   const eligibility = useFifthMoveEligibility(address);
   const [today, setToday] = useState<ArboristTrialTodayResponse | null>(null);
@@ -107,13 +111,24 @@ export default function ArboristTrials() {
     if (!battle?.finished || !rankedRun || !address || !today) return;
     if (submittedBattleRef.current === battle.battleId) return;
     submittedBattleRef.current = battle.battleId;
-    const result = getArboristTrialResult(battle);
     setSubmitting(true);
-    void submitArboristTrialResult({
-      challengeId: today.challenge.id,
-      wallet: address,
-      ...result,
-    })
+    const saveRankedResult = async () => {
+      const proofMessage = createArboristTrialProofMessage(
+        today.challenge.id,
+        address,
+        battle.allPlayerMoves,
+      );
+      const proof = await signPersonalMessage.mutateAsync({
+        message: new TextEncoder().encode(proofMessage),
+      });
+      return submitArboristTrialResult({
+        challengeId: today.challenge.id,
+        wallet: address,
+        playerMoves: battle.allPlayerMoves,
+        signature: proof.signature,
+      });
+    };
+    void saveRankedResult()
       .then((saved) => {
         setSubmissionMessage(`Ranked score saved: ${saved.result.score.toLocaleString()} points.`);
         return loadToday();

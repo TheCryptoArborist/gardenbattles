@@ -25,6 +25,7 @@ export type PracticeBattle = BattleState & {
   mode: "practice" | "arborist-trial";
   botMoveHistory: number[];
   playerMoveHistory: number[];
+  allPlayerMoves: number[];
   totalTurns: number;
   playerStatus: PracticeStatus;
   botStatus: PracticeStatus;
@@ -130,6 +131,7 @@ function createPracticeBattleInternal(options: CreatePracticeBattleOptions): Pra
     mode: options.mode ?? "practice",
     botMoveHistory: [],
     playerMoveHistory: [],
+    allPlayerMoves: [],
     totalTurns: 0,
     playerStatus: emptyStatus(),
     botStatus: emptyStatus(),
@@ -554,6 +556,7 @@ function playPracticeRoundInternal(
     playerStatus: playerResolved.selfStatus,
     botStatus: playerResolved.opponentStatus,
     playerMoveHistory: [...battle.playerMoveHistory, playerMoveId].slice(-8),
+    allPlayerMoves: [...battle.allPlayerMoves, playerMoveId],
     totalTurns: battle.totalTurns + 1,
     lastMoveMs: Date.now(),
   };
