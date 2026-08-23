@@ -18,6 +18,11 @@ const MOVE_ICON_ASSETS: Record<number, string> = {
   37: "37-ironwood-fortress.png", 38: "38-rootstorm-siphon.png", 39: "39-arborist-ascension.png",
 };
 
+export function getMoveIconUrl(moveId: number): string | null {
+  const iconAsset = MOVE_ICON_ASSETS[moveId];
+  return iconAsset ? appAsset(`assets/card-icons/v13/${iconAsset}`) : null;
+}
+
 function conditionLabel(effect: string) {
   if (/chance/i.test(effect)) return "Chance";
   if (/while behind|at least 40|10 Growth or below/i.test(effect)) return "Conditional";
@@ -42,7 +47,7 @@ export default function MoveCardFace({
   compact = false,
 }: MoveCardFaceProps) {
   const meta = MOVE_META[moveId];
-  const iconAsset = MOVE_ICON_ASSETS[moveId];
+  const iconUrl = getMoveIconUrl(moveId);
   const condition = meta ? conditionLabel(meta.effect) : null;
   const typeLabel = meta?.type === "growth" ? "Growth" : meta?.type === "hybrid" ? "Hybrid" : "Attack";
 
@@ -50,10 +55,10 @@ export default function MoveCardFace({
     <span className={`gb-move-face gb-move-face-${meta?.type ?? "attack"}${compact ? " gb-move-face-compact" : ""}`}>
       <span className="gb-move-face-visual" aria-hidden="true">
         <span className="gb-move-face-rings" />
-        {iconAsset ? (
+        {iconUrl ? (
           <img
             className="gb-move-face-icon gb-move-face-art"
-            src={appAsset(`assets/card-icons/v13/${iconAsset}`)}
+            src={iconUrl}
             alt=""
             loading="lazy"
             decoding="async"

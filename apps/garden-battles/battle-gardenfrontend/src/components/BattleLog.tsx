@@ -1,5 +1,6 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { MOVE_LABELS } from "@/lib/sui-config";
+import { getMoveIconUrl } from "./MoveCardFace";
 
 export interface ActionEntry {
   id: string;
@@ -26,27 +27,6 @@ function formatDelta(prev: number, next: number): string {
   return diff > 0 ? `+${diff}` : `${diff}`;
 }
 
-function getDetailLabel(entry: ActionEntry, detail: string, index: number) {
-  const normalized = detail.toLowerCase();
-  if (isRoundResultEntry(entry)) {
-    if (normalized.includes("->") || normalized.includes("/")) return "SCORE";
-    return "RESULT";
-  }
-
-  if (index === 0) return "EFFECT";
-  if (
-    normalized.includes("gained") ||
-    normalized.includes("lost") ||
-    normalized.includes("reduced") ||
-    normalized.includes("growth") ||
-    normalized.includes("no visible")
-  ) {
-    return "SCORE CHANGE";
-  }
-
-  return "EFFECT";
-}
-
 function isRoundResultEntry(entry: ActionEntry) {
   return (
     entry.actor === "round" ||
@@ -57,21 +37,43 @@ function isRoundResultEntry(entry: ActionEntry) {
   );
 }
 
+function resultSummary(entry: ActionEntry, opponentLabel: string): string {
+  if (isRoundResultEntry(entry)) {
+    return `You ${entry.nextPlayerGrowth} · ${opponentLabel} ${entry.nextOpponentGrowth}`;
+  }
+
+  const parts: string[] = [];
+  const playerDelta = entry.nextPlayerGrowth - entry.prevPlayerGrowth;
+  const opponentDelta = entry.nextOpponentGrowth - entry.prevOpponentGrowth;
+  if (playerDelta !== 0) parts.push(`You ${formatDelta(entry.prevPlayerGrowth, entry.nextPlayerGrowth)} Growth`);
+  if (opponentDelta !== 0) parts.push(`${opponentLabel} ${formatDelta(entry.prevOpponentGrowth, entry.nextOpponentGrowth)} Growth`);
+  return parts.length > 0 ? parts.join(" · ") : "Blocked or no Growth change";
+}
+
 export default function BattleLog({
   entries,
   isPlayer1,
   opponentLabel = "Opponent",
 }: BattleLogProps) {
   const logRef = useRef<HTMLDivElement>(null);
+  const [expandedEntries, setExpandedEntries] = useState<Set<string>>(() => new Set());
+
+  const visibleEntries = useMemo(
+    () => entries.filter((entry) => {
+      const isRoundEntry = isRoundResultEntry(entry);
+      return !(entry.actor === "you" && entry.moveId === 0 && !entry.label && !isRoundEntry);
+    }),
+    [entries],
+  );
 
   useEffect(() => {
     const log = logRef.current;
     if (log) {
       log.scrollTop = log.scrollHeight;
     }
-  }, [entries.length]);
+  }, [visibleEntries.length]);
 
-  if (entries.length === 0) {
+  if (visibleEntries.length === 0) {
     return (
       <div className="gb-battle-log-empty">
         Battle log will appear here once moves are played...
@@ -81,12 +83,10 @@ export default function BattleLog({
 
   return (
     <div ref={logRef} className="gb-battle-log">
-      {entries.map((entry) => {
+      {visibleEntries.map((entry) => {
         const hasDetails = !!entry.details?.length;
         const isRoundEntry = isRoundResultEntry(entry);
-        if (entry.actor === "you" && entry.moveId === 0 && !entry.label && !isRoundEntry) {
-          return null;
-        }
+        const isExpanded = expandedEntries.has(entry.id);
 
         const label =
           isRoundEntry
@@ -105,26 +105,6 @@ export default function BattleLog({
               ? "YOU"
               : opponentLabel.toUpperCase();
 
-        const myPrev =
-          entry.actor === "you"
-            ? entry.prevPlayerGrowth
-            : entry.prevOpponentGrowth;
-        const myNext =
-          entry.actor === "you"
-            ? entry.nextPlayerGrowth
-            : entry.nextOpponentGrowth;
-        const oppPrev =
-          entry.actor === "you"
-            ? entry.prevOpponentGrowth
-            : entry.prevPlayerGrowth;
-        const oppNext =
-          entry.actor === "you"
-            ? entry.nextOpponentGrowth
-            : entry.nextPlayerGrowth;
-
-        const selfDelta = myNext - myPrev;
-        const oppDelta = oppNext - oppPrev;
-
         const entryClass =
           isRoundEntry
             ? "gb-battle-log-entry-round"
@@ -132,67 +112,44 @@ export default function BattleLog({
               ? "gb-battle-log-entry-you"
               : "gb-battle-log-entry-opponent";
 
+        const iconUrl = !isRoundEntry && entry.moveId > 0 ? getMoveIconUrl(entry.moveId) : null;
+        const summary = resultSummary(entry, opponentLabel);
+
         return (
-          <div key={entry.id} className={`gb-battle-log-entry ${entryClass}`}>
-            <div className="gb-battle-log-header">
-              <span className="gb-battle-log-actor">
-                {actorLabel}
+          <article key={entry.id} className={`gb-battle-log-entry ${entryClass}`}>
+            <button
+              type="button"
+              className="gb-battle-log-summary"
+              aria-expanded={isExpanded}
+              onClick={() => setExpandedEntries((current) => {
+                const next = new Set(current);
+                if (next.has(entry.id)) next.delete(entry.id);
+                else next.add(entry.id);
+                return next;
+              })}
+            >
+              {iconUrl ? <img src={iconUrl} alt="" loading="lazy" decoding="async" /> : <span className="gb-battle-log-round-icon">↻</span>}
+              <span className="gb-battle-log-summary-copy">
+                <span className="gb-battle-log-header">
+                  <span className="gb-battle-log-actor">{actorLabel}</span>
+                  <span className="gb-battle-log-time">
+                    {new Date(entry.timestamp).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
+                  </span>
+                </span>
+                <span className="gb-battle-log-move-name">{label}</span>
+                <span className="gb-battle-log-result">{summary}</span>
               </span>
-              <span className="gb-battle-log-time">
-                {new Date(entry.timestamp).toLocaleTimeString([], {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                  second: "2-digit",
-                })}
-              </span>
-            </div>
+              <span className="gb-battle-log-chevron" aria-hidden="true">⌄</span>
+            </button>
 
-            <div className="gb-battle-log-row gb-battle-log-row-move">
-              <span className="gb-battle-log-kicker">MOVE</span>
-              <span className="gb-battle-log-move-name">{label}</span>
-            </div>
-
-            <div className="gb-battle-log-body">
-              {hasDetails ? (
-                entry.details!.map((detail, index) => (
-                  <div key={`${detail}-${index}`} className="gb-battle-log-row">
-                    <span className="gb-battle-log-kicker">
-                      {getDetailLabel(entry, detail, index)}
-                    </span>
-                    <span className="gb-battle-log-detail">{detail}</span>
-                  </div>
-                ))
-              ) : (
-                <div className="gb-battle-log-score-grid">
-                  {selfDelta !== 0 && (
-                    <span
-                      className={`gb-battle-log-score ${
-                        selfDelta > 0 ? "gb-battle-log-score-positive" : "gb-battle-log-score-negative"
-                      }`}
-                    >
-                      {entry.actor === "you" ? "Your tree" : "Their tree"}:{" "}
-                      {myPrev} {"->"} {myNext} ({formatDelta(myPrev, myNext)})
-                    </span>
-                  )}
-                  {oppDelta !== 0 && (
-                    <span
-                      className={`gb-battle-log-score ${
-                        oppDelta < 0 ? "gb-battle-log-score-negative" : "gb-battle-log-score-positive"
-                      }`}
-                    >
-                      {entry.actor === "you" ? "Their tree" : "Your tree"}:{" "}
-                      {oppPrev} {"->"} {oppNext} ({formatDelta(oppPrev, oppNext)})
-                    </span>
-                  )}
-                  {selfDelta === 0 && oppDelta === 0 && (
-                    <span className="gb-battle-log-score gb-battle-log-score-muted">
-                      (Blocked or no effect)
-                    </span>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
+            {isExpanded && hasDetails && (
+              <div className="gb-battle-log-body">
+                {entry.details!.map((detail, index) => (
+                  <p key={`${detail}-${index}`} className="gb-battle-log-detail">{detail}</p>
+                ))}
+              </div>
+            )}
+          </article>
         );
       })}
     </div>

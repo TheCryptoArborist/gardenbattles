@@ -51,6 +51,45 @@ const ecosystemLinks = [
   { label: "Home", href: "https://www.tree-token.xyz/", testId: "home" },
 ];
 
+function formatHandSummary(moveIds: number[]) {
+  const counts = { attack: 0, growth: 0, hybrid: 0, treePower: 0 };
+  moveIds.forEach((moveId) => {
+    const meta = MOVE_META[moveId];
+    if (!meta) return;
+    if (meta.fifthExclusive) counts.treePower += 1;
+    else counts[meta.type] += 1;
+  });
+  return [
+    counts.attack ? `${counts.attack} Attack` : null,
+    counts.growth ? `${counts.growth} Growth` : null,
+    counts.hybrid ? `${counts.hybrid} Hybrid` : null,
+    counts.treePower ? `${counts.treePower} TREE Power` : null,
+  ].filter(Boolean).join(" · ");
+}
+
+function getCurrentMoveOutcome(
+  moveId: number,
+  playerGrowth: number,
+  opponentGrowth: number,
+  lastPlayerMoveId: number | undefined,
+  lastOpponentMoveId: number | undefined,
+) {
+  const opponentLastType = lastOpponentMoveId ? MOVE_META[lastOpponentMoveId]?.type : undefined;
+  const playerLastType = lastPlayerMoveId ? MOVE_META[lastPlayerMoveId]?.type : undefined;
+  switch (moveId) {
+    case 2: return opponentGrowth >= 40 ? "Current result: drains 12 Growth" : "Current result: drains 8 Growth";
+    case 5: return opponentLastType === "growth" ? "Active bonus: drains 12 Growth" : "Current result: drains 8 Growth";
+    case 7: return playerGrowth < opponentGrowth ? "Active bonus: drains 13 Growth" : "Current result: drains 10 Growth";
+    case 15: return playerGrowth < opponentGrowth ? "Active bonus: gains 12 Growth" : "Current result: gains 8 Growth";
+    case 16: return playerGrowth >= 4 ? "Available: spend 4 to drain 16 Growth" : "Needs at least 4 Growth";
+    case 22: return opponentLastType === "attack" ? "Active bonus: gains 14 Growth" : "Current result: gains 10 Growth";
+    case 26: return playerLastType === "attack" ? "Active bonus: gains 13 Growth" : "Current result: gains 11 Growth";
+    case 28: return playerGrowth <= 10 ? "Active bonus: gains 13 Growth" : "Current result: gains 10 Growth";
+    case 34: return playerGrowth < opponentGrowth ? "Active bonus: gains 11 Growth" : "Current result: gains 10 Growth";
+    default: return null;
+  }
+}
+
 function ArboretumComingSoonPromo() {
   return (
     <section className="gb-arboretum-promo" aria-label="Arboretum coming soon">
@@ -964,10 +1003,11 @@ export default function Battle() {
   const lastPlayerMoveId = [...effectiveActionLog]
     .reverse()
     .find((entry) => entry.actor === "you" && entry.moveId > 0)?.moveId;
+  const lastOpponentMoveId = [...effectiveActionLog]
+    .reverse()
+    .find((entry) => entry.actor === "opponent" && entry.moveId > 0)?.moveId;
   const growthMoveCount = playerMoves.filter(moveGrowsSelf).length;
-  const attackMoveCount = playerMoves.filter(
-    (moveId) => MOVE_META[moveId]?.type === "attack",
-  ).length;
+  const handSummary = formatHandSummary(playerMoves);
   const handNeedsReroll =
     isGardenBotBattle &&
     playerMoves.length > 0 &&
@@ -1811,7 +1851,7 @@ export default function Battle() {
   }
 `}</style>
       <div
-        className="gb-battle-page"
+        className={`gb-battle-page${battleState && !battleFinished ? " gb-battle-page-active" : ""}`}
         style={{
           backgroundImage: `
             linear-gradient(115deg, rgba(255, 193, 64, 0.13), transparent 24%),
@@ -2015,7 +2055,7 @@ export default function Battle() {
         )}
 
         <main className="gb-battle-main">
-          <section
+          {!hasActiveSession && <section
             className={`gb-tree-benefits-trigger gb-tree-benefits-trigger-featured gb-tree-benefits-trigger-${fifthCardPromo.tone}`}
             aria-label={fifthCardPromo.title}
           >
@@ -2036,7 +2076,7 @@ export default function Battle() {
             <button type="button" onClick={() => setUtilityDrawer("tree")}>
               {fifthCardPromo.action} <ChevronRight size={17} aria-hidden="true" />
             </button>
-          </section>
+          </section>}
           {!hasActiveSession && (
             <div className="gb-quick-start-tools">
               <HowToPlay />
@@ -2071,7 +2111,7 @@ export default function Battle() {
               </details>
             </div>
           )}
-          {!isConnected && (
+          {!isConnected && !hasActiveSession && (
             <section
               className="gb-disconnected-onboarding"
               aria-label="Connect wallet to start Garden Battles"
@@ -2095,11 +2135,6 @@ export default function Battle() {
           {hasActiveSession && (
             <div className="gb-active-reference-tools">
               <HowToPlay />
-              <button type="button" className="gb-card-guide-launcher" onClick={() => openCardGuide(false)}>
-                <span className="gb-card-guide-launcher-icon" aria-hidden="true"><BookOpen size={19} /></span>
-                <span><strong>Card Guide</strong><small>All cards and counters</small></span>
-                <ChevronRight size={17} aria-hidden="true" />
-              </button>
             </div>
           )}
           {battleState && <div
@@ -2163,7 +2198,7 @@ export default function Battle() {
               You
             </div>
             <div
-              className={playerAnimation}
+              className={`${playerAnimation} gb-battle-tree-portrait`}
               style={{
                 width: "100%",
                 aspectRatio: "5/7",
@@ -2330,7 +2365,7 @@ export default function Battle() {
               {isGardenBotBattle ? "Garden Bot" : "Opponent"}
             </div>
             <div
-              className={opponentAnimation}
+              className={`${opponentAnimation} gb-battle-tree-portrait`}
               style={{
                 width: "100%",
                 aspectRatio: "5/7",
@@ -2657,19 +2692,26 @@ export default function Battle() {
 
         {battleState && !battleFinished && (
           <div
-            style={{
-              margin: "15px auto",
-              maxWidth: "95%",
-              width: "760px",
-              fontFamily: "Orbitron, sans-serif",
-            }}
+            className="gb-battle-options"
             data-testid="battle-options"
           >
-            <div className="gb-battle-card-guide-bar">
-              <span>Need to check an effect or counter?</span>
+            <div className={`gb-turn-command gb-turn-command-${matchStatusTone}`} role="status">
+              <span>{fifthMoveDraft.pending && selectedFifthMoveId === null ? "Step 1 of 2" : matchLiveStatus}</span>
+              <strong>
+                {fifthMoveDraft.pending && selectedFifthMoveId === null
+                  ? "Choose your bonus fifth move"
+                  : battleStatus}
+              </strong>
+            </div>
+
+            <div className="gb-hand-toolbar">
+              <span>
+                <small>Your Hand</small>
+                <strong>{handSummary || "Loading cards…"}</strong>
+              </span>
               <button type="button" onClick={() => openCardGuide(playerMoves.length > 0)}>
                 <BookOpen size={15} aria-hidden="true" />
-                {playerMoves.length > 0 ? "View My Hand in Card Guide" : "Open Card Guide"}
+                Card Guide
               </button>
             </div>
             {/* Transaction and refresh feedback. Normal turn state lives in the compact match bar. */}
@@ -2716,70 +2758,6 @@ export default function Battle() {
                   ? `Waiting for transaction... (${MOVE_LABELS[pendingMoveId] || "Move"})`
                   : "Waiting for transaction confirmation..."}
             </div>}
-
-            {isGardenBotBattle && playerMoves.length > 0 && (
-              <div
-                style={{
-                  marginBottom: "10px",
-                  padding: "9px 12px",
-                  border: "1px solid rgba(0, 229, 255, 0.55)",
-                  borderRadius: "8px",
-                  background: "rgba(0, 45, 65, 0.78)",
-                  color: "#c9fbff",
-                  textAlign: "center",
-                  fontSize: "clamp(11px, 2.5vw, 13px)",
-                  fontWeight: "bold",
-                  lineHeight: "1.35",
-                }}
-              >
-                Current hand: {attackMoveCount} attack, {growthMoveCount} growth moves.
-              </div>
-            )}
-
-            {effectiveActionLog.length > 0 && (() => {
-              const latest = effectiveActionLog[effectiveActionLog.length - 1];
-              const playerDelta =
-                latest.nextPlayerGrowth - latest.prevPlayerGrowth;
-              const opponentDelta =
-                latest.nextOpponentGrowth - latest.prevOpponentGrowth;
-              const opponentName = isGardenBotBattle ? "Garden Bot" : "Opponent";
-              const messages = latest.details?.length
-                ? latest.details
-                : [
-                    playerDelta > 0
-                      ? `You gained +${playerDelta} growth`
-                      : null,
-                    playerDelta < 0
-                      ? `Your tree lost ${Math.abs(playerDelta)} growth`
-                      : null,
-                    opponentDelta < 0
-                      ? `${opponentName} lost ${Math.abs(opponentDelta)} growth`
-                      : null,
-                    opponentDelta > 0
-                      ? `${opponentName} gained +${opponentDelta} growth`
-                      : null,
-                  ].filter(Boolean);
-              return (
-                <div
-                  role="status"
-                  style={{
-                    marginBottom: "10px",
-                    padding: "10px 14px",
-                    border: "1px solid #00cc88",
-                    borderRadius: "8px",
-                    background: "rgba(0, 70, 55, 0.82)",
-                    color: "#d8fff2",
-                    textAlign: "center",
-                    fontSize: "clamp(11px, 2.5vw, 14px)",
-                    fontWeight: "bold",
-                  }}
-                >
-                  {messages.length > 0
-                    ? messages.join(" · ")
-                    : "The move was blocked or had no growth effect"}
-                </div>
-              );
-            })()}
 
             {(attacksAreStalled || handNeedsReroll) && !battleFinished && !isPracticeActive && (
               <div
@@ -3011,36 +2989,15 @@ export default function Battle() {
             {fifthMoveDraft.pending && (
               <section
                 aria-label="Choose your fifth move"
-                style={{
-                  marginBottom: "14px",
-                  padding: "14px",
-                  border: "2px solid #b56cff",
-                  borderRadius: "12px",
-                  background: "rgba(35, 0, 58, 0.82)",
-                  boxShadow: "0 0 18px rgba(181, 108, 255, 0.35)",
-                }}
+                className={`gb-fifth-picker${selectedFifthMoveId !== null ? " gb-fifth-picker-selected" : ""}`}
               >
-                <div
-                  style={{
-                    color: "#e8c8ff",
-                    fontFamily: "Orbitron, sans-serif",
-                    fontWeight: 900,
-                    textAlign: "center",
-                    textTransform: "uppercase",
-                  }}
-                >
+                <div className="gb-fifth-picker-title">
                   Choose Your Fifth Move
                 </div>
-                <p style={{ color: "#f5eaff", textAlign: "center", fontSize: "12px" }}>
+                <p>
                   Pick one bonus card for this battle. Your choice locks with your first move—no extra wallet confirmation.
                 </p>
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
-                    gap: "9px",
-                  }}
-                >
+                <div className="gb-fifth-picker-grid">
                   {fifthMoveDraft.candidates.map((moveId) => {
                     const selected = selectedFifthMoveId === moveId;
                     return (
@@ -3051,16 +3008,7 @@ export default function Battle() {
                         onClick={() => setSelectedFifthMoveId(moveId)}
                         disabled={battleFinished || moveControlsLocked}
                         data-testid={`button-fifth-move-${moveId}`}
-                        style={{
-                          padding: "11px",
-                          borderRadius: "10px",
-                          border: `2px solid ${selected ? "#e8c8ff" : "#8d4cc4"}`,
-                          background: selected ? "rgba(181,108,255,0.4)" : "rgba(15,0,30,0.7)",
-                          color: "white",
-                          cursor: battleFinished || moveControlsLocked ? "not-allowed" : "pointer",
-                          textAlign: "left",
-                          boxShadow: selected ? "0 0 14px #b56cff" : "none",
-                        }}
+                        className={`gb-fifth-picker-card${selected ? " gb-fifth-picker-card-selected" : ""}`}
                       >
                         <MoveCardFace moveId={moveId} isFifth compact />
                       </button>
@@ -3071,13 +3019,7 @@ export default function Battle() {
             )}
 
             {/* Move card grid */}
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
-                gap: "10px",
-              }}
-            >
+            {(!fifthMoveDraft.pending || selectedFifthMoveId !== null) && <div className="gb-move-card-grid">
               {playerMoves.length === 0 && (
                 <div
                   role="status"
@@ -3108,12 +3050,20 @@ export default function Battle() {
                   playerMoves.length,
                   fifthMoveEntitled,
                 );
+                const isRepeatedMove = lastPlayerMoveId === moveId;
+                const currentOutcome = getCurrentMoveOutcome(
+                  moveId,
+                  playerGrowth,
+                  opponentGrowth,
+                  lastPlayerMoveId,
+                  lastOpponentMoveId,
+                );
                 const isDisabled =
                   battleFinished ||
                   moveControlsLocked ||
                   !isMyTurn ||
                   (fifthMoveDraft.pending && selectedFifthMoveId === null) ||
-                  (!isPracticeActive && lastPlayerMoveId === moveId);
+                  isRepeatedMove;
 
                 const borderColor = isGrowth
                   ? "#00ff88"
@@ -3128,7 +3078,7 @@ export default function Battle() {
                 return (
                   <button
                     key={moveId}
-                    className={`gb-battle-move-card${isFifthMoveCard ? " gb-battle-move-card-fifth" : ""}`}
+                    className={`gb-battle-move-card${isFifthMoveCard ? " gb-battle-move-card-fifth" : ""}${isRepeatedMove ? " gb-battle-move-card-repeated" : ""}`}
                     onClick={() => handleUseAbility(moveId)}
                     disabled={isDisabled}
                     style={{
@@ -3172,13 +3122,21 @@ export default function Battle() {
                       </span>
                     )}
                     <MoveCardFace moveId={moveId} isFifth={isFifthMoveCard} isPending={isPending} />
+                    {isRepeatedMove ? (
+                      <span className="gb-move-card-state gb-move-card-state-locked">
+                        Used last turn · Choose another card
+                      </span>
+                    ) : currentOutcome ? (
+                      <span className="gb-move-card-state">{currentOutcome}</span>
+                    ) : null}
                   </button>
                 );
               })}
-            </div>
+            </div>}
 
             {(battleState && !battleFinished) && (
               <div
+                className="gb-battle-secondary-controls"
                 style={{
                   display: "flex",
                   flexWrap: "wrap",
@@ -3224,6 +3182,7 @@ export default function Battle() {
                 ) : (
                   <>
                     <button
+                      className="gb-battle-forfeit-button"
                       onClick={handleForfeitBattle}
                       disabled={isForfeiting}
                       style={{
@@ -3244,8 +3203,9 @@ export default function Battle() {
                     >
                       {isForfeiting ? "Forfeiting..." : "Forfeit Battle"}
                     </button>
-                    {isGardenBotBattle && (
+                    {isGardenBotBattle && (attacksAreStalled || handNeedsReroll) && (
                       <button
+                        className="gb-battle-new-hand-button"
                         onClick={handleStartBotBattle}
                         disabled={isStartingBot}
                         style={{
@@ -3265,7 +3225,7 @@ export default function Battle() {
                         : "0 0 18px rgba(0, 229, 255, 0.45)",
                         }}
                       >
-                        {isStartingBot ? "Starting..." : "New Bot Hand"}
+                        {isStartingBot ? "Dealing..." : "Deal a New Hand"}
                       </button>
                     )}
                     {canClaimTimeout && (
@@ -3320,28 +3280,8 @@ export default function Battle() {
             )}
 
             {/* Battle Log */}
-            <div
-              style={{
-                marginTop: "16px",
-                background: "rgba(0,10,30,0.8)",
-                border: "1px solid rgba(0,200,255,0.25)",
-                borderRadius: "10px",
-                padding: "10px",
-              }}
-            >
-              <div
-                style={{
-                  fontSize: "11px",
-                  color: "rgba(0,200,255,0.6)",
-                  fontFamily: "Orbitron, sans-serif",
-                  fontWeight: "bold",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.8px",
-                  marginBottom: "6px",
-                }}
-              >
-                📜 Battle Log
-              </div>
+            <div className="gb-battle-log-panel">
+              <div className="gb-battle-log-title">📜 Battle Log <span>Tap a move for full details</span></div>
               <BattleLog
                 entries={effectiveActionLog}
                 isPlayer1={!!isPlayer1}
@@ -3354,7 +3294,7 @@ export default function Battle() {
           </div>}
 
         {/* Battle Info */}
-        <p
+        {(!battleState || battleFinished) && <p
           style={{
             margin: "15px 0",
             fontSize: "clamp(14px, 3.5vw, 20px)",
@@ -3364,8 +3304,8 @@ export default function Battle() {
           data-testid="text-entry-fee"
         >
           {battleInfoText}
-        </p>
-        <p
+        </p>}
+        {(!battleState || battleFinished) && <p
           style={{
             marginTop: "15px",
             fontSize: "clamp(14px, 3.5vw, 20px)",
@@ -3375,9 +3315,9 @@ export default function Battle() {
           data-testid="text-battle-status"
         >
           {battleStatus}
-        </p>
+        </p>}
 
-        <ArboretumComingSoonPromo />
+        {!battleState && <ArboretumComingSoonPromo />}
         </main>
         {/* Footer */}
         <footer
