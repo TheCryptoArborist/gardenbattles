@@ -177,6 +177,10 @@ TELEGRAM_BOT_TOKEN=<telegram bot token>
 TELEGRAM_CHAT_ID=<community chat id>
 # Optional, for Telegram forum topics/supergroup threads:
 TELEGRAM_MESSAGE_THREAD_ID=<topic id>
+# Optional second delivery destination for the TREE announcement channel:
+TELEGRAM_ANNOUNCEMENT_CHAT_ID=<announcement channel id or @username>
+# Usually blank for a channel; set only when the destination is a forum topic:
+TELEGRAM_ANNOUNCEMENT_MESSAGE_THREAD_ID=
 LEGACY_MATCHMAKING_QUEUE_ID=0xb5c054185c98d9cb80e35c50f78e306ca2d7bed52955e397df9f1acad9938e4d
 # Compatibility alias for the legacy queue:
 MATCHMAKING_QUEUE_ID=0xb5c054185c98d9cb80e35c50f78e306ca2d7bed52955e397df9f1acad9938e4d
@@ -195,6 +199,11 @@ GARDEN_BATTLES_DB_PATH=/data/battle-data.db
 ```
 
 Do not log or commit Telegram secrets.
+
+When `TELEGRAM_ANNOUNCEMENT_CHAT_ID` is configured, each new waiting-player
+alert is sent to both the community destination and the TREE announcement
+channel before it is marked delivered. Add the bot as a channel administrator
+with permission to post messages. Repeated queue polls remain deduplicated.
 
 ## Rollout Sequence
 

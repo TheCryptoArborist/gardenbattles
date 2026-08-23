@@ -1,5 +1,22 @@
 const DEFAULT_SUI_GRAPHQL_URL = "https://graphql.mainnet.sui.io/graphql";
 
+const SUI_OBJECT_QUERY = `
+  query SuiObject($id: SuiAddress!) {
+    object(address: $id) {
+      address
+      version
+      digest
+      previousTransaction { digest }
+      asMoveObject {
+        contents {
+          type { repr }
+          json
+        }
+      }
+    }
+  }
+`;
+
 const BATTLE_TRANSACTION_QUERY = `
   query BattleTransaction($digest: String!) {
     transaction(digest: $digest) {
@@ -32,6 +49,60 @@ export interface VerifiedBattleTransaction {
     type: string;
     parsedJson: unknown;
   }>;
+}
+
+export async function readSuiObjectViaGraphQL(
+  id: string,
+  options: {
+    endpoint?: string;
+    fetchFn?: FetchLike;
+    signal?: AbortSignal;
+  } = {},
+): Promise<any> {
+  const response = await (options.fetchFn ?? fetch)(
+    options.endpoint ?? process.env.SUI_GRAPHQL_URL ?? DEFAULT_SUI_GRAPHQL_URL,
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        query: SUI_OBJECT_QUERY,
+        variables: { id },
+      }),
+      signal: options.signal,
+    },
+  );
+
+  const payload = await response.json();
+  if (!response.ok || payload.errors?.length) {
+    throw new Error(
+      payload.errors?.[0]?.message ||
+        `Sui GraphQL object read returned ${response.status}.`,
+    );
+  }
+
+  const object = payload.data?.object;
+  const contents = object?.asMoveObject?.contents;
+  if (!object || !contents) {
+    throw new Error(`Sui object ${id} was not found or is not a Move object.`);
+  }
+
+  return {
+    data: {
+      objectId: String(object.address ?? id),
+      version: String(object.version),
+      digest: String(object.digest ?? ""),
+      previousTransaction:
+        typeof object.previousTransaction?.digest === "string"
+          ? object.previousTransaction.digest
+          : null,
+      type: String(contents.type?.repr ?? ""),
+      content: {
+        dataType: "moveObject",
+        type: String(contents.type?.repr ?? ""),
+        fields: contents.json ?? {},
+      },
+    },
+  };
 }
 
 export async function readBattleTransactionViaGraphQL(

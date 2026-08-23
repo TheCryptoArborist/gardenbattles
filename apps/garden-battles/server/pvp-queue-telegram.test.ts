@@ -15,6 +15,7 @@ import {
 } from "./pvp-queue-telegram";
 import type { PvpQueueTelegramAlertRow } from "./battle-storage";
 import { parseBattleEvent } from "./routes";
+import { readSuiObjectViaGraphQL } from "./sui-graphql";
 
 const QUEUE_ID = "0xqueue";
 const QUEUE_50_ID = "0xqueue50";
@@ -226,6 +227,10 @@ function makePoller(
   store = new MemoryStore(),
   messageThreadId: number | null = 123,
   queues?: PvpQueueDefinition[],
+  additionalDestinations?: Array<{
+    chatId: string;
+    messageThreadId?: number | null;
+  }>,
 ) {
   const suiClient = new FakeSuiClient(objects);
   const telegramClient = new FakeTelegramClient();
@@ -236,6 +241,7 @@ function makePoller(
     botToken: "token",
     chatId: "chat",
     messageThreadId,
+    additionalDestinations,
     suiClient,
     telegramClient,
     store,
@@ -260,6 +266,44 @@ test("empty to player A sends exactly once and repeated A polls skip", async () 
   assert.deepEqual(telegramClient.sent[0].replyMarkup, {
     inline_keyboard: [[{ text: "Join Battle", url: "https://nftree.net/battle" }]],
   });
+});
+
+test("a waiting player alerts both the community and TREE announcement destinations once", async () => {
+  const { poller, telegramClient } = makePoller(
+    [queueObject(PLAYER_A, "2", "tx-a")],
+    new MemoryStore(),
+    123,
+    undefined,
+    [{ chatId: "@tree_announcements" }],
+  );
+
+  assert.equal((await poller.pollOnce()).status, "notified");
+  assert.equal((await poller.pollOnce()).reason, "already_notified");
+  assert.equal(telegramClient.sent.length, 2);
+  assert.deepEqual(
+    telegramClient.sent.map(({ chatId, messageThreadId }) => ({
+      chatId,
+      messageThreadId: messageThreadId ?? null,
+    })),
+    [
+      { chatId: "chat", messageThreadId: 123 },
+      { chatId: "@tree_announcements", messageThreadId: null },
+    ],
+  );
+  assert.equal(telegramClient.sent[0].text, telegramClient.sent[1].text);
+});
+
+test("duplicate Telegram destinations are collapsed", async () => {
+  const { poller, telegramClient } = makePoller(
+    [queueObject(PLAYER_A, "2", "tx-a")],
+    new MemoryStore(),
+    123,
+    undefined,
+    [{ chatId: "chat", messageThreadId: 123 }],
+  );
+
+  assert.equal((await poller.pollOnce()).status, "notified");
+  assert.equal(telegramClient.sent.length, 1);
 });
 
 test("legacy queue alert includes 100 Growth and Legacy Match", async () => {
@@ -356,6 +400,63 @@ test("configured v3 queues are polled as target-specific Quick and Standard matc
       ["0xv3standard", 75, "Standard Match", "v3"],
     ],
   );
+});
+
+test("live v3 queue IDs are used when deployment variables are absent", () => {
+  const queues = getConfiguredPvpQueueDefinitions({
+    MATCHMAKING_QUEUE_ID: QUEUE_ID,
+    MATCHMAKING_QUEUE_50_ID: "",
+    MATCHMAKING_QUEUE_75_ID: "",
+  } as any);
+
+  assert.deepEqual(
+    queues.filter((queue) => queue.queueType === "v3").map((queue) => [queue.targetGrowth, queue.queueId]),
+    [
+      [50, "0xb380a69e611ad7636f2b7993fab6656c272c0802fd7a6ec35448a58956a0c38f"],
+      [75, "0x03e77c44e4ef2a6203a0d84378a4a8faf3acfb82ddfef84cd5e0bb243ff5abe1"],
+    ],
+  );
+});
+
+test("GraphQL queue reads map into notifier parsing without legacy JSON-RPC", async () => {
+  const object = await readSuiObjectViaGraphQL(QUEUE_50_ID, {
+    fetchFn: async () =>
+      new Response(JSON.stringify({
+        data: {
+          object: {
+            address: QUEUE_50_ID,
+            version: 42,
+            digest: "queue-digest",
+            previousTransaction: { digest: "queue-transaction" },
+            asMoveObject: {
+              contents: {
+                type: { repr: "0xpackage::matchmaking::MatchmakingQueueV3" },
+                json: {
+                  bank: "3000000000",
+                  target_growth: "50",
+                  waiting: {
+                    entry_fee_snapshot: "3000000000",
+                    fifth_move_entitled: false,
+                    player: PLAYER_A,
+                  },
+                },
+              },
+            },
+          },
+        },
+      }), { status: 200 }),
+  });
+
+  const pending = parsePendingQueueEntry(object, {
+    queueId: QUEUE_50_ID,
+    targetGrowth: 50,
+    displayLabel: "Quick Match",
+    queueType: "v3",
+  });
+
+  assert.equal(pending?.player, PLAYER_A);
+  assert.equal(pending?.previousTransaction, "queue-transaction");
+  assert.equal(pending?.entryFeeMist, 3_000_000_000);
 });
 
 test("V3 50-Growth waiting object notifies as Quick Match", async () => {

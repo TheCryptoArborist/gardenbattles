@@ -6723,12 +6723,64 @@
   .gb-move-face-compact .gb-move-face-icon { height: 26px; width: 26px; }
 
   @media (max-width: 480px) {
-    .gb-move-face { grid-template-columns: 58px minmax(0, 1fr); }
+    .gb-battle-move-card {
+      padding: 10px 8px !important;
+    }
+
+    .gb-battle-move-card:disabled {
+      opacity: 0.8 !important;
+    }
+
+    .gb-move-face {
+      gap: 7px;
+      grid-template-columns: minmax(0, 1fr);
+      min-height: 0;
+    }
+
+    .gb-move-face-visual,
+    .gb-move-face-compact .gb-move-face-visual {
+      height: 52px;
+      min-height: 52px;
+    }
+
+    .gb-move-face-rings,
+    .gb-move-face-compact .gb-move-face-rings {
+      height: 38px;
+      width: 38px;
+    }
+
+    .gb-move-face-icon,
+    .gb-move-face-compact .gb-move-face-icon {
+      height: 25px;
+      width: 25px;
+    }
+
+    .gb-move-face-copy {
+      justify-content: flex-start;
+    }
+
+    .gb-move-face-copy strong {
+      font-size: 12px;
+      line-height: 1.35;
+      margin-top: 4px;
+    }
+
     .gb-move-face-copy small {
+      color: #f4fff9;
       display: -webkit-box;
+      font-size: 12px;
+      font-weight: 650;
+      line-height: 1.45;
+      margin-top: 6px;
+      text-shadow: 0 1px 3px #000000;
       -webkit-box-orient: vertical;
-      -webkit-line-clamp: 2;
+      -webkit-line-clamp: 3;
       overflow: hidden;
+    }
+
+    .gb-move-face-badges > span {
+      font-size: 8px;
+      padding: 3px 6px;
     }
   }
 

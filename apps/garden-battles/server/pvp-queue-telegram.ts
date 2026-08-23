@@ -1,4 +1,3 @@
-import { SuiClient } from "@mysten/sui/client";
 import {
   getActivePvpQueueTelegramAlert,
   getPvpQueueTelegramAlertByKey,
@@ -7,10 +6,14 @@ import {
   upsertNotifiedPvpQueueTelegramAlert,
   type PvpQueueTelegramAlertRow,
 } from "./battle-storage";
+import { readSuiObjectViaGraphQL } from "./sui-graphql";
 
-const DEFAULT_SUI_RPC_URL = "https://fullnode.mainnet.sui.io:443";
 const DEFAULT_MATCHMAKING_QUEUE_ID =
   "0xb5c054185c98d9cb80e35c50f78e306ca2d7bed52955e397df9f1acad9938e4d";
+const DEFAULT_MATCHMAKING_QUEUE_V3_50_ID =
+  "0xb380a69e611ad7636f2b7993fab6656c272c0802fd7a6ec35448a58956a0c38f";
+const DEFAULT_MATCHMAKING_QUEUE_V3_75_ID =
+  "0x03e77c44e4ef2a6203a0d84378a4a8faf3acfb82ddfef84cd5e0bb243ff5abe1";
 const DEFAULT_BATTLE_URL = "https://nftree.net/battle";
 const DEFAULT_POLL_INTERVAL_MS = 30_000;
 const MIN_POLL_INTERVAL_MS = 15_000;
@@ -38,17 +41,25 @@ export interface PvpQueueDefinition {
 
 interface TelegramQueueNotifierOptions {
   suiRpcUrl?: string;
+  suiGraphqlUrl?: string;
   queueId?: string;
   queues?: PvpQueueDefinition[];
   enabled?: boolean;
   botToken?: string;
   chatId?: string;
   messageThreadId?: number | string | null;
+  announcementChatId?: string;
+  announcementMessageThreadId?: number | string | null;
   battleUrl?: string;
   pollIntervalMs?: number;
   suiClient?: QueueSuiClient;
   telegramClient?: TelegramClient;
   store?: QueueAlertStore;
+}
+
+export interface TelegramDestination {
+  chatId: string;
+  messageThreadId?: number | null;
 }
 
 interface QueueSuiClient {
@@ -194,8 +205,14 @@ export function getConfiguredPvpQueueDefinitions(env: NodeJS.ProcessEnv = proces
     DEFAULT_MATCHMAKING_QUEUE_ID;
   const queue50Id = normalizeQueueId(env.MATCHMAKING_QUEUE_50_ID);
   const queue75Id = normalizeQueueId(env.MATCHMAKING_QUEUE_75_ID);
-  const queueV350Id = normalizeQueueId(env.MATCHMAKING_QUEUE_V3_50_ID);
-  const queueV375Id = normalizeQueueId(env.MATCHMAKING_QUEUE_V3_75_ID);
+  const queueV350Id =
+    env.MATCHMAKING_QUEUE_V3_50_ID === undefined
+      ? DEFAULT_MATCHMAKING_QUEUE_V3_50_ID
+      : normalizeQueueId(env.MATCHMAKING_QUEUE_V3_50_ID);
+  const queueV375Id =
+    env.MATCHMAKING_QUEUE_V3_75_ID === undefined
+      ? DEFAULT_MATCHMAKING_QUEUE_V3_75_ID
+      : normalizeQueueId(env.MATCHMAKING_QUEUE_V3_75_ID);
   const queues: PvpQueueDefinition[] = [];
 
   if (legacyQueueId) {
@@ -455,6 +472,7 @@ export function createPvpQueueTelegramPoller(options: {
   botToken: string;
   chatId: string;
   messageThreadId?: number | null;
+  additionalDestinations?: TelegramDestination[];
   suiClient: QueueSuiClient;
   telegramClient: TelegramClient;
   store: QueueAlertStore;
@@ -471,6 +489,18 @@ export function createPvpQueueTelegramPoller(options: {
             queueType: "legacy",
           } satisfies PvpQueueDefinition,
         ];
+  const destinations = [
+    { chatId: options.chatId, messageThreadId: options.messageThreadId },
+    ...(options.additionalDestinations ?? []),
+  ].filter(
+    (destination, index, all) =>
+      all.findIndex(
+        (candidate) =>
+          candidate.chatId === destination.chatId &&
+          (candidate.messageThreadId ?? null) ===
+            (destination.messageThreadId ?? null),
+      ) === index,
+  );
 
   const pollOnce = async (): Promise<QueuePollResult> => {
     if (pollInFlight) {
@@ -507,17 +537,23 @@ export function createPvpQueueTelegramPoller(options: {
           continue;
         }
 
-        const telegramResult = await options.telegramClient.sendMessage({
-          botToken: options.botToken,
-          chatId: options.chatId,
-          messageThreadId: options.messageThreadId,
-          replyMarkup: buildQueueReplyMarkup(options.battleUrl),
-          text: buildQueueMessage(pending, options.battleUrl),
-        });
+        const text = buildQueueMessage(pending, options.battleUrl);
+        const replyMarkup = buildQueueReplyMarkup(options.battleUrl);
+        const telegramResults = await Promise.all(
+          destinations.map((destination) =>
+            options.telegramClient.sendMessage({
+              botToken: options.botToken,
+              chatId: destination.chatId,
+              messageThreadId: destination.messageThreadId,
+              replyMarkup,
+              text,
+            }),
+          ),
+        );
 
         options.store.markNotified({
           entry: pending,
-          telegramMessageId: telegramResult.messageId,
+          telegramMessageId: telegramResults[0]?.messageId ?? null,
           notifiedAt: Date.now(),
         });
 
@@ -565,6 +601,15 @@ export function startPvpQueueTelegramNotifier(
     process.env.TELEGRAM_MESSAGE_THREAD_ID ??
     process.env.TELEGRAM_PVP_QUEUE_THREAD_ID ??
     null;
+  const rawAnnouncementChatId =
+    options.announcementChatId ??
+    process.env.TELEGRAM_ANNOUNCEMENT_CHAT_ID ??
+    process.env.TREE_TELEGRAM_ANNOUNCEMENT_CHAT_ID;
+  const rawAnnouncementMessageThreadId =
+    options.announcementMessageThreadId ??
+    process.env.TELEGRAM_ANNOUNCEMENT_MESSAGE_THREAD_ID ??
+    process.env.TREE_TELEGRAM_ANNOUNCEMENT_MESSAGE_THREAD_ID ??
+    null;
 
   if (explicitlyDisabled || !enabled) {
     console.log("[telegram] PvP queue notifier disabled");
@@ -580,6 +625,16 @@ export function startPvpQueueTelegramNotifier(
 
   const chatId = validateTelegramChatId(rawChatId);
   const messageThreadId = parseTelegramMessageThreadId(rawMessageThreadId);
+  const additionalDestinations = rawAnnouncementChatId
+    ? [
+        {
+          chatId: validateTelegramChatId(rawAnnouncementChatId),
+          messageThreadId: parseTelegramMessageThreadId(
+            rawAnnouncementMessageThreadId,
+          ),
+        },
+      ]
+    : [];
 
   const queues =
     options.queues ??
@@ -602,22 +657,26 @@ export function startPvpQueueTelegramNotifier(
   );
   const suiClient =
     options.suiClient ??
-    new SuiClient({
-      url: options.suiRpcUrl ?? process.env.SUI_RPC_URL ?? DEFAULT_SUI_RPC_URL,
-    });
+    {
+      getObject: ({ id }: { id: string }) =>
+        readSuiObjectViaGraphQL(id, {
+          endpoint: options.suiGraphqlUrl ?? process.env.SUI_GRAPHQL_URL,
+        }),
+    };
   const poller = createPvpQueueTelegramPoller({
     queues,
     battleUrl,
     botToken,
     chatId,
     messageThreadId,
+    additionalDestinations,
     suiClient,
     telegramClient: options.telegramClient ?? new FetchTelegramClient(),
     store: options.store ?? sqliteQueueAlertStore,
   });
 
   console.log(
-    `[telegram] PvP queue notifier enabled; polling ${queues.length} queue(s) every ${pollIntervalMs}ms`,
+    `[telegram] PvP queue notifier enabled; polling ${queues.length} queue(s) for ${1 + additionalDestinations.length} destination(s) every ${pollIntervalMs}ms`,
   );
   void poller.pollOnce();
   const interval = setInterval(() => {
