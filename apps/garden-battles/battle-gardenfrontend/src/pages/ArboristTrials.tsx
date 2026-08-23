@@ -55,6 +55,7 @@ export default function ArboristTrials() {
   const [log, setLog] = useState<ActionEntry[]>([]);
   const [rankedRun, setRankedRun] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [scoreSaved, setScoreSaved] = useState(false);
   const [submissionMessage, setSubmissionMessage] = useState<string | null>(null);
   const [localPreview, setLocalPreview] = useState(false);
   const submittedBattleRef = useRef<string | null>(null);
@@ -92,6 +93,7 @@ export default function ArboristTrials() {
     setLog([]);
     setRankedRun(ranked);
     setSubmissionMessage(null);
+    setScoreSaved(false);
     submittedBattleRef.current = null;
   };
 
@@ -107,12 +109,13 @@ export default function ArboristTrials() {
     }
   };
 
-  useEffect(() => {
-    if (!battle?.finished || !rankedRun || !address || !today) return;
+  const submitRankedScore = async () => {
+    if (!battle?.finished || !rankedRun || !address || !today || scoreSaved) return;
     if (submittedBattleRef.current === battle.battleId) return;
     submittedBattleRef.current = battle.battleId;
     setSubmitting(true);
-    const saveRankedResult = async () => {
+    setSubmissionMessage("Approve the free wallet signature to submit your official score.");
+    try {
       const proofMessage = createArboristTrialProofMessage(
         today.challenge.id,
         address,
@@ -121,23 +124,22 @@ export default function ArboristTrials() {
       const proof = await signPersonalMessage.mutateAsync({
         message: new TextEncoder().encode(proofMessage),
       });
-      return submitArboristTrialResult({
+      const saved = await submitArboristTrialResult({
         challengeId: today.challenge.id,
         wallet: address,
         playerMoves: battle.allPlayerMoves,
         signature: proof.signature,
       });
-    };
-    void saveRankedResult()
-      .then((saved) => {
-        setSubmissionMessage(`Ranked score saved: ${saved.result.score.toLocaleString()} points.`);
-        return loadToday();
-      })
-      .catch((reason) => {
-        setSubmissionMessage(reason instanceof Error ? reason.message : "The ranked score could not be saved.");
-      })
-      .finally(() => setSubmitting(false));
-  }, [battle?.finished, battle?.battleId, rankedRun, address, today?.challenge.id]);
+      setScoreSaved(true);
+      setSubmissionMessage(`Ranked score saved: ${saved.result.score.toLocaleString()} points.`);
+      await loadToday();
+    } catch (reason) {
+      submittedBattleRef.current = null;
+      setSubmissionMessage(reason instanceof Error ? reason.message : "The ranked score could not be saved.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   const rounds = battle ? Math.ceil(battle.totalTurns / 2) : 0;
   const result = useMemo(() => battle?.finished ? getArboristTrialResult(battle) : null, [battle]);
@@ -244,7 +246,12 @@ export default function ArboristTrials() {
             ) : (
               <div className={`gb-trials-result ${result?.won ? "gb-trials-result-win" : "gb-trials-result-loss"}`}>
                 <Trophy size={34} />
-                <div><small>TRIAL COMPLETE</small><h2>{result?.won ? "Canopy Conquered" : "Garden Bot Held the Grove"}</h2><p>{rounds} rounds · {battle.player1Growth}–{battle.player2Growth} final Growth</p>{submissionMessage && <strong>{submitting ? "Saving ranked score..." : submissionMessage}</strong>}</div>
+                <div><small>TRIAL COMPLETE · {rankedRun ? "OFFICIAL RUN" : "PRACTICE"}</small><h2>{result?.won ? "Canopy Conquered" : "Garden Bot Held the Grove"}</h2><p>{rounds} rounds · {battle.player1Growth}–{battle.player2Growth} final Growth</p>{submissionMessage && <strong>{submissionMessage}</strong>}{!rankedRun && <strong>Practice result only — no score or streak was submitted.</strong>}</div>
+                {rankedRun && !scoreSaved && (
+                  <button type="button" className="gb-trials-primary" disabled={submitting} onClick={() => void submitRankedScore()}>
+                    <ShieldCheck size={16} /> {submitting ? "Waiting for Wallet..." : "Sign & Submit Official Score"}
+                  </button>
+                )}
                 <button type="button" onClick={() => startTrial(false)}><RotateCcw size={16} /> Practice Again</button>
                 <button type="button" onClick={() => setBattle(null)}>Return to Daily Board</button>
               </div>
