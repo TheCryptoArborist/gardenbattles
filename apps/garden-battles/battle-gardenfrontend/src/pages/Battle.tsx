@@ -314,8 +314,9 @@ export default function Battle() {
   const [isRefunding, setIsRefunding] = useState(false);
   const [isJoining, setIsJoining] = useState(false);
   const [isCheckingPvpQueue, setIsCheckingPvpQueue] = useState(false);
-  const [selectedPvpTarget, setSelectedPvpTarget] =
-    useState<PvpMatchTarget>(50);
+  // Keep the 75-Growth route recoverable for existing battles, but expose one
+  // public queue so the active player base is not split across match lengths.
+  const selectedPvpTarget: PvpMatchTarget = 50;
   const [localPvpQueued, setLocalPvpQueued] = useState(false);
   const [recoveredPvpQueueState, setRecoveredPvpQueueState] =
     useState<PvpQueueState | null>(null);
@@ -1640,41 +1641,8 @@ export default function Battle() {
               <span>{shouldShowPvpQueuePanel ? "Already in queue" : `Entry: ${entryFeeLabel}`}</span>
               <span>Winner receives {pvpWinnerPayoutLabel}</span>
               <span>{pvpTreeSupportLabel} supports TREE buybacks</span>
+              {!shouldShowPvpQueuePanel && <span>First to 50 Growth</span>}
             </div>
-            {!shouldShowPvpQueuePanel && (
-              <div className="gb-pvp-target-selector" aria-label="Choose PvP match length">
-                <span className="gb-pvp-target-selector-label">Choose Match Length</span>
-                <div className="gb-pvp-target-options">
-                  {[
-                    {
-                      target: 50 as const,
-                      title: "50 Growth",
-                      subtitle: "Quick Match",
-                    },
-                    {
-                      target: 75 as const,
-                      title: "75 Growth",
-                      subtitle: "Standard Match",
-                    },
-                  ].map((option) => (
-                    <button
-                      key={option.target}
-                      type="button"
-                      className={
-                        selectedPvpTarget === option.target
-                          ? "gb-pvp-target-option gb-pvp-target-option-active"
-                          : "gb-pvp-target-option"
-                      }
-                      aria-pressed={selectedPvpTarget === option.target}
-                      onClick={() => setSelectedPvpTarget(option.target)}
-                    >
-                      <strong>{option.title}</strong>
-                      <span>{option.subtitle}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
             {shouldShowPvpQueuePanel ? (
               <>
                 <div className="gb-mode-queued-label">Already in queue</div>

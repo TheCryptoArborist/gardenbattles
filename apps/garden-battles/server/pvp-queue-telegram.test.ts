@@ -306,6 +306,37 @@ test("duplicate Telegram destinations are collapsed", async () => {
   assert.equal(telegramClient.sent.length, 1);
 });
 
+test("dynamic destinations are loaded at send time and one dead group cannot block delivery", async () => {
+  const suiClient = new FakeSuiClient([queueObject(PLAYER_A, "2", "tx-a")]);
+  const store = new MemoryStore();
+  const attempted: string[] = [];
+  let dynamic = [{ chatId: "dead-group", messageThreadId: 55 }];
+  const poller = createPvpQueueTelegramPoller({
+    battleUrl: "https://nftree.net/battle",
+    botToken: "token",
+    chatId: "primary",
+    getAdditionalDestinations: () => dynamic,
+    suiClient,
+    store,
+    telegramClient: {
+      async sendMessage(input) {
+        attempted.push(input.chatId);
+        if (input.chatId === "dead-group") throw new Error("bot removed");
+        return { messageId: "primary-message" };
+      },
+    },
+  });
+
+  dynamic = [
+    { chatId: "dead-group", messageThreadId: 55 },
+    { chatId: "new-topic", messageThreadId: 77 },
+  ];
+  assert.equal((await poller.pollOnce()).status, "notified");
+  assert.deepEqual(attempted, ["primary", "dead-group", "new-topic"]);
+  assert.equal(store.rows.size, 1);
+  assert.ok([...store.rows.values()][0]?.notified_at);
+});
+
 test("legacy queue alert includes 100 Growth and Legacy Match", async () => {
   const { poller, telegramClient } = makePoller([
     queueObject(PLAYER_A, "2", "tx-a"),
@@ -390,6 +421,7 @@ test("configured v3 queues are polled as target-specific Quick and Standard matc
     MATCHMAKING_QUEUE_75_ID: "",
     MATCHMAKING_QUEUE_V3_50_ID: "0xv3quick",
     MATCHMAKING_QUEUE_V3_75_ID: "0xv3standard",
+    ENABLE_75_GROWTH_NOTIFICATIONS: "true",
   } as any);
 
   assert.deepEqual(
@@ -407,6 +439,7 @@ test("live v3 queue IDs are used when deployment variables are absent", () => {
     MATCHMAKING_QUEUE_ID: QUEUE_ID,
     MATCHMAKING_QUEUE_50_ID: "",
     MATCHMAKING_QUEUE_75_ID: "",
+    ENABLE_75_GROWTH_NOTIFICATIONS: "true",
   } as any);
 
   assert.deepEqual(
@@ -415,6 +448,23 @@ test("live v3 queue IDs are used when deployment variables are absent", () => {
       [50, "0xb380a69e611ad7636f2b7993fab6656c272c0802fd7a6ec35448a58956a0c38f"],
       [75, "0x03e77c44e4ef2a6203a0d84378a4a8faf3acfb82ddfef84cd5e0bb243ff5abe1"],
     ],
+  );
+});
+
+test("75 Growth notifications stay hidden by default without removing queue support", () => {
+  const queues = getConfiguredPvpQueueDefinitions({
+    MATCHMAKING_QUEUE_ID: "",
+    MATCHMAKING_QUEUE_50_ID: "",
+    MATCHMAKING_QUEUE_75_ID: "0xv2standard",
+    MATCHMAKING_QUEUE_V3_50_ID: "0xv3quick",
+    MATCHMAKING_QUEUE_V3_75_ID: "0xv3standard",
+  } as any);
+
+  assert.deepEqual(
+    queues
+      .filter((queue) => queue.targetGrowth !== 100)
+      .map((queue) => [queue.queueId, queue.targetGrowth]),
+    [["0xv3quick", 50]],
   );
 });
 

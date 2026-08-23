@@ -80,6 +80,17 @@ db.exec(`
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
   );
+
+  CREATE TABLE IF NOT EXISTS telegram_alert_destinations (
+    chat_id TEXT NOT NULL,
+    message_thread_id INTEGER NOT NULL DEFAULT 0,
+    chat_title TEXT,
+    configured_by TEXT NOT NULL,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    PRIMARY KEY (chat_id, message_thread_id)
+  );
 `);
 
 if (!hasColumn("battle_records", "transaction_digest")) {
@@ -197,6 +208,23 @@ export interface PvpQueueTelegramAlertRow {
   active: number;
   created_at: number;
   updated_at: number;
+}
+
+export interface TelegramAlertDestinationRow {
+  chat_id: string;
+  message_thread_id: number;
+  chat_title: string | null;
+  configured_by: string;
+  enabled: number;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface EnableTelegramAlertDestinationInput {
+  chatId: string;
+  messageThreadId?: number | null;
+  chatTitle?: string | null;
+  configuredBy: string;
 }
 
 export type LeaderboardMode = "pvp" | "bot" | "overall";
@@ -343,6 +371,35 @@ const getCompletedBattlesStmt = db.prepare(`
   SELECT * FROM battle_records
   WHERE winner IS NOT NULL
   ORDER BY finished_at ASC, recorded_at ASC
+`);
+
+const listTelegramAlertDestinationsStmt = db.prepare(`
+  SELECT * FROM telegram_alert_destinations
+  WHERE enabled = 1
+  ORDER BY created_at ASC
+`);
+
+const getTelegramAlertDestinationStmt = db.prepare(`
+  SELECT * FROM telegram_alert_destinations
+  WHERE chat_id = ? AND message_thread_id = ?
+`);
+
+const enableTelegramAlertDestinationStmt = db.prepare(`
+  INSERT INTO telegram_alert_destinations (
+    chat_id, message_thread_id, chat_title, configured_by,
+    enabled, created_at, updated_at
+  ) VALUES (?, ?, ?, ?, 1, ?, ?)
+  ON CONFLICT(chat_id, message_thread_id) DO UPDATE SET
+    chat_title = excluded.chat_title,
+    configured_by = excluded.configured_by,
+    enabled = 1,
+    updated_at = excluded.updated_at
+`);
+
+const disableTelegramAlertDestinationStmt = db.prepare(`
+  UPDATE telegram_alert_destinations
+  SET enabled = 0, updated_at = ?
+  WHERE chat_id = ? AND message_thread_id = ?
 `);
 
 const updateBattleFinishedAtByTransactionDigestStmt = db.prepare(`
@@ -743,4 +800,45 @@ export function resolveActivePvpQueueTelegramAlerts(
   resolvedAt = Date.now(),
 ): void {
   resolveActivePvpQueueAlertsStmt.run(resolvedAt, resolvedAt, queueId);
+}
+
+export function listTelegramAlertDestinations(): TelegramAlertDestinationRow[] {
+  return listTelegramAlertDestinationsStmt.all() as TelegramAlertDestinationRow[];
+}
+
+export function getTelegramAlertDestination(
+  chatId: string,
+  messageThreadId?: number | null,
+): TelegramAlertDestinationRow | null {
+  return (
+    (getTelegramAlertDestinationStmt.get(
+      chatId,
+      messageThreadId ?? 0,
+    ) as TelegramAlertDestinationRow) ?? null
+  );
+}
+
+export function enableTelegramAlertDestination(
+  input: EnableTelegramAlertDestinationInput,
+): void {
+  const now = Date.now();
+  enableTelegramAlertDestinationStmt.run(
+    input.chatId,
+    input.messageThreadId ?? 0,
+    input.chatTitle ?? null,
+    input.configuredBy,
+    now,
+    now,
+  );
+}
+
+export function disableTelegramAlertDestination(
+  chatId: string,
+  messageThreadId?: number | null,
+): void {
+  disableTelegramAlertDestinationStmt.run(
+    Date.now(),
+    chatId,
+    messageThreadId ?? 0,
+  );
 }

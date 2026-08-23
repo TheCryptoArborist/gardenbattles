@@ -7,6 +7,12 @@ import {
   type PvpQueueTelegramAlertRow,
 } from "./battle-storage";
 import { readSuiObjectViaGraphQL } from "./sui-graphql";
+import {
+  sqliteTelegramDestinationStore,
+  startTelegramSelfServiceCommands,
+  type TelegramDestinationStore,
+  type TelegramSelfServiceApi,
+} from "./telegram-self-service";
 
 const DEFAULT_MATCHMAKING_QUEUE_ID =
   "0xb5c054185c98d9cb80e35c50f78e306ca2d7bed52955e397df9f1acad9938e4d";
@@ -55,6 +61,9 @@ interface TelegramQueueNotifierOptions {
   suiClient?: QueueSuiClient;
   telegramClient?: TelegramClient;
   store?: QueueAlertStore;
+  selfServiceEnabled?: boolean;
+  selfServiceApi?: TelegramSelfServiceApi;
+  destinationStore?: TelegramDestinationStore;
 }
 
 export interface TelegramDestination {
@@ -213,6 +222,7 @@ export function getConfiguredPvpQueueDefinitions(env: NodeJS.ProcessEnv = proces
     env.MATCHMAKING_QUEUE_V3_75_ID === undefined
       ? DEFAULT_MATCHMAKING_QUEUE_V3_75_ID
       : normalizeQueueId(env.MATCHMAKING_QUEUE_V3_75_ID);
+  const standard75NotificationsEnabled = isEnvEnabled(env.ENABLE_75_GROWTH_NOTIFICATIONS);
   const queues: PvpQueueDefinition[] = [];
 
   if (legacyQueueId) {
@@ -233,7 +243,7 @@ export function getConfiguredPvpQueueDefinitions(env: NodeJS.ProcessEnv = proces
     });
   }
 
-  if (queue75Id) {
+  if (standard75NotificationsEnabled && queue75Id) {
     queues.push({
       queueId: queue75Id,
       targetGrowth: 75,
@@ -251,7 +261,7 @@ export function getConfiguredPvpQueueDefinitions(env: NodeJS.ProcessEnv = proces
     });
   }
 
-  if (queueV375Id) {
+  if (standard75NotificationsEnabled && queueV375Id) {
     queues.push({
       queueId: queueV375Id,
       targetGrowth: 75,
@@ -473,6 +483,7 @@ export function createPvpQueueTelegramPoller(options: {
   chatId: string;
   messageThreadId?: number | null;
   additionalDestinations?: TelegramDestination[];
+  getAdditionalDestinations?: () => TelegramDestination[];
   suiClient: QueueSuiClient;
   telegramClient: TelegramClient;
   store: QueueAlertStore;
@@ -489,18 +500,23 @@ export function createPvpQueueTelegramPoller(options: {
             queueType: "legacy",
           } satisfies PvpQueueDefinition,
         ];
-  const destinations = [
-    { chatId: options.chatId, messageThreadId: options.messageThreadId },
-    ...(options.additionalDestinations ?? []),
-  ].filter(
-    (destination, index, all) =>
-      all.findIndex(
-        (candidate) =>
-          candidate.chatId === destination.chatId &&
-          (candidate.messageThreadId ?? null) ===
-            (destination.messageThreadId ?? null),
-      ) === index,
-  );
+
+  const getDestinations = (): TelegramDestination[] => {
+    const all = [
+      { chatId: options.chatId, messageThreadId: options.messageThreadId },
+      ...(options.additionalDestinations ?? []),
+      ...(options.getAdditionalDestinations?.() ?? []),
+    ];
+    return all.filter(
+      (destination, index) =>
+        all.findIndex(
+          (candidate) =>
+            candidate.chatId === destination.chatId &&
+            (candidate.messageThreadId ?? null) ===
+              (destination.messageThreadId ?? null),
+        ) === index,
+    );
+  };
 
   const pollOnce = async (): Promise<QueuePollResult> => {
     if (pollInFlight) {
@@ -539,8 +555,8 @@ export function createPvpQueueTelegramPoller(options: {
 
         const text = buildQueueMessage(pending, options.battleUrl);
         const replyMarkup = buildQueueReplyMarkup(options.battleUrl);
-        const telegramResults = await Promise.all(
-          destinations.map((destination) =>
+        const telegramResults = await Promise.allSettled(
+          getDestinations().map((destination) =>
             options.telegramClient.sendMessage({
               botToken: options.botToken,
               chatId: destination.chatId,
@@ -551,9 +567,23 @@ export function createPvpQueueTelegramPoller(options: {
           ),
         );
 
+        const delivered = telegramResults.filter(
+          (result): result is PromiseFulfilledResult<{ messageId: string | null }> =>
+            result.status === "fulfilled",
+        );
+        const failures = telegramResults.filter(
+          (result): result is PromiseRejectedResult => result.status === "rejected",
+        );
+        failures.forEach((failure) =>
+          console.warn("[telegram] Matchup alert destination failed", failure.reason),
+        );
+        if (delivered.length === 0) {
+          throw new Error("Telegram alert failed for every configured destination");
+        }
+
         options.store.markNotified({
           entry: pending,
-          telegramMessageId: telegramResults[0]?.messageId ?? null,
+          telegramMessageId: delivered[0]?.value.messageId ?? null,
           notifiedAt: Date.now(),
         });
 
@@ -663,6 +693,8 @@ export function startPvpQueueTelegramNotifier(
           endpoint: options.suiGraphqlUrl ?? process.env.SUI_GRAPHQL_URL,
         }),
     };
+  const destinationStore =
+    options.destinationStore ?? sqliteTelegramDestinationStore;
   const poller = createPvpQueueTelegramPoller({
     queues,
     battleUrl,
@@ -670,6 +702,7 @@ export function startPvpQueueTelegramNotifier(
     chatId,
     messageThreadId,
     additionalDestinations,
+    getAdditionalDestinations: () => destinationStore.list(),
     suiClient,
     telegramClient: options.telegramClient ?? new FetchTelegramClient(),
     store: options.store ?? sqliteQueueAlertStore,
@@ -682,9 +715,20 @@ export function startPvpQueueTelegramNotifier(
   const interval = setInterval(() => {
     void poller.pollOnce();
   }, pollIntervalMs);
+  const selfServiceEnabled =
+    options.selfServiceEnabled ?? options.telegramClient === undefined;
+  const stopSelfService = selfServiceEnabled
+    ? startTelegramSelfServiceCommands({
+        botToken,
+        battleUrl,
+        api: options.selfServiceApi,
+        store: destinationStore,
+      })
+    : null;
 
   stopSingletonNotifier = () => {
     clearInterval(interval);
+    stopSelfService?.();
     stopSingletonNotifier = null;
   };
 
