@@ -17,7 +17,10 @@ import {
 } from "@/lib/arboristTrials";
 import { playPracticeRound, type PracticeBattle } from "@/lib/practiceBattle";
 import { useFifthMoveEligibility } from "@/hooks/useFifthMoveEligibility";
+import { getArboristTrialChallenge } from "@shared/arborist-trials";
 import "@/arborist-trials.css";
+
+const LOCAL_PREVIEW_ENABLED = import.meta.env.VITE_ARB_TRIAL_LOCAL_PREVIEW === "true";
 
 function shortWallet(wallet: string) {
   return `${wallet.slice(0, 6)}...${wallet.slice(-4)}`;
@@ -49,6 +52,7 @@ export default function ArboristTrials() {
   const [rankedRun, setRankedRun] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submissionMessage, setSubmissionMessage] = useState<string | null>(null);
+  const [localPreview, setLocalPreview] = useState(false);
   const submittedBattleRef = useRef<string | null>(null);
 
   const loadToday = async () => {
@@ -56,8 +60,20 @@ export default function ArboristTrials() {
     setError(null);
     try {
       setToday(await fetchTodayArboristTrial(address));
+      setLocalPreview(false);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Today’s trial could not be loaded.");
+      if (LOCAL_PREVIEW_ENABLED) {
+        setToday({
+          challenge: getArboristTrialChallenge(),
+          rankedAttemptUsed: false,
+          result: null,
+          streak: 0,
+          leaderboard: [],
+        });
+        setLocalPreview(true);
+      } else {
+        setError(reason instanceof Error ? reason.message : "Today’s trial could not be loaded.");
+      }
     } finally {
       setLoading(false);
     }
@@ -132,6 +148,7 @@ export default function ArboristTrials() {
 
         {loading && <section className="gb-trials-message">Preparing today’s trial...</section>}
         {error && <section className="gb-trials-message gb-trials-message-error">{error}</section>}
+        {localPreview && <section className="gb-trials-message gb-trials-message-preview">Preview mode: gameplay and layout are live; official scores and streaks remain disabled until the ranked server is deployed.</section>}
 
         {today && !battle && (
           <>
@@ -152,11 +169,11 @@ export default function ArboristTrials() {
                 <button
                   type="button"
                   className="gb-trials-primary"
-                  disabled={!address || today.rankedAttemptUsed}
+                  disabled={localPreview || !address || today.rankedAttemptUsed}
                   onClick={() => startTrial(true)}
                 >
                   <ShieldCheck size={18} />
-                  {!address ? "Connect for Ranked Attempt" : today.rankedAttemptUsed ? "Ranked Attempt Complete" : "Start Ranked Attempt"}
+                  {localPreview ? "Ranked Scoring Not Active in Preview" : !address ? "Connect for Ranked Attempt" : today.rankedAttemptUsed ? "Ranked Attempt Complete" : "Start Ranked Attempt"}
                 </button>
                 <button type="button" className="gb-trials-secondary" onClick={() => startTrial(false)}>
                   Practice Today’s Trial

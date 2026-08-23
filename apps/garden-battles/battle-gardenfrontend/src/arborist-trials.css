@@ -15,6 +15,7 @@
 .gb-trials-streak span { display:grid; font-size:12px; text-transform:uppercase; }.gb-trials-streak strong { color:#fff4b7; font-family:Orbitron,sans-serif; font-size:28px; }
 .gb-trials-message,.gb-trials-briefing,.gb-trials-leaderboard,.gb-trials-arena { background:rgba(0,15,18,.86); border:1px solid rgba(0,213,199,.34); border-radius:14px; padding:clamp(16px,3vw,26px); }
 .gb-trials-message { text-align:center; }.gb-trials-message-error { border-color:#ff4f5e; color:#ffb2b9; margin-bottom:14px; }
+.gb-trials-message-preview { background:rgba(245,197,66,.1); border-color:rgba(245,197,66,.6); color:#ffe99c; margin-bottom:14px; }
 .gb-trials-briefing { display:grid; gap:18px; grid-template-columns:minmax(0,1.3fr) minmax(240px,.8fr); }
 .gb-trials-briefing small,.gb-trials-live-heading small,.gb-trials-section-heading small { color:#b86dff; font-family:Orbitron,sans-serif; font-size:10px; font-weight:900; letter-spacing:1px; }
 .gb-trials-briefing h2,.gb-trials-live-heading h2,.gb-trials-section-heading h2 { color:#fff; font-family:Orbitron,sans-serif; margin:5px 0; text-transform:uppercase; }
