@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Link } from "wouter";
-import { AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, Gamepad2, House, LoaderCircle, Menu, ShoppingBag, Sparkles, Trophy, WalletCards, X } from "lucide-react";
+import { AlertTriangle, BookOpen, CheckCircle2, ChevronDown, ChevronRight, Gamepad2, House, LoaderCircle, Menu, ShoppingBag, Sparkles, Trophy, WalletCards, X } from "lucide-react";
 import { ConnectButton } from "@mysten/dapp-kit";
 import MobileWalletLaunchers from "@/components/MobileWalletLaunchers";
 import { useSuiWallet, type PvpQueueState } from "@/hooks/useSuiWallet";
@@ -35,6 +35,7 @@ import PrizePayoutPanel from "@/components/PrizePayoutPanel";
 import BattleResultModal from "@/components/BattleResultModal";
 import ModeCrest from "@/components/ModeCrest";
 import MoveCardFace from "@/components/MoveCardFace";
+import CardGuide from "@/components/CardGuide";
 import TreeBenefitsDrawer from "@/components/TreeBenefitsDrawer";
 import NftreeAcquisitionDrawer from "@/components/NftreeAcquisitionDrawer";
 import { useFifthMoveEligibility } from "@/hooks/useFifthMoveEligibility";
@@ -301,6 +302,8 @@ export default function Battle() {
   const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
   const [mobileProfileExpanded, setMobileProfileExpanded] = useState(false);
   const [modeCardsExpanded, setModeCardsExpanded] = useState(false);
+  const [cardGuideOpen, setCardGuideOpen] = useState(false);
+  const [cardGuideCurrentHandOnly, setCardGuideCurrentHandOnly] = useState(false);
   const [utilityDrawer, setUtilityDrawer] = useState<"tree" | "nftree" | null>(null);
   const [dismissedResultKeys, setDismissedResultKeys] = useState<string[]>(
     () => readDismissedResultKeys(),
@@ -335,6 +338,11 @@ export default function Battle() {
   const [selectedFifthMoveId, setSelectedFifthMoveId] = useState<number | null>(null);
   const [inlineError, setInlineError] = useState<string | null>(null);
   const inlineErrorTimer = useRef<NodeJS.Timeout | null>(null);
+
+  const openCardGuide = (currentHandOnly = false) => {
+    setCardGuideCurrentHandOnly(currentHandOnly);
+    setCardGuideOpen(true);
+  };
 
   const battleFocusRef = useRef<HTMLElement | null>(null);
   const pvpQueuePanelRef = useRef<HTMLElement | null>(null);
@@ -1863,6 +1871,9 @@ export default function Battle() {
               <button type="button" className="gb-nav-link gb-nav-link-tree" onClick={() => setUtilityDrawer("tree")}>
                 <Sparkles size={16} aria-hidden="true" /> <span>TREE Battle Benefits</span>
               </button>
+              <button type="button" className="gb-nav-link gb-nav-link-guide" onClick={() => openCardGuide(false)}>
+                <BookOpen size={16} aria-hidden="true" /> <span>Card Guide</span>
+              </button>
               <a
                 href="https://tree-token.xyz/play/"
                 className="gb-nav-link gb-nav-link-arcade"
@@ -1930,6 +1941,9 @@ export default function Battle() {
               </button>
               <button type="button" className="gb-nav-link" onClick={() => { setUtilityDrawer("tree"); setHeaderMenuOpen(false); }}>
                 <Sparkles size={16} aria-hidden="true" /> TREE Battle Benefits
+              </button>
+              <button type="button" className="gb-nav-link" onClick={() => { openCardGuide(false); setHeaderMenuOpen(false); }}>
+                <BookOpen size={16} aria-hidden="true" /> Card Guide
               </button>
               <a
                 href="https://tree-token.xyz/play/"
@@ -2026,6 +2040,14 @@ export default function Battle() {
           {!hasActiveSession && (
             <div className="gb-quick-start-tools">
               <HowToPlay />
+              <button type="button" className="gb-card-guide-launcher" onClick={() => openCardGuide(false)}>
+                <span className="gb-card-guide-launcher-icon" aria-hidden="true"><BookOpen size={19} /></span>
+                <span>
+                  <strong>Card Guide</strong>
+                  <small>Explore all 39 cards</small>
+                </span>
+                <ChevronRight size={17} aria-hidden="true" />
+              </button>
               <details className="gb-practice-launcher">
                 <summary>
                   <span className="gb-practice-launcher-icon" aria-hidden="true"><Gamepad2 size={19} /></span>
@@ -2070,7 +2092,16 @@ export default function Battle() {
           {activeModeBar}
           {pvpQueuePanel}
           {modeSelect}
-          {hasActiveSession && <HowToPlay />}
+          {hasActiveSession && (
+            <div className="gb-active-reference-tools">
+              <HowToPlay />
+              <button type="button" className="gb-card-guide-launcher" onClick={() => openCardGuide(false)}>
+                <span className="gb-card-guide-launcher-icon" aria-hidden="true"><BookOpen size={19} /></span>
+                <span><strong>Card Guide</strong><small>All cards and counters</small></span>
+                <ChevronRight size={17} aria-hidden="true" />
+              </button>
+            </div>
+          )}
           {battleState && <div
             className="gb-battle-hud"
             aria-label="Garden Battles HUD"
@@ -2634,6 +2665,13 @@ export default function Battle() {
             }}
             data-testid="battle-options"
           >
+            <div className="gb-battle-card-guide-bar">
+              <span>Need to check an effect or counter?</span>
+              <button type="button" onClick={() => openCardGuide(playerMoves.length > 0)}>
+                <BookOpen size={15} aria-hidden="true" />
+                {playerMoves.length > 0 ? "View My Hand in Card Guide" : "Open Card Guide"}
+              </button>
+            </div>
             {/* Transaction and refresh feedback. Normal turn state lives in the compact match bar. */}
             {(pendingMoveId !== null || isMoveTransactionPending || isTreeRerollTransactionPending || isBattleRefreshPending) && <div
               style={{
@@ -3424,6 +3462,12 @@ export default function Battle() {
         {utilityDrawer === "nftree" && (
           <NftreeAcquisitionDrawer onClose={() => setUtilityDrawer(null)} />
         )}
+        <CardGuide
+          isOpen={cardGuideOpen}
+          currentHand={playerMoves}
+          initialCurrentHandOnly={cardGuideCurrentHandOnly}
+          onClose={() => setCardGuideOpen(false)}
+        />
         <BattleResultModal
           open={resultModalOpen}
           title={winnerTitle}
