@@ -10291,7 +10291,47 @@
     .gb-card-guide-legend strong { margin-left: 0; }
     .gb-card-guide-body { padding: 10px; }
     .gb-card-guide-grid { grid-template-columns: 1fr; }
-    .gb-card-guide-card dl > div { grid-template-columns: 1fr; }
+    .gb-card-guide-card {
+      padding: 12px;
+    }
+    .gb-card-guide-card .gb-move-face {
+      align-items: center;
+      gap: 12px;
+      grid-template-columns: 88px minmax(0, 1fr);
+    }
+    .gb-card-guide-card .gb-move-face-visual,
+    .gb-card-guide-card .gb-move-face-compact .gb-move-face-visual {
+      height: 88px;
+      min-height: 88px;
+    }
+    .gb-card-guide-card .gb-move-face-rings,
+    .gb-card-guide-card .gb-move-face-compact .gb-move-face-rings {
+      height: 66px;
+      width: 66px;
+    }
+    .gb-card-guide-card .gb-move-face-icon,
+    .gb-card-guide-card .gb-move-face-compact .gb-move-face-icon {
+      height: 78px;
+      width: 78px;
+    }
+    .gb-card-guide-card .gb-move-face-copy strong {
+      font-size: 13px;
+    }
+    .gb-card-guide-card .gb-move-face-copy small {
+      font-size: 12px;
+      font-weight: 650;
+      line-height: 1.45;
+      -webkit-line-clamp: unset;
+    }
+    .gb-card-guide-availability {
+      font-size: 10px;
+    }
+    .gb-card-guide-card dl > div {
+      gap: 8px;
+      grid-template-columns: 64px minmax(0, 1fr);
+    }
+    .gb-card-guide-card dt { font-size: 9px; }
+    .gb-card-guide-card dd { font-size: 12px; line-height: 1.5; }
     .gb-battle-card-guide-bar { align-items: stretch; flex-direction: column; }
     .gb-battle-card-guide-bar button { justify-content: center; width: 100%; }
   }
@@ -10302,7 +10342,10 @@
     .gb-card-guide-heading h2 { font-size: 18px; }
     .gb-card-guide-heading span { display: none; }
     .gb-card-guide-header > button { height: 36px; width: 36px; }
-    .gb-card-guide-card .gb-move-face { min-height: 0; }
+    .gb-card-guide-card .gb-move-face {
+      grid-template-columns: 88px minmax(0, 1fr);
+      min-height: 0;
+    }
     .gb-active-reference-tools { margin-inline: 10px; }
   }
 
