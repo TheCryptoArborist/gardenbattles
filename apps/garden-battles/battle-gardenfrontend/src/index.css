@@ -6648,10 +6648,17 @@
   .gb-move-face-icon {
     color: #ffffff;
     filter: drop-shadow(0 0 7px var(--move-accent));
-    height: 34px;
+    height: 58px;
     position: relative;
-    width: 34px;
+    width: 58px;
     z-index: 2;
+  }
+
+  .gb-move-face-art {
+    display: block;
+    object-fit: contain;
+    object-position: center;
+    transform: scale(1.08);
   }
 
   .gb-move-face-number {
@@ -6720,7 +6727,7 @@
 
   .gb-move-face-compact .gb-move-face-visual { min-height: 64px; }
   .gb-move-face-compact .gb-move-face-rings { height: 40px; width: 40px; }
-  .gb-move-face-compact .gb-move-face-icon { height: 26px; width: 26px; }
+  .gb-move-face-compact .gb-move-face-icon { height: 48px; width: 48px; }
 
   @media (max-width: 480px) {
     .gb-battle-move-card {
@@ -6751,8 +6758,8 @@
 
     .gb-move-face-icon,
     .gb-move-face-compact .gb-move-face-icon {
-      height: 25px;
-      width: 25px;
+      height: 44px;
+      width: 44px;
     }
 
     .gb-move-face-copy {
