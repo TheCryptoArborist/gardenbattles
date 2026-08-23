@@ -16,11 +16,16 @@ type PracticeStatus = {
   poisonTicks: number;
   poisonDpt: number;
   nextTurnPenalty: number;
+  reflectDamage: number;
+  armorHalf: boolean;
+  attackCap: number | null;
 };
 
 export type PracticeBattle = BattleState & {
   mode: "practice";
   botMoveHistory: number[];
+  playerMoveHistory: number[];
+  totalTurns: number;
   playerStatus: PracticeStatus;
   botStatus: PracticeStatus;
 };
@@ -50,6 +55,9 @@ function emptyStatus(): PracticeStatus {
     poisonTicks: 0,
     poisonDpt: 0,
     nextTurnPenalty: 0,
+    reflectDamage: 0,
+    armorHalf: false,
+    attackCap: null,
   };
 }
 
@@ -99,6 +107,8 @@ export function createPracticeBattle(): PracticeBattle {
     lastMoveMs: Date.now(),
     mode: "practice",
     botMoveHistory: [],
+    playerMoveHistory: [],
+    totalTurns: 0,
     playerStatus: emptyStatus(),
     botStatus: emptyStatus(),
   };
@@ -108,10 +118,13 @@ function applyStartOfTurnStatus(
   growth: number,
   status: PracticeStatus,
   actorLabel: string,
+  totalTurn: number,
 ): { growth: number; status: PracticeStatus; notes: string[] } {
   const nextStatus = { ...status };
   const notes: string[] = [];
-  let nextGrowth = growth;
+  const naturalGrowth = totalTurn >= 25 ? 3 : totalTurn >= 15 ? 2 : 1;
+  let nextGrowth = clampGrowth(growth + naturalGrowth);
+  notes.push(`${actorLabel} gained +${nextGrowth - growth} natural growth.`);
 
   if (nextStatus.nextTurnPenalty > 0) {
     const before = nextGrowth;
@@ -136,25 +149,39 @@ function applyDamage(
   opponentGrowth: number,
   opponentStatus: PracticeStatus,
   targetLabel: string,
-): { growth: number; status: PracticeStatus; notes: string[]; applied: number } {
+  piercing = false,
+): { growth: number; status: PracticeStatus; notes: string[]; applied: number; reflected: number } {
   const nextStatus = { ...opponentStatus };
-  if (nextStatus.blockTurns > 0) {
+  if (!piercing && nextStatus.blockTurns > 0) {
     nextStatus.blockTurns -= 1;
+    const reflected = nextStatus.reflectDamage;
+    nextStatus.reflectDamage = 0;
     return {
       growth: opponentGrowth,
       status: nextStatus,
-      notes: [`${targetLabel} blocked the hit.`],
+      notes: [`${targetLabel} blocked the hit.`, ...(reflected > 0 ? [`The shield reflected ${reflected} Growth.`] : [])],
       applied: 0,
+      reflected,
     };
   }
 
-  const nextGrowth = clampGrowth(opponentGrowth - damage);
+  let resolvedDamage = damage;
+  if (nextStatus.attackCap !== null) {
+    resolvedDamage = Math.min(resolvedDamage, nextStatus.attackCap);
+    nextStatus.attackCap = null;
+  }
+  if (nextStatus.armorHalf) {
+    resolvedDamage = Math.ceil(resolvedDamage / 2);
+    nextStatus.armorHalf = false;
+  }
+  const nextGrowth = clampGrowth(opponentGrowth - resolvedDamage);
   const applied = opponentGrowth - nextGrowth;
   return {
     growth: nextGrowth,
     status: nextStatus,
     notes: applied > 0 ? [`${targetLabel} growth was reduced by ${applied}.`] : [`${targetLabel} had no growth to reduce.`],
     applied,
+    reflected: 0,
   };
 }
 
@@ -176,14 +203,20 @@ function resolveMove(
   opponentStatus: PracticeStatus,
   actorLabel: string,
   opponentLabel: string,
+  selfLastMove: number | undefined,
+  opponentLastMove: number | undefined,
+  totalTurn: number,
 ): MoveResolution {
-  const started = moveId === 14
-    ? {
-        growth: selfGrowth,
-        status: { ...selfStatus, poisonTicks: 0, poisonDpt: 0, nextTurnPenalty: 0 },
-        notes: [`${actorLabel} cleansed lingering damage before it resolved.`],
-      }
-    : applyStartOfTurnStatus(selfGrowth, selfStatus, actorLabel);
+  const hadPendingDamage = selfStatus.poisonTicks > 0 || selfStatus.nextTurnPenalty > 0;
+  const statusBeforeTurn = { ...selfStatus };
+  if (moveId === 14) {
+    statusBeforeTurn.poisonTicks = 0;
+    statusBeforeTurn.poisonDpt = 0;
+    statusBeforeTurn.nextTurnPenalty = 0;
+  } else if (moveId === 20) {
+    statusBeforeTurn.nextTurnPenalty = 0;
+  }
+  const started = applyStartOfTurnStatus(selfGrowth, statusBeforeTurn, actorLabel, totalTurn);
   let nextSelfGrowth = started.growth;
   let nextOpponentGrowth = opponentGrowth;
   let nextSelfStatus = started.status;
@@ -195,10 +228,11 @@ function resolveMove(
     nextSelfGrowth = result.growth;
     notes.push(...result.notes);
   };
-  const addDamage = (amount: number) => {
-    const result = applyDamage(amount, nextOpponentGrowth, nextOpponentStatus, opponentLabel);
+  const addDamage = (amount: number, piercing = false) => {
+    const result = applyDamage(amount, nextOpponentGrowth, nextOpponentStatus, opponentLabel, piercing);
     nextOpponentGrowth = result.growth;
     nextOpponentStatus = result.status;
+    if (result.reflected > 0) nextSelfGrowth = clampGrowth(nextSelfGrowth - result.reflected);
     notes.push(...result.notes);
   };
   const addBlock = () => {
@@ -206,80 +240,95 @@ function resolveMove(
     notes.push(`${actorLabel} prepared a block.`);
   };
 
+  const opponentLastType = opponentLastMove ? MOVE_META[opponentLastMove]?.type : undefined;
+  const selfLastType = selfLastMove ? MOVE_META[selfLastMove]?.type : undefined;
+  if (ATTACK_MOVES.includes(moveId) && nextOpponentGrowth === 0) {
+    addGrow(4);
+    notes.push(`${actorLabel} earned the +4 Mulch Bonus.`);
+  }
+
   switch (moveId) {
-    case 1: addDamage(10); break;
-    case 2: addDamage(8); break;
-    case 3: addDamage(12); break;
-    case 4: addDamage(7); break;
-    case 5: addDamage(9); break;
-    case 6: addDamage(6); break;
-    case 7: addDamage(11); break;
-    case 8: addDamage(5); addBlock(); break;
-    case 9: addDamage(8); addGrow(4); break;
+    case 1:
+      if (nextOpponentStatus.blockTurns > 0) {
+        nextOpponentStatus.blockTurns -= 1;
+        nextOpponentStatus.reflectDamage = 0;
+        addDamage(7, true);
+      } else addDamage(11);
+      break;
+    case 2: addDamage(nextOpponentGrowth >= 40 ? 12 : 8); break;
+    case 3: if (Math.random() < 0.75) addDamage(16); else notes.push(`${actorLabel}'s cyclone missed.`); break;
+    case 4: addDamage(11, true); break;
+    case 5: addDamage(opponentLastType === "growth" ? 12 : 8); break;
+    case 6: addDamage(6); addDamage(6); break;
+    case 7: addDamage(nextSelfGrowth < nextOpponentGrowth ? 13 : 10); break;
+    case 8:
+      addGrow(6);
+      if (nextSelfStatus.blockTurns === 0) {
+        addBlock();
+        nextSelfStatus.reflectDamage = 4;
+      }
+      break;
+    case 9: addDamage(6); addGrow(4); break;
     case 10:
-      nextOpponentStatus = { ...nextOpponentStatus, poisonTicks: 2, poisonDpt: 5 };
-      notes.push(`${opponentLabel} was poisoned for the next turns.`);
+      if (nextOpponentStatus.poisonTicks === 0) {
+        nextOpponentStatus = { ...nextOpponentStatus, poisonTicks: 2, poisonDpt: 4 };
+        notes.push(`${opponentLabel} was poisoned for two turns.`);
+      } else notes.push(`${opponentLabel} is already poisoned.`);
       break;
     case 11:
-      if (Math.random() < 0.8) addDamage(15);
-      else notes.push(`${actorLabel}'s strike missed.`);
+      if (Math.random() < 0.75) addDamage(17); else notes.push(`${actorLabel}'s lightning missed.`);
       break;
     case 12:
-      if (Math.random() < 0.5) addDamage(10);
-      else {
-        nextOpponentStatus = { ...nextOpponentStatus, blockTurns: Math.max(nextOpponentStatus.blockTurns, 1) };
-        notes.push(`${opponentLabel} gained a block from the pollen cloud.`);
-      }
+      if (nextOpponentStatus.blockTurns > 0) nextOpponentStatus.blockTurns -= 1;
+      nextOpponentStatus.reflectDamage = 0;
+      addDamage(10, true);
       break;
     case 13:
       addDamage(7);
-      nextOpponentStatus = { ...nextOpponentStatus, nextTurnPenalty: 3 };
-      notes.push(`${opponentLabel} will lose 3 growth next turn.`);
+      nextOpponentStatus = { ...nextOpponentStatus, nextTurnPenalty: nextOpponentStatus.nextTurnPenalty + 4 };
+      notes.push(`${opponentLabel} will lose 4 growth next turn.`);
       break;
     case 14:
-      addGrow(8);
-      nextSelfStatus = { ...nextSelfStatus, poisonTicks: 0, poisonDpt: 0, nextTurnPenalty: 0 };
-      notes.push(`${actorLabel} cleared lingering damage effects.`);
+      addGrow(hadPendingDamage ? 14 : 10);
+      if (hadPendingDamage) notes.push(`${actorLabel} cleansed lingering damage before it resolved.`);
       break;
-    case 15: addGrow(nextSelfGrowth < nextOpponentGrowth ? 14 : 7); break;
+    case 15: addGrow(nextSelfGrowth < nextOpponentGrowth ? 12 : 8); break;
     case 16:
-      if (nextSelfGrowth >= 5) {
-        nextSelfGrowth = clampGrowth(nextSelfGrowth - 5);
-        notes.push(`${actorLabel} spent 5 growth.`);
-        addDamage(15);
+      if (nextSelfGrowth >= 4) {
+        nextSelfGrowth = clampGrowth(nextSelfGrowth - 4);
+        notes.push(`${actorLabel} spent 4 growth.`);
+        addDamage(16);
       } else {
-        notes.push(`${actorLabel} needs at least 5 growth to prune.`);
+        notes.push(`${actorLabel} needs at least 4 growth to use Pruning Fury.`);
       }
       break;
-    case 17: addGrow(6); addBlock(); break;
-    case 18: addGrow(6); addDamage(6); break;
+    case 17:
+      if (nextSelfStatus.blockTurns > 0) addGrow(10);
+      else { addGrow(7); addBlock(); }
+      break;
+    case 18: addGrow(5); addDamage(5); break;
     case 19:
-      if (Math.random() < 0.6) addGrow(22);
+      if (Math.random() < 0.6) addGrow(20);
       else {
-        const lost = Math.min(5, nextSelfGrowth);
-        nextSelfGrowth = clampGrowth(nextSelfGrowth - 5);
+        const lost = Math.min(4, nextSelfGrowth);
+        nextSelfGrowth = clampGrowth(nextSelfGrowth - 4);
         notes.push(`${actorLabel} lost ${lost} growth to overgrowth.`);
       }
       break;
     case 20: addGrow(10); break;
-    case 21: addGrow(8 + Math.floor(Math.random() * 5)); break;
-    case 22: addGrow(15); break;
-    case 23:
-      addGrow(10 + (Math.random() < 0.2 ? 5 : 0));
-      break;
-    case 24: addGrow(12 + Math.floor(Math.random() * 7)); break;
-    case 25:
-      if (Math.random() < 0.9) addGrow(20);
-      else notes.push(`${actorLabel}'s power up failed.`);
-      break;
-    case 26: addGrow(15 + Math.floor(Math.random() * 6)); break;
-    case 27: addGrow(10); addBlock(); break;
-    case 28: addGrow(12); break;
+    case 21: addGrow(8 + Math.floor(Math.random() * 7)); break;
+    case 22: addGrow(opponentLastType === "attack" ? 14 : 10); break;
+    case 23: addGrow(nextOpponentStatus.blockTurns > 0 ? 15 : 10); break;
+    case 24: addGrow(14); nextOpponentGrowth = clampGrowth(nextOpponentGrowth + 3); break;
+    case 25: addGrow(Math.random() < 0.75 ? 15 : 3); break;
+    case 26: addGrow(selfLastType === "attack" ? 13 : 11); break;
+    case 27: addGrow(7); nextSelfStatus.armorHalf = true; break;
+    case 28: addGrow(nextSelfGrowth <= 10 ? 13 : 10); break;
     case 29:
       addGrow(8);
-      if (Math.random() < 0.5) addBlock();
+      if (Math.random() < 0.5 && nextSelfStatus.blockTurns === 0) addBlock();
       break;
-    case 30: addGrow(10 + Math.floor(Math.random() * 6)); break;
+    case 30: addGrow(8); nextSelfStatus.attackCap = 8; break;
     default:
       notes.push(`${actorLabel} used an unknown move.`);
       break;
@@ -300,41 +349,39 @@ function resolveMove(
 
 function expectedGrowth(moveId: number) {
   if (moveId === 9) return 4;
-  if (moveId === 14) return 8;
+  if (moveId === 14) return 10;
   if (moveId === 15) return 10;
-  if (moveId === 17 || moveId === 18) return 6;
-  if (moveId === 19) return 11;
-  if (moveId === 20 || moveId === 23 || moveId === 27) return 10;
-  if (moveId === 21 || moveId === 29) return 8;
-  if (moveId === 22) return 15;
-  if (moveId === 24) return 15;
-  if (moveId === 25) return 18;
-  if (moveId === 26) return 17;
-  if (moveId === 28) return 12;
-  if (moveId === 30) return 12;
+  if (moveId === 17) return 7;
+  if (moveId === 18) return 5;
+  if (moveId === 19 || moveId === 20 || moveId === 22 || moveId === 23) return 10;
+  if (moveId === 21 || moveId === 29 || moveId === 30) return 8;
+  if (moveId === 24) return 14;
+  if (moveId === 25) return 12;
+  if (moveId === 26) return 11;
+  if (moveId === 27) return 7;
+  if (moveId === 28) return 10;
   return 0;
 }
 
 function expectedDamage(moveId: number) {
-  if (moveId === 1) return 10;
+  if (moveId === 1) return 11;
   if (moveId === 2) return 8;
   if (moveId === 3) return 12;
-  if (moveId === 4) return 7;
-  if (moveId === 5) return 9;
-  if (moveId === 6) return 6;
-  if (moveId === 7) return 11;
-  if (moveId === 8) return 5;
-  if (moveId === 9) return 8;
-  if (moveId === 11) return 12;
-  if (moveId === 12) return 5;
+  if (moveId === 4) return 11;
+  if (moveId === 5) return 8;
+  if (moveId === 6) return 12;
+  if (moveId === 7) return 10;
+  if (moveId === 9) return 6;
+  if (moveId === 11) return 13;
+  if (moveId === 12) return 10;
   if (moveId === 13) return 7;
-  if (moveId === 16) return 15;
-  if (moveId === 18) return 6;
+  if (moveId === 16) return 16;
+  if (moveId === 18) return 5;
   return 0;
 }
 
 function addsBlock(moveId: number) {
-  return moveId === 8 || moveId === 12 || moveId === 17 || moveId === 27 || moveId === 29;
+  return moveId === 8 || moveId === 17 || moveId === 29;
 }
 
 function scoreBotMove(moveId: number, battle: PracticeBattle) {
@@ -443,6 +490,9 @@ export function playPracticeRound(
   if (!battle.player1Moves.includes(playerMoveId)) {
     throw new Error("That move is not in your Practice Mode hand.");
   }
+  if (battle.playerMoveHistory[battle.playerMoveHistory.length - 1] === playerMoveId) {
+    throw new Error("Choose a different move. The same card cannot be played twice in a row.");
+  }
 
   const roundStartPlayerGrowth = battle.player1Growth;
   const roundStartBotGrowth = battle.player2Growth;
@@ -454,6 +504,9 @@ export function playPracticeRound(
     battle.botStatus,
     "You",
     "Garden Bot",
+    battle.playerMoveHistory[battle.playerMoveHistory.length - 1],
+    battle.botMoveHistory[battle.botMoveHistory.length - 1],
+    battle.totalTurns,
   );
 
   let nextBattle: PracticeBattle = {
@@ -462,6 +515,8 @@ export function playPracticeRound(
     player2Growth: playerResolved.opponentGrowth,
     playerStatus: playerResolved.selfStatus,
     botStatus: playerResolved.opponentStatus,
+    playerMoveHistory: [...battle.playerMoveHistory, playerMoveId].slice(-8),
+    totalTurns: battle.totalTurns + 1,
     lastMoveMs: Date.now(),
   };
 
@@ -479,6 +534,9 @@ export function playPracticeRound(
       nextBattle.playerStatus,
       "Garden Bot",
       "Your tree",
+      nextBattle.botMoveHistory[nextBattle.botMoveHistory.length - 1],
+      nextBattle.playerMoveHistory[nextBattle.playerMoveHistory.length - 1],
+      nextBattle.totalTurns,
     );
 
     nextBattle = {
@@ -488,6 +546,7 @@ export function playPracticeRound(
       playerStatus: botResolved.opponentStatus,
       botStatus: botResolved.selfStatus,
       botMoveHistory: [...nextBattle.botMoveHistory, botMoveId].slice(-8),
+      totalTurns: nextBattle.totalTurns + 1,
       lastMoveMs: Date.now(),
     };
   }

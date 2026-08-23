@@ -62,6 +62,54 @@ module battle_garden::battle_tests {
         test_scenario::end(s);
     }
 
+    #[test]
+    fun catalog_names_pools_and_deterministic_effects_are_consistent() {
+        assert!(battle::map_catalog_name_for_testing(b"Wedgebreaker") == 1, 0);
+        assert!(battle::map_catalog_name_for_testing(b"PhotosynthesisOverdrive") == 26, 0);
+        assert!(battle::map_catalog_name_for_testing(b"ArboristAscension") == 39, 0);
+        assert!(battle::map_catalog_name_for_testing(b"SapOverflow") == 28, 0);
+        assert!(battle::is_fifth_attack_candidate_for_testing(31), 0);
+        assert!(battle::is_fifth_attack_candidate_for_testing(33), 0);
+        assert!(battle::is_fifth_growth_candidate_for_testing(34), 0);
+        assert!(battle::is_fifth_growth_candidate_for_testing(36), 0);
+        assert!(battle::is_fifth_hybrid_candidate_for_testing(37), 0);
+        assert!(battle::is_fifth_hybrid_candidate_for_testing(39), 0);
+        assert!(!battle::is_attack_hand_candidate_for_testing(31), 0);
+
+        let mut s = test_scenario::begin(@0xA);
+        test_scenario::next_tx(&mut s, @0x0);
+        random::create_for_testing(test_scenario::ctx(&mut s));
+        test_scenario::next_tx(&mut s, @0xA);
+        {
+            let r = test_scenario::take_shared<Random>(&s);
+            let (wedge_self, wedge_opp, _, wedge_opp_block, _, _, _, _) =
+                battle::resolve_catalog_move_for_testing(1, 0, 20, 0, 0, true, false, &r, test_scenario::ctx(&mut s));
+            assert!(wedge_self == 1 && wedge_opp == 13 && wedge_opp_block == 0, 0);
+
+            let (shield_self, shield_opp, shield_block, _, _, _, _, _) =
+                battle::resolve_catalog_move_for_testing(8, 10, 20, 0, 0, false, false, &r, test_scenario::ctx(&mut s));
+            assert!(shield_self == 17 && shield_opp == 20 && shield_block == 1, 0);
+
+            let (cleanse_self, cleanse_opp, _, _, _, _, _, _) =
+                battle::resolve_catalog_move_for_testing(14, 10, 20, 0, 0, false, true, &r, test_scenario::ctx(&mut s));
+            assert!(cleanse_self == 25 && cleanse_opp == 20, 0);
+
+            let (_, fungal_opp, _, _, _, fungal_penalty, _, _) =
+                battle::resolve_catalog_move_for_testing(13, 10, 30, 0, 0, false, false, &r, test_scenario::ctx(&mut s));
+            assert!(fungal_opp == 23 && fungal_penalty == 4, 0);
+
+            let (armor_self, _, _, _, _, _, armor_half, _) =
+                battle::resolve_catalog_move_for_testing(27, 10, 20, 0, 0, false, false, &r, test_scenario::ctx(&mut s));
+            assert!(armor_self == 18 && armor_half, 0);
+
+            let (ascend_self, _, _, _, _, _, _, attack_cap) =
+                battle::resolve_catalog_move_for_testing(39, 10, 20, 0, 0, false, false, &r, test_scenario::ctx(&mut s));
+            assert!(ascend_self == 19 && attack_cap == 8, 0);
+            test_scenario::return_shared(r);
+        };
+        test_scenario::end(s);
+    }
+
     // ═══════════════════════════════════════════════════════════════════════════
     //  reroll_moves — Happy path
     // ═══════════════════════════════════════════════════════════════════════════

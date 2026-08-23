@@ -46,16 +46,16 @@ describe("PvP battle-log recovery", () => {
     const events = [p2Move, p1Move, creation];
     const resolutions = new Map([
       ["create", { source: "unavailable" as const, moveId: null }],
-      ["p1move", { source: "transaction" as const, moveId: 28, label: "Sap Overflow" }],
-      ["p2move", { source: "transaction" as const, moveId: 1, label: "Pollen Cloud" }],
+      ["p1move", { source: "transaction" as const, moveId: 28, label: "Sap Surge" }],
+      ["p2move", { source: "transaction" as const, moveId: 1, label: "Wedgebreaker" }],
     ]);
 
     const recovered = reconstructPvpBattleLog({ eventsNewestFirst: events, battleId, address: player1, resolutions });
 
     assert.equal(recovered.length, 2);
     assert.deepEqual(recovered.map((entry) => [entry.actor, entry.moveId, entry.label]), [
-      ["you", 28, "Sap Overflow"],
-      ["opponent", 1, "Pollen Cloud"],
+      ["you", 28, "Sap Surge"],
+      ["opponent", 1, "Wedgebreaker"],
     ]);
     assert.deepEqual(
       [recovered[1].prevPlayerGrowth, recovered[1].nextPlayerGrowth, recovered[1].prevOpponentGrowth, recovered[1].nextOpponentGrowth],
@@ -69,8 +69,8 @@ describe("PvP battle-log recovery", () => {
       battleId,
       address: player2,
       resolutions: new Map([
-        ["p1move", { source: "transaction" as const, moveId: 28, label: "Sap Overflow" }],
-        ["p2move", { source: "transaction" as const, moveId: 1, label: "Pollen Cloud" }],
+        ["p1move", { source: "transaction" as const, moveId: 28, label: "Sap Surge" }],
+        ["p2move", { source: "transaction" as const, moveId: 1, label: "Wedgebreaker" }],
       ]),
     });
 
@@ -106,15 +106,15 @@ describe("PvP battle-log recovery", () => {
       battleId,
       address: player1,
       resolutions: new Map([
-        ["p1move", { source: "transaction" as const, moveId: 28, label: "Sap Overflow" }],
-        ["p2move", { source: "transaction" as const, moveId: 1, label: "Pollen Cloud" }],
+        ["p1move", { source: "transaction" as const, moveId: 28, label: "Sap Surge" }],
+        ["p2move", { source: "transaction" as const, moveId: 1, label: "Wedgebreaker" }],
       ]),
     });
 
     const merged = mergeBattleLogEntries([local], recovered);
     assert.equal(merged.length, 2);
     assert.equal(merged[1].moveId, 1);
-    assert.equal(merged[1].label, "Pollen Cloud");
+    assert.equal(merged[1].label, "Wedgebreaker");
   });
 
   it("restores a valid cache and rejects an expired cache", () => {
@@ -129,8 +129,8 @@ describe("PvP battle-log recovery", () => {
       battleId,
       address: player1,
       resolutions: new Map([
-        ["p1move", { source: "transaction" as const, moveId: 28, label: "Sap Overflow" }],
-        ["p2move", { source: "transaction" as const, moveId: 1, label: "Pollen Cloud" }],
+        ["p1move", { source: "transaction" as const, moveId: 28, label: "Sap Surge" }],
+        ["p2move", { source: "transaction" as const, moveId: 1, label: "Wedgebreaker" }],
       ]),
     });
 

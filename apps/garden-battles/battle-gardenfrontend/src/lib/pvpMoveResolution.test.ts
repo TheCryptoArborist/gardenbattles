@@ -86,7 +86,7 @@ describe("resolvePvpMoveFromTransactionBlock", () => {
     );
 
     assert.equal(result.moveId, 20);
-    assert.equal(result.label, "Roots Up");
+    assert.equal(result.label, "Root Revival");
   });
 
   it("resolves a V3 move from the current Sui GraphQL transaction JSON shape", () => {
@@ -136,7 +136,7 @@ describe("resolvePvpMoveFromTransactionBlock", () => {
 
     assert.equal(result.source, "transaction");
     assert.equal(result.moveId, 26);
-    assert.equal(result.label, "Photosynthetic Surge");
+    assert.equal(result.label, "Photosynthesis Overdrive");
   });
 
   it("resolves exact move ID from a v2 player-1 transaction", () => {
@@ -147,7 +147,7 @@ describe("resolvePvpMoveFromTransactionBlock", () => {
 
     assert.equal(result.source, "transaction");
     assert.equal(result.moveId, 28);
-    assert.equal(result.label, "Sap Overflow");
+    assert.equal(result.label, "Sap Surge");
   });
 
   it("resolves exact move ID from a v2 player-2 transaction", () => {
@@ -158,7 +158,7 @@ describe("resolvePvpMoveFromTransactionBlock", () => {
 
     assert.equal(result.source, "transaction");
     assert.equal(result.moveId, 29);
-    assert.equal(result.label, "Cloud Cover");
+    assert.equal(result.label, "Gale Guard");
   });
 
   it("resolves legacy use_ability_id move calls", () => {
@@ -169,7 +169,7 @@ describe("resolvePvpMoveFromTransactionBlock", () => {
 
     assert.equal(result.source, "transaction");
     assert.equal(result.moveId, 9);
-    assert.equal(result.label, "Life Absorb");
+    assert.equal(result.label, "Root Siphon");
   });
 
   it("rejects unrelated Move calls", () => {

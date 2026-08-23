@@ -6,11 +6,11 @@ import {
   isUnlockedFifthMoveCard,
 } from "./pvpFifthMoveDraft";
 
-test("splits an entitled seven-card payload into base hand and draft candidates", () => {
-  assert.deepEqual(getFifthMoveDraftState([1, 20, 8, 24, 2, 21, 9], true), {
+test("splits an entitled hand into base cards and one exclusive candidate per draft lane", () => {
+  assert.deepEqual(getFifthMoveDraftState([1, 20, 8, 24, 31, 34, 37], true), {
     pending: true,
     playableMoves: [1, 20, 8, 24],
-    candidates: [2, 21, 9],
+    candidates: [31, 34, 37],
   });
 });
 

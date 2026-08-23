@@ -25,7 +25,7 @@ describe("BattleLog PvP opponent labels", () => {
       <BattleLog entries={[entry({ moveId: 29 })]} isPlayer1 />,
     );
 
-    assert.match(html, /Cloud Cover/);
+    assert.match(html, /Gale Guard/);
     assert.doesNotMatch(html, /Opponent move unavailable/);
   });
 

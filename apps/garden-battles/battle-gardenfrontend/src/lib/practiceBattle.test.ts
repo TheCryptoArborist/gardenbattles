@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createPracticeBattle } from "./practiceBattle";
+import { createPracticeBattle, playPracticeRound } from "./practiceBattle";
 import { MOVE_META } from "./sui-config";
 
 test("practice hands mirror the balanced four-card deal", () => {
@@ -14,4 +14,14 @@ test("practice hands mirror the balanced four-card deal", () => {
       assert.ok(hand.some((move) => MOVE_META[move]?.type === "hybrid"));
     }
   }
+});
+
+test("practice mode enforces the catalog no-consecutive-card rule", () => {
+  const battle = createPracticeBattle();
+  const repeatedMove = battle.player1Moves[0];
+  battle.playerMoveHistory = [repeatedMove];
+  assert.throws(
+    () => playPracticeRound(battle, repeatedMove),
+    /same card cannot be played twice in a row/i,
+  );
 });

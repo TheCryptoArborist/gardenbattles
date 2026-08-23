@@ -34,6 +34,7 @@ import {
 import PrizePayoutPanel from "@/components/PrizePayoutPanel";
 import BattleResultModal from "@/components/BattleResultModal";
 import ModeCrest from "@/components/ModeCrest";
+import MoveCardFace from "@/components/MoveCardFace";
 import TreeBenefitsDrawer from "@/components/TreeBenefitsDrawer";
 import NftreeAcquisitionDrawer from "@/components/NftreeAcquisitionDrawer";
 import { useFifthMoveEligibility } from "@/hooks/useFifthMoveEligibility";
@@ -3004,7 +3005,6 @@ export default function Battle() {
                 >
                   {fifthMoveDraft.candidates.map((moveId) => {
                     const selected = selectedFifthMoveId === moveId;
-                    const meta = MOVE_META[moveId];
                     return (
                       <button
                         key={`fifth-${moveId}`}
@@ -3024,12 +3024,7 @@ export default function Battle() {
                           boxShadow: selected ? "0 0 14px #b56cff" : "none",
                         }}
                       >
-                        <strong style={{ display: "block", fontFamily: "Orbitron, sans-serif" }}>
-                          {MOVE_LABELS[moveId] || `Move ${moveId}`}
-                        </strong>
-                        <span style={{ display: "block", marginTop: "5px", fontSize: "11px", color: "#e8d8f2" }}>
-                          {meta?.effect}
-                        </span>
+                        <MoveCardFace moveId={moveId} isFifth compact />
                       </button>
                     );
                   })}
@@ -3092,17 +3087,6 @@ export default function Battle() {
                   : isHybrid
                     ? "rgba(80,40,0,0.75)"
                     : "rgba(80,0,0,0.75)";
-                const badgeColor = isGrowth
-                  ? "#00ff88"
-                  : isHybrid
-                    ? "#ffaa33"
-                    : "#ff5544";
-                const badgeLabel = isGrowth
-                  ? "GROWTH"
-                  : isHybrid
-                    ? "HYBRID"
-                    : "ATTACK";
-
                 return (
                   <button
                     key={moveId}
@@ -3149,45 +3133,7 @@ export default function Battle() {
                         Your Bonus Fifth Move
                       </span>
                     )}
-                    {/* Badge */}
-                    <span
-                      style={{
-                        fontSize: "10px",
-                        fontWeight: "bold",
-                        color: badgeColor,
-                        fontFamily: "Orbitron, sans-serif",
-                        letterSpacing: "0.8px",
-                        textTransform: "uppercase",
-                      }}
-                    >
-                      {badgeLabel}
-                    </span>
-                    {/* Name */}
-                    <span
-                      style={{
-                        fontFamily: "Orbitron, sans-serif",
-                        fontSize: "clamp(11px, 2.5vw, 13px)",
-                        fontWeight: "bold",
-                        color: "#fff",
-                        lineHeight: "1.3",
-                      }}
-                    >
-                      {isPending ? "Pending: " : ""}
-                      {MOVE_LABELS[moveId] || `Move ${moveId}`}
-                    </span>
-                    {/* Effect description */}
-                    {meta?.effect && (
-                      <span
-                        style={{
-                          fontSize: "clamp(10px, 2vw, 11px)",
-                          color: "rgba(255,255,255,0.65)",
-                          fontFamily: "Orbitron, sans-serif",
-                          lineHeight: "1.4",
-                        }}
-                      >
-                        {meta.effect}
-                      </span>
-                    )}
+                    <MoveCardFace moveId={moveId} isFifth={isFifthMoveCard} isPending={isPending} />
                   </button>
                 );
               })}

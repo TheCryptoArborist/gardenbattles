@@ -70,6 +70,23 @@ module battle_garden::battle {
         p2_last_move: Option<u8>,
     }
 
+    /// Upgrade-compatible V2 card state. Kept in a dynamic field so the
+    /// published battle object and Status layouts remain unchanged.
+    public struct CardRulesKey has copy, drop, store {}
+
+    public struct FighterCardState has store {
+        last_move: Option<u8>,
+        reflect_damage: u64,
+        armor_half: bool,
+        attack_cap: Option<u64>,
+    }
+
+    public struct CardRulesState has store {
+        p1: FighterCardState,
+        p2: FighterCardState,
+        total_turns: u64,
+    }
+
     public struct PvpBattleV2 has key {
         id: UID,
         player1: address,
@@ -245,6 +262,39 @@ module battle_garden::battle {
         utility
     }
 
+    fun fifth_attack_candidate_moves(): vector<u8> {
+        vector[31, 32, 33]
+    }
+
+    fun fifth_growth_candidate_moves(): vector<u8> {
+        vector[34, 35, 36]
+    }
+
+    fun fifth_hybrid_candidate_moves(): vector<u8> {
+        vector[37, 38, 39]
+    }
+
+    fun new_fighter_card_state(): FighterCardState {
+        FighterCardState {
+            last_move: option::none(),
+            reflect_damage: 0,
+            armor_half: false,
+            attack_cap: option::none(),
+        }
+    }
+
+    fun add_card_rules_state(id: &mut UID) {
+        dynamic_field::add(
+            id,
+            CardRulesKey {},
+            CardRulesState {
+                p1: new_fighter_card_state(),
+                p2: new_fighter_card_state(),
+                total_turns: 0,
+            },
+        );
+    }
+
     fun candidates_excluding(source: &vector<u8>, excluded: &vector<u8>): vector<u8> {
         let mut candidates = vector::empty<u8>();
         let mut i = 0;
@@ -323,9 +373,9 @@ module battle_garden::battle {
             return moves
         };
 
-        let attacks = candidates_excluding(&attack_hand_candidate_moves(), &moves);
-        let growths = candidates_excluding(&growth_hand_candidate_moves(), &moves);
-        let hybrids = candidates_excluding(&hybrid_hand_candidate_moves(), &moves);
+        let attacks = fifth_attack_candidate_moves();
+        let growths = fifth_growth_candidate_moves();
+        let hybrids = fifth_hybrid_candidate_moves();
         let mut rng = random::new_generator(rand, ctx);
         let attack_idx = random::generate_u64(&mut rng) % vector::length(&attacks);
         let growth_idx = random::generate_u64(&mut rng) % vector::length(&growths);
@@ -369,9 +419,9 @@ module battle_garden::battle {
             return moves
         };
 
-        let fifth_attacks_without_old = candidates_excluding(&attack_hand_candidate_moves(), old_moves);
-        let fifth_growths_without_old = candidates_excluding(&growth_hand_candidate_moves(), old_moves);
-        let fifth_hybrids_without_old = candidates_excluding(&hybrid_hand_candidate_moves(), old_moves);
+        let fifth_attacks_without_old = candidates_excluding(&fifth_attack_candidate_moves(), old_moves);
+        let fifth_growths_without_old = candidates_excluding(&fifth_growth_candidate_moves(), old_moves);
+        let fifth_hybrids_without_old = candidates_excluding(&fifth_hybrid_candidate_moves(), old_moves);
         let fifth_attacks = candidates_excluding(&fifth_attacks_without_old, &moves);
         let fifth_growths = candidates_excluding(&fifth_growths_without_old, &moves);
         let fifth_hybrids = candidates_excluding(&fifth_hybrids_without_old, &moves);
@@ -716,6 +766,7 @@ module battle_garden::battle {
                 p2_last_move: option::none(),
             },
         );
+        add_card_rules_state(&mut battle.id);
         emit_update_v3(&battle);
         transfer::share_object(battle);
     }
@@ -847,7 +898,7 @@ module battle_garden::battle {
 
         let p1_status = Status { block_turns: 0, next_turn_penalty: 0, poison_ticks: 0, poison_dpt: 0 };
         let p2_status = Status { block_turns: 0, next_turn_penalty: 0, poison_ticks: 0, poison_dpt: 0 };
-        let battle = RankedBotBattleV2 {
+        let mut battle = RankedBotBattleV2 {
             id: object::new(ctx),
             player1: player,
             player2: bot_player,
@@ -871,6 +922,7 @@ module battle_garden::battle {
             p1_eligibility_digest: fifth_move::attestation_digest(&eligibility),
             p1_reroll_used: false,
         };
+        add_card_rules_state(&mut battle.id);
         emit_update_ranked_bot_v2(&battle);
         transfer::share_object(battle);
     }
@@ -1223,81 +1275,343 @@ module battle_garden::battle {
         }
     }
 
+    fun is_standard_attack(move_id: u8): bool {
+        move_id == 1 || move_id == 2 || move_id == 3 || move_id == 4 ||
+        move_id == 5 || move_id == 6 || move_id == 7 || move_id == 10 ||
+        move_id == 11 || move_id == 12 || move_id == 13 || move_id == 16
+    }
+
+    fun is_attack_move(move_id: u8): bool {
+        is_standard_attack(move_id) || move_id == 31 || move_id == 32 || move_id == 33
+    }
+
+    fun is_growth_move(move_id: u8): bool {
+        move_id == 15 || move_id == 19 || move_id == 20 || move_id == 21 ||
+        move_id == 22 || move_id == 23 || move_id == 24 || move_id == 25 ||
+        move_id == 26 || move_id == 28 || move_id == 30 ||
+        move_id == 34 || move_id == 35 || move_id == 36
+    }
+
+    fun optional_move_is_attack(last_move: &Option<u8>): bool {
+        option::is_some(last_move) && is_attack_move(*option::borrow(last_move))
+    }
+
+    fun optional_move_is_growth(last_move: &Option<u8>): bool {
+        option::is_some(last_move) && is_growth_move(*option::borrow(last_move))
+    }
+
+    fun apply_catalog_start_of_turn(
+        move_id: u8,
+        total_turns: u64,
+        growth: &mut u64,
+        status: &mut Status,
+    ): bool {
+        let natural_growth = if (total_turns >= 25) { 3 } else if (total_turns >= 15) { 2 } else { 1 };
+        *growth = utils::add_growth(*growth, natural_growth);
+        let had_pending_damage = status.next_turn_penalty > 0 || status.poison_ticks > 0;
+        if (move_id == 14 || move_id == 36) {
+            status.next_turn_penalty = 0;
+            status.poison_ticks = 0;
+            status.poison_dpt = 0;
+            return had_pending_damage
+        };
+        if (move_id == 20) {
+            status.next_turn_penalty = 0;
+        };
+        if (status.next_turn_penalty > 0) {
+            *growth = utils::sub_growth(*growth, status.next_turn_penalty);
+            status.next_turn_penalty = 0;
+        };
+        if (status.poison_ticks > 0) {
+            *growth = utils::sub_growth(*growth, status.poison_dpt);
+            status.poison_ticks = status.poison_ticks - 1;
+            if (status.poison_ticks == 0) {
+                status.poison_dpt = 0;
+            };
+        };
+        had_pending_damage
+    }
+
+    fun apply_catalog_damage(
+        amount: u64,
+        piercing: bool,
+        self_growth: &mut u64,
+        opp_growth: &mut u64,
+        opp_status: &mut Status,
+        opp_card: &mut FighterCardState,
+    ) {
+        if (!piercing && opp_status.block_turns > 0) {
+            opp_status.block_turns = opp_status.block_turns - 1;
+            if (opp_card.reflect_damage > 0) {
+                *self_growth = utils::sub_growth(*self_growth, opp_card.reflect_damage);
+                opp_card.reflect_damage = 0;
+            };
+            return
+        };
+        let mut resolved = amount;
+        if (option::is_some(&opp_card.attack_cap)) {
+            let cap = *option::borrow(&opp_card.attack_cap);
+            if (resolved > cap) resolved = cap;
+            opp_card.attack_cap = option::none();
+        };
+        if (opp_card.armor_half) {
+            resolved = (resolved + 1) / 2;
+            opp_card.armor_half = false;
+        };
+        *opp_growth = utils::sub_growth(*opp_growth, resolved);
+    }
+
+    fun clear_one_block(status: &mut Status, card: &mut FighterCardState) {
+        if (status.block_turns > 0) {
+            status.block_turns = status.block_turns - 1;
+            card.reflect_damage = 0;
+        };
+    }
+
+    fun resolve_catalog_move(
+        move_id: u8,
+        had_pending_damage: bool,
+        self_growth: &mut u64,
+        opp_growth: &mut u64,
+        self_status: &mut Status,
+        opp_status: &mut Status,
+        self_card: &mut FighterCardState,
+        opp_card: &mut FighterCardState,
+        rand: &Random,
+        ctx: &mut TxContext,
+    ) {
+        let self_last_was_attack = optional_move_is_attack(&self_card.last_move);
+        let opp_last_was_attack = optional_move_is_attack(&opp_card.last_move);
+        let opp_last_was_growth = optional_move_is_growth(&opp_card.last_move);
+        if (is_standard_attack(move_id) && *opp_growth == 0) {
+            *self_growth = utils::add_growth(*self_growth, 4);
+        };
+
+        if (move_id == 1) {
+            if (opp_status.block_turns > 0) {
+                clear_one_block(opp_status, opp_card);
+                apply_catalog_damage(7, true, self_growth, opp_growth, opp_status, opp_card);
+            } else {
+                apply_catalog_damage(11, false, self_growth, opp_growth, opp_status, opp_card);
+            };
+        } else if (move_id == 2) {
+            let damage = if (*opp_growth >= 40) { 12 } else { 8 };
+            apply_catalog_damage(damage, false, self_growth, opp_growth, opp_status, opp_card);
+        } else if (move_id == 3) {
+            if (!utils::miss(rand, ctx, 25)) apply_catalog_damage(16, false, self_growth, opp_growth, opp_status, opp_card);
+        } else if (move_id == 4) {
+            apply_catalog_damage(11, true, self_growth, opp_growth, opp_status, opp_card);
+        } else if (move_id == 5) {
+            let damage = if (opp_last_was_growth) { 12 } else { 8 };
+            apply_catalog_damage(damage, false, self_growth, opp_growth, opp_status, opp_card);
+        } else if (move_id == 6) {
+            apply_catalog_damage(6, false, self_growth, opp_growth, opp_status, opp_card);
+            apply_catalog_damage(6, false, self_growth, opp_growth, opp_status, opp_card);
+        } else if (move_id == 7) {
+            let damage = if (*self_growth < *opp_growth) { 13 } else { 10 };
+            apply_catalog_damage(damage, false, self_growth, opp_growth, opp_status, opp_card);
+        } else if (move_id == 8) {
+            *self_growth = utils::add_growth(*self_growth, 6);
+            if (self_status.block_turns == 0) {
+                self_status.block_turns = 1;
+                self_card.reflect_damage = 4;
+            };
+        } else if (move_id == 9) {
+            apply_catalog_damage(6, false, self_growth, opp_growth, opp_status, opp_card);
+            *self_growth = utils::add_growth(*self_growth, 4);
+        } else if (move_id == 10) {
+            if (opp_status.poison_ticks == 0) {
+                opp_status.poison_ticks = 2;
+                opp_status.poison_dpt = 4;
+            };
+        } else if (move_id == 11) {
+            if (!utils::miss(rand, ctx, 25)) apply_catalog_damage(17, false, self_growth, opp_growth, opp_status, opp_card);
+        } else if (move_id == 12) {
+            clear_one_block(opp_status, opp_card);
+            apply_catalog_damage(10, true, self_growth, opp_growth, opp_status, opp_card);
+        } else if (move_id == 13) {
+            apply_catalog_damage(7, false, self_growth, opp_growth, opp_status, opp_card);
+            opp_status.next_turn_penalty = opp_status.next_turn_penalty + 4;
+        } else if (move_id == 14) {
+            *self_growth = utils::add_growth(*self_growth, if (had_pending_damage) { 14 } else { 10 });
+        } else if (move_id == 15) {
+            *self_growth = utils::add_growth(*self_growth, if (*self_growth < *opp_growth) { 12 } else { 8 });
+        } else if (move_id == 16) {
+            if (*self_growth >= 4) {
+                *self_growth = utils::sub_growth(*self_growth, 4);
+                apply_catalog_damage(16, false, self_growth, opp_growth, opp_status, opp_card);
+            };
+        } else if (move_id == 17) {
+            if (self_status.block_turns > 0) {
+                *self_growth = utils::add_growth(*self_growth, 10);
+            } else {
+                *self_growth = utils::add_growth(*self_growth, 7);
+                self_status.block_turns = 1;
+            };
+        } else if (move_id == 18) {
+            *self_growth = utils::add_growth(*self_growth, 5);
+            apply_catalog_damage(5, false, self_growth, opp_growth, opp_status, opp_card);
+        } else if (move_id == 19) {
+            if (!utils::miss(rand, ctx, 40)) {
+                *self_growth = utils::add_growth(*self_growth, 20);
+            } else {
+                *self_growth = utils::sub_growth(*self_growth, 4);
+            };
+        } else if (move_id == 20) {
+            *self_growth = utils::add_growth(*self_growth, 10);
+        } else if (move_id == 21) {
+            *self_growth = utils::add_growth(*self_growth, utils::rand_inclusive(rand, ctx, 8, 14));
+        } else if (move_id == 22) {
+            *self_growth = utils::add_growth(*self_growth, if (opp_last_was_attack) { 14 } else { 10 });
+        } else if (move_id == 23) {
+            *self_growth = utils::add_growth(*self_growth, if (opp_status.block_turns > 0) { 15 } else { 10 });
+        } else if (move_id == 24) {
+            *self_growth = utils::add_growth(*self_growth, 14);
+            *opp_growth = utils::add_growth(*opp_growth, 3);
+        } else if (move_id == 25) {
+            *self_growth = utils::add_growth(*self_growth, if (!utils::miss(rand, ctx, 25)) { 15 } else { 3 });
+        } else if (move_id == 26) {
+            *self_growth = utils::add_growth(*self_growth, if (self_last_was_attack) { 13 } else { 11 });
+        } else if (move_id == 27) {
+            *self_growth = utils::add_growth(*self_growth, 7);
+            self_card.armor_half = true;
+        } else if (move_id == 28) {
+            *self_growth = utils::add_growth(*self_growth, if (*self_growth <= 10) { 13 } else { 10 });
+        } else if (move_id == 29) {
+            *self_growth = utils::add_growth(*self_growth, 8);
+            if (!utils::miss(rand, ctx, 50) && self_status.block_turns == 0) self_status.block_turns = 1;
+        } else if (move_id == 30) {
+            *self_growth = utils::add_growth(*self_growth, 8);
+            self_card.attack_cap = option::some(8);
+        } else if (move_id == 31) {
+            *self_growth = utils::add_growth(*self_growth, 3);
+            apply_catalog_damage(8, false, self_growth, opp_growth, opp_status, opp_card);
+        } else if (move_id == 32) {
+            *self_growth = utils::add_growth(*self_growth, 4);
+            if (opp_status.poison_ticks == 0) {
+                opp_status.poison_ticks = 2;
+                opp_status.poison_dpt = 3;
+            };
+        } else if (move_id == 33) {
+            *self_growth = utils::add_growth(*self_growth, 3);
+            if (!utils::miss(rand, ctx, 25)) apply_catalog_damage(10, false, self_growth, opp_growth, opp_status, opp_card);
+        } else if (move_id == 34) {
+            *self_growth = utils::add_growth(*self_growth, if (*self_growth < *opp_growth) { 11 } else { 10 });
+        } else if (move_id == 35) {
+            clear_one_block(opp_status, opp_card);
+            *self_growth = utils::add_growth(*self_growth, 10);
+        } else if (move_id == 36) {
+            *self_growth = utils::add_growth(*self_growth, 9);
+        } else if (move_id == 37) {
+            *self_growth = utils::add_growth(*self_growth, 7);
+            if (self_status.block_turns == 0) self_status.block_turns = 1;
+        } else if (move_id == 38) {
+            *self_growth = utils::add_growth(*self_growth, 6);
+            apply_catalog_damage(6, false, self_growth, opp_growth, opp_status, opp_card);
+        } else if (move_id == 39) {
+            *self_growth = utils::add_growth(*self_growth, 8);
+            self_card.attack_cap = option::some(8);
+        };
+        self_card.last_move = option::some(move_id);
+    }
+
     fun map_ability_name(name: vector<u8>): u8 {
-        if (utils::eq_str(name, b"ThornSpikeBomb")) { 1 }
-        else if (utils::eq_str(name, b"RazorLeafSword")) { 2 }
-        else if (utils::eq_str(name, b"TumbleweedMace")) { 3 }
-        else if (utils::eq_str(name, b"ShovelSpear")) { 4 }
-        else if (utils::eq_str(name, b"ThornedWhip")) { 5 }
-        else if (utils::eq_str(name, b"AcornSlingshot")) { 6 }
-        else if (utils::eq_str(name, b"StoneNunchuck")) { 7 }
-        else if (utils::eq_str(name, b"CactusShield")) { 8 }
-        else if (utils::eq_str(name, b"LifeAbsorb")) { 9 }
-        else if (utils::eq_str(name, b"Poison")) { 10 }
-        else if (utils::eq_str(name, b"WitherTouch")) { 11 }
-        else if (utils::eq_str(name, b"PollenCloud")) { 12 }
-        else if (utils::eq_str(name, b"FungalRot")) { 13 }
-        else if (utils::eq_str(name, b"CompostTea")) { 14 }
-        else if (utils::eq_str(name, b"MycorrhizalNetwork")) { 15 }
-        else if (utils::eq_str(name, b"PruningShears")) { 16 }
-        else if (utils::eq_str(name, b"MulchBarrier")) { 17 }
-        else if (utils::eq_str(name, b"RootGraft")) { 18 }
-        else if (utils::eq_str(name, b"OvergrowthGamble")) { 19 }
-        else if (utils::eq_str(name, b"RootsUp")) { 20 }
-        else if (utils::eq_str(name, b"SunBeam")) { 21 }
-        else if (utils::eq_str(name, b"RainStorm")) { 22 }
-        else if (utils::eq_str(name, b"WhiteMold")) { 23 }
-        else if (utils::eq_str(name, b"GreenhouseGas")) { 24 }
-        else if (utils::eq_str(name, b"PotassiumPowerUp")) { 25 }
-        else if (utils::eq_str(name, b"PhotosyntheticSurge")) { 26 }
-        else if (utils::eq_str(name, b"BarkskinArmor")) { 27 }
-        else if (utils::eq_str(name, b"SapOverflow")) { 28 }
-        else if (utils::eq_str(name, b"CloudCover")) { 29 }
+        if (utils::eq_str(name, b"Wedgebreaker") || utils::eq_str(name, b"ThornSpikeBomb")) { 1 }
+        else if (utils::eq_str(name, b"SkyreachSaw") || utils::eq_str(name, b"RazorLeafSword")) { 2 }
+        else if (utils::eq_str(name, b"ChainsawCyclone") || utils::eq_str(name, b"TumbleweedMace")) { 3 }
+        else if (utils::eq_str(name, b"Rootpiercer") || utils::eq_str(name, b"ShovelSpear")) { 4 }
+        else if (utils::eq_str(name, b"LimbfallSlam") || utils::eq_str(name, b"ThornedWhip")) { 5 }
+        else if (utils::eq_str(name, b"AcornBarrage") || utils::eq_str(name, b"AcornSlingshot")) { 6 }
+        else if (utils::eq_str(name, b"LogSwingRampage") || utils::eq_str(name, b"StoneNunchuck")) { 7 }
+        else if (utils::eq_str(name, b"BarklashShield") || utils::eq_str(name, b"CactusShield")) { 8 }
+        else if (utils::eq_str(name, b"RootSiphon") || utils::eq_str(name, b"LifeAbsorb")) { 9 }
+        else if (utils::eq_str(name, b"BeetleBlight") || utils::eq_str(name, b"Poison")) { 10 }
+        else if (utils::eq_str(name, b"LightningCrown") || utils::eq_str(name, b"WitherTouch")) { 11 }
+        else if (utils::eq_str(name, b"AirSpadeBlast") || utils::eq_str(name, b"PollenCloud")) { 12 }
+        else if (utils::eq_str(name, b"FungalDoom") || utils::eq_str(name, b"FungalRot")) { 13 }
+        else if (utils::eq_str(name, b"CompostCleanse") || utils::eq_str(name, b"CompostTea")) { 14 }
+        else if (utils::eq_str(name, b"RootlinkSurge") || utils::eq_str(name, b"MycorrhizalNetwork")) { 15 }
+        else if (utils::eq_str(name, b"PruningFury") || utils::eq_str(name, b"PruningShears")) { 16 }
+        else if (utils::eq_str(name, b"MulchFortress") || utils::eq_str(name, b"MulchBarrier")) { 17 }
+        else if (utils::eq_str(name, b"GraftFusion") || utils::eq_str(name, b"RootGraft")) { 18 }
+        else if (utils::eq_str(name, b"WildwoodGamble") || utils::eq_str(name, b"OvergrowthGamble")) { 19 }
+        else if (utils::eq_str(name, b"RootRevival") || utils::eq_str(name, b"RootsUp")) { 20 }
+        else if (utils::eq_str(name, b"SolarBloom") || utils::eq_str(name, b"SunBeam")) { 21 }
+        else if (utils::eq_str(name, b"Rainmaker") || utils::eq_str(name, b"RainStorm")) { 22 }
+        else if (utils::eq_str(name, b"MycoMight") || utils::eq_str(name, b"WhiteMold")) { 23 }
+        else if (utils::eq_str(name, b"CanopyDownpour") || utils::eq_str(name, b"GreenhouseGas")) { 24 }
+        else if (utils::eq_str(name, b"PotassiumPower") || utils::eq_str(name, b"PotassiumPowerUp")) { 25 }
+        else if (utils::eq_str(name, b"PhotosynthesisOverdrive") || utils::eq_str(name, b"PhotosyntheticSurge")) { 26 }
+        else if (utils::eq_str(name, b"IronbarkArmor") || utils::eq_str(name, b"BarkskinArmor")) { 27 }
+        else if (utils::eq_str(name, b"SapSurge") || utils::eq_str(name, b"SapOverflow")) { 28 }
+        else if (utils::eq_str(name, b"GaleGuard") || utils::eq_str(name, b"CloudCover")) { 29 }
         else if (utils::eq_str(name, b"ShadowCanopy")) { 30 }
+        else if (utils::eq_str(name, b"ChainsawCataclysm")) { 31 }
+        else if (utils::eq_str(name, b"BeetleSwarmBlitz")) { 32 }
+        else if (utils::eq_str(name, b"LightningSplit")) { 33 }
+        else if (utils::eq_str(name, b"AncientRootAwakening")) { 34 }
+        else if (utils::eq_str(name, b"CanopyExplosion")) { 35 }
+        else if (utils::eq_str(name, b"SolarCrownSurge")) { 36 }
+        else if (utils::eq_str(name, b"IronwoodFortress")) { 37 }
+        else if (utils::eq_str(name, b"RootstormSiphon")) { 38 }
+        else if (utils::eq_str(name, b"ArboristAscension")) { 39 }
         else { 0 }
     }
 
     fun expected_self_growth(move_id: u8): u64 {
-        if (move_id == 9) { 4 }
-        else if (move_id == 14) { 8 }
+        if (move_id == 8) { 6 }
+        else if (move_id == 9) { 4 }
+        else if (move_id == 14) { 10 }
         else if (move_id == 15) { 10 }
-        else if (move_id == 17) { 6 }
-        else if (move_id == 18) { 6 }
-        else if (move_id == 19) { 11 }
+        else if (move_id == 17) { 7 }
+        else if (move_id == 18) { 5 }
+        else if (move_id == 19) { 10 }
         else if (move_id == 20) { 10 }
-        else if (move_id == 21) { 10 }
-        else if (move_id == 22) { 15 }
+        else if (move_id == 21) { 11 }
+        else if (move_id == 22) { 10 }
         else if (move_id == 23) { 10 }
-        else if (move_id == 24) { 15 }
-        else if (move_id == 25) { 18 }
-        else if (move_id == 26) { 17 }
-        else if (move_id == 27) { 10 }
-        else if (move_id == 28) { 12 }
+        else if (move_id == 24) { 14 }
+        else if (move_id == 25) { 12 }
+        else if (move_id == 26) { 11 }
+        else if (move_id == 27) { 7 }
+        else if (move_id == 28) { 10 }
         else if (move_id == 29) { 8 }
-        else if (move_id == 30) { 12 }
+        else if (move_id == 30) { 8 }
+        else if (move_id == 31) { 3 }
+        else if (move_id == 32) { 4 }
+        else if (move_id == 33) { 3 }
+        else if (move_id == 34) { 10 }
+        else if (move_id == 35) { 10 }
+        else if (move_id == 36) { 9 }
+        else if (move_id == 37) { 7 }
+        else if (move_id == 38) { 6 }
+        else if (move_id == 39) { 8 }
         else { 0 }
     }
 
     fun expected_damage(move_id: u8): u64 {
-        if (move_id == 1) { 10 }
+        if (move_id == 1) { 11 }
         else if (move_id == 2) { 8 }
         else if (move_id == 3) { 12 }
-        else if (move_id == 4) { 7 }
-        else if (move_id == 5) { 9 }
-        else if (move_id == 6) { 6 }
-        else if (move_id == 7) { 11 }
-        else if (move_id == 8) { 5 }
-        else if (move_id == 9) { 8 }
-        else if (move_id == 11) { 12 }
-        else if (move_id == 12) { 5 }
+        else if (move_id == 4) { 11 }
+        else if (move_id == 5) { 8 }
+        else if (move_id == 6) { 12 }
+        else if (move_id == 7) { 10 }
+        else if (move_id == 9) { 6 }
+        else if (move_id == 11) { 13 }
+        else if (move_id == 12) { 10 }
         else if (move_id == 13) { 7 }
-        else if (move_id == 16) { 15 }
-        else if (move_id == 18) { 6 }
+        else if (move_id == 16) { 16 }
+        else if (move_id == 18) { 5 }
+        else if (move_id == 31) { 8 }
+        else if (move_id == 32) { 6 }
+        else if (move_id == 33) { 8 }
+        else if (move_id == 38) { 6 }
         else { 0 }
     }
 
     fun adds_block(move_id: u8): bool {
-        move_id == 8 || move_id == 12 || move_id == 17 || move_id == 27 || move_id == 29
+        move_id == 8 || move_id == 17 || move_id == 29 || move_id == 37
     }
 
     fun bot_move_score(move_id: u8, self_growth: u64, opp_growth: u64, self_status: &Status, opp_status: &Status): u64 {
@@ -1321,6 +1635,9 @@ module battle_garden::battle {
 
         if (move_id == 10 && opp_growth > 0 && opp_status.poison_ticks == 0) {
             score = score + 35;
+        };
+        if (move_id == 32 && opp_growth > 0 && opp_status.poison_ticks == 0) {
+            score = score + 30;
         };
         if (move_id == 13 && opp_growth > 0) {
             score = score + 20;
@@ -1527,36 +1844,64 @@ module battle_garden::battle {
     }
 
     fun apply_player1_move_v3(battle: &mut PvpBattleV3, move_id: u8, rand: &Random, ctx: &mut TxContext) {
-        apply_start_of_turn_status(move_id, &mut battle.p1_growth, &mut battle.p1_status);
-
-        resolve_move(move_id, &mut battle.p1_growth, &mut battle.p2_growth, &mut battle.p1_status, &mut battle.p2_status, rand, ctx);
+        let key = CardRulesKey {};
+        if (dynamic_field::exists_(&battle.id, key)) {
+            let rules = dynamic_field::borrow_mut<CardRulesKey, CardRulesState>(&mut battle.id, key);
+            let had_pending_damage = apply_catalog_start_of_turn(move_id, rules.total_turns, &mut battle.p1_growth, &mut battle.p1_status);
+            resolve_catalog_move(move_id, had_pending_damage, &mut battle.p1_growth, &mut battle.p2_growth, &mut battle.p1_status, &mut battle.p2_status, &mut rules.p1, &mut rules.p2, rand, ctx);
+            rules.total_turns = rules.total_turns + 1;
+        } else {
+            apply_start_of_turn_status(move_id, &mut battle.p1_growth, &mut battle.p1_status);
+            resolve_move(move_id, &mut battle.p1_growth, &mut battle.p2_growth, &mut battle.p1_status, &mut battle.p2_status, rand, ctx);
+        };
         battle.p1_growth = utils::clamp(battle.p1_growth, 0, 100);
         battle.p2_growth = utils::clamp(battle.p2_growth, 0, 100);
         battle.last_move_ms = tx_context::epoch_timestamp_ms(ctx);
     }
 
     fun apply_player2_move_v3(battle: &mut PvpBattleV3, move_id: u8, rand: &Random, ctx: &mut TxContext) {
-        apply_start_of_turn_status(move_id, &mut battle.p2_growth, &mut battle.p2_status);
-
-        resolve_move(move_id, &mut battle.p2_growth, &mut battle.p1_growth, &mut battle.p2_status, &mut battle.p1_status, rand, ctx);
+        let key = CardRulesKey {};
+        if (dynamic_field::exists_(&battle.id, key)) {
+            let rules = dynamic_field::borrow_mut<CardRulesKey, CardRulesState>(&mut battle.id, key);
+            let had_pending_damage = apply_catalog_start_of_turn(move_id, rules.total_turns, &mut battle.p2_growth, &mut battle.p2_status);
+            resolve_catalog_move(move_id, had_pending_damage, &mut battle.p2_growth, &mut battle.p1_growth, &mut battle.p2_status, &mut battle.p1_status, &mut rules.p2, &mut rules.p1, rand, ctx);
+            rules.total_turns = rules.total_turns + 1;
+        } else {
+            apply_start_of_turn_status(move_id, &mut battle.p2_growth, &mut battle.p2_status);
+            resolve_move(move_id, &mut battle.p2_growth, &mut battle.p1_growth, &mut battle.p2_status, &mut battle.p1_status, rand, ctx);
+        };
         battle.p2_growth = utils::clamp(battle.p2_growth, 0, 100);
         battle.p1_growth = utils::clamp(battle.p1_growth, 0, 100);
         battle.last_move_ms = tx_context::epoch_timestamp_ms(ctx);
     }
 
     fun apply_player1_move_ranked_bot_v2(battle: &mut RankedBotBattleV2, move_id: u8, rand: &Random, ctx: &mut TxContext) {
-        apply_start_of_turn_status(move_id, &mut battle.p1_growth, &mut battle.p1_status);
-
-        resolve_move(move_id, &mut battle.p1_growth, &mut battle.p2_growth, &mut battle.p1_status, &mut battle.p2_status, rand, ctx);
+        let key = CardRulesKey {};
+        if (dynamic_field::exists_(&battle.id, key)) {
+            let rules = dynamic_field::borrow_mut<CardRulesKey, CardRulesState>(&mut battle.id, key);
+            let had_pending_damage = apply_catalog_start_of_turn(move_id, rules.total_turns, &mut battle.p1_growth, &mut battle.p1_status);
+            resolve_catalog_move(move_id, had_pending_damage, &mut battle.p1_growth, &mut battle.p2_growth, &mut battle.p1_status, &mut battle.p2_status, &mut rules.p1, &mut rules.p2, rand, ctx);
+            rules.total_turns = rules.total_turns + 1;
+        } else {
+            apply_start_of_turn_status(move_id, &mut battle.p1_growth, &mut battle.p1_status);
+            resolve_move(move_id, &mut battle.p1_growth, &mut battle.p2_growth, &mut battle.p1_status, &mut battle.p2_status, rand, ctx);
+        };
         battle.p1_growth = utils::clamp(battle.p1_growth, 0, 100);
         battle.p2_growth = utils::clamp(battle.p2_growth, 0, 100);
         battle.last_move_ms = tx_context::epoch_timestamp_ms(ctx);
     }
 
     fun apply_player2_move_ranked_bot_v2(battle: &mut RankedBotBattleV2, move_id: u8, rand: &Random, ctx: &mut TxContext) {
-        apply_start_of_turn_status(move_id, &mut battle.p2_growth, &mut battle.p2_status);
-
-        resolve_move(move_id, &mut battle.p2_growth, &mut battle.p1_growth, &mut battle.p2_status, &mut battle.p1_status, rand, ctx);
+        let key = CardRulesKey {};
+        if (dynamic_field::exists_(&battle.id, key)) {
+            let rules = dynamic_field::borrow_mut<CardRulesKey, CardRulesState>(&mut battle.id, key);
+            let had_pending_damage = apply_catalog_start_of_turn(move_id, rules.total_turns, &mut battle.p2_growth, &mut battle.p2_status);
+            resolve_catalog_move(move_id, had_pending_damage, &mut battle.p2_growth, &mut battle.p1_growth, &mut battle.p2_status, &mut battle.p1_status, &mut rules.p2, &mut rules.p1, rand, ctx);
+            rules.total_turns = rules.total_turns + 1;
+        } else {
+            apply_start_of_turn_status(move_id, &mut battle.p2_growth, &mut battle.p2_status);
+            resolve_move(move_id, &mut battle.p2_growth, &mut battle.p1_growth, &mut battle.p2_status, &mut battle.p1_status, rand, ctx);
+        };
         battle.p2_growth = utils::clamp(battle.p2_growth, 0, 100);
         battle.p1_growth = utils::clamp(battle.p1_growth, 0, 100);
         battle.last_move_ms = tx_context::epoch_timestamp_ms(ctx);
@@ -1690,6 +2035,15 @@ module battle_garden::battle {
         };
     }
 
+    fun assert_ranked_bot_move_not_repeated(battle: &RankedBotBattleV2, move_id: u8) {
+        let key = CardRulesKey {};
+        if (!dynamic_field::exists_(&battle.id, key)) return;
+        let rules = dynamic_field::borrow<CardRulesKey, CardRulesState>(&battle.id, key);
+        if (option::is_some(&rules.p1.last_move)) {
+            assert!(*option::borrow(&rules.p1.last_move) != move_id, errors::e_move_repeated());
+        };
+    }
+
     /// Locks one of the three on-chain fifth-card candidates and submits the
     /// player's move in the same transaction.
     public fun use_ability_id_pvp_v3_with_fifth_move(
@@ -1762,6 +2116,7 @@ module battle_garden::battle {
         assert!(sender == battle.player1, errors::e_unauthorized_player());
         assert!(!fifth_move_draft_pending(&battle.p1_moves, battle.p1_fifth_move_entitled), errors::e_fifth_move_draft_required());
         assert!(utils::contains_u8(&battle.p1_moves, move_id), errors::e_invalid_move());
+        assert_ranked_bot_move_not_repeated(battle, move_id);
 
         apply_player1_move_ranked_bot_v2(battle, move_id, rand, ctx);
 
@@ -2194,6 +2549,105 @@ module battle_garden::battle {
     #[test_only]
     public fun is_hybrid_hand_candidate_for_testing(move_id: u8): bool {
         utils::contains_u8(&hybrid_hand_candidate_moves(), move_id)
+    }
+
+    #[test_only]
+    public fun is_fifth_attack_candidate_for_testing(move_id: u8): bool {
+        utils::contains_u8(&fifth_attack_candidate_moves(), move_id)
+    }
+
+    #[test_only]
+    public fun is_fifth_growth_candidate_for_testing(move_id: u8): bool {
+        utils::contains_u8(&fifth_growth_candidate_moves(), move_id)
+    }
+
+    #[test_only]
+    public fun is_fifth_hybrid_candidate_for_testing(move_id: u8): bool {
+        utils::contains_u8(&fifth_hybrid_candidate_moves(), move_id)
+    }
+
+    #[test_only]
+    public fun map_catalog_name_for_testing(name: vector<u8>): u8 {
+        map_ability_name(name)
+    }
+
+    #[test_only]
+    public fun resolve_catalog_move_for_testing(
+        move_id: u8,
+        initial_self_growth: u64,
+        initial_opp_growth: u64,
+        self_last_move: u8,
+        opp_last_move: u8,
+        opp_has_block: bool,
+        self_has_pending_damage: bool,
+        rand: &Random,
+        ctx: &mut TxContext,
+    ): (u64, u64, u8, u8, u8, u64, bool, u64) {
+        let mut self_growth = initial_self_growth;
+        let mut opp_growth = initial_opp_growth;
+        let mut self_status = Status {
+            block_turns: 0,
+            next_turn_penalty: if (self_has_pending_damage) { 4 } else { 0 },
+            poison_ticks: 0,
+            poison_dpt: 0,
+        };
+        let mut opp_status = Status {
+            block_turns: if (opp_has_block) { 1 } else { 0 },
+            next_turn_penalty: 0,
+            poison_ticks: 0,
+            poison_dpt: 0,
+        };
+        let mut self_card = FighterCardState {
+            last_move: if (self_last_move == 0) { option::none() } else { option::some(self_last_move) },
+            reflect_damage: 0,
+            armor_half: false,
+            attack_cap: option::none(),
+        };
+        let mut opp_card = FighterCardState {
+            last_move: if (opp_last_move == 0) { option::none() } else { option::some(opp_last_move) },
+            reflect_damage: 0,
+            armor_half: false,
+            attack_cap: option::none(),
+        };
+        let had_pending = apply_catalog_start_of_turn(move_id, 0, &mut self_growth, &mut self_status);
+        resolve_catalog_move(
+            move_id,
+            had_pending,
+            &mut self_growth,
+            &mut opp_growth,
+            &mut self_status,
+            &mut opp_status,
+            &mut self_card,
+            &mut opp_card,
+            rand,
+            ctx,
+        );
+        let armor_half = self_card.armor_half;
+        let attack_cap_value = if (option::is_some(&self_card.attack_cap)) {
+            *option::borrow(&self_card.attack_cap)
+        } else { 0 };
+        let FighterCardState {
+            last_move: _,
+            reflect_damage: _,
+            armor_half: _,
+            attack_cap: _,
+        } = self_card;
+        let FighterCardState {
+            last_move: _,
+            reflect_damage: _,
+            armor_half: _,
+            attack_cap: _,
+        } = opp_card;
+        (
+            self_growth,
+            opp_growth,
+            self_status.block_turns,
+            opp_status.block_turns,
+            opp_status.poison_ticks,
+            opp_status.next_turn_penalty,
+            armor_half,
+            attack_cap_value,
+        )
     }
 
     #[test_only]

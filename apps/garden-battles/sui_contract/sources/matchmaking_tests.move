@@ -296,9 +296,9 @@ module battle_garden::matchmaking_tests {
     fun assert_fifth_move_draft(moves: &vector<u8>) {
         assert!(vector::length(moves) == 7, 0);
         assert_hand_unique(moves);
-        assert!(battle::is_attack_hand_candidate_for_testing(*vector::borrow(moves, 4)), 0);
-        assert!(battle::is_growth_hand_candidate_for_testing(*vector::borrow(moves, 5)), 0);
-        assert!(battle::is_hybrid_hand_candidate_for_testing(*vector::borrow(moves, 6)), 0);
+        assert!(battle::is_fifth_attack_candidate_for_testing(*vector::borrow(moves, 4)), 0);
+        assert!(battle::is_fifth_growth_candidate_for_testing(*vector::borrow(moves, 5)), 0);
+        assert!(battle::is_fifth_hybrid_candidate_for_testing(*vector::borrow(moves, 6)), 0);
     }
 
     fun create_ranked_bot_standard(s: &mut test_scenario::Scenario, player: address) {
@@ -960,7 +960,7 @@ module battle_garden::matchmaking_tests {
         {
             let mut b = test_scenario::take_shared<battle::PvpBattleV3>(&s);
             battle::set_pvp_v3_turn_for_testing(&mut b, 0);
-            battle::set_pvp_v3_p1_moves_for_testing(&mut b, vector[1, 20, 8, 21, 2, 22, 9]);
+            battle::set_pvp_v3_p1_moves_for_testing(&mut b, vector[1, 20, 8, 21, 31, 34, 37]);
             test_scenario::return_shared(b);
         };
 
@@ -970,14 +970,14 @@ module battle_garden::matchmaking_tests {
             let r = test_scenario::take_shared<Random>(&s);
             battle::use_ability_id_pvp_v3_with_fifth_move(
                 &mut b,
-                22,
+                34,
                 20,
                 &r,
                 test_scenario::ctx(&mut s),
             );
             assert!(vector::length(battle::pvp_v3_p1_moves(&b)) == 5, 0);
-            assert!(*vector::borrow(battle::pvp_v3_p1_moves(&b), 4) == 22, 0);
-            assert!(battle::pvp_v3_p1_growth(&b) == 10, 0);
+            assert!(*vector::borrow(battle::pvp_v3_p1_moves(&b), 4) == 34, 0);
+            assert!(battle::pvp_v3_p1_growth(&b) == 11, 0);
             assert!(battle::pvp_v3_turn(&b) == 1, 0);
             test_scenario::return_shared(r);
             test_scenario::return_shared(b);
