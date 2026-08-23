@@ -1511,9 +1511,10 @@
 
   .gb-battle-page::before {
     background:
-      radial-gradient(circle at 50% 18%, rgba(57, 255, 136, 0.18), transparent 34%),
-      radial-gradient(circle at 16% 44%, rgba(0, 213, 199, 0.15), transparent 28%),
-      linear-gradient(180deg, rgba(0, 10, 8, 0.18), rgba(0, 10, 8, 0.62));
+      radial-gradient(circle at 50% 12%, rgba(57, 255, 136, 0.1), transparent 32%),
+      radial-gradient(circle at 8% 38%, rgba(255, 193, 64, 0.08), transparent 27%),
+      radial-gradient(circle at 92% 48%, rgba(0, 203, 222, 0.12), transparent 30%),
+      linear-gradient(180deg, rgba(4, 8, 16, 0.06), rgba(4, 8, 16, 0.7));
     content: "";
     inset: 0;
     pointer-events: none;

@@ -1804,12 +1804,18 @@ export default function Battle() {
       <div
         className="gb-battle-page"
         style={{
-          backgroundImage: `url(${appAsset("assets/background4.jpg")})`,
-          backgroundSize: "cover",
+          backgroundImage: `
+            linear-gradient(115deg, rgba(255, 193, 64, 0.13), transparent 24%),
+            linear-gradient(245deg, rgba(0, 203, 222, 0.16), transparent 30%),
+            linear-gradient(160deg, rgba(220, 42, 86, 0.1), transparent 34%),
+            linear-gradient(180deg, rgba(4, 8, 16, 0.78), rgba(4, 8, 16, 0.95)),
+            url(${appAsset("assets/background4.jpg")})
+          `,
+          backgroundSize: "auto, auto, auto, auto, cover",
           backgroundPosition: "center center",
           backgroundAttachment: "fixed",
           backgroundRepeat: "no-repeat",
-          backgroundColor: "#000",
+          backgroundColor: "#040810",
           color: "white",
           textAlign: "center",
           fontFamily: "Orbitron, sans-serif",
