@@ -1632,6 +1632,22 @@ export default function Battle() {
           </div>
         </article>
 
+        <article className="gb-mode-card gb-mode-card-trials">
+          <ModeCrest type="arborist-trials" alt="Arborist Trials daily challenge crest" />
+          <h2>Arborist Trials</h2>
+          <p>Daily Single-Player Challenge</p>
+          <div className="gb-mode-card-details">
+            <div className="gb-mode-card-chips" aria-label="Arborist Trials details">
+              <span>Same challenge for everyone</span>
+              <span>One ranked score daily</span>
+              <span>Free to play</span>
+            </div>
+            <Link href="/battle/trials" className="gb-mode-action gb-mode-action-trials">
+              Enter Today’s Trial
+            </Link>
+          </div>
+        </article>
+
         <article className="gb-mode-card gb-mode-card-pvp">
           <ModeCrest type="pvp-battle" alt="PvP Battle duel medallion" />
           <h2>PvP Battle</h2>

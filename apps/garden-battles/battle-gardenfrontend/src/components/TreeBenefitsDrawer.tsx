@@ -68,7 +68,7 @@ export default function TreeBenefitsDrawer({
     <UtilityDrawer
       eyebrow="TREE Battle Benefits"
       title="TREE Battle Benefits"
-      description="Unlock a fifth move card for Garden Bot and paid PvP. See whether your wallet has unlocked it and exactly what to do next."
+      description="Unlock a fifth move card for Garden Bot, Arborist Trials, and paid PvP. See whether your wallet has unlocked it and exactly what to do next."
       className="gb-tree-benefits-drawer"
       onClose={onClose}
     >
@@ -95,7 +95,7 @@ export default function TreeBenefitsDrawer({
               <h3>{isQualified ? "Your Fifth Card Is Unlocked" : "Turn Four Choices Into Five"}</h3>
               <p>
                 {isQualified
-                  ? "Start Garden Bot or a paid PvP match with this wallet and your fifth move card is added automatically. Practice Mode keeps the standard four-card training hand."
+                  ? "Start Garden Bot, Arborist Trials, or a paid PvP match with this wallet and your fifth move card is added automatically. Practice Mode keeps the standard four-card training hand."
                   : "Get TREE, then place a combined total of 1,000,000 TREE into supported SuiDex liquidity or Moonbags staking to unlock a fifth move card. Practice Mode always uses four cards."}
               </p>
               <div className="gb-tree-benefits-reward-row">

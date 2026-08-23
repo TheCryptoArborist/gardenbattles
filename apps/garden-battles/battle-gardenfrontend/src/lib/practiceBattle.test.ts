@@ -25,3 +25,44 @@ test("practice mode enforces the catalog no-consecutive-card rule", () => {
     /same card cannot be played twice in a row/i,
   );
 });
+
+test("seeded Arborist Trials deal identical hands and outcomes", () => {
+  const options = {
+    seed: 8675309,
+    mode: "arborist-trial" as const,
+    challengeId: "daily-test",
+    playerStartGrowth: 0,
+    botStartGrowth: 8,
+    bonusMoveId: 34,
+  };
+  let first = createPracticeBattle(options);
+  let second = createPracticeBattle(options);
+  assert.deepEqual(first.player1Moves, second.player1Moves);
+  assert.deepEqual(first.player2Moves, second.player2Moves);
+  assert.equal(first.player1Moves.length, 5);
+  assert.equal(first.player1Moves[4], 34);
+
+  for (let round = 0; round < 3 && !first.finished; round += 1) {
+    const move = first.player1Moves.find((moveId) => moveId !== first.playerMoveHistory.at(-1))!;
+    const firstResult = playPracticeRound(first, move);
+    const secondResult = playPracticeRound(second, move);
+    first = firstResult.battle;
+    second = secondResult.battle;
+    assert.deepEqual(
+      {
+        player1Growth: first.player1Growth,
+        player2Growth: first.player2Growth,
+        botMoveHistory: first.botMoveHistory,
+        playerStatus: first.playerStatus,
+        botStatus: first.botStatus,
+      },
+      {
+        player1Growth: second.player1Growth,
+        player2Growth: second.player2Growth,
+        botMoveHistory: second.botMoveHistory,
+        playerStatus: second.playerStatus,
+        botStatus: second.botStatus,
+      },
+    );
+  }
+});

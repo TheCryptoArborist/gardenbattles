@@ -52,7 +52,7 @@ export default function TreeEcosystemStatus() {
     },
     {
       label: "Your fifth-card result",
-      description: "If qualified, Garden Bot and paid PvP deal five move cards instead of four. Practice Mode uses four cards.",
+      description: "If qualified, Garden Bot, Arborist Trials, and paid PvP deal five move cards instead of four. Practice Mode uses four cards.",
       value: fifthMoveValue,
     },
   ];

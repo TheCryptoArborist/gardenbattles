@@ -197,7 +197,7 @@ export default function TreePowerPanel({
             : "Your wallet needs 1,000,000 TREE placed in the supported liquidity or staking options shown below.";
   const preBattleExplanation =
     eligibility.status === "qualified"
-      ? "You are ready. Start Garden Bot or a paid PvP match and the fifth card is added automatically. This check does not move or spend your TREE."
+      ? "You are ready. Start Garden Bot, Arborist Trials, or a paid PvP match and the fifth card is added automatically. This check does not move or spend your TREE."
       : eligibility.status === "checking"
         ? "This is a read-only wallet check. No TREE is moved or spent while the game checks your positions."
         : eligibility.status === "not-connected"
@@ -240,7 +240,7 @@ export default function TreePowerPanel({
         </div>
 
         <p className="gb-tree-power-plain-explainer">
-          This benefit works in Garden Bot and paid PvP. Put enough TREE into one or more supported liquidity or staking options and your hand changes from four move cards to five. Practice Mode keeps a four-card training hand.
+          This benefit works in Garden Bot, Arborist Trials, and paid PvP. Put enough TREE into one or more supported liquidity or staking options and your hand changes from four move cards to five. Practice Mode keeps a four-card training hand.
         </p>
 
         {isBattleActive ? (
@@ -272,7 +272,7 @@ export default function TreePowerPanel({
           </>
         ) : (
           <div className="gb-tree-power-hand-preview">
-            <span>If you start Garden Bot or paid PvP now</span>
+            <span>If you start Garden Bot, Arborist Trials, or paid PvP now</span>
             <strong>{eligibility.status === "qualified" ? "You receive five move cards" : "Standard hand: four move cards"}</strong>
           </div>
         )}

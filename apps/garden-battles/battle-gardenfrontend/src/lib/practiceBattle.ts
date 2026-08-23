@@ -22,12 +22,23 @@ type PracticeStatus = {
 };
 
 export type PracticeBattle = BattleState & {
-  mode: "practice";
+  mode: "practice" | "arborist-trial";
   botMoveHistory: number[];
   playerMoveHistory: number[];
   totalTurns: number;
   playerStatus: PracticeStatus;
   botStatus: PracticeStatus;
+  randomState?: number;
+  challengeId?: string;
+};
+
+export type CreatePracticeBattleOptions = {
+  seed?: number;
+  mode?: PracticeBattle["mode"];
+  challengeId?: string;
+  playerStartGrowth?: number;
+  botStartGrowth?: number;
+  bonusMoveId?: number | null;
 };
 
 type MoveOutcome = {
@@ -65,21 +76,29 @@ function clampGrowth(value: number) {
   return Math.max(0, Math.min(PRACTICE_TARGET_GROWTH, Math.round(value)));
 }
 
+let seededRandomState: number | null = null;
+
+function practiceRandom(): number {
+  if (seededRandomState === null) return Math.random();
+  seededRandomState = (Math.imul(seededRandomState, 1664525) + 1013904223) >>> 0;
+  return seededRandomState / 4294967296;
+}
+
 function randomItem<T>(items: T[]): T {
-  return items[Math.floor(Math.random() * items.length)];
+  return items[Math.floor(practiceRandom() * items.length)];
 }
 
 function drawUnique(pool: number[], count: number, excluded = new Set<number>()) {
   const available = pool.filter((moveId) => !excluded.has(moveId));
   const picked: number[] = [];
   while (picked.length < count && available.length > 0) {
-    const index = Math.floor(Math.random() * available.length);
+    const index = Math.floor(practiceRandom() * available.length);
     picked.push(available.splice(index, 1)[0]);
   }
   return picked;
 }
 
-export function createPracticeBattle(): PracticeBattle {
+function createPracticeBattleInternal(options: CreatePracticeBattleOptions): PracticeBattle {
   const drawBalancedHand = () => {
     const cards = [
       ...drawUnique(ATTACK_MOVES, 1),
@@ -87,31 +106,50 @@ export function createPracticeBattle(): PracticeBattle {
       ...drawUnique(HYBRID_MOVES, 1),
     ];
     cards.push(...drawUnique(ALL_MOVES, 1, new Set(cards)));
-    return cards.sort(() => Math.random() - 0.5);
+    return cards.sort(() => practiceRandom() - 0.5);
   };
   const playerMoves = drawBalancedHand();
   const botMoves = drawBalancedHand();
+  if (options.bonusMoveId && !playerMoves.includes(options.bonusMoveId)) {
+    playerMoves.push(options.bonusMoveId);
+  }
 
   return {
-    battleId: `practice-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    battleId: `${options.mode ?? "practice"}-${options.challengeId ?? Date.now()}-${Math.floor(practiceRandom() * 1e9).toString(16)}`,
     player1: PRACTICE_PLAYER_ADDRESS,
     player2: PRACTICE_BOT_ADDRESS,
     player1Moves: playerMoves,
     player2Moves: botMoves,
-    player1Growth: 0,
-    player2Growth: 0,
+    player1Growth: options.playerStartGrowth ?? 0,
+    player2Growth: options.botStartGrowth ?? 0,
     turn: 0,
     winner: null,
     finished: false,
     isBotBattle: true,
     lastMoveMs: Date.now(),
-    mode: "practice",
+    mode: options.mode ?? "practice",
     botMoveHistory: [],
     playerMoveHistory: [],
     totalTurns: 0,
     playerStatus: emptyStatus(),
     botStatus: emptyStatus(),
+    challengeId: options.challengeId,
   };
+}
+
+export function createPracticeBattle(
+  options: CreatePracticeBattleOptions = {},
+): PracticeBattle {
+  if (options.seed === undefined) return createPracticeBattleInternal(options);
+  const previousState = seededRandomState;
+  seededRandomState = options.seed >>> 0;
+  try {
+    const battle = createPracticeBattleInternal(options);
+    battle.randomState = seededRandomState;
+    return battle;
+  } finally {
+    seededRandomState = previousState;
+  }
 }
 
 function applyStartOfTurnStatus(
@@ -256,7 +294,7 @@ function resolveMove(
       } else addDamage(11);
       break;
     case 2: addDamage(nextOpponentGrowth >= 40 ? 12 : 8); break;
-    case 3: if (Math.random() < 0.75) addDamage(16); else notes.push(`${actorLabel}'s cyclone missed.`); break;
+    case 3: if (practiceRandom() < 0.75) addDamage(16); else notes.push(`${actorLabel}'s cyclone missed.`); break;
     case 4: addDamage(11, true); break;
     case 5: addDamage(opponentLastType === "growth" ? 12 : 8); break;
     case 6: addDamage(6); addDamage(6); break;
@@ -276,7 +314,7 @@ function resolveMove(
       } else notes.push(`${opponentLabel} is already poisoned.`);
       break;
     case 11:
-      if (Math.random() < 0.75) addDamage(17); else notes.push(`${actorLabel}'s lightning missed.`);
+      if (practiceRandom() < 0.75) addDamage(17); else notes.push(`${actorLabel}'s lightning missed.`);
       break;
     case 12:
       if (nextOpponentStatus.blockTurns > 0) nextOpponentStatus.blockTurns -= 1;
@@ -308,7 +346,7 @@ function resolveMove(
       break;
     case 18: addGrow(5); addDamage(5); break;
     case 19:
-      if (Math.random() < 0.6) addGrow(20);
+      if (practiceRandom() < 0.6) addGrow(20);
       else {
         const lost = Math.min(4, nextSelfGrowth);
         nextSelfGrowth = clampGrowth(nextSelfGrowth - 4);
@@ -316,17 +354,17 @@ function resolveMove(
       }
       break;
     case 20: addGrow(10); break;
-    case 21: addGrow(8 + Math.floor(Math.random() * 7)); break;
+    case 21: addGrow(8 + Math.floor(practiceRandom() * 7)); break;
     case 22: addGrow(opponentLastType === "attack" ? 14 : 10); break;
     case 23: addGrow(nextOpponentStatus.blockTurns > 0 ? 15 : 10); break;
     case 24: addGrow(14); nextOpponentGrowth = clampGrowth(nextOpponentGrowth + 3); break;
-    case 25: addGrow(Math.random() < 0.75 ? 15 : 3); break;
+    case 25: addGrow(practiceRandom() < 0.75 ? 15 : 3); break;
     case 26: addGrow(selfLastType === "attack" ? 13 : 11); break;
     case 27: addGrow(7); nextSelfStatus.armorHalf = true; break;
     case 28: addGrow(nextSelfGrowth <= 10 ? 13 : 10); break;
     case 29:
       addGrow(8);
-      if (Math.random() < 0.5 && nextSelfStatus.blockTurns === 0) addBlock();
+      if (practiceRandom() < 0.5 && nextSelfStatus.blockTurns === 0) addBlock();
       break;
     case 30: addGrow(8); nextSelfStatus.attackCap = 8; break;
     default:
@@ -462,7 +500,7 @@ function makeEntry(
   label?: string,
 ): ActionEntry {
   return {
-    id: `${Date.now()}-${actor}-${moveId}-${Math.random().toString(16).slice(2)}`,
+    id: `${Date.now()}-${actor}-${moveId}-${Math.floor(practiceRandom() * 1e9).toString(16)}`,
     timestamp: Date.now(),
     actor,
     moveId,
@@ -480,7 +518,7 @@ function formatDelta(delta: number) {
   return delta > 0 ? `+${delta}` : `${delta}`;
 }
 
-export function playPracticeRound(
+function playPracticeRoundInternal(
   battle: PracticeBattle,
   playerMoveId: number,
 ): PracticeRoundResult {
@@ -618,4 +656,23 @@ export function playPracticeRound(
   );
 
   return { battle: nextBattle, entries };
+}
+
+export function playPracticeRound(
+  battle: PracticeBattle,
+  playerMoveId: number,
+): PracticeRoundResult {
+  if (battle.randomState === undefined) {
+    return playPracticeRoundInternal(battle, playerMoveId);
+  }
+
+  const previousState = seededRandomState;
+  seededRandomState = battle.randomState >>> 0;
+  try {
+    const result = playPracticeRoundInternal(battle, playerMoveId);
+    result.battle.randomState = seededRandomState;
+    return result;
+  } finally {
+    seededRandomState = previousState;
+  }
 }

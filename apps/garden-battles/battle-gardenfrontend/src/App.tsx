@@ -9,6 +9,7 @@ import { SuiWalletProvider } from "@/hooks/useSuiWallet";
 import { SUI_CONFIG } from "@/lib/sui-config";
 import Home from "@/pages/Home";
 import Battle from "@/pages/Battle";
+import ArboristTrials from "@/pages/ArboristTrials";
 import Mint from "@/pages/Mint";
 import Leaderboard from "@/pages/Leaderboard";
 import TreePowerPreview from "@/pages/TreePowerPreview";
@@ -34,6 +35,7 @@ function Router() {
       <Route path="/mint" component={Mint} />
       <Route path="/leaderboard" component={Leaderboard} />
       <Route path="/battle/leaderboard" component={Leaderboard} />
+      <Route path="/battle/trials" component={ArboristTrials} />
       {import.meta.env.DEV && (
         <>
           <Route path="/badge-gallery" component={BadgeGalleryPreview} />

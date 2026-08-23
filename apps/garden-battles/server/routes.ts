@@ -20,6 +20,10 @@ import {
   type LeaderboardMode,
 } from "./battle-storage";
 import { startPvpQueueTelegramNotifier } from "./pvp-queue-telegram";
+import {
+  getTodayArboristTrial,
+  submitTodayArboristTrial,
+} from "./arborist-trials";
 import { readBattleTransactionViaGraphQL } from "./sui-graphql";
 import {
   createGraphqlTreePowerClient,
@@ -1294,6 +1298,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .json({ error: "Battle bot is not configured on this server" });
     }
     res.json({ address: BOT_ADDRESS });
+  });
+
+  // ── REST: Arborist Trials daily challenge and ranked attempt ─────────────
+  app.get("/api/arborist-trials/today", (req, res) => {
+    const wallet = typeof req.query.wallet === "string" ? req.query.wallet : undefined;
+    return res.json(getTodayArboristTrial(wallet));
+  });
+
+  app.post("/api/arborist-trials/results", (req, res) => {
+    const submission = submitTodayArboristTrial(req.body ?? {});
+    return res.status(submission.status).json(submission.body);
   });
 
   // ── REST: get battle state by player address ────────────────────────────────

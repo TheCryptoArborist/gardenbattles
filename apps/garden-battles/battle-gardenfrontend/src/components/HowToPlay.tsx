@@ -17,10 +17,11 @@ const howToPlaySections: HowToPlaySection[] = [
   },
   {
     title: "Game Modes",
-    summary: "Choose between practice and competitive battle paths.",
+    summary: "Choose a free learning path, a daily challenge, or paid competition.",
     bullets: [
-      "Garden Bot is the practice mode.",
-      "PvP and Canopy Clash are competitive modes being shaped.",
+      "Practice Mode teaches the cards; Garden Bot is the full single-player battle.",
+      "Arborist Trials gives every player the same free daily challenge and one ranked score.",
+      "PvP is live competition; Canopy Clash is the planned tournament mode.",
     ],
   },
   {
@@ -53,6 +54,14 @@ const howToPlaySections: HowToPlaySection[] = [
     bullets: [
       "Bot battles are useful for learning turn flow and move timing.",
       "Bot visuals and stages are planned to evolve as the mode develops.",
+    ],
+  },
+  {
+    title: "Arborist Trials",
+    summary: "Compete against the same daily Garden Bot challenge as everyone else.",
+    bullets: [
+      "Each wallet gets one official attempt per UTC day and unlimited unranked practice replays.",
+      "Win quickly, protect your margin, and use a varied hand to improve your daily score.",
     ],
   },
   {

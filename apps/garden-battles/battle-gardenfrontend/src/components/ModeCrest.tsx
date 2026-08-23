@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { appAsset } from "@/lib/assets";
 
-type ModeCrestType = "garden-bot" | "pvp-battle" | "canopy-clash";
+type ModeCrestType = "garden-bot" | "pvp-battle" | "arborist-trials" | "canopy-clash";
 
 interface ModeCrestProps {
   alt: string;
@@ -11,11 +11,12 @@ interface ModeCrestProps {
 const CREST_ASSETS: Record<ModeCrestType, string> = {
   "garden-bot": "assets/mode-crests/garden-bot-crest.png",
   "pvp-battle": "assets/mode-crests/pvp-battle-crest.png",
+  "arborist-trials": "assets/mode-crests/arborist-trials-crest.png",
   "canopy-clash": "assets/mode-crests/canopy-clash-crest.png",
 };
 
 export default function ModeCrest({ alt, type }: ModeCrestProps) {
-  const [imageAvailable, setImageAvailable] = useState(true);
+  const [imageAvailable, setImageAvailable] = useState(type !== "arborist-trials");
   const assetPath = appAsset(CREST_ASSETS[type]);
 
   return (
@@ -64,6 +65,13 @@ export default function ModeCrest({ alt, type }: ModeCrestProps) {
                 <path className="gb-mode-crest-symbol gb-mode-crest-accent" d="M31 29l8-13 9 13 9-13 8 13" />
                 <path className="gb-mode-crest-symbol" d="M30 40c-11 0-14 8-11 15 3 6 10 7 16 3" />
                 <path className="gb-mode-crest-symbol" d="M66 40c11 0 14 8 11 15-3 6-10 7-16 3" />
+              </>
+            )}
+            {type === "arborist-trials" && (
+              <>
+                <path className="gb-mode-crest-fill" d="M48 14l24 12v20c0 17-10 29-24 36-14-7-24-19-24-36V26l24-12z" />
+                <path className="gb-mode-crest-symbol" d="M48 64V34M48 45L36 36M48 50l13-11" />
+                <path className="gb-mode-crest-symbol gb-mode-crest-accent" d="M37 34c-8-1-12-7-12-13 7 0 14 3 16 10M59 37c8-1 13-7 13-14-8 0-14 4-17 11" />
               </>
             )}
           </svg>

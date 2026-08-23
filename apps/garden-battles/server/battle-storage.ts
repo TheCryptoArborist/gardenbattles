@@ -91,6 +91,20 @@ db.exec(`
     updated_at INTEGER NOT NULL,
     PRIMARY KEY (chat_id, message_thread_id)
   );
+
+  CREATE TABLE IF NOT EXISTS arborist_trial_results (
+    challenge_id TEXT NOT NULL,
+    challenge_date TEXT NOT NULL,
+    wallet TEXT NOT NULL,
+    score INTEGER NOT NULL,
+    won INTEGER NOT NULL,
+    rounds INTEGER NOT NULL,
+    player_growth INTEGER NOT NULL,
+    bot_growth INTEGER NOT NULL,
+    unique_moves INTEGER NOT NULL,
+    completed_at INTEGER NOT NULL,
+    PRIMARY KEY (challenge_id, wallet)
+  );
 `);
 
 if (!hasColumn("battle_records", "transaction_digest")) {
@@ -225,6 +239,19 @@ export interface EnableTelegramAlertDestinationInput {
   messageThreadId?: number | null;
   chatTitle?: string | null;
   configuredBy: string;
+}
+
+export interface ArboristTrialResultRow {
+  challenge_id: string;
+  challenge_date: string;
+  wallet: string;
+  score: number;
+  won: number;
+  rounds: number;
+  player_growth: number;
+  bot_growth: number;
+  unique_moves: number;
+  completed_at: number;
 }
 
 export type LeaderboardMode = "pvp" | "bot" | "overall";
@@ -400,6 +427,32 @@ const disableTelegramAlertDestinationStmt = db.prepare(`
   UPDATE telegram_alert_destinations
   SET enabled = 0, updated_at = ?
   WHERE chat_id = ? AND message_thread_id = ?
+`);
+
+const getArboristTrialResultStmt = db.prepare(`
+  SELECT * FROM arborist_trial_results
+  WHERE challenge_id = ? AND wallet = ?
+`);
+
+const insertArboristTrialResultStmt = db.prepare(`
+  INSERT OR IGNORE INTO arborist_trial_results (
+    challenge_id, challenge_date, wallet, score, won, rounds,
+    player_growth, bot_growth, unique_moves, completed_at
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+`);
+
+const getArboristTrialLeaderboardStmt = db.prepare(`
+  SELECT * FROM arborist_trial_results
+  WHERE challenge_id = ?
+  ORDER BY won DESC, score DESC, rounds ASC, completed_at ASC
+  LIMIT ?
+`);
+
+const getArboristTrialWalletHistoryStmt = db.prepare(`
+  SELECT * FROM arborist_trial_results
+  WHERE wallet = ?
+  ORDER BY challenge_date DESC
+  LIMIT ?
 `);
 
 const updateBattleFinishedAtByTransactionDigestStmt = db.prepare(`
@@ -841,4 +894,52 @@ export function disableTelegramAlertDestination(
     chatId,
     messageThreadId ?? 0,
   );
+}
+
+export function getArboristTrialResult(
+  challengeId: string,
+  wallet: string,
+): ArboristTrialResultRow | null {
+  return (
+    (getArboristTrialResultStmt.get(
+      challengeId,
+      wallet.toLowerCase(),
+    ) as ArboristTrialResultRow) ?? null
+  );
+}
+
+export function insertArboristTrialResult(input: ArboristTrialResultRow): boolean {
+  const result = insertArboristTrialResultStmt.run(
+    input.challenge_id,
+    input.challenge_date,
+    input.wallet.toLowerCase(),
+    input.score,
+    input.won,
+    input.rounds,
+    input.player_growth,
+    input.bot_growth,
+    input.unique_moves,
+    input.completed_at,
+  );
+  return result.changes === 1;
+}
+
+export function getArboristTrialLeaderboard(
+  challengeId: string,
+  limit = 25,
+): ArboristTrialResultRow[] {
+  return getArboristTrialLeaderboardStmt.all(
+    challengeId,
+    Math.max(1, Math.min(100, limit)),
+  ) as ArboristTrialResultRow[];
+}
+
+export function getArboristTrialWalletHistory(
+  wallet: string,
+  limit = 30,
+): ArboristTrialResultRow[] {
+  return getArboristTrialWalletHistoryStmt.all(
+    wallet.toLowerCase(),
+    Math.max(1, Math.min(365, limit)),
+  ) as ArboristTrialResultRow[];
 }

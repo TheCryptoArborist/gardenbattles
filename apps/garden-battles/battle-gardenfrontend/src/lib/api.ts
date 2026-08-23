@@ -203,6 +203,26 @@ export type NftreeAccessResponse = {
   };
 };
 
+export type ArboristTrialPublicResult = {
+  rank?: number;
+  wallet: string;
+  score: number;
+  won: boolean;
+  rounds: number;
+  playerGrowth: number;
+  botGrowth: number;
+  uniqueMoves: number;
+  completedAt: number;
+};
+
+export type ArboristTrialTodayResponse = {
+  challenge: import("@shared/arborist-trials").ArboristTrialChallenge;
+  rankedAttemptUsed: boolean;
+  result: ArboristTrialPublicResult | null;
+  streak: number;
+  leaderboard: ArboristTrialPublicResult[];
+};
+
 interface LeaderboardResponse {
   leaderboard: LeaderboardEntry[];
   total: number;
@@ -284,5 +304,37 @@ export async function requestFifthMoveAttestation(
     "/api/tree-power/fifth-move-attestation",
     { wallet: address.toLowerCase() },
     "Fifth Move proof is temporarily unavailable.",
+  );
+}
+
+export async function fetchTodayArboristTrial(
+  wallet?: string | null,
+): Promise<ArboristTrialTodayResponse> {
+  const query = wallet ? `?wallet=${encodeURIComponent(wallet.toLowerCase())}` : "";
+  return fetchJson<ArboristTrialTodayResponse>(
+    `/api/arborist-trials/today${query}`,
+    "Today’s Arborist Trial is temporarily unavailable.",
+  );
+}
+
+export async function submitArboristTrialResult(input: {
+  challengeId: string;
+  wallet: string;
+  won: boolean;
+  rounds: number;
+  playerGrowth: number;
+  botGrowth: number;
+  uniqueMoves: number;
+}): Promise<{
+  ok: boolean;
+  recorded: boolean;
+  reason?: string;
+  result: ArboristTrialPublicResult;
+  streak: number;
+}> {
+  return postJson(
+    "/api/arborist-trials/results",
+    input,
+    "The ranked Arborist Trial result could not be saved.",
   );
 }
