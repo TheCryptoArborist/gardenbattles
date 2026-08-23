@@ -46,6 +46,11 @@ import {
   getBattleResultShareOptions,
 } from "@/lib/battleResultShare";
 import { createBattleResultShareImage } from "@/lib/battleResultShareImage";
+import {
+  getBattleTreeAssetPath,
+  resolveGrowthStage,
+  type GrowthStage,
+} from "@/lib/battleTreeArtwork";
 
 const ecosystemLinks = [
   { label: "Home", href: "https://www.tree-token.xyz/", testId: "home" },
@@ -132,21 +137,12 @@ export type BattleRole =
   | "player-4"
   | "garden-bot";
 
-export type GrowthStage = 1 | 2 | 3 | 4;
-
 type GrowthStageVisual = {
   role: BattleRole;
   stage: GrowthStage;
   imageUrl: string;
   className: string;
   alt: string;
-};
-
-const currentStageAssets: Record<GrowthStage, string> = {
-  1: appAsset("assets/seed.jpg"),
-  2: appAsset("assets/sapling.jpg"),
-  3: appAsset("assets/sapling2.jpg"),
-  4: appAsset("assets/full_tree.jpg"),
 };
 
 const DISMISSED_RESULT_STORAGE_KEY = "garden-battles:dismissed-results";
@@ -196,16 +192,6 @@ function writeDismissedResultKeys(keys: string[]) {
   }
 }
 
-function resolveGrowthStage(growth: number, growthTarget = 100): GrowthStage {
-  const progress =
-    growthTarget > 0 ? Math.max(0, Math.min(1, growth / growthTarget)) : 0;
-
-  if (progress < 0.25) return 1;
-  if (progress < 0.5) return 2;
-  if (progress < 0.75) return 3;
-  return 4;
-}
-
 function formatSuiAmount(mist: number) {
   return `${(mist / 1e9).toLocaleString(undefined, {
     maximumFractionDigits: 9,
@@ -252,7 +238,7 @@ function resolveGrowthStageVisual({
   const imageUrl =
     !isGardenBot && revealNft && nftImageUrl
       ? nftImageUrl
-      : currentStageAssets[stage];
+      : appAsset(getBattleTreeAssetPath(stage, isGardenBot));
   const roleLabel = isGardenBot
     ? "Garden Bot"
     : `Player ${role.replace("player-", "")}`;
@@ -2234,14 +2220,17 @@ export default function Battle() {
               data-testid="nft-card-player"
             >
               <img
+                key={`${playerStageVisual.role}-${playerStageVisual.stage}-${playerStageVisual.imageUrl}`}
                 src={playerStageVisual.imageUrl}
                 alt={playerStageVisual.alt}
                 className={playerStageVisual.className}
                 style={{
-                  maxWidth: "90%",
-                  maxHeight: "90%",
+                  width: "94%",
+                  height: "94%",
+                  maxWidth: "94%",
+                  maxHeight: "94%",
                   objectFit: "contain",
-                  borderRadius: "10px",
+                  borderRadius: 0,
                 }}
                 data-testid="nft-image-player"
               />
@@ -2401,14 +2390,17 @@ export default function Battle() {
               data-testid="nft-card-opponent"
             >
               <img
+                key={`${opponentStageVisual.role}-${opponentStageVisual.stage}-${opponentStageVisual.imageUrl}`}
                 src={opponentStageVisual.imageUrl}
                 alt={opponentStageVisual.alt}
                 className={opponentStageVisual.className}
                 style={{
-                  maxWidth: "90%",
-                  maxHeight: "90%",
+                  width: "94%",
+                  height: "94%",
+                  maxWidth: "94%",
+                  maxHeight: "94%",
                   objectFit: "contain",
-                  borderRadius: "10px",
+                  borderRadius: 0,
                 }}
                 data-testid="nft-image-opponent"
               />
