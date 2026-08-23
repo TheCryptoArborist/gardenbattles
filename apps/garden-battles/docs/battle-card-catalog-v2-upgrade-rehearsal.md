@@ -1,5 +1,18 @@
 # Battle Card Catalog V2 — Mainnet Upgrade Rehearsal
 
+## Mainnet result
+
+The rehearsed upgrade was approved through the UpgradeCap owner wallet and
+executed successfully on mainnet on 2026-08-22.
+
+- Transaction digest: `E5ZP85yZRRn6LboJSfBiy8VaCKzRF1uv5zniM1Fddqnx`
+- New package: `0x65c0066ea2b16e795218316ba9e3ce36a0e57aa0d4a24f715586fd4cce3e8aea`
+- UpgradeCap version: `13`
+- UpgradeCap policy: `0` (compatible upgrades)
+- Ownership transfer: none
+
+The rehearsal details below preserve the exact version-12 preflight evidence.
+
 Rehearsal date: 2026-08-22
 
 Implementation commit: `b0277151ce0ea7c2e533b820fe17998808ec2cc2`

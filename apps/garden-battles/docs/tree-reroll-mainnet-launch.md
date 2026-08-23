@@ -3,7 +3,7 @@
 ## Live objects
 
 - Garden Battles package version: `12`
-- Call package: `0x28c2222bad60e98c272874878b92f29a6df85fb4afca6bb64cd83d51a5381020`
+- Call package: `0x65c0066ea2b16e795218316ba9e3ce36a0e57aa0d4a24f715586fd4cce3e8aea`
 - Upgrade capability: `0xe94d5b1b468dd1e843181edd055b2b24f5b67afcff184820acc9aa86a82fa604`
 - TreeConfig: `0x828da1764a6c1d4d9c31cc2dc54eac9e1096172e9b68a629510818c5475119a1`
 - TreeConfig admin: `0x485953e2eadf4aa02af950cf8e914fbd2b67523385e73c36118341459d8d45c4`
