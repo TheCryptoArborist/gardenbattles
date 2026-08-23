@@ -15,6 +15,7 @@ export type FifthMoveDisplayStatus =
 export type TreeRerollStatus =
   | "unavailable"
   | "available-in-pvp"
+  | "free-in-garden-bot"
   | "waiting-turn"
   | "mode-excluded"
   | "available"
@@ -205,7 +206,7 @@ export function getTreeRerollPresentation(options: {
       costLabel: "No Practice Mode payment",
       buttonLabel: "Not Used in Practice",
       disabled: true,
-      helperText: "TREE Reroll is a live paid-PvP feature. Practice Mode has no wallet payments.",
+      helperText: "Practice Mode has no reroll. Garden Bot includes one free reroll; paid PvP includes one 20,000 TREE reroll.",
     };
   }
 
@@ -237,11 +238,20 @@ export function getTreeRerollPresentation(options: {
     case "available-in-pvp":
       return {
         status,
-        statusLabel: "Live in Paid PvP",
-        costLabel,
-        buttonLabel: "Available During Paid PvP",
+        statusLabel: "Live by Battle Mode",
+        costLabel: `Garden Bot: Free · PvP: ${costLabel}`,
+        buttonLabel: "Available During Battles",
         disabled: true,
-        helperText: "Start a current paid PvP match. During your turn, you may replace your entire hand once for 20,000 TREE.",
+        helperText: "Garden Bot gives one free four-card reroll. During paid PvP, you may replace your hand once for 20,000 TREE.",
+      };
+    case "free-in-garden-bot":
+      return {
+        status,
+        statusLabel: "Free in Garden Bot",
+        costLabel: "0 TREE",
+        buttonLabel: "Use on the Battle Screen",
+        disabled: true,
+        helperText: "Once per Garden Bot battle, replace the four standard cards free. Your fifth card, Growth, and turn stay unchanged.",
       };
     case "waiting-turn":
       return {
@@ -259,7 +269,7 @@ export function getTreeRerollPresentation(options: {
         costLabel,
         buttonLabel: "Not Used in This Mode",
         disabled: true,
-        helperText: "TREE Reroll is live in paid PvP. Garden Bot and Practice Mode do not include paid rerolls.",
+        helperText: "Garden Bot uses a free reroll. Paid PvP uses a 20,000 TREE reroll. Practice Mode has no reroll.",
       };
     case "insufficient-tree":
       return {

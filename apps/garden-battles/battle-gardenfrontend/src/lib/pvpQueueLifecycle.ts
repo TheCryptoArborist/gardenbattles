@@ -67,3 +67,29 @@ export function preserveBattleTransactionDigest(params: {
 }): string | undefined {
   return params.liveDigest ?? params.eventDigest ?? undefined;
 }
+
+export function shouldAcceptBattleState(params: {
+  currentBattleId?: string | null;
+  currentLastMoveMs?: number | null;
+  currentFinished: boolean;
+  nextBattleId?: string | null;
+  nextLastMoveMs?: number | null;
+  nextFinished: boolean;
+}): boolean {
+  if (!params.nextBattleId) return false;
+  if (!params.currentBattleId) return true;
+
+  const sameBattle =
+    params.currentBattleId.toLowerCase() === params.nextBattleId.toLowerCase();
+  const currentTime = Number(params.currentLastMoveMs ?? 0);
+  const nextTime = Number(params.nextLastMoveMs ?? 0);
+
+  if (sameBattle) return nextTime >= currentTime;
+  if (nextTime > currentTime) return true;
+
+  // Starting a new live battle after a completed result is always valid even
+  // when an RPC response omits the creation timestamp.
+  if (params.currentFinished && !params.nextFinished) return true;
+
+  return false;
+}

@@ -302,8 +302,7 @@ module battle_garden::battle_tests {
     }
 
     #[test]
-    #[expected_failure(abort_code = 204)]
-    fun ranked_bot_v2_entitled_reroll_is_disabled() {
+    fun ranked_bot_v2_entitled_free_reroll_preserves_fifth_draft() {
         let admin = @0xA;
         let player = @0xB;
         let bot = @0xC;
@@ -348,31 +347,31 @@ module battle_garden::battle_tests {
         test_scenario::next_tx(&mut s, player);
         {
             let mut b = test_scenario::take_shared<battle::RankedBotBattleV2>(&s);
-            let tc = test_scenario::take_shared<TreeConfig>(&s);
             let r = test_scenario::take_shared<Random>(&s);
             let old_moves = utils::clone_vec_u8(battle::ranked_bot_v2_p1_moves(&b));
-            let payment = coin::mint_for_testing<TREE>(100, test_scenario::ctx(&mut s));
 
-            battle::reroll_ranked_bot_v2_moves<TREE>(&mut b, &tc, payment, &r, test_scenario::ctx(&mut s));
+            battle::reroll_ranked_bot_v2_moves_free(&mut b, &r, test_scenario::ctx(&mut s));
 
             assert!(battle::ranked_bot_v2_p1_reroll_used(&b), 0);
             assert!(vector::length(battle::ranked_bot_v2_p1_moves(&b)) == 7, 0);
             let mut i = 0;
-            while (i < vector::length(&old_moves)) {
-                assert!(!utils::contains_u8(battle::ranked_bot_v2_p1_moves(&b), *vector::borrow(&old_moves, i)), 0);
+            while (i < 4) {
+                assert!(!utils::contains_u8(&old_moves, *vector::borrow(battle::ranked_bot_v2_p1_moves(&b), i)), 0);
                 i = i + 1;
             };
+            assert!(*vector::borrow(battle::ranked_bot_v2_p1_moves(&b), 4) == *vector::borrow(&old_moves, 4), 0);
+            assert!(*vector::borrow(battle::ranked_bot_v2_p1_moves(&b), 5) == *vector::borrow(&old_moves, 5), 0);
+            assert!(*vector::borrow(battle::ranked_bot_v2_p1_moves(&b), 6) == *vector::borrow(&old_moves, 6), 0);
 
             test_scenario::return_shared(r);
-            test_scenario::return_shared(tc);
             test_scenario::return_shared(b);
         };
         test_scenario::end(s);
     }
 
     #[test]
-    #[expected_failure(abort_code = 204)]
-    fun ranked_bot_v2_standard_reroll_is_disabled() {
+    #[expected_failure(abort_code = 202)]
+    fun ranked_bot_v2_standard_free_reroll_is_once_per_battle() {
         let admin = @0xA;
         let player = @0xB;
         let bot = @0xC;
@@ -415,12 +414,9 @@ module battle_garden::battle_tests {
         test_scenario::next_tx(&mut s, player);
         {
             let mut b = test_scenario::take_shared<battle::RankedBotBattleV2>(&s);
-            let tc = test_scenario::take_shared<TreeConfig>(&s);
             let r = test_scenario::take_shared<Random>(&s);
-            let payment1 = coin::mint_for_testing<TREE>(100, test_scenario::ctx(&mut s));
-            battle::reroll_ranked_bot_v2_moves<TREE>(&mut b, &tc, payment1, &r, test_scenario::ctx(&mut s));
-            let payment2 = coin::mint_for_testing<TREE>(100, test_scenario::ctx(&mut s));
-            battle::reroll_ranked_bot_v2_moves<TREE>(&mut b, &tc, payment2, &r, test_scenario::ctx(&mut s));
+            battle::reroll_ranked_bot_v2_moves_free(&mut b, &r, test_scenario::ctx(&mut s));
+            battle::reroll_ranked_bot_v2_moves_free(&mut b, &r, test_scenario::ctx(&mut s));
             abort 999
         };
     }

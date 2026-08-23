@@ -356,8 +356,8 @@ export default function TreePowerPanel({
       {compact ? (
         <details className="gb-tree-power-reroll-compact">
           <summary>TREE Reroll <span>{reroll.statusLabel}</span></summary>
-          <p><strong>Live paid-PvP feature:</strong> Replace your entire hand once during your turn without losing the turn.</p>
-          <p><strong>Payment:</strong> {reroll.costLabel}. The battle screen always shows a final confirmation before your wallet opens.</p>
+          <p><strong>Garden Bot:</strong> One free reroll replaces the four standard cards and preserves your fifth card.</p>
+          <p><strong>Paid PvP:</strong> One full-hand reroll costs 20,000 TREE. The battle screen shows the price before your wallet opens.</p>
           <p>{reroll.helperText}</p>
         </details>
       ) : <section className="gb-tree-power-card gb-tree-power-reroll" aria-label="TREE Reroll">

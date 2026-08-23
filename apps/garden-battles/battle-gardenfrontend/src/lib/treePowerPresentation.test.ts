@@ -146,7 +146,7 @@ test("practice mode disables TREE payment utilities", () => {
   assert.equal(reroll.status, "mode-excluded");
   assert.equal(reroll.disabled, true);
   assert.equal(reroll.buttonLabel, "Not Used in Practice");
-  assert.match(reroll.helperText, /live paid-PvP feature/i);
+  assert.match(reroll.helperText, /Garden Bot includes one free reroll/i);
 });
 
 test("reroll design state is not live without a configured cost", () => {
@@ -166,6 +166,7 @@ test("all reroll states return deterministic presentation", () => {
   const states: TreeRerollStatus[] = [
     "unavailable",
     "available-in-pvp",
+    "free-in-garden-bot",
     "waiting-turn",
     "mode-excluded",
     "available",
@@ -188,17 +189,17 @@ test("all reroll states return deterministic presentation", () => {
   }
 });
 
-test("reroll is advertised as live when no paid PvP match is active", () => {
+test("reroll clearly distinguishes free Garden Bot and paid PvP modes", () => {
   const reroll = getTreeRerollPresentation({
     isPracticeBattle: false,
     rerollStatus: "available-in-pvp",
     rerollCostTree: 20_000,
   });
 
-  assert.equal(reroll.statusLabel, "Live in Paid PvP");
-  assert.equal(reroll.costLabel, "20,000 TREE");
+  assert.equal(reroll.statusLabel, "Live by Battle Mode");
+  assert.equal(reroll.costLabel, "Garden Bot: Free · PvP: 20,000 TREE");
   assert.doesNotMatch(`${reroll.statusLabel} ${reroll.buttonLabel}`, /unavailable/i);
-  assert.match(reroll.helperText, /replace your entire hand once/i);
+  assert.match(reroll.helperText, /Garden Bot gives one free four-card reroll/i);
 });
 
 test("Buy TREE URL opens the TREE Command Center swap", () => {

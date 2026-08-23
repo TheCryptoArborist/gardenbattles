@@ -34,7 +34,7 @@ import {
 import PrizePayoutPanel from "@/components/PrizePayoutPanel";
 import BattleResultModal from "@/components/BattleResultModal";
 import ModeCrest from "@/components/ModeCrest";
-import MoveCardFace from "@/components/MoveCardFace";
+import MoveCardFace, { getMoveIconUrl } from "@/components/MoveCardFace";
 import CardGuide from "@/components/CardGuide";
 import TreeBenefitsDrawer from "@/components/TreeBenefitsDrawer";
 import NftreeAcquisitionDrawer from "@/components/NftreeAcquisitionDrawer";
@@ -992,6 +992,9 @@ export default function Battle() {
   const lastOpponentMoveId = [...effectiveActionLog]
     .reverse()
     .find((entry) => entry.actor === "opponent" && entry.moveId > 0)?.moveId;
+  const lastOpponentMove = [...effectiveActionLog]
+    .reverse()
+    .find((entry) => entry.actor === "opponent" && entry.moveId > 0);
   const growthMoveCount = playerMoves.filter(moveGrowsSelf).length;
   const handSummary = formatHandSummary(playerMoves);
   const handNeedsReroll =
@@ -1053,6 +1056,14 @@ export default function Battle() {
     isBattleRefreshPending ||
     (!!recoverableBattleError && !isPracticeActive && !!battleState);
   const rerollBattleSupported = battleState?.battleVersion === "pvp-v3";
+  const freeGardenBotRerollSupported = battleState?.battleVersion === "bot-v2";
+  const freeGardenBotRerollCanUse =
+    !isPracticeActive &&
+    freeGardenBotRerollSupported &&
+    !battleFinished &&
+    isMyTurn &&
+    !rerollUsed &&
+    !moveControlsLocked;
   const rerollCanReview =
     !isPracticeActive &&
     rerollBattleSupported &&
@@ -1080,6 +1091,23 @@ export default function Battle() {
             : /cancel/i.test(message)
               ? "TREE Reroll was cancelled. No TREE was charged."
               : message;
+      showInlineError(friendly);
+    }
+  };
+  const handleFreeGardenBotReroll = async () => {
+    if (!freeGardenBotRerollCanUse) return;
+    setInlineError(null);
+    try {
+      await rerollHand();
+    } catch (error: any) {
+      const message = error?.message ?? "The free Garden Bot reroll could not be completed.";
+      const friendly = /202|already.*used/i.test(message)
+        ? "Your free Garden Bot reroll has already been used in this battle."
+        : /203|turn/i.test(message)
+          ? "Wait for your turn before rerolling."
+          : /cancel/i.test(message)
+            ? "The free reroll was cancelled. Your hand was not changed."
+            : message;
       showInlineError(friendly);
     }
   };
@@ -1308,8 +1336,12 @@ export default function Battle() {
   const matchLiveStatus =
     isTreeRerollTransactionPending
       ? treeRerollLifecycleStage === "awaiting-wallet-approval"
-        ? "Approve TREE Reroll in wallet"
-        : "TREE Reroll pending"
+        ? freeGardenBotRerollSupported
+          ? "Approve free reroll in wallet"
+          : "Approve TREE Reroll in wallet"
+        : freeGardenBotRerollSupported
+          ? "Free reroll pending"
+          : "TREE Reroll pending"
       : pendingMoveId !== null || isMoveTransactionPending
       ? "Move transaction pending"
       : isBattleRefreshPending
@@ -1484,6 +1516,16 @@ export default function Battle() {
       setIsResultPlayAgainStarting(false);
       setIsStartingBot(false);
     }
+  };
+  const handlePvpRevenge = () => {
+    markResultDismissed();
+    setModeCardsExpanded(true);
+    window.setTimeout(() => {
+      document.querySelector<HTMLElement>(".gb-mode-card-pvp")?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    }, 50);
   };
 
   const handleNativeShareWin = async () => {
@@ -2169,6 +2211,7 @@ export default function Battle() {
             }}
           >
             <div
+              className={`gb-battle-slot-label${winner === "player" ? " gb-battle-slot-label-winner" : winner === "opponent" ? " gb-battle-slot-label-loser" : ""}`}
               style={{
                 marginBottom: "8px",
                 padding: "5px 12px",
@@ -2181,7 +2224,7 @@ export default function Battle() {
                 textTransform: "uppercase",
               }}
             >
-              You
+              {winner === "player" ? "Winner" : winner === "opponent" ? "You Lose" : "You"}
             </div>
             <div
               className={`${playerAnimation} gb-battle-tree-portrait`}
@@ -2234,30 +2277,6 @@ export default function Battle() {
                 }}
                 data-testid="nft-image-player"
               />
-              {winner === "player" && (
-                <div
-                  style={{
-                    position: "absolute",
-                    top: 0,
-                    left: 0,
-                    width: "100%",
-                    height: "100%",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    zIndex: 2,
-                  }}
-                >
-                  <Trophy
-                    style={{
-                      width: "96px",
-                      height: "96px",
-                      color: "#00ff00",
-                      filter: "drop-shadow(0 0 20px #00ff00)",
-                    }}
-                  />
-                </div>
-              )}
             </div>
             <p
               style={{
@@ -2307,6 +2326,15 @@ export default function Battle() {
             >
               {playerGrowth} / {displayGrowthTarget}
             </p>
+            {winner === "opponent" && (
+              <button
+                type="button"
+                className="gb-battle-result-slot-action"
+                onClick={isGardenBotBattle ? handlePlayAgainFromResult : handlePvpRevenge}
+              >
+                {isGardenBotBattle ? "Play Again" : "Revenge"}
+              </button>
+            )}
           </div>
 
           {/* VS - Centered on mobile */}
@@ -2339,6 +2367,7 @@ export default function Battle() {
             }}
           >
             <div
+              className={`gb-battle-slot-label${winner === "opponent" ? " gb-battle-slot-label-winner" : winner === "player" ? " gb-battle-slot-label-loser" : ""}`}
               style={{
                 marginBottom: "8px",
                 padding: "5px 12px",
@@ -2351,7 +2380,13 @@ export default function Battle() {
                 textTransform: "uppercase",
               }}
             >
-              {isGardenBotBattle ? "Garden Bot" : "Opponent"}
+              {winner === "opponent"
+                ? "Winner"
+                : winner === "player"
+                  ? "You Lose"
+                  : isGardenBotBattle
+                    ? "Garden Bot"
+                    : "Opponent"}
             </div>
             <div
               className={`${opponentAnimation} gb-battle-tree-portrait`}
@@ -2404,30 +2439,6 @@ export default function Battle() {
                 }}
                 data-testid="nft-image-opponent"
               />
-              {winner === "opponent" && (
-                <div
-                  style={{
-                    position: "absolute",
-                    top: 0,
-                    left: 0,
-                    width: "100%",
-                    height: "100%",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    zIndex: 2,
-                  }}
-                >
-                  <Trophy
-                    style={{
-                      width: "96px",
-                      height: "96px",
-                      color: "#00ff00",
-                      filter: "drop-shadow(0 0 20px #00ff00)",
-                    }}
-                  />
-                </div>
-              )}
             </div>
             <p
               style={{
@@ -2480,6 +2491,15 @@ export default function Battle() {
             >
               {opponentGrowth} / {displayGrowthTarget}
             </p>
+            {winner === "player" && (
+              <button
+                type="button"
+                className="gb-battle-result-slot-action"
+                onClick={isGardenBotBattle ? handlePlayAgainFromResult : handlePvpRevenge}
+              >
+                {isGardenBotBattle ? "Play Again" : "Revenge"}
+              </button>
+            )}
           </div>
           </div>
         </section>
@@ -2696,6 +2716,29 @@ export default function Battle() {
               </strong>
             </div>
 
+            {lastOpponentMove && (
+              <section className="gb-last-opponent-move" aria-label="Last opponent move">
+                <img
+                  src={getMoveIconUrl(lastOpponentMove.moveId) ?? undefined}
+                  alt=""
+                  loading="lazy"
+                  decoding="async"
+                />
+                <span className="gb-last-opponent-move-copy">
+                  <small>Last {isGardenBotBattle ? "Garden Bot" : "Opponent"} Card</small>
+                  <strong>{lastOpponentMove.label ?? MOVE_LABELS[lastOpponentMove.moveId] ?? "Move resolved"}</strong>
+                  <span>{lastOpponentMove.details?.[0] ?? "No visible Growth changed."}</span>
+                </span>
+                <span className="gb-last-opponent-move-result">
+                  You {lastOpponentMove.nextPlayerGrowth} · {isGardenBotBattle ? "Bot" : "Opponent"} {lastOpponentMove.nextOpponentGrowth}
+                </span>
+                <button type="button" onClick={() => openCardGuide(true)}>
+                  <BookOpen size={14} aria-hidden="true" />
+                  Counter Guide
+                </button>
+              </section>
+            )}
+
             <div className="gb-hand-toolbar">
               <span>
                 <small>Your Hand</small>
@@ -2740,10 +2783,14 @@ export default function Battle() {
             >
               {isTreeRerollTransactionPending
                 ? treeRerollLifecycleStage === "awaiting-wallet-approval"
-                  ? "Review and approve the TREE Reroll in your wallet..."
+                  ? freeGardenBotRerollSupported
+                    ? "Approve the free Garden Bot reroll in your wallet..."
+                    : "Review and approve the TREE Reroll in your wallet..."
                   : treeRerollLifecycleStage === "refreshing-battle"
                     ? "Reroll confirmed. Loading your new hand..."
-                    : "TREE Reroll submitted. Waiting for confirmation..."
+                    : freeGardenBotRerollSupported
+                      ? "Free reroll submitted. Waiting for confirmation..."
+                      : "TREE Reroll submitted. Waiting for confirmation..."
                 : isBattleRefreshPending
                   ? "Refreshing battle state from chain..."
                 : pendingMoveId !== null
@@ -2768,8 +2815,8 @@ export default function Battle() {
                 }}
               >
                 {handNeedsReroll
-                  ? "Bad Garden Bot hand detected. You have fewer than two moves that grow your tree; start a new bot hand to avoid a stalled match."
-                  : "Garden Bot is at 0 Growth. Attack moves cannot push that bar lower; use growth or start a new bot hand."}
+                  ? "This hand has fewer than two moves that grow your tree. Use your free reroll to replace the four standard cards."
+                  : "Garden Bot is at 0 Growth. Attack moves cannot push that bar lower; use a Growth move or your free reroll."}
               </div>
             )}
 
@@ -2907,6 +2954,28 @@ export default function Battle() {
                   </button>
                 </div>
               </div>
+            )}
+
+            {!isPracticeActive && freeGardenBotRerollSupported && (
+              <section className="gb-free-bot-reroll" aria-label="Free Garden Bot reroll">
+                <span>
+                  <strong>Free Garden Bot Reroll · {rerollUsed ? "Used" : "One Per Battle"}</strong>
+                  <small>Replace the four standard cards. Your Growth, turn, and bonus fifth card stay unchanged.</small>
+                </span>
+                <button
+                  type="button"
+                  onClick={handleFreeGardenBotReroll}
+                  disabled={!freeGardenBotRerollCanUse}
+                >
+                  {rerollUsed
+                    ? "Free Reroll Used"
+                    : isTreeRerollTransactionPending
+                      ? "Reroll Pending"
+                      : !isMyTurn
+                        ? "Available on Your Turn"
+                        : "Reroll Four Cards Free"}
+                </button>
+              </section>
             )}
 
             {!isPracticeActive && rerollBattleSupported && (
@@ -3195,31 +3264,6 @@ export default function Battle() {
                     >
                       {isForfeiting ? "Forfeiting..." : "Forfeit Battle"}
                     </button>
-                    {isGardenBotBattle && (attacksAreStalled || handNeedsReroll) && (
-                      <button
-                        className="gb-battle-new-hand-button"
-                        onClick={handleStartBotBattle}
-                        disabled={isStartingBot}
-                        style={{
-                      minHeight: "48px",
-                      padding: "14px 18px",
-                      borderRadius: "10px",
-                      border: "2px solid #00e5ff",
-                      background: isStartingBot
-                        ? "rgba(0, 90, 100, 0.5)"
-                        : "linear-gradient(45deg, #00e5ff, #00ffaa)",
-                      color: isStartingBot ? "#d4f8ff" : "#001414",
-                      cursor: isStartingBot ? "not-allowed" : "pointer",
-                      fontWeight: "bold",
-                      textTransform: "uppercase",
-                      boxShadow: isStartingBot
-                        ? "none"
-                        : "0 0 18px rgba(0, 229, 255, 0.45)",
-                        }}
-                      >
-                        {isStartingBot ? "Dealing..." : "Deal a New Hand"}
-                      </button>
-                    )}
                     {canClaimTimeout && (
                       <button
                         onClick={handleClaimTimeout}
@@ -3286,7 +3330,7 @@ export default function Battle() {
           </div>}
 
         {/* Battle Info */}
-        {(!battleState || battleFinished) && <p
+        {!battleState && <p
           style={{
             margin: "15px 0",
             fontSize: "clamp(14px, 3.5vw, 20px)",
@@ -3297,7 +3341,7 @@ export default function Battle() {
         >
           {battleInfoText}
         </p>}
-        {(!battleState || battleFinished) && <p
+        {!battleState && <p
           style={{
             marginTop: "15px",
             fontSize: "clamp(14px, 3.5vw, 20px)",
@@ -3370,8 +3414,10 @@ export default function Battle() {
             isPracticeBattle={isPracticeActive}
             currentMoveCount={fifthMoveDraft.pending ? 5 : playerMoves.length}
             rerollStatus={
-              isPracticeActive || isGardenBotBattle
+              isPracticeActive
                 ? "mode-excluded"
+                : isGardenBotBattle
+                  ? "free-in-garden-bot"
                 : !rerollBattleSupported
                   ? "available-in-pvp"
                 : rerollUsed

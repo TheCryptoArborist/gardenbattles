@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import {
   getQueueClearTransitionKey,
   preserveBattleTransactionDigest,
+  shouldAcceptBattleState,
   resolvePvpHydrationMode,
   shouldRunQueueClearDiscovery,
   shouldSuppressQueueRecovery,
@@ -112,6 +113,45 @@ describe("pvp queue lifecycle helpers", () => {
         eventDigest: "eventDigest",
       }),
       "liveDigest",
+    );
+  });
+
+  it("does not let an older completed battle replace the latest result", () => {
+    assert.equal(
+      shouldAcceptBattleState({
+        currentBattleId: "0xnew",
+        currentLastMoveMs: 200,
+        currentFinished: true,
+        nextBattleId: "0xold",
+        nextLastMoveMs: 100,
+        nextFinished: true,
+      }),
+      false,
+    );
+  });
+
+  it("accepts a newer battle and a new live battle after a finished result", () => {
+    assert.equal(
+      shouldAcceptBattleState({
+        currentBattleId: "0xold",
+        currentLastMoveMs: 100,
+        currentFinished: true,
+        nextBattleId: "0xnew",
+        nextLastMoveMs: 200,
+        nextFinished: true,
+      }),
+      true,
+    );
+    assert.equal(
+      shouldAcceptBattleState({
+        currentBattleId: "0xold",
+        currentLastMoveMs: 100,
+        currentFinished: true,
+        nextBattleId: "0xlive",
+        nextLastMoveMs: 0,
+        nextFinished: false,
+      }),
+      true,
     );
   });
 });

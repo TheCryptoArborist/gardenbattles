@@ -1251,6 +1251,11 @@
     width: min(100%, 330px);
   }
 
+  .gb-tree-status-card {
+    min-height: 118px;
+    width: min(100%, 390px);
+  }
+
   .gb-hud-rank-crest-shell {
     align-items: center;
     background:
@@ -2504,7 +2509,7 @@
     display: flex;
     flex-direction: column;
     gap: 7px;
-    max-height: 230px;
+    max-height: 360px;
     overflow-x: hidden;
     overflow-y: auto;
     overscroll-behavior: contain;
@@ -2734,6 +2739,29 @@
     text-transform: uppercase;
   }
 
+  .gb-last-opponent-move {
+    align-items: center;
+    background: linear-gradient(135deg, rgba(62, 20, 4, 0.96), rgba(22, 7, 2, 0.96));
+    border: 1px solid rgba(255, 138, 42, 0.82);
+    border-left: 4px solid #ff8a2a;
+    border-radius: 10px;
+    box-shadow: 0 0 18px rgba(255, 138, 42, 0.14);
+    display: grid;
+    gap: 10px;
+    grid-template-columns: 54px minmax(0, 1fr) auto auto;
+    margin-bottom: 9px;
+    padding: 9px 10px;
+    text-align: left;
+  }
+  .gb-last-opponent-move > img { height: 52px; object-fit: contain; width: 52px; }
+  .gb-last-opponent-move-copy { display: grid; gap: 2px; min-width: 0; }
+  .gb-last-opponent-move-copy small { color: #ffb46f; font-size: 8px; font-weight: 950; letter-spacing: 0.08em; text-transform: uppercase; }
+  .gb-last-opponent-move-copy strong { color: #fff8ef; font-size: 13px; overflow-wrap: anywhere; }
+  .gb-last-opponent-move-copy > span,
+  .gb-last-opponent-move-result { color: rgba(255, 244, 232, 0.76); font-family: system-ui, sans-serif; font-size: 11px; line-height: 1.35; }
+  .gb-last-opponent-move-result { background: rgba(0, 0, 0, 0.28); border: 1px solid rgba(255, 138, 42, 0.32); border-radius: 7px; padding: 7px 9px; white-space: nowrap; }
+  .gb-last-opponent-move > button { align-items: center; background: rgba(255, 220, 72, 0.1); border: 1px solid rgba(255, 220, 72, 0.66); border-radius: 8px; color: #fff1a4; display: inline-flex; font-family: Orbitron, sans-serif; font-size: 8px; font-weight: 900; gap: 5px; min-height: 38px; padding: 7px 9px; text-transform: uppercase; }
+
   .gb-fifth-picker {
     background: linear-gradient(145deg, rgba(40, 4, 67, 0.94), rgba(16, 0, 31, 0.95));
     border: 2px solid #b56cff;
@@ -2742,6 +2770,25 @@
     margin-bottom: 14px;
     padding: 14px;
   }
+
+  .gb-free-bot-reroll {
+    align-items: center;
+    background: linear-gradient(135deg, rgba(0, 76, 70, 0.94), rgba(0, 32, 39, 0.96));
+    border: 1px solid #25e9d5;
+    border-radius: 11px;
+    box-shadow: 0 0 16px rgba(37, 233, 213, 0.14);
+    display: flex;
+    gap: 12px;
+    justify-content: space-between;
+    margin-bottom: 14px;
+    padding: 11px 13px;
+    text-align: left;
+  }
+  .gb-free-bot-reroll > span { display: grid; gap: 4px; min-width: 0; }
+  .gb-free-bot-reroll strong { color: #bffff5; font-size: 12px; letter-spacing: 0.04em; text-transform: uppercase; }
+  .gb-free-bot-reroll small { color: rgba(231, 255, 250, 0.78); font-family: system-ui, sans-serif; font-size: 11px; line-height: 1.4; }
+  .gb-free-bot-reroll button { background: linear-gradient(135deg, #23ead4, #56ff9d); border: 1px solid #baffec; border-radius: 8px; color: #001b17; flex: 0 0 auto; font-family: Orbitron, sans-serif; font-size: 9px; font-weight: 950; min-height: 42px; padding: 9px 12px; text-transform: uppercase; }
+  .gb-free-bot-reroll button:disabled { background: rgba(78, 104, 102, 0.36); border-color: rgba(186, 255, 236, 0.28); color: rgba(230, 255, 249, 0.52); }
 
   .gb-fifth-picker-title {
     color: #f1dcff;
@@ -2827,12 +2874,17 @@
   .gb-battle-log-round-icon { align-items: center; color: var(--log-accent); display: flex; font-size: 25px; justify-content: center; }
   .gb-battle-log-summary-copy { display: grid; gap: 3px; min-width: 0; }
   .gb-battle-log-result { color: rgba(234, 255, 246, 0.78); font-family: system-ui, sans-serif; font-size: 11px; line-height: 1.35; }
+  .gb-battle-log-effect { color: rgba(255, 255, 255, 0.88); font-family: system-ui, sans-serif; font-size: 11px; line-height: 1.4; overflow-wrap: anywhere; }
   .gb-battle-log-chevron { color: var(--log-accent); font-size: 17px; transform: rotate(0deg); transition: transform 160ms ease; }
   .gb-battle-log-summary[aria-expanded="true"] .gb-battle-log-chevron { transform: rotate(180deg); }
   .gb-battle-log-entry .gb-battle-log-body { border-top: 1px solid color-mix(in srgb, var(--log-accent) 24%, transparent); padding: 8px 10px 10px 64px; }
   .gb-battle-log-entry .gb-battle-log-detail { font-family: system-ui, sans-serif; font-size: 11px; line-height: 1.45; margin: 0; }
 
   .gb-battle-page-active footer { display: none; }
+
+  .gb-battle-slot-label-winner { border-color: #53ff91 !important; background: linear-gradient(135deg, rgba(0, 108, 53, 0.96), rgba(0, 48, 34, 0.96)) !important; color: #eafff1 !important; box-shadow: 0 0 18px rgba(57, 255, 136, 0.48); }
+  .gb-battle-slot-label-loser { border-color: #ff525c !important; background: linear-gradient(135deg, rgba(125, 10, 24, 0.96), rgba(49, 3, 11, 0.96)) !important; color: #fff0f1 !important; box-shadow: 0 0 16px rgba(255, 50, 65, 0.34); }
+  .gb-battle-result-slot-action { background: linear-gradient(135deg, #ff9b28, #ffcf48); border: 1px solid #ffe49a; border-radius: 8px; color: #241000; font-family: Orbitron, sans-serif; font-size: 10px; font-weight: 950; margin-top: 8px; min-height: 38px; padding: 8px 14px; text-transform: uppercase; }
 
   .gb-move-card-grid .gb-battle-move-card:not(.gb-battle-move-card-fifth) .gb-move-face {
     gap: 8px;
@@ -2902,6 +2954,12 @@
     .gb-battle-log-result { font-size: 12px; }
     .gb-battle-log-entry .gb-battle-log-detail { font-size: 12px; }
     .gb-battle-log-entry .gb-battle-log-body { padding-left: 58px; }
+    .gb-last-opponent-move { grid-template-columns: 46px minmax(0, 1fr); }
+    .gb-last-opponent-move > img { height: 44px; width: 44px; }
+    .gb-last-opponent-move-result { white-space: normal; }
+    .gb-last-opponent-move > button { justify-content: center; }
+    .gb-free-bot-reroll { align-items: stretch; flex-direction: column; }
+    .gb-free-bot-reroll button { width: 100%; }
     .gb-battle-secondary-controls { gap: 8px !important; }
   }
 
@@ -4264,6 +4322,7 @@
   .gb-leaderboard-player-identity {
     display: inline-flex;
     flex-direction: column;
+    flex: 0 0 auto;
     gap: 3px;
     max-width: min(360px, 100%);
     min-width: 0;
@@ -5810,6 +5869,11 @@
 
   .gb-leaderboard-status-cluster .gb-holder-rank-balance {
     padding-top: 4px;
+  }
+
+  .gb-leaderboard-status-cluster .gb-tree-status-qualifying,
+  .gb-leaderboard-status-cluster .gb-tree-status-sources {
+    display: none;
   }
 
   .gb-leaderboard-status-cluster .gb-player-record-streak {
@@ -8790,6 +8854,63 @@
     max-width: 190px;
     text-align: right;
     white-space: normal;
+  }
+
+  .gb-tree-status-qualifying {
+    color: #7fffb2;
+    font-size: 9px;
+    font-weight: 850;
+    line-height: 1.25;
+  }
+
+  .gb-tree-status-next-tier {
+    color: rgba(255, 224, 149, 0.76);
+    font-size: 7px;
+    font-weight: 750;
+    line-height: 1.25;
+  }
+
+  .gb-tree-status-sources {
+    display: grid;
+    gap: 4px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .gb-tree-status-sources > span {
+    align-content: center;
+    background: rgba(0, 0, 0, 0.22);
+    border: 1px solid rgba(127, 255, 178, 0.2);
+    border-radius: 5px;
+    color: rgba(232, 255, 242, 0.76);
+    font-size: 7px;
+    line-height: 1.2;
+    min-width: 0;
+    overflow-wrap: anywhere;
+    padding: 3px 4px;
+    text-align: center;
+  }
+
+  .gb-tree-status-sources > span > strong,
+  .gb-tree-status-sources > span > span {
+    display: block;
+  }
+
+  .gb-tree-status-sources > span > strong {
+    color: rgba(234, 255, 244, 0.95);
+    font-size: 7px;
+    letter-spacing: 0.35px;
+    text-transform: uppercase;
+  }
+
+  .gb-tree-status-sources > span[data-status="qualified-data"] {
+    border-color: rgba(57, 255, 136, 0.52);
+    box-shadow: inset 0 0 10px rgba(57, 255, 136, 0.08);
+  }
+
+  .gb-tree-status-sources > span[data-status="unavailable"] {
+    border-color: rgba(255, 203, 79, 0.34);
+    color: rgba(255, 224, 149, 0.78);
   }
 
   .gb-tree-power-panel-compact .gb-tree-power-source-chips {

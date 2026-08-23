@@ -434,6 +434,28 @@ module battle_garden::battle {
         moves
     }
 
+    /// Replaces only the four standard Garden Bot cards. A pending fifth-card
+    /// draft or the already-selected fifth card is preserved exactly.
+    fun gen_free_ranked_bot_reroll_moves(
+        old_moves: &vector<u8>,
+        entitled: bool,
+        rand: &Random,
+        ctx: &mut TxContext,
+    ): vector<u8> {
+        let mut moves = gen_reroll_moves(old_moves, false, rand, ctx);
+        if (!entitled) return moves;
+
+        let old_length = vector::length(old_moves);
+        if (old_length == 7) {
+            vector::push_back(&mut moves, *vector::borrow(old_moves, 4));
+            vector::push_back(&mut moves, *vector::borrow(old_moves, 5));
+            vector::push_back(&mut moves, *vector::borrow(old_moves, 6));
+        } else if (old_length >= 5) {
+            vector::push_back(&mut moves, *vector::borrow(old_moves, 4));
+        };
+        moves
+    }
+
     fun charge_reroll<T>(
         tree_config: &TreeConfig,
         mut payment: coin::Coin<T>,
@@ -2389,6 +2411,28 @@ module battle_garden::battle {
         };
 
         emit_update_v3(battle);
+    }
+
+    /// Gives every ranked Garden Bot player one free four-card reroll per
+    /// battle. It preserves the turn, Growth, and fifth-card choice/draft.
+    public entry fun reroll_ranked_bot_v2_moves_free(
+        battle: &mut RankedBotBattleV2,
+        rand: &Random,
+        ctx: &mut TxContext,
+    ) {
+        assert!(!battle.finished, errors::e_battle_finished());
+        assert!(tx_context::sender(ctx) == battle.player1, errors::e_unauthorized_player());
+        assert!(battle.turn == 0, errors::e_reroll_not_players_turn());
+        assert!(!battle.p1_reroll_used, errors::e_reroll_already_used());
+
+        battle.p1_moves = gen_free_ranked_bot_reroll_moves(
+            &battle.p1_moves,
+            battle.p1_fifth_move_entitled,
+            rand,
+            ctx,
+        );
+        battle.p1_reroll_used = true;
+        emit_update_ranked_bot_v2(battle);
     }
 
     /// Retained for package compatibility. Garden Bot rerolls are disabled.

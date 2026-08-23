@@ -19,10 +19,90 @@ using System;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
+using System.IO;
 using System.Runtime.InteropServices;
 
 public static class BattleArtProcessor
 {
+    public static void CleanTransparentEdge(string imagePath)
+    {
+        var temporaryPath = imagePath + ".edge-clean.png";
+        using (var source = new Bitmap(imagePath))
+        using (var bitmap = new Bitmap(source.Width, source.Height, PixelFormat.Format32bppArgb))
+        {
+            using (var graphics = Graphics.FromImage(bitmap))
+            {
+                graphics.Clear(Color.Transparent);
+                graphics.CompositingMode = CompositingMode.SourceCopy;
+                graphics.DrawImageUnscaled(source, 0, 0);
+            }
+
+            var rect = new Rectangle(0, 0, bitmap.Width, bitmap.Height);
+            var data = bitmap.LockBits(rect, ImageLockMode.ReadWrite, PixelFormat.Format32bppArgb);
+            try
+            {
+                var bytes = new byte[Math.Abs(data.Stride) * bitmap.Height];
+                Marshal.Copy(data.Scan0, bytes, 0, bytes.Length);
+
+                for (var pass = 0; pass < 3; pass++)
+                {
+                    var remove = new bool[bitmap.Width * bitmap.Height];
+                    for (var y = 0; y < bitmap.Height; y++)
+                    for (var x = 0; x < bitmap.Width; x++)
+                    {
+                        var offset = y * data.Stride + x * 4;
+                        var alpha = bytes[offset + 3];
+                        if (alpha == 0) continue;
+                        var blue = bytes[offset];
+                        var green = bytes[offset + 1];
+                        var red = bytes[offset + 2];
+                        var max = Math.Max(red, Math.Max(green, blue));
+                        var min = Math.Min(red, Math.Min(green, blue));
+                        if (min < 205 || max - min > 48) continue;
+
+                        var touchesTransparency = false;
+                        for (var ny = Math.Max(0, y - 1); ny <= Math.Min(bitmap.Height - 1, y + 1) && !touchesTransparency; ny++)
+                        for (var nx = Math.Max(0, x - 1); nx <= Math.Min(bitmap.Width - 1, x + 1); nx++)
+                        {
+                            if (bytes[ny * data.Stride + nx * 4 + 3] < 24) { touchesTransparency = true; break; }
+                        }
+                        if (touchesTransparency) remove[y * bitmap.Width + x] = true;
+                    }
+
+                    for (var y = 0; y < bitmap.Height; y++)
+                    for (var x = 0; x < bitmap.Width; x++)
+                    {
+                        if (remove[y * bitmap.Width + x]) bytes[y * data.Stride + x * 4 + 3] = 0;
+                    }
+                }
+
+                // Remove a white matte from partially transparent edge pixels.
+                for (var y = 0; y < bitmap.Height; y++)
+                for (var x = 0; x < bitmap.Width; x++)
+                {
+                    var offset = y * data.Stride + x * 4;
+                    var alpha = bytes[offset + 3];
+                    if (alpha == 0 || alpha == 255) continue;
+                    var fraction = alpha / 255.0;
+                    for (var channel = 0; channel < 3; channel++)
+                    {
+                        var corrected = (bytes[offset + channel] - 255.0 * (1.0 - fraction)) / fraction;
+                        bytes[offset + channel] = (byte)Math.Max(0, Math.Min(255, Math.Round(corrected)));
+                    }
+                }
+
+                Marshal.Copy(bytes, 0, data.Scan0, bytes.Length);
+            }
+            finally
+            {
+                bitmap.UnlockBits(data);
+            }
+            bitmap.Save(temporaryPath, ImageFormat.Png);
+        }
+        File.Copy(temporaryPath, imagePath, true);
+        File.Delete(temporaryPath);
+    }
+
     public static void Extract(string sourcePath, string outputPath, Rectangle region, int tolerance)
     {
         using (var source = new Bitmap(sourcePath))
@@ -34,7 +114,7 @@ public static class BattleArtProcessor
                 graphics.DrawImage(source, new Rectangle(0, 0, region.Width, region.Height), region, GraphicsUnit.Pixel);
             }
 
-            RemoveConnectedBackground(cropped, tolerance);
+            RemoveBackground(cropped, tolerance);
             var bounds = FindVisibleBounds(cropped);
             if (bounds.IsEmpty) throw new InvalidOperationException("No visible artwork found in " + sourcePath);
 
@@ -61,7 +141,7 @@ public static class BattleArtProcessor
         }
     }
 
-    private static void RemoveConnectedBackground(Bitmap bitmap, int tolerance)
+    private static void RemoveBackground(Bitmap bitmap, int tolerance)
     {
         var rect = new Rectangle(0, 0, bitmap.Width, bitmap.Height);
         var data = bitmap.LockBits(rect, ImageLockMode.ReadWrite, PixelFormat.Format32bppArgb);
@@ -103,6 +183,44 @@ public static class BattleArtProcessor
                 var offset = y * data.Stride + x * 4;
                 bytes[offset + 3] = 0;
                 enqueue(x - 1, y); enqueue(x + 1, y); enqueue(x, y - 1); enqueue(x, y + 1);
+            }
+
+            // JPEG backgrounds can remain trapped inside closed branch, root,
+            // cable, or armor shapes. Remove those background-colored islands
+            // too, while retaining small pale details (for example teeth) when
+            // they are tightly surrounded by dark linework.
+            for (var y = 0; y < bitmap.Height; y++)
+            for (var x = 0; x < bitmap.Width; x++)
+            {
+                var offset = y * data.Stride + x * 4;
+                if (bytes[offset + 3] == 0) continue;
+                var blue = bytes[offset];
+                var green = bytes[offset + 1];
+                var red = bytes[offset + 2];
+                var db = blue - bgB;
+                var dg = green - bgG;
+                var dr = red - bgR;
+                var distanceMatches = db * db + dg * dg + dr * dr <= toleranceSquared;
+                var maxChannel = Math.Max(red, Math.Max(green, blue));
+                var minChannel = Math.Min(red, Math.Min(green, blue));
+                var luminanceHere = red * 0.2126 + green * 0.7152 + blue * 0.0722;
+                var neutralJpegHalo = luminanceHere > 218 && maxChannel - minChannel < 38;
+                if (!distanceMatches && !neutralJpegHalo) continue;
+
+                var darkNeighbors = 0;
+                for (var ny = Math.Max(0, y - 4); ny <= Math.Min(bitmap.Height - 1, y + 4); ny++)
+                for (var nx = Math.Max(0, x - 4); nx <= Math.Min(bitmap.Width - 1, x + 4); nx++)
+                {
+                    var neighborOffset = ny * data.Stride + nx * 4;
+                    if (bytes[neighborOffset + 3] == 0) continue;
+                    var luminance =
+                        bytes[neighborOffset + 2] * 0.2126 +
+                        bytes[neighborOffset + 1] * 0.7152 +
+                        bytes[neighborOffset] * 0.0722;
+                    if (luminance < 72) darkNeighbors++;
+                }
+
+                if (darkNeighbors < 13) bytes[offset + 3] = 0;
             }
 
             Marshal.Copy(bytes, 0, data.Scan0, bytes.Length);
@@ -176,6 +294,11 @@ foreach ($stage in $botStages) {
     $image.Dispose()
   }
   [BattleArtProcessor]::Extract($source, (Join-Path $OutputDirectory $stage.Name), $region, 52)
+}
+
+$canopyClashCrest = "D:\Finance\Crypto\Repos\gardenbattles\apps\garden-battles\battle-gardenfrontend\public\assets\mode-crests\canopy-clash-crest.png"
+if (Test-Path -LiteralPath $canopyClashCrest) {
+  [BattleArtProcessor]::CleanTransparentEdge($canopyClashCrest)
 }
 
 Get-ChildItem -LiteralPath $OutputDirectory -Filter "*.png" | Sort-Object Name | Select-Object Name, Length

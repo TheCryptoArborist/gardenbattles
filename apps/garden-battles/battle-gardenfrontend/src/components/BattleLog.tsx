@@ -56,6 +56,7 @@ export default function BattleLog({
   opponentLabel = "Opponent",
 }: BattleLogProps) {
   const logRef = useRef<HTMLDivElement>(null);
+  const followLatestRef = useRef(true);
   const [expandedEntries, setExpandedEntries] = useState<Set<string>>(() => new Set());
 
   const visibleEntries = useMemo(
@@ -68,9 +69,15 @@ export default function BattleLog({
 
   useEffect(() => {
     const log = logRef.current;
-    if (log) {
+    if (log && followLatestRef.current) {
       log.scrollTop = log.scrollHeight;
     }
+  }, [visibleEntries.length]);
+
+  useEffect(() => {
+    const latest = visibleEntries[visibleEntries.length - 1];
+    if (!latest?.details?.length) return;
+    setExpandedEntries(new Set([latest.id]));
   }, [visibleEntries.length]);
 
   if (visibleEntries.length === 0) {
@@ -82,7 +89,14 @@ export default function BattleLog({
   }
 
   return (
-    <div ref={logRef} className="gb-battle-log">
+    <div
+      ref={logRef}
+      className="gb-battle-log"
+      onScroll={(event) => {
+        const log = event.currentTarget;
+        followLatestRef.current = log.scrollHeight - log.scrollTop - log.clientHeight < 80;
+      }}
+    >
       {visibleEntries.map((entry) => {
         const hasDetails = !!entry.details?.length;
         const isRoundEntry = isRoundResultEntry(entry);
@@ -114,6 +128,7 @@ export default function BattleLog({
 
         const iconUrl = !isRoundEntry && entry.moveId > 0 ? getMoveIconUrl(entry.moveId) : null;
         const summary = resultSummary(entry, opponentLabel);
+        const effectSummary = !isRoundEntry ? entry.details?.join(" ") : null;
 
         return (
           <article key={entry.id} className={`gb-battle-log-entry ${entryClass}`}>
@@ -137,6 +152,7 @@ export default function BattleLog({
                   </span>
                 </span>
                 <span className="gb-battle-log-move-name">{label}</span>
+                {effectSummary && <span className="gb-battle-log-effect">{effectSummary}</span>}
                 <span className="gb-battle-log-result">{summary}</span>
               </span>
               <span className="gb-battle-log-chevron" aria-hidden="true">⌄</span>
