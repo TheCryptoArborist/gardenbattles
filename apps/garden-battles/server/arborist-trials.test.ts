@@ -19,6 +19,14 @@ test("today endpoint exposes a deterministic empty daily board", () => {
   assert.equal(response.rankedAttemptUsed, false);
   assert.equal(response.result, null);
   assert.equal(response.streak, 0);
+  assert.equal(response.checkIns.length, 7);
+  assert.deepEqual(response.checkIns.at(-1), {
+    date: "2026-08-23",
+    completed: false,
+    won: false,
+  });
+  assert.equal(response.achievements.length, 7);
+  assert.equal(response.achievements.every((badge) => !badge.earned), true);
 });
 
 test("ranked submission rejects invalid wallets before writing a result", async () => {

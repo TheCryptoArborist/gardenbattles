@@ -50,6 +50,61 @@ function calculateStreak(wallet: string, startingDate: string): number {
   return streak;
 }
 
+function buildCheckIns(wallet: string | null, startingDate: string) {
+  const history = wallet ? getArboristTrialWalletHistory(wallet, 7) : [];
+  const byDate = new Map(history.map((row) => [row.challenge_date, row]));
+  return Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(`${startingDate}T12:00:00.000Z`);
+    date.setUTCDate(date.getUTCDate() - (6 - index));
+    const dateKey = date.toISOString().slice(0, 10);
+    const result = byDate.get(dateKey);
+    return {
+      date: dateKey,
+      completed: !!result,
+      won: result?.won === 1,
+    };
+  });
+}
+
+function dayDistance(newer: string, older: string) {
+  return Math.round((Date.parse(`${newer}T12:00:00.000Z`) - Date.parse(`${older}T12:00:00.000Z`)) / 86_400_000);
+}
+
+function maximumConsecutiveDays(history: ArboristTrialResultRow[], winsOnly: boolean) {
+  const qualifying = history.filter((row) => !winsOnly || row.won === 1);
+  let maximum = 0;
+  let current = 0;
+  let previousDate: string | null = null;
+  for (const row of qualifying) {
+    if (previousDate && dayDistance(previousDate, row.challenge_date) === 1) current += 1;
+    else current = 1;
+    maximum = Math.max(maximum, current);
+    previousDate = row.challenge_date;
+  }
+  return maximum;
+}
+
+function buildAchievements(wallet: string | null) {
+  const history = wallet ? getArboristTrialWalletHistory(wallet, 365) : [];
+  const wins = history.filter((row) => row.won === 1);
+  const checkInRun = maximumConsecutiveDays(history, false);
+  const winRun = maximumConsecutiveDays(history, true);
+  const definitions = [
+    { id: "first_checkin", progress: history.length, target: 1 },
+    { id: "canopy_conqueror", progress: wins.length, target: 1 },
+    { id: "steady_hands", progress: checkInRun, target: 3 },
+    { id: "toolbelt_tactician", progress: history.filter((row) => row.won === 1 && row.unique_moves >= 4).length, target: 1 },
+    { id: "speed_pruner", progress: history.filter((row) => row.won === 1 && row.rounds <= 8).length, target: 1 },
+    { id: "perfect_week", progress: checkInRun, target: 7 },
+    { id: "master_arborist", progress: winRun, target: 30 },
+  ];
+  return definitions.map((badge) => ({
+    ...badge,
+    earned: badge.progress >= badge.target,
+    progress: Math.min(badge.progress, badge.target),
+  }));
+}
+
 export function getTodayArboristTrial(walletInput?: string, now = new Date()) {
   const challenge = getArboristTrialChallenge(now);
   const wallet = walletInput ? normalizeSuiAddress(walletInput) : null;
@@ -60,6 +115,8 @@ export function getTodayArboristTrial(walletInput?: string, now = new Date()) {
     rankedAttemptUsed: !!result,
     result: result ? publicResult(result) : null,
     streak: wallet ? calculateStreak(wallet, challenge.date) : 0,
+    checkIns: buildCheckIns(wallet, challenge.date),
+    achievements: buildAchievements(wallet),
     leaderboard: leaderboard.map((row, index) => publicResult(row, index + 1)),
   };
 }

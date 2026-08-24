@@ -34,6 +34,7 @@ import {
 import PrizePayoutPanel from "@/components/PrizePayoutPanel";
 import BattleResultModal from "@/components/BattleResultModal";
 import ModeCrest from "@/components/ModeCrest";
+import TrialCheckInMeter from "@/components/TrialCheckInMeter";
 import MoveCardFace, { getMoveIconUrl } from "@/components/MoveCardFace";
 import CardGuide from "@/components/CardGuide";
 import TreeBenefitsDrawer from "@/components/TreeBenefitsDrawer";
@@ -51,6 +52,7 @@ import {
   resolveGrowthStage,
   type GrowthStage,
 } from "@/lib/battleTreeArtwork";
+import { fetchTodayArboristTrial, type ArboristTrialTodayResponse } from "@/lib/api";
 
 const ecosystemLinks = [
   { label: "Home", href: "https://www.tree-token.xyz/", testId: "home" },
@@ -338,11 +340,23 @@ export default function Battle() {
   const [isResultPlayAgainStarting, setIsResultPlayAgainStarting] = useState(false);
   const [selectedResultShareOptionId, setSelectedResultShareOptionId] =
     useState("");
+  const [trialToday, setTrialToday] = useState<ArboristTrialTodayResponse | null>(null);
   const entryFeeLabel = formatSuiAmount(entryFeeMist);
   const activePvpQueueState = recoveredPvpQueueState ?? pvpQueueState;
   const pvpQueueEntryFeeLabel = formatSuiAmount(
     activePvpQueueState?.entryFeeMist ?? entryFeeMist,
   );
+
+  useEffect(() => {
+    let cancelled = false;
+    setTrialToday(null);
+    void fetchTodayArboristTrial(address).then((response) => {
+      if (!cancelled) setTrialToday(response);
+    }).catch(() => {
+      if (!cancelled) setTrialToday(null);
+    });
+    return () => { cancelled = true; };
+  }, [address]);
   const pvpWinnerPayoutLabel = formatSuiAmount(PVP_WINNER_PAYOUT_MIST);
   const pvpTreeSupportLabel = formatSuiAmount(PVP_TREE_SUPPORT_MIST);
   const selectedPvpMatchLabel = getPvpMatchDisplayLabel(selectedPvpTarget);
@@ -1633,15 +1647,22 @@ export default function Battle() {
         </article>
 
         <article className="gb-mode-card gb-mode-card-trials">
-          <ModeCrest type="arborist-trials" alt="Arborist Trials daily challenge crest" />
-          <h2>Arborist Trials</h2>
-          <p>Daily Single-Player Challenge</p>
+          <span className="gb-mode-trials-kicker">Daily Ranked Challenge</span>
+          <h2 className="gb-visually-hidden">Arborist Trials</h2>
+          <img className="gb-mode-trials-logo" src={appAsset("assets/arborist-trials-logo.webp")} alt="Arborist Trials" />
+          <p>Same challenge. One official score. New strategy every day.</p>
           <div className="gb-mode-card-details">
             <div className="gb-mode-card-chips" aria-label="Arborist Trials details">
               <span>Same challenge for everyone</span>
               <span>One ranked score daily</span>
               <span>Free to play</span>
             </div>
+            <TrialCheckInMeter checkIns={trialToday?.checkIns} connected={isConnected} streak={trialToday?.streak} compact />
+            <span className="gb-mode-trials-achievements">
+              {isConnected
+                ? `${trialToday?.achievements?.filter((badge) => badge.earned).length ?? 0}/${trialToday?.achievements?.length ?? 7} achievements earned`
+                : "Connect to earn Trial achievements"}
+            </span>
             <Link href="/battle/trials" className="gb-mode-action gb-mode-action-trials">
               Enter Today’s Trial
             </Link>

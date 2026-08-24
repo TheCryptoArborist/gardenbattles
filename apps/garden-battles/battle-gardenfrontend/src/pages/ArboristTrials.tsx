@@ -4,6 +4,8 @@ import { ArrowLeft, Bot, CalendarDays, Flame, RotateCcw, ShieldCheck, Swords, Tr
 import { Link } from "wouter";
 import BattleLog, { type ActionEntry } from "@/components/BattleLog";
 import MoveCardFace from "@/components/MoveCardFace";
+import TrialCheckInMeter from "@/components/TrialCheckInMeter";
+import TrialAchievements from "@/components/TrialAchievements";
 import {
   fetchTodayArboristTrial,
   submitArboristTrialResult,
@@ -75,6 +77,8 @@ export default function ArboristTrials() {
           rankedAttemptUsed: false,
           result: null,
           streak: 0,
+          checkIns: [],
+          achievements: [],
           leaderboard: [],
         });
         setLocalPreview(true);
@@ -178,11 +182,19 @@ export default function ArboristTrials() {
         <section className="gb-trials-hero">
           <div>
             <span className="gb-trials-kicker"><CalendarDays size={16} /> Daily ranked challenge</span>
-            <h1>Arborist Trials</h1>
+            <h1 className="gb-visually-hidden">Arborist Trials</h1>
+            <img
+              className="gb-trials-hero-logo"
+              src={appAsset("assets/arborist-trials-logo.webp")}
+              alt="Arborist Trials"
+            />
             <p>One shared challenge. One ranked score per wallet each day. Unlimited practice after your official run.</p>
           </div>
           <div className="gb-trials-streak"><Flame size={27} /><span><strong>{today?.streak ?? 0}</strong> day streak</span></div>
         </section>
+
+        <TrialCheckInMeter checkIns={today?.checkIns} connected={!!address} streak={today?.streak} />
+        <TrialAchievements achievements={today?.achievements} connected={!!address} />
 
         {loading && <section className="gb-trials-message">Preparing today’s trial...</section>}
         {error && <section className="gb-trials-message gb-trials-message-error">{error}</section>}

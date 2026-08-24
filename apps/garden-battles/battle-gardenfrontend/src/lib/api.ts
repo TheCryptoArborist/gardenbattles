@@ -220,6 +220,8 @@ export type ArboristTrialTodayResponse = {
   rankedAttemptUsed: boolean;
   result: ArboristTrialPublicResult | null;
   streak: number;
+  checkIns: Array<{ date: string; completed: boolean; won: boolean }>;
+  achievements: Array<{ id: string; earned: boolean; progress: number; target: number }>;
   leaderboard: ArboristTrialPublicResult[];
 };
 
