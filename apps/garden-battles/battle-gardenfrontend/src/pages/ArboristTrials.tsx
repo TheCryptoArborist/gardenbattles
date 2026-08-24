@@ -205,47 +205,21 @@ export default function ArboristTrials() {
             />
             <p>One shared challenge. One ranked score per wallet each day. Unlimited practice after your official run.</p>
           </div>
-          <div className="gb-trials-streak"><Flame size={27} /><span><strong>{today?.streak ?? 0}</strong> day streak</span></div>
+          <div className="gb-trials-hero-status">
+            <div className={`gb-trials-access-badge gb-trials-access-badge-${rankedAccess}`}>
+              <ShieldCheck size={20} />
+              <span>
+                <small>OFFICIAL TRIAL ACCESS</small>
+                <strong>{rankedAccess === "eligible" ? "NFTree Verified" : rankedAccess === "ineligible" ? "NFTree Required" : rankedAccess === "unavailable" ? "Verification Unavailable" : "Connect Wallet"}</strong>
+              </span>
+            </div>
+            <div className="gb-trials-streak"><Flame size={27} /><span><strong>{today?.streak ?? 0}</strong> day streak</span></div>
+          </div>
         </section>
-
-        <TrialCheckInMeter connected={!!address} checkInStreak={today?.checkInStreak} todayCheckedIn={today?.rankedAttemptUsed} />
-        <TrialAchievements achievements={today?.achievements} connected={!!address} />
 
         {loading && <section className="gb-trials-message">Preparing today’s trial...</section>}
         {error && <section className="gb-trials-message gb-trials-message-error">{error}</section>}
         {localPreview && <section className="gb-trials-message gb-trials-message-preview">Preview mode: gameplay and layout are live; official scores and streaks remain disabled until the ranked server is deployed.</section>}
-
-        {!battle && (
-          <section className="gb-trials-difference" aria-labelledby="trials-difference-title">
-            <div className="gb-trials-difference-heading">
-              <small>CHOOSE YOUR EXPERIENCE</small>
-              <h2 id="trials-difference-title">How Arborist Trials differs</h2>
-              <p>Trials is the same daily strategy puzzle for everyone. Garden Battles is the main arena for repeat matches and PvP competition.</p>
-            </div>
-            <div className="gb-trials-difference-grid">
-              <article className="gb-trials-difference-card gb-trials-difference-card-trials">
-                <Trophy size={24} />
-                <div><strong>Arborist Trials</strong><span>One shared challenge each day</span></div>
-                <ul>
-                  <li>Every player receives the same challenge setup.</li>
-                  <li>NFTree owners receive one official ranked attempt per wallet each day.</li>
-                  <li>Practice is open to everyone and remains unlimited.</li>
-                  <li>No SUI entry fee; sign once after the run to save your score.</li>
-                </ul>
-              </article>
-              <article className="gb-trials-difference-card">
-                <Swords size={24} />
-                <div><strong>Garden Battles</strong><span>Play full matches whenever you want</span></div>
-                <ul>
-                  <li>Fight Garden Bot or challenge another player in PvP.</li>
-                  <li>Hands, opponents, and match strategy change from battle to battle.</li>
-                  <li>PvP uses a 3 SUI entry; Garden Bot does not.</li>
-                </ul>
-                <Link href="/battle" className="gb-trials-difference-link"><Bot size={15} /> Go to Garden Battles</Link>
-              </article>
-            </div>
-          </section>
-        )}
 
         {today && !battle && (
           <>
@@ -297,6 +271,42 @@ export default function ArboristTrials() {
               </p>
               {today.result && <p className="gb-trials-saved-score">Today’s official score: <strong>{today.result.score.toLocaleString()}</strong></p>}
             </section>
+
+            <div className="gb-trials-progress-row">
+              <TrialCheckInMeter connected={!!address} checkInStreak={today?.checkInStreak} todayCheckedIn={today?.rankedAttemptUsed} />
+              <TrialAchievements achievements={today?.achievements} connected={!!address} />
+            </div>
+
+            <details className="gb-trials-difference gb-trials-difference-collapsed">
+              <summary>Why Arborist Trials is different from Garden Battles</summary>
+              <div className="gb-trials-difference-heading">
+                <small>CHOOSE YOUR EXPERIENCE</small>
+                <h2>How Arborist Trials differs</h2>
+                <p>Trials is the same daily strategy puzzle for everyone. Garden Battles is the main arena for repeat matches and PvP competition.</p>
+              </div>
+              <div className="gb-trials-difference-grid">
+                <article className="gb-trials-difference-card gb-trials-difference-card-trials">
+                  <Trophy size={24} />
+                  <div><strong>Arborist Trials</strong><span>One shared challenge each day</span></div>
+                  <ul>
+                    <li>Every player receives the same challenge setup.</li>
+                    <li>NFTree owners receive one official ranked attempt per wallet each day.</li>
+                    <li>Practice is open to everyone and remains unlimited.</li>
+                    <li>No SUI entry fee; sign once after the run to save your score.</li>
+                  </ul>
+                </article>
+                <article className="gb-trials-difference-card">
+                  <Swords size={24} />
+                  <div><strong>Garden Battles</strong><span>Play full matches whenever you want</span></div>
+                  <ul>
+                    <li>Fight Garden Bot or challenge another player in PvP.</li>
+                    <li>Hands, opponents, and match strategy change from battle to battle.</li>
+                    <li>PvP uses a 3 SUI entry; Garden Bot does not.</li>
+                  </ul>
+                  <Link href="/battle" className="gb-trials-difference-link"><Bot size={15} /> Go to Garden Battles</Link>
+                </article>
+              </div>
+            </details>
 
             <section className="gb-trials-leaderboard">
               <div className="gb-trials-leaderboard-head">

@@ -329,7 +329,7 @@ export default function Battle({ pageMode }: { pageMode: BattlePageMode }) {
   const [rerollReviewOpen, setRerollReviewOpen] = useState(false);
   const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
   const [mobileProfileExpanded, setMobileProfileExpanded] = useState(false);
-  const [modeCardsExpanded, setModeCardsExpanded] = useState(false);
+  const [, setModeCardsExpanded] = useState(false);
   const [cardGuideOpen, setCardGuideOpen] = useState(false);
   const [cardGuideCurrentHandOnly, setCardGuideCurrentHandOnly] = useState(false);
   const [utilityDrawer, setUtilityDrawer] = useState<"tree" | "nftree" | null>(null);
@@ -958,6 +958,11 @@ export default function Battle({ pageMode }: { pageMode: BattlePageMode }) {
     (battleState.isBotBattle ||
       battleState.player1?.toLowerCase() === SUI_CONFIG.BOT_ADDRESS.toLowerCase() ||
       battleState.player2?.toLowerCase() === SUI_CONFIG.BOT_ADDRESS.toLowerCase());
+  const battleBelongsToPage = !!battleState && (
+    pageMode === "garden-bot"
+      ? isGardenBotBattle || isPracticeActive
+      : !isGardenBotBattle && !isPracticeActive
+  );
   const activeGrowthTarget =
     battleState?.targetGrowth ??
     (isGardenBotBattle || isPracticeActive ? 50 : 100);
@@ -1430,21 +1435,10 @@ export default function Battle({ pageMode }: { pageMode: BattlePageMode }) {
     : isPracticeActive
       ? "Practice Mode result. No rewards or verified leaderboard credit."
     : `${Math.max(playerGrowth, opponentGrowth)} / ${growthTarget} Growth reached.`;
-  const battleInfoText =
-    battleState && isPracticeActive
-      ? "Practice Mode - No rewards - No leaderboard credit"
-      : battleState && isGardenBotBattle
-      ? "Single-player Garden Bot battle"
-      : battleState && !isGardenBotBattle
-        ? `${activePvpMatchLabel} - ${entryFeeLabel} entry`
-        : isWaiting
-          ? `PvP Battle - ${activePvpMatchLabel} - ${entryFeeLabel} entry paid. Waiting for opponent.`
-          : isConnected
-            ? pageMode === "garden-bot" ? "Start a Garden Bot battle" : "Enter the PvP queue"
-            : pageMode === "garden-bot" ? "Connect wallet to start Garden Bot" : "Connect wallet to enter PvP";
   const resultModalOpen =
     !!winner &&
     battleFinished &&
+    battleBelongsToPage &&
     !!resultModalKey &&
     liveResultKey === resultModalKey &&
     !dismissedResultKeys.includes(resultModalKey);
@@ -1588,9 +1582,20 @@ export default function Battle({ pageMode }: { pageMode: BattlePageMode }) {
     SUI_CONFIG.ADMIN_ADDRESSES.some(
       (adminAddr) => adminAddr.toLowerCase() === address.toLowerCase(),
     );
-  const hasActiveSession = isPvpQueued || (!!battleState && !battleFinished);
-  const showFullModeSelect = !hasActiveSession || modeCardsExpanded;
-  const modeActionsDisabled = hasActiveSession || isJoining || isStartingBot;
+  const hasAnyActiveSession = isPvpQueued || (!!battleState && !battleFinished);
+  const hasActiveSession =
+    (pageMode === "pvp" && isPvpQueued) ||
+    (!!battleState && !battleFinished && battleBelongsToPage);
+  const hasOffRoutePvpSession =
+    pageMode === "garden-bot" &&
+    (isPvpQueued || (!!battleState && !battleFinished && !isGardenBotBattle && !isPracticeActive));
+  const hasOffRouteGardenBotSession =
+    pageMode === "pvp" &&
+    !!battleState &&
+    !battleFinished &&
+    (isGardenBotBattle || isPracticeActive);
+  const hasOffRouteSession = hasOffRoutePvpSession || hasOffRouteGardenBotSession;
+  const modeActionsDisabled = hasAnyActiveSession || isJoining || isStartingBot;
   const activeModeTitle = isPracticeActive
     ? "Practice Mode"
     : isPvpQueued
@@ -1618,90 +1623,6 @@ export default function Battle({ pageMode }: { pageMode: BattlePageMode }) {
     scrollToBattleFocus();
   };
 
-  const modeSelect =
-    showFullModeSelect ? (
-      <section className="gb-mode-select gb-mode-select-dedicated" aria-label={`${pageMode === "garden-bot" ? "Garden Bot" : "PvP"} controls`}>
-        {pageMode === "garden-bot" && (
-        <article className="gb-mode-card gb-mode-card-bot gb-mode-card-garden-bot">
-          <ModeCrest type="garden-bot" alt="Garden Bot robotic plant medallion" />
-          <h2>Garden Bot</h2>
-          <p>Single-Player Battle</p>
-          <div className="gb-mode-card-details">
-            <button
-              onClick={handleStartBotBattle}
-              disabled={!isConnected || modeActionsDisabled}
-              className="gb-mode-action gb-mode-action-bot"
-              data-testid="button-start-bot-battle"
-            >
-              {isStartingBot ? "Starting..." : "Play Single Player"}
-            </button>
-          </div>
-        </article>
-        )}
-        {pageMode === "pvp" && (
-        <article className="gb-mode-card gb-mode-card-pvp">
-          <ModeCrest type="pvp-battle" alt="PvP Battle duel medallion" />
-          <h2>PvP Battle</h2>
-          <p>Player-vs-Player Queue</p>
-          <div className="gb-mode-card-details">
-            <div className="gb-mode-card-chips" aria-label="PvP Battle details">
-              <span>{shouldShowPvpQueuePanel ? "Already in queue" : `Entry: ${entryFeeLabel}`}</span>
-              <span>Winner receives {pvpWinnerPayoutLabel}</span>
-              <span>{pvpTreeSupportLabel} supports TREE buybacks</span>
-              {!shouldShowPvpQueuePanel && <span>First to 50 Growth</span>}
-            </div>
-            {shouldShowPvpQueuePanel ? (
-              <>
-                <div className="gb-mode-queued-label">Already in queue</div>
-                <button
-                  type="button"
-                  onClick={handleForceRefund}
-                  disabled={isRefunding}
-                  className="gb-mode-action gb-mode-action-pvp"
-                  data-testid="button-mode-card-refund"
-                >
-                  {isRefunding ? "Refunding..." : "Get Refund"}
-                </button>
-                <button
-                  type="button"
-                  onClick={scrollToPvpQueuePanel}
-                  className="gb-mode-action gb-mode-action-secondary"
-                  data-testid="button-view-pvp-queue"
-                >
-                  View Queue
-                </button>
-              </>
-            ) : (
-              <>
-                <button
-                  onClick={handleJoinBattle}
-                  disabled={!isConnected || modeActionsDisabled}
-                  className="gb-mode-action gb-mode-action-pvp"
-                  data-testid="button-join-battle"
-                >
-                  {isJoining
-                    ? "Joining..."
-                    : `Join ${selectedPvpTarget} Growth Queue (${entryFeeLabel})`}
-                </button>
-                {isConnected && !hasActiveSession && (
-                  <button
-                    type="button"
-                    onClick={handleCheckPvpQueueStatus}
-                    disabled={isCheckingPvpQueue}
-                    className="gb-mode-action gb-mode-action-secondary"
-                    data-testid="button-check-pvp-queue"
-                  >
-                    {isCheckingPvpQueue ? "Checking..." : "Check Queue Status"}
-                  </button>
-                )}
-              </>
-            )}
-          </div>
-        </article>
-        )}
-      </section>
-    ) : null;
-
   const activeModeBar = hasActiveSession ? (
     <section
       ref={battleFocusRef}
@@ -1719,13 +1640,9 @@ export default function Battle({ pageMode }: { pageMode: BattlePageMode }) {
               View Leaderboard
             </Link>
           )}
-          <button
-            type="button"
-            className="gb-active-mode-button gb-active-mode-button-secondary"
-            onClick={() => setModeCardsExpanded((expanded) => !expanded)}
-          >
-            {modeCardsExpanded ? "Hide Modes" : "Change Mode"}
-          </button>
+          <Link href="/battle" className="gb-active-mode-button gb-active-mode-button-secondary">
+            All Battle Modes
+          </Link>
         </div>
       )}
     </section>
@@ -1760,13 +1677,9 @@ export default function Battle({ pageMode }: { pageMode: BattlePageMode }) {
         <Link href={leaderboardRoute} className="gb-active-mode-button">
           View Leaderboard
         </Link>
-        <button
-          type="button"
-          className="gb-active-mode-button gb-active-mode-button-secondary"
-          onClick={() => setModeCardsExpanded((expanded) => !expanded)}
-        >
-          {modeCardsExpanded ? "Hide Modes" : "Change Mode"}
-        </button>
+        <Link href="/battle" className="gb-active-mode-button gb-active-mode-button-secondary">
+          All Battle Modes
+        </Link>
       </div>
     </section>
   ) : null;
@@ -1843,7 +1756,7 @@ export default function Battle({ pageMode }: { pageMode: BattlePageMode }) {
   }
 `}</style>
       <div
-        className={`gb-battle-page${battleState && !battleFinished ? " gb-battle-page-active" : ""}`}
+        className={`gb-battle-page${battleBelongsToPage && battleState && !battleFinished ? " gb-battle-page-active" : ""}`}
         style={{
           backgroundImage: `
             linear-gradient(115deg, rgba(255, 193, 64, 0.13), transparent 24%),
@@ -2054,17 +1967,75 @@ export default function Battle({ pageMode }: { pageMode: BattlePageMode }) {
 
         <main className="gb-battle-main">
           {!hasActiveSession && (
-            <section className="gb-dedicated-mode-heading">
-              <Link href="/battle"><ChevronRight size={15} aria-hidden="true" /> All Battle Modes</Link>
-              <small>{pageMode === "garden-bot" ? "REPEATABLE SINGLE-PLAYER" : "LIVE PLAYER-VS-PLAYER"}</small>
-              <h1>{pageMode === "garden-bot" ? "Garden Bot" : "PvP Battle"}</h1>
-              <p>{pageMode === "garden-bot"
-                ? "Build your hand, outgrow the Garden Bot, and earn ranked battle records without a PvP entry fee."
-                : "Enter the 50-Growth queue, meet a live opponent, and compete for the 5 SUI winner payout."}</p>
+            <section className={`gb-dedicated-mode-heading${pageMode === "garden-bot" ? " gb-garden-bot-launch" : ""}`}>
+              <div className="gb-dedicated-mode-copy">
+                <Link href="/battle"><ChevronRight size={15} aria-hidden="true" /> All Battle Modes</Link>
+                <small>{pageMode === "garden-bot" ? "REPEATABLE SINGLE-PLAYER" : "LIVE PLAYER-VS-PLAYER"}</small>
+                <h1>{pageMode === "garden-bot" ? "Garden Bot" : "PvP Battle"}</h1>
+                <p>{pageMode === "garden-bot"
+                  ? "Build your hand, outgrow the Garden Bot, and earn ranked battle records without a PvP entry fee."
+                  : "Enter the 50-Growth queue, meet a live opponent, and compete for the 5 SUI winner payout."}</p>
+              </div>
+              {pageMode === "garden-bot" && (
+                <div className="gb-garden-bot-launch-action">
+                  <ModeCrest type="garden-bot" alt="Garden Bot robotic plant medallion" />
+                  <button
+                    onClick={handleStartBotBattle}
+                    disabled={!isConnected || modeActionsDisabled}
+                    className="gb-mode-action gb-mode-action-bot"
+                    data-testid="button-start-bot-battle"
+                  >
+                    {isStartingBot ? "Starting..." : hasOffRouteSession ? "Finish Active Battle First" : "Play Garden Bot"}
+                  </button>
+                </div>
+              )}
+              {pageMode === "pvp" && (
+                <div className="gb-pvp-launch-action">
+                  <div className="gb-pvp-launch-summary">
+                    <ModeCrest type="pvp-battle" alt="PvP Battle duel medallion" />
+                    <div>
+                      <strong>50-Growth Match</strong>
+                      <span>{entryFeeLabel} entry · Winner receives {pvpWinnerPayoutLabel}</span>
+                    </div>
+                  </div>
+                  <button
+                    onClick={handleJoinBattle}
+                    disabled={!isConnected || modeActionsDisabled}
+                    className="gb-mode-action gb-mode-action-pvp"
+                    data-testid="button-join-battle"
+                  >
+                    {isJoining ? "Joining..." : hasOffRouteSession ? "Finish Active Battle First" : `Join Queue (${entryFeeLabel})`}
+                  </button>
+                  {isConnected && !hasAnyActiveSession && (
+                    <button
+                      type="button"
+                      onClick={handleCheckPvpQueueStatus}
+                      disabled={isCheckingPvpQueue}
+                      className="gb-mode-action gb-mode-action-secondary"
+                      data-testid="button-check-pvp-queue"
+                    >
+                      {isCheckingPvpQueue ? "Checking..." : "Check Queue Status"}
+                    </button>
+                  )}
+                </div>
+              )}
+            </section>
+          )}
+          {hasOffRouteSession && (
+            <section className="gb-cross-mode-resume" aria-label="Active battle in another mode">
+              <div>
+                <small>ACTIVE SESSION IN ANOTHER MODE</small>
+                <strong>{hasOffRoutePvpSession ? "Your PvP session is still active" : "Your Garden Bot session is still active"}</strong>
+                <span>Resume it before starting a different battle.</span>
+              </div>
+              <Link href={hasOffRoutePvpSession ? "/battle/pvp" : "/battle/garden-bot"}>
+                {hasOffRoutePvpSession ? "Resume PvP" : "Resume Garden Bot"}
+                <ChevronRight size={17} aria-hidden="true" />
+              </Link>
             </section>
           )}
           {!hasActiveSession && <section
-            className={`gb-tree-benefits-trigger gb-tree-benefits-trigger-featured gb-tree-benefits-trigger-${fifthCardPromo.tone}`}
+            className={`gb-tree-benefits-trigger gb-tree-benefits-trigger-featured gb-tree-benefits-trigger-${fifthCardPromo.tone}${pageMode === "garden-bot" ? " gb-tree-benefits-trigger-compact" : ""}`}
             aria-label={fifthCardPromo.title}
           >
             <div className="gb-tree-benefits-trigger-art" aria-hidden="true">
@@ -2141,13 +2112,12 @@ export default function Battle({ pageMode }: { pageMode: BattlePageMode }) {
           )}
           {activeModeBar}
           {pvpQueuePanel}
-          {modeSelect}
           {hasActiveSession && (
             <div className="gb-active-reference-tools">
               <HowToPlay />
             </div>
           )}
-          {battleState && <div
+          {battleBelongsToPage && battleState && <div
             className="gb-battle-hud"
             aria-label="Garden Battles HUD"
           >
@@ -2684,7 +2654,7 @@ export default function Battle({ pageMode }: { pageMode: BattlePageMode }) {
           </section>
         )}
 
-        {battleState && !battleFinished && (
+        {battleBelongsToPage && battleState && !battleFinished && (
           <div
             className="gb-battle-options"
             data-testid="battle-options"
@@ -2838,7 +2808,7 @@ export default function Battle({ pageMode }: { pageMode: BattlePageMode }) {
               </div>
             )}
 
-            {recoverableBattleError && battleState && !isPracticeActive && !battleFinished && (
+            {battleBelongsToPage && recoverableBattleError && battleState && !isPracticeActive && !battleFinished && (
               <div
                 role="alert"
                 style={{
@@ -3177,7 +3147,7 @@ export default function Battle({ pageMode }: { pageMode: BattlePageMode }) {
               })}
             </div>}
 
-            {(battleState && !battleFinished) && (
+            {(battleBelongsToPage && battleState && !battleFinished) && (
               <div
                 className="gb-battle-secondary-controls"
                 style={{
@@ -3310,30 +3280,6 @@ export default function Battle({ pageMode }: { pageMode: BattlePageMode }) {
         )}
           </div>
           </div>}
-
-        {/* Battle Info */}
-        {!battleState && <p
-          style={{
-            margin: "15px 0",
-            fontSize: "clamp(14px, 3.5vw, 20px)",
-            color: "#00ffcc",
-            padding: "0 15px",
-          }}
-          data-testid="text-entry-fee"
-        >
-          {battleInfoText}
-        </p>}
-        {!battleState && <p
-          style={{
-            marginTop: "15px",
-            fontSize: "clamp(14px, 3.5vw, 20px)",
-            color: "#ffff00",
-            padding: "0 15px",
-          }}
-          data-testid="text-battle-status"
-        >
-          {battleStatus}
-        </p>}
 
         {!battleState && <ArboretumComingSoonPromo />}
         </main>
