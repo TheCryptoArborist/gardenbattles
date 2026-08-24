@@ -1657,7 +1657,7 @@ export default function Battle() {
               <span>One ranked score daily</span>
               <span>Free to play</span>
             </div>
-            <TrialCheckInMeter checkIns={trialToday?.checkIns} connected={isConnected} streak={trialToday?.streak} compact />
+            <TrialCheckInMeter connected={isConnected} checkInStreak={trialToday?.checkInStreak} todayCheckedIn={trialToday?.rankedAttemptUsed} compact />
             <span className="gb-mode-trials-achievements">
               {isConnected
                 ? `${trialToday?.achievements?.filter((badge) => badge.earned).length ?? 0}/${trialToday?.achievements?.length ?? 7} achievements earned`

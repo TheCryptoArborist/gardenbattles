@@ -217,9 +217,11 @@ export type ArboristTrialPublicResult = {
 
 export type ArboristTrialTodayResponse = {
   challenge: import("@shared/arborist-trials").ArboristTrialChallenge;
+  nftreeAccess: "not_connected" | "eligible" | "ineligible" | "unavailable";
   rankedAttemptUsed: boolean;
   result: ArboristTrialPublicResult | null;
   streak: number;
+  checkInStreak: number;
   checkIns: Array<{ date: string; completed: boolean; won: boolean }>;
   achievements: Array<{ id: string; earned: boolean; progress: number; target: number }>;
   leaderboard: ArboristTrialPublicResult[];

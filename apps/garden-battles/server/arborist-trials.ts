@@ -50,6 +50,26 @@ function calculateStreak(wallet: string, startingDate: string): number {
   return streak;
 }
 
+function calculateCheckInStreak(wallet: string, startingDate: string): number {
+  const history = getArboristTrialWalletHistory(wallet, 365);
+  if (history.length === 0) return 0;
+  let expected = startingDate;
+  if (history[0].challenge_date !== expected) {
+    const yesterday = new Date(`${startingDate}T12:00:00.000Z`);
+    yesterday.setUTCDate(yesterday.getUTCDate() - 1);
+    expected = yesterday.toISOString().slice(0, 10);
+  }
+  let streak = 0;
+  for (const row of history) {
+    if (row.challenge_date !== expected) break;
+    streak += 1;
+    const previous = new Date(`${expected}T12:00:00.000Z`);
+    previous.setUTCDate(previous.getUTCDate() - 1);
+    expected = previous.toISOString().slice(0, 10);
+  }
+  return streak;
+}
+
 function buildCheckIns(wallet: string | null, startingDate: string) {
   const history = wallet ? getArboristTrialWalletHistory(wallet, 7) : [];
   const byDate = new Map(history.map((row) => [row.challenge_date, row]));
@@ -115,6 +135,7 @@ export function getTodayArboristTrial(walletInput?: string, now = new Date()) {
     rankedAttemptUsed: !!result,
     result: result ? publicResult(result) : null,
     streak: wallet ? calculateStreak(wallet, challenge.date) : 0,
+    checkInStreak: wallet ? calculateCheckInStreak(wallet, challenge.date) : 0,
     checkIns: buildCheckIns(wallet, challenge.date),
     achievements: buildAchievements(wallet),
     leaderboard: leaderboard.map((row, index) => publicResult(row, index + 1)),
@@ -134,6 +155,7 @@ function readBoundedInteger(
 
 export type ArboristTrialSubmissionOptions = {
   getFifthMoveUnlocked?: (wallet: string) => Promise<boolean>;
+  hasNftreeAccess?: (wallet: string) => Promise<boolean>;
   verifyWalletProof?: (
     message: Uint8Array,
     signature: string,
@@ -232,6 +254,16 @@ export async function submitTodayArboristTrial(
   if (!replayed.ok) {
     return { status: 400, body: { ok: false, reason: replayed.reason } };
   }
+
+  try {
+    const hasNftree = await (options.hasNftreeAccess ?? (async () => false))(wallet);
+    if (!hasNftree) {
+      return { status: 403, body: { ok: false, reason: "nftree_required" } };
+    }
+  } catch {
+    return { status: 503, body: { ok: false, reason: "nftree_access_unavailable" } };
+  }
+
   const resultInput = replayed.result;
   const row: ArboristTrialResultRow = {
     challenge_id: challenge.id,

@@ -38,6 +38,12 @@ import {
   encodeFifthMoveAttestationPayload,
   serializeFifthMoveAttestationPayload,
 } from "../shared/fifth-move-attestation";
+import { scanWalletAndKiosksForNft } from "../battle-gardenfrontend/src/lib/nftreeAccess";
+import {
+  readSuiDynamicFieldsWithRetry,
+  readSuiObjectWithRetry,
+  readSuiOwnedObjectsWithRetry,
+} from "../battle-gardenfrontend/src/lib/suiRpc";
 
 // ─── Sui polling configuration ────────────────────────────────────────────────
 const SUI_RPC_URL =
@@ -645,12 +651,35 @@ function extractNftreeImageUrl(obj: any): string {
   return contentUrlField?.fields?.url || contentUrlField?.url || "";
 }
 
+async function readNftreeForWallet(wallet: string) {
+  const graphqlClient = {
+    getOwnedObjects: (args: any) => readSuiOwnedObjectsWithRetry(args.owner, {
+      operation: "nftree-server-owned-objects",
+      structType: args.filter?.StructType,
+      cursor: args.cursor,
+      limit: args.limit,
+    }),
+    getDynamicFields: (args: { parentId: string }) => readSuiDynamicFieldsWithRetry(args.parentId, {
+      operation: "nftree-server-kiosk-fields",
+      limit: 50,
+    }),
+    getObject: (args: { id: string; options?: Record<string, unknown> }) => readSuiObjectWithRetry(null, args, {
+      operation: "nftree-server-kiosk-object",
+    }),
+  };
+  return scanWalletAndKiosksForNft(graphqlClient, wallet, [NFTREE_STRUCT_TYPE]);
+}
+
+async function walletHasNftreeAccess(wallet: string): Promise<boolean> {
+  return !!(await readNftreeForWallet(wallet));
+}
+
 export function createNftreeAccessHandler(options: {
   client?: Pick<SuiClient, "getOwnedObjects">;
   nftreeStructType?: string;
   timeoutMs?: number;
 } = {}): RequestHandler {
-  const client = options.client ?? getSuiVerificationClient();
+  const client = options.client;
   const nftreeStructType = options.nftreeStructType ?? NFTREE_STRUCT_TYPE;
   const timeoutMs = options.timeoutMs ?? NFTREE_ACCESS_READ_TIMEOUT_MS;
 
@@ -661,6 +690,15 @@ export function createNftreeAccessHandler(options: {
     }
 
     try {
+      if (!client) {
+        const nft = await withTimeout(
+          readNftreeForWallet(wallet),
+          timeoutMs,
+          "nftree_access_read",
+        );
+        return res.json({ ok: true, nft });
+      }
+
       const page = await withTimeout(
         client.getOwnedObjects({
           owner: wallet,
@@ -1301,13 +1339,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ── REST: Arborist Trials daily challenge and ranked attempt ─────────────
-  app.get("/api/arborist-trials/today", (req, res) => {
+  app.get("/api/arborist-trials/today", async (req, res) => {
     const wallet = typeof req.query.wallet === "string" ? req.query.wallet : undefined;
-    return res.json(getTodayArboristTrial(wallet));
+    const normalizedWallet = wallet ? normalizeSuiAddress(wallet) : null;
+    let nftreeAccess: "not_connected" | "eligible" | "ineligible" | "unavailable" = "not_connected";
+    if (normalizedWallet) {
+      try {
+        nftreeAccess = await walletHasNftreeAccess(normalizedWallet) ? "eligible" : "ineligible";
+      } catch (error) {
+        console.warn("[arborist-trials] NFTree access check failed", {
+          wallet: normalizedWallet,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        nftreeAccess = "unavailable";
+      }
+    }
+    return res.json({ ...getTodayArboristTrial(wallet), nftreeAccess });
   });
 
   app.post("/api/arborist-trials/results", async (req, res) => {
     const submission = await submitTodayArboristTrial(req.body ?? {}, new Date(), {
+      hasNftreeAccess: walletHasNftreeAccess,
       getFifthMoveUnlocked: async (wallet) => {
         const eligibility = await getCachedFifthMoveEligibility(
           treePowerGraphqlClient,

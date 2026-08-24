@@ -3197,22 +3197,29 @@
   .gb-trial-checkin-head strong { align-items: center; display: inline-flex; font-family: Orbitron, sans-serif; font-size: 10px; font-weight: 900; gap: 6px; text-transform: uppercase; }
   .gb-trial-checkin-head span { color: #f5c542; }
   .gb-trial-checkin-head strong { color: #eafff6; text-align: right; }
-  .gb-trial-checkin-days { display: grid; gap: 7px; grid-template-columns: repeat(7, minmax(0, 1fr)); position: relative; }
-  .gb-trial-checkin-days > span:not(.gb-trial-checkin-connect) { align-items: center; display: grid; gap: 4px; justify-items: center; }
-  .gb-trial-checkin-days small { color: rgba(234, 255, 246, 0.55); font-family: Orbitron, sans-serif; font-size: 8px; font-weight: 800; text-transform: uppercase; }
-  .gb-trial-checkin-days i { align-items: center; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(184, 109, 255, 0.36); border-radius: 50%; color: rgba(234, 255, 246, 0.36); display: flex; font-family: Orbitron, sans-serif; font-size: 9px; font-style: normal; height: 28px; justify-content: center; width: 28px; }
-  .gb-trial-checkin-days .is-complete i { background: linear-gradient(145deg, #16c978, #39ff88); border-color: #bdffda; box-shadow: 0 0 10px rgba(57, 255, 136, 0.48); color: #00130d; }
-  .gb-trial-checkin-days .is-today i { outline: 2px solid rgba(245, 197, 66, 0.74); outline-offset: 2px; }
-  .gb-trial-checkin-connect { align-items: center; background: rgba(0, 6, 10, 0.78); border-radius: 8px; color: rgba(234, 255, 246, 0.82); display: flex; font-size: 11px; gap: 6px; grid-column: 1 / -1; inset: 0; justify-content: center; position: absolute; }
-  .gb-trial-checkin > p { color: rgba(234, 255, 246, 0.64); font-size: 12px; line-height: 1.4; margin: 0; }
+  .gb-trial-checkin-track { display:grid; gap:7px; }
+  .gb-trial-checkin-track-head { align-items:center; display:flex; justify-content:space-between; }
+  .gb-trial-checkin-track-head strong,.gb-trial-checkin-track-head span { font-family:Orbitron,sans-serif; font-size:9px; font-weight:900; text-transform:uppercase; }
+  .gb-trial-checkin-track-head strong { color:#eafff6; }.gb-trial-checkin-track-head span { color:#f5c542; }
+  .gb-trial-seven-steps { display:grid; gap:7px; grid-template-columns:repeat(7,minmax(0,1fr)); }
+  .gb-trial-seven-steps > span { align-items:center; background:rgba(255,255,255,.04); border:1px solid rgba(184,109,255,.36); border-radius:50%; color:rgba(234,255,246,.5); display:flex; font-family:Orbitron,sans-serif; font-size:9px; font-weight:900; height:28px; justify-content:center; justify-self:center; width:28px; }
+  .gb-trial-seven-steps > span.is-complete { background:linear-gradient(145deg,#16c978,#39ff88); border-color:#bdffda; box-shadow:0 0 10px rgba(57,255,136,.48); color:#00130d; }
+  .gb-trial-thirty-steps { display:grid; gap:2px; grid-template-columns:repeat(30,minmax(0,1fr)); }
+  .gb-trial-thirty-steps i { background:rgba(255,255,255,.07); border-radius:3px; height:8px; }
+  .gb-trial-thirty-steps i.is-complete { background:linear-gradient(90deg,#16c978,#f5c542); box-shadow:0 0 6px rgba(57,255,136,.35); }
+  .gb-trial-thirty-milestones { color:rgba(234,255,246,.5); display:flex; font-family:Orbitron,sans-serif; font-size:7px; font-weight:800; justify-content:space-between; }
+  .gb-trial-checkin-connect { align-items:center; background:rgba(0,6,10,.72); border:1px dashed rgba(234,255,246,.24); border-radius:8px; color:rgba(234,255,246,.82); display:flex; font-size:11px; gap:6px; justify-content:center; padding:9px; }
+  .gb-trial-checkin-status { color:rgba(234,255,246,.7); font-size:12px; line-height:1.4; margin:0; }
   .gb-trial-checkin-compact { box-shadow: none; gap: 7px; margin: 0; padding: 9px 10px; }
   .gb-trial-checkin-compact .gb-trial-checkin-head { align-items: flex-start; flex-direction: column; gap: 3px; }
   .gb-trial-checkin-compact .gb-trial-checkin-head strong { text-align: left; }
   .gb-trial-checkin-compact .gb-trial-checkin-head span,
   .gb-trial-checkin-compact .gb-trial-checkin-head strong { font-size: 8px; }
-  .gb-trial-checkin-compact .gb-trial-checkin-days { gap: 3px; }
-  .gb-trial-checkin-compact .gb-trial-checkin-days i { font-size: 7px; height: 20px; width: 20px; }
-  .gb-trial-checkin-compact .gb-trial-checkin-days small { font-size: 6px; }
+  .gb-trial-checkin-compact .gb-trial-checkin-track { gap:4px; }
+  .gb-trial-checkin-compact .gb-trial-checkin-track-head strong,.gb-trial-checkin-compact .gb-trial-checkin-track-head span { font-size:7px; }
+  .gb-trial-checkin-compact .gb-trial-seven-steps { gap:3px; }
+  .gb-trial-checkin-compact .gb-trial-seven-steps > span { font-size:7px; height:20px; width:20px; }
+  .gb-trial-checkin-compact .gb-trial-thirty-steps { gap:1px; }.gb-trial-checkin-compact .gb-trial-thirty-steps i { height:5px; }
   .gb-mode-trials-achievements { color: #ffe77d; font-family: Orbitron, sans-serif; font-size: 8px; font-weight: 900; letter-spacing: 0.4px; text-transform: uppercase; }
 
   .gb-disconnected-onboarding {

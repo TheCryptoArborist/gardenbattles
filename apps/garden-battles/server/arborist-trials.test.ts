@@ -19,6 +19,7 @@ test("today endpoint exposes a deterministic empty daily board", () => {
   assert.equal(response.rankedAttemptUsed, false);
   assert.equal(response.result, null);
   assert.equal(response.streak, 0);
+  assert.equal(response.checkInStreak, 0);
   assert.equal(response.checkIns.length, 7);
   assert.deepEqual(response.checkIns.at(-1), {
     date: "2026-08-23",
@@ -101,6 +102,34 @@ test("ranked submission rejects a signed but incomplete deterministic replay", a
   });
   assert.equal(submission.status, 400);
   assert.deepEqual(submission.body, { ok: false, reason: "incomplete_trial" });
+});
+
+test("ranked submission rejects a completed result when the wallet has no NFTree", async () => {
+  const submission = await submitTodayArboristTrial({
+    wallet: `0x${"4".repeat(64)}`,
+    challengeId: "arborist-trial-v1-2026-08-23",
+    playerMoves: [30, 18, 30, 11, 30, 18, 30, 24],
+    signature: "injected-valid-proof",
+  }, now, {
+    verifyWalletProof: async () => true,
+    hasNftreeAccess: async () => false,
+  });
+  assert.equal(submission.status, 403);
+  assert.deepEqual(submission.body, { ok: false, reason: "nftree_required" });
+});
+
+test("ranked submission fails closed when NFTree ownership cannot be verified", async () => {
+  const submission = await submitTodayArboristTrial({
+    wallet: `0x${"5".repeat(64)}`,
+    challengeId: "arborist-trial-v1-2026-08-23",
+    playerMoves: [30, 18, 30, 11, 30, 18, 30, 24],
+    signature: "injected-valid-proof",
+  }, now, {
+    verifyWalletProof: async () => true,
+    hasNftreeAccess: async () => { throw new Error("rpc unavailable"); },
+  });
+  assert.equal(submission.status, 503);
+  assert.deepEqual(submission.body, { ok: false, reason: "nftree_access_unavailable" });
 });
 
 test("server replay derives a completed win from the submitted card sequence", () => {

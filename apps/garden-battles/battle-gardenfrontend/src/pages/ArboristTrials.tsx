@@ -74,9 +74,11 @@ export default function ArboristTrials() {
       if (LOCAL_PREVIEW_ENABLED) {
         setToday({
           challenge: getArboristTrialChallenge(),
+          nftreeAccess: "unavailable",
           rankedAttemptUsed: false,
           result: null,
           streak: 0,
+          checkInStreak: 0,
           checkIns: [],
           achievements: [],
           leaderboard: [],
@@ -112,8 +114,16 @@ export default function ArboristTrials() {
   }, [today?.leaderboard]);
 
   const fifthUnlocked = eligibility.status === "qualified";
+  const rankedAccess = today?.nftreeAccess ?? (address ? "unavailable" : "not_connected");
+  const rankedEligible = rankedAccess === "eligible";
   const startTrial = (ranked: boolean) => {
     if (!today) return;
+    if (ranked && !rankedEligible) {
+      setError(rankedAccess === "ineligible"
+        ? "An NFTree must be held by this wallet to enter the official ranked Trial. Practice remains open to everyone."
+        : "NFTree ownership could not be verified right now. Please try again before starting the official Trial.");
+      return;
+    }
     setBattle(createArboristTrialBattle(today.challenge, fifthUnlocked));
     setLog([]);
     setRankedRun(ranked);
@@ -160,7 +170,12 @@ export default function ArboristTrials() {
       await loadToday();
     } catch (reason) {
       submittedBattleRef.current = null;
-      setSubmissionMessage(reason instanceof Error ? reason.message : "The ranked score could not be saved.");
+      const message = reason instanceof Error ? reason.message : "";
+      setSubmissionMessage(message === "nftree_required"
+        ? "This wallet no longer has a verified NFTree, so the official score was not saved."
+        : message === "nftree_access_unavailable"
+          ? "NFTree ownership could not be verified. Nothing was submitted; please try again."
+          : message || "The ranked score could not be saved.");
     } finally {
       setSubmitting(false);
     }
@@ -193,7 +208,7 @@ export default function ArboristTrials() {
           <div className="gb-trials-streak"><Flame size={27} /><span><strong>{today?.streak ?? 0}</strong> day streak</span></div>
         </section>
 
-        <TrialCheckInMeter checkIns={today?.checkIns} connected={!!address} streak={today?.streak} />
+        <TrialCheckInMeter connected={!!address} checkInStreak={today?.checkInStreak} todayCheckedIn={today?.rankedAttemptUsed} />
         <TrialAchievements achievements={today?.achievements} connected={!!address} />
 
         {loading && <section className="gb-trials-message">Preparing today’s trial...</section>}
@@ -213,7 +228,8 @@ export default function ArboristTrials() {
                 <div><strong>Arborist Trials</strong><span>One shared challenge each day</span></div>
                 <ul>
                   <li>Every player receives the same challenge setup.</li>
-                  <li>One official ranked attempt per wallet, then unlimited practice.</li>
+                  <li>NFTree owners receive one official ranked attempt per wallet each day.</li>
+                  <li>Practice is open to everyone and remains unlimited.</li>
                   <li>No SUI entry fee; sign once after the run to save your score.</li>
                 </ul>
               </article>
@@ -250,16 +266,35 @@ export default function ArboristTrials() {
                 <button
                   type="button"
                   className="gb-trials-primary"
-                  disabled={localPreview || !address || today.rankedAttemptUsed}
+                  disabled={localPreview || !address || !rankedEligible || today.rankedAttemptUsed}
                   onClick={() => startTrial(true)}
                 >
                   <ShieldCheck size={18} />
-                  {localPreview ? "Ranked Scoring Not Active in Preview" : !address ? "Connect for Ranked Attempt" : today.rankedAttemptUsed ? "Ranked Attempt Complete" : "Start Ranked Attempt"}
+                  {localPreview
+                    ? "Ranked Scoring Not Active in Preview"
+                    : !address
+                      ? "Connect for Ranked Attempt"
+                      : today.rankedAttemptUsed
+                        ? "Ranked Attempt Complete"
+                        : rankedAccess === "ineligible"
+                          ? "NFTree Required for Ranked Trial"
+                          : rankedAccess === "unavailable"
+                            ? "NFTree Check Unavailable — Retry"
+                            : "Start Ranked Attempt"}
                 </button>
                 <button type="button" className="gb-trials-secondary" onClick={() => startTrial(false)}>
                   Practice Today’s Trial
                 </button>
               </div>
+              <p className={`gb-trials-access-status gb-trials-access-${rankedAccess}`}>
+                {rankedAccess === "eligible"
+                  ? "NFTree verified — this wallet can enter today’s official ranked Trial."
+                  : rankedAccess === "ineligible"
+                    ? "Official ranking is NFTree-gated. Add an NFTree to this wallet or use unlimited practice."
+                    : rankedAccess === "unavailable"
+                      ? "The NFTree ownership check is temporarily unavailable. Refresh and try again."
+                      : "Connect a wallet holding an NFTree to unlock today’s official ranked attempt."}
+              </p>
               {today.result && <p className="gb-trials-saved-score">Today’s official score: <strong>{today.result.score.toLocaleString()}</strong></p>}
             </section>
 
