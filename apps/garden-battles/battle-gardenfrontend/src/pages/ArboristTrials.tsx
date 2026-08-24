@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ConnectButton, useCurrentAccount, useSignPersonalMessage } from "@mysten/dapp-kit";
-import { ArrowLeft, CalendarDays, Flame, RotateCcw, ShieldCheck, Trophy } from "lucide-react";
+import { ArrowLeft, Bot, CalendarDays, Flame, RotateCcw, ShieldCheck, Swords, Trophy } from "lucide-react";
 import { Link } from "wouter";
 import BattleLog, { type ActionEntry } from "@/components/BattleLog";
 import MoveCardFace from "@/components/MoveCardFace";
@@ -17,6 +17,7 @@ import {
 } from "@/lib/arboristTrials";
 import { playPracticeRound, type PracticeBattle } from "@/lib/practiceBattle";
 import { useFifthMoveEligibility } from "@/hooks/useFifthMoveEligibility";
+import { readCachedSuiName, resolveSuiNames } from "@/lib/suiNameService";
 import {
   createArboristTrialProofMessage,
   getArboristTrialChallenge,
@@ -58,6 +59,7 @@ export default function ArboristTrials() {
   const [scoreSaved, setScoreSaved] = useState(false);
   const [submissionMessage, setSubmissionMessage] = useState<string | null>(null);
   const [localPreview, setLocalPreview] = useState(false);
+  const [suiNames, setSuiNames] = useState<Record<string, string | null>>({});
   const submittedBattleRef = useRef<string | null>(null);
 
   const loadToday = async () => {
@@ -85,6 +87,25 @@ export default function ArboristTrials() {
   };
 
   useEffect(() => { void loadToday(); }, [address]);
+
+  useEffect(() => {
+    if (!today?.leaderboard.length) return;
+    let cancelled = false;
+    const addresses = Array.from(new Set(today.leaderboard.map((entry) => entry.wallet.toLowerCase())));
+    const cached = addresses.reduce<Record<string, string | null>>((next, entryAddress) => {
+      const name = readCachedSuiName(entryAddress);
+      if (name) next[entryAddress] = name;
+      return next;
+    }, {});
+    if (Object.keys(cached).length) setSuiNames((current) => ({ ...current, ...cached }));
+
+    const unresolved = addresses.filter((entryAddress) => !readCachedSuiName(entryAddress));
+    if (!unresolved.length) return;
+    void resolveSuiNames(unresolved).then((resolved) => {
+      if (!cancelled) setSuiNames((current) => ({ ...current, ...resolved }));
+    });
+    return () => { cancelled = true; };
+  }, [today?.leaderboard]);
 
   const fifthUnlocked = eligibility.status === "qualified";
   const startTrial = (ranked: boolean) => {
@@ -167,6 +188,37 @@ export default function ArboristTrials() {
         {error && <section className="gb-trials-message gb-trials-message-error">{error}</section>}
         {localPreview && <section className="gb-trials-message gb-trials-message-preview">Preview mode: gameplay and layout are live; official scores and streaks remain disabled until the ranked server is deployed.</section>}
 
+        {!battle && (
+          <section className="gb-trials-difference" aria-labelledby="trials-difference-title">
+            <div className="gb-trials-difference-heading">
+              <small>CHOOSE YOUR EXPERIENCE</small>
+              <h2 id="trials-difference-title">How Arborist Trials differs</h2>
+              <p>Trials is the same daily strategy puzzle for everyone. Garden Battles is the main arena for repeat matches and PvP competition.</p>
+            </div>
+            <div className="gb-trials-difference-grid">
+              <article className="gb-trials-difference-card gb-trials-difference-card-trials">
+                <Trophy size={24} />
+                <div><strong>Arborist Trials</strong><span>One shared challenge each day</span></div>
+                <ul>
+                  <li>Every player receives the same challenge setup.</li>
+                  <li>One official ranked attempt per wallet, then unlimited practice.</li>
+                  <li>No SUI entry fee; sign once after the run to save your score.</li>
+                </ul>
+              </article>
+              <article className="gb-trials-difference-card">
+                <Swords size={24} />
+                <div><strong>Garden Battles</strong><span>Play full matches whenever you want</span></div>
+                <ul>
+                  <li>Fight Garden Bot or challenge another player in PvP.</li>
+                  <li>Hands, opponents, and match strategy change from battle to battle.</li>
+                  <li>PvP uses a 3 SUI entry; Garden Bot does not.</li>
+                </ul>
+                <Link href="/battle" className="gb-trials-difference-link"><Bot size={15} /> Go to Garden Battles</Link>
+              </article>
+            </div>
+          </section>
+        )}
+
         {today && !battle && (
           <>
             <section className="gb-trials-briefing">
@@ -200,11 +252,29 @@ export default function ArboristTrials() {
             </section>
 
             <section className="gb-trials-leaderboard">
-              <div className="gb-trials-section-heading"><Trophy size={20} /><div><small>TODAY’S CANOPY</small><h2>Daily Leaders</h2></div></div>
+              <div className="gb-trials-leaderboard-head">
+                <div className="gb-trials-section-heading"><Trophy size={20} /><div><small>TODAY’S CANOPY</small><h2>Daily Leaders</h2></div></div>
+                <p>Ranked by score. Faster wins and a more varied hand improve your result.</p>
+              </div>
               {today.leaderboard.length === 0 ? <p>Be the first wallet to complete today’s ranked trial.</p> : (
-                <ol>{today.leaderboard.slice(0, 10).map((entry) => (
-                  <li key={entry.wallet}><b>#{entry.rank}</b><span>{shortWallet(entry.wallet)}</span><strong>{entry.score.toLocaleString()}</strong><small>{entry.rounds} rounds</small></li>
-                ))}</ol>
+                <ol>{today.leaderboard.slice(0, 10).map((entry, index) => {
+                  const normalizedWallet = entry.wallet.toLowerCase();
+                  const suiName = suiNames[normalizedWallet];
+                  const isCurrentWallet = normalizedWallet === address?.toLowerCase();
+                  const rank = entry.rank ?? index + 1;
+                  return (
+                    <li key={entry.wallet} className={`${rank <= 3 ? `gb-trials-leader-rank-${rank}` : ""}${isCurrentWallet ? " gb-trials-leader-current" : ""}`}>
+                      <b>#{rank}</b>
+                      <span className="gb-trials-leader-identity" title={suiName ? `${suiName} (${entry.wallet})` : entry.wallet}>
+                        <strong>{suiName || shortWallet(entry.wallet)}</strong>
+                        {suiName && <small>{shortWallet(entry.wallet)}</small>}
+                        {isCurrentWallet && <em>YOU</em>}
+                      </span>
+                      <span className="gb-trials-leader-score"><strong>{entry.score.toLocaleString()}</strong><small>points</small></span>
+                      <span className="gb-trials-leader-rounds"><strong>{entry.rounds}</strong><small>rounds</small></span>
+                    </li>
+                  );
+                })}</ol>
               )}
             </section>
           </>

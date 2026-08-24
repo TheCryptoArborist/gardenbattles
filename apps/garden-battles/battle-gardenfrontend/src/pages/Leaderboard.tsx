@@ -44,6 +44,7 @@ import {
   orderPodiumForDesktop,
   selectTopPlayers,
 } from "@/lib/leaderboardPresentation";
+import { readCachedSuiName, resolveSuiNames } from "@/lib/suiNameService";
 
 const BADGE_LABELS: Record<string, string> = {
   first_blood: "First Blood",
@@ -96,10 +97,6 @@ const BADGE_GUIDE = [
   { id: "social_butterfly", description: "Battle 10 different opponents." },
 ] as const;
 
-const SUINS_CACHE_PREFIX = "garden-battles:suins:v3:";
-const suinsNameCache = new Map<string, string | null>();
-const SUI_GRAPHQL_URL = "https://graphql.mainnet.sui.io/graphql";
-
 const LEADERBOARD_MODES: Array<{
   id: LeaderboardMode;
   label: string;
@@ -115,66 +112,6 @@ function getBattleRankClass(rankTitle: string): string {
 
 function shortenAddress(addr: string): string {
   return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
-}
-
-function readCachedSuiName(address: string): string | null | undefined {
-  const normalizedAddress = address.toLowerCase();
-  if (suinsNameCache.has(normalizedAddress)) {
-    return suinsNameCache.get(normalizedAddress) ?? null;
-  }
-
-  try {
-    const stored = window.sessionStorage.getItem(`${SUINS_CACHE_PREFIX}${normalizedAddress}`);
-    if (stored === null) return undefined;
-    if (!stored) return undefined;
-    const value = stored;
-    suinsNameCache.set(normalizedAddress, value);
-    return value;
-  } catch {
-    return undefined;
-  }
-}
-
-function writeCachedSuiName(address: string, name: string | null) {
-  const normalizedAddress = address.toLowerCase();
-  if (name) suinsNameCache.set(normalizedAddress, name);
-  else suinsNameCache.delete(normalizedAddress);
-
-  try {
-    if (name) window.sessionStorage.setItem(`${SUINS_CACHE_PREFIX}${normalizedAddress}`, name);
-    else window.sessionStorage.removeItem(`${SUINS_CACHE_PREFIX}${normalizedAddress}`);
-  } catch {
-    // sessionStorage can be unavailable in strict privacy contexts.
-  }
-}
-
-async function resolveSuiNames(addresses: string[]): Promise<Record<string, string | null>> {
-  const resolved: Record<string, string | null> = {};
-  for (let offset = 0; offset < addresses.length; offset += 25) {
-    const batch = addresses.slice(offset, offset + 25);
-    const variableDefinitions = batch.map((_, index) => `$address${index}: SuiAddress!`).join(", ");
-    const selections = batch
-      .map((_, index) => `address${index}: address(address: $address${index}) { defaultNameRecord { domain } }`)
-      .join("\n");
-    const variables = Object.fromEntries(batch.map((address, index) => [`address${index}`, address]));
-    try {
-      const response = await fetch(SUI_GRAPHQL_URL, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ query: `query LeaderboardSuiNames(${variableDefinitions}) { ${selections} }`, variables }),
-      });
-      const payload = await response.json();
-      for (let index = 0; index < batch.length; index += 1) {
-        const address = batch[index];
-        const name = payload?.data?.[`address${index}`]?.defaultNameRecord?.domain || null;
-        resolved[address] = name;
-        writeCachedSuiName(address, name);
-      }
-    } catch {
-      for (const address of batch) resolved[address] = null;
-    }
-  }
-  return resolved;
 }
 
 function formatLastPlayed(value: number | null | undefined): string {
