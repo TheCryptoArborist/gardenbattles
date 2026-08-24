@@ -1,12 +1,36 @@
-import { defineConfig } from "vite";
+import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "path";
+import { copyFile, mkdir } from "node:fs/promises";
 import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
+
+function emitSpaRouteEntries(routes: string[]): Plugin {
+  return {
+    name: "emit-spa-route-entries",
+    apply: "build" as const,
+    async writeBundle(options) {
+      if (!options.dir) {
+        throw new Error("Garden Battles build output directory is unavailable.");
+      }
+
+      const source = path.join(options.dir, "index.html");
+
+      await Promise.all(
+        routes.map(async (route) => {
+          const routeDir = path.join(options.dir!, route);
+          await mkdir(routeDir, { recursive: true });
+          await copyFile(source, path.join(routeDir, "index.html"));
+        }),
+      );
+    },
+  };
+}
 
 export default defineConfig({
   plugins: [
     react(),
     runtimeErrorOverlay(),
+    emitSpaRouteEntries(["leaderboard", "trials"]),
     ...(process.env.NODE_ENV !== "production" &&
     process.env.REPL_ID !== undefined
       ? [
