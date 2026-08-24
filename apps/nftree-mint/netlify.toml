@@ -18,6 +18,7 @@
   from = "/battle/*"
   to = "/battle/index.html"
   status = 200
+  force = true
 
 [[redirects]]
   from = "/api/nftree-listings"
