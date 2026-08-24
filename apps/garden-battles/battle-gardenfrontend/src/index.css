@@ -3221,6 +3221,13 @@
   .gb-trial-checkin-compact .gb-trial-seven-steps > span { font-size:7px; height:20px; width:20px; }
   .gb-trial-checkin-compact .gb-trial-thirty-steps { gap:1px; }.gb-trial-checkin-compact .gb-trial-thirty-steps i { height:5px; }
   .gb-mode-trials-achievements { color: #ffe77d; font-family: Orbitron, sans-serif; font-size: 8px; font-weight: 900; letter-spacing: 0.4px; text-transform: uppercase; }
+  .gb-mode-select-dedicated { grid-template-columns:minmax(280px,560px); justify-content:center; }
+  .gb-dedicated-mode-heading { margin:0 auto 18px; max-width:920px; text-align:left; }
+  .gb-dedicated-mode-heading>a { align-items:center; color:var(--gb-teal); display:inline-flex; font-size:9px; font-weight:900; gap:4px; text-decoration:none; text-transform:uppercase; }
+  .gb-dedicated-mode-heading>a svg { transform:rotate(180deg); }
+  .gb-dedicated-mode-heading small { color:var(--gb-gold); display:block; font-size:9px; font-weight:900; letter-spacing:1.2px; margin-top:16px; }
+  .gb-dedicated-mode-heading h1 { color:var(--gb-tree-green); font-family:Orbitron,sans-serif; font-size:clamp(28px,5vw,48px); line-height:1; margin:8px 0; text-align:left; text-shadow:0 0 18px rgba(57,255,136,.3); text-transform:uppercase; }
+  .gb-dedicated-mode-heading p { color:rgba(234,255,246,.8); font-family:Arial,sans-serif; font-size:clamp(14px,2vw,17px); line-height:1.5; margin:0; max-width:760px; }
 
   .gb-disconnected-onboarding {
     background:

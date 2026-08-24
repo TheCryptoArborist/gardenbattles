@@ -34,7 +34,6 @@ import {
 import PrizePayoutPanel from "@/components/PrizePayoutPanel";
 import BattleResultModal from "@/components/BattleResultModal";
 import ModeCrest from "@/components/ModeCrest";
-import TrialCheckInMeter from "@/components/TrialCheckInMeter";
 import MoveCardFace, { getMoveIconUrl } from "@/components/MoveCardFace";
 import CardGuide from "@/components/CardGuide";
 import TreeBenefitsDrawer from "@/components/TreeBenefitsDrawer";
@@ -52,7 +51,6 @@ import {
   resolveGrowthStage,
   type GrowthStage,
 } from "@/lib/battleTreeArtwork";
-import { fetchTodayArboristTrial, type ArboristTrialTodayResponse } from "@/lib/api";
 
 const ecosystemLinks = [
   { label: "Home", href: "https://www.tree-token.xyz/", testId: "home" },
@@ -254,7 +252,9 @@ function resolveGrowthStageVisual({
   };
 }
 
-export default function Battle() {
+export type BattlePageMode = "garden-bot" | "pvp";
+
+export default function Battle({ pageMode }: { pageMode: BattlePageMode }) {
   const {
     isConnected,
     address,
@@ -340,23 +340,12 @@ export default function Battle() {
   const [isResultPlayAgainStarting, setIsResultPlayAgainStarting] = useState(false);
   const [selectedResultShareOptionId, setSelectedResultShareOptionId] =
     useState("");
-  const [trialToday, setTrialToday] = useState<ArboristTrialTodayResponse | null>(null);
   const entryFeeLabel = formatSuiAmount(entryFeeMist);
   const activePvpQueueState = recoveredPvpQueueState ?? pvpQueueState;
   const pvpQueueEntryFeeLabel = formatSuiAmount(
     activePvpQueueState?.entryFeeMist ?? entryFeeMist,
   );
 
-  useEffect(() => {
-    let cancelled = false;
-    setTrialToday(null);
-    void fetchTodayArboristTrial(address).then((response) => {
-      if (!cancelled) setTrialToday(response);
-    }).catch(() => {
-      if (!cancelled) setTrialToday(null);
-    });
-    return () => { cancelled = true; };
-  }, [address]);
   const pvpWinnerPayoutLabel = formatSuiAmount(PVP_WINNER_PAYOUT_MIST);
   const pvpTreeSupportLabel = formatSuiAmount(PVP_TREE_SUPPORT_MIST);
   const selectedPvpMatchLabel = getPvpMatchDisplayLabel(selectedPvpTarget);
@@ -1322,7 +1311,7 @@ export default function Battle() {
     };
   }, []);
 
-  let battleStatus = "Connect wallet to start!";
+  let battleStatus = pageMode === "garden-bot" ? "Connect wallet to start Garden Bot." : "Connect wallet to enter PvP.";
   if (isWaiting) {
     battleStatus = "Waiting for opponent.";
   } else if (isConnected && !battleState) {
@@ -1377,7 +1366,9 @@ export default function Battle() {
           ? "ready"
           : "waiting";
 
-  const shareUrl = "https://nftree.net/battle";
+  const shareUrl = battleState
+    ? `https://nftree.net/battle/${isGardenBotBattle ? "garden-bot" : "pvp"}`
+    : `https://nftree.net/battle/${pageMode}`;
   const leaderboardRoute = appRoute("leaderboard");
   const winnerTitle =
     winner === "player"
@@ -1449,8 +1440,8 @@ export default function Battle() {
         : isWaiting
           ? `PvP Battle - ${activePvpMatchLabel} - ${entryFeeLabel} entry paid. Waiting for opponent.`
           : isConnected
-            ? "Choose Single Player or PvP to begin"
-            : "Connect wallet to choose a mode";
+            ? pageMode === "garden-bot" ? "Start a Garden Bot battle" : "Enter the PvP queue"
+            : pageMode === "garden-bot" ? "Connect wallet to start Garden Bot" : "Connect wallet to enter PvP";
   const resultModalOpen =
     !!winner &&
     battleFinished &&
@@ -1629,7 +1620,8 @@ export default function Battle() {
 
   const modeSelect =
     showFullModeSelect ? (
-      <section className="gb-mode-select" aria-label="Choose battle mode">
+      <section className="gb-mode-select gb-mode-select-dedicated" aria-label={`${pageMode === "garden-bot" ? "Garden Bot" : "PvP"} controls`}>
+        {pageMode === "garden-bot" && (
         <article className="gb-mode-card gb-mode-card-bot gb-mode-card-garden-bot">
           <ModeCrest type="garden-bot" alt="Garden Bot robotic plant medallion" />
           <h2>Garden Bot</h2>
@@ -1645,30 +1637,8 @@ export default function Battle() {
             </button>
           </div>
         </article>
-
-        <article className="gb-mode-card gb-mode-card-trials">
-          <span className="gb-mode-trials-kicker">Daily Ranked Challenge</span>
-          <h2 className="gb-visually-hidden">Arborist Trials</h2>
-          <img className="gb-mode-trials-logo" src={appAsset("assets/arborist-trials-logo.webp")} alt="Arborist Trials" />
-          <p>Same challenge. One official score. New strategy every day.</p>
-          <div className="gb-mode-card-details">
-            <div className="gb-mode-card-chips" aria-label="Arborist Trials details">
-              <span>Same challenge for everyone</span>
-              <span>One ranked score daily</span>
-              <span>Free to play</span>
-            </div>
-            <TrialCheckInMeter connected={isConnected} checkInStreak={trialToday?.checkInStreak} todayCheckedIn={trialToday?.rankedAttemptUsed} compact />
-            <span className="gb-mode-trials-achievements">
-              {isConnected
-                ? `${trialToday?.achievements?.filter((badge) => badge.earned).length ?? 0}/${trialToday?.achievements?.length ?? 7} achievements earned`
-                : "Connect to earn Trial achievements"}
-            </span>
-            <Link href="/battle/trials" className="gb-mode-action gb-mode-action-trials">
-              Enter Today’s Trial
-            </Link>
-          </div>
-        </article>
-
+        )}
+        {pageMode === "pvp" && (
         <article className="gb-mode-card gb-mode-card-pvp">
           <ModeCrest type="pvp-battle" alt="PvP Battle duel medallion" />
           <h2>PvP Battle</h2>
@@ -1728,18 +1698,7 @@ export default function Battle() {
             )}
           </div>
         </article>
-
-        <article
-          className="gb-mode-card gb-mode-card-clash"
-          aria-label="Canopy Clash coming soon"
-        >
-          <ModeCrest type="canopy-clash" alt="Canopy Clash tournament medallion" />
-          <h2>Canopy Clash</h2>
-          <p>Tournament Mode</p>
-          <div className="gb-mode-card-details">
-            <span className="gb-mode-placeholder">Coming Soon</span>
-          </div>
-        </article>
+        )}
       </section>
     ) : null;
 
@@ -1922,6 +1881,9 @@ export default function Battle() {
 
           <nav className="gb-header-nav" aria-label="TREE ecosystem navigation">
             <div className="gb-nav-group" aria-label="TREE ecosystem links">
+              <Link href="/battle" className="gb-nav-link">
+                <Gamepad2 size={16} aria-hidden="true" /> <span>Battle Modes</span>
+              </Link>
               {ecosystemLinks.map((link) => (
                 <a
                   key={link.href}
@@ -1995,6 +1957,9 @@ export default function Battle() {
             aria-label="TREE ecosystem mobile navigation"
           >
             <div className="gb-mobile-nav-section" aria-label="TREE ecosystem links">
+              <Link href="/battle" className="gb-nav-link" onClick={() => setHeaderMenuOpen(false)}>
+                <Gamepad2 size={16} aria-hidden="true" /> Battle Modes
+              </Link>
               {ecosystemLinks.map((link) => (
                 <a
                   key={link.href}
@@ -2088,6 +2053,16 @@ export default function Battle() {
         )}
 
         <main className="gb-battle-main">
+          {!hasActiveSession && (
+            <section className="gb-dedicated-mode-heading">
+              <Link href="/battle"><ChevronRight size={15} aria-hidden="true" /> All Battle Modes</Link>
+              <small>{pageMode === "garden-bot" ? "REPEATABLE SINGLE-PLAYER" : "LIVE PLAYER-VS-PLAYER"}</small>
+              <h1>{pageMode === "garden-bot" ? "Garden Bot" : "PvP Battle"}</h1>
+              <p>{pageMode === "garden-bot"
+                ? "Build your hand, outgrow the Garden Bot, and earn ranked battle records without a PvP entry fee."
+                : "Enter the 50-Growth queue, meet a live opponent, and compete for the 5 SUI winner payout."}</p>
+            </section>
+          )}
           {!hasActiveSession && <section
             className={`gb-tree-benefits-trigger gb-tree-benefits-trigger-featured gb-tree-benefits-trigger-${fifthCardPromo.tone}`}
             aria-label={fifthCardPromo.title}
@@ -2121,7 +2096,7 @@ export default function Battle() {
                 </span>
                 <ChevronRight size={17} aria-hidden="true" />
               </button>
-              <details className="gb-practice-launcher">
+              {pageMode === "garden-bot" && <details className="gb-practice-launcher">
                 <summary>
                   <span className="gb-practice-launcher-icon" aria-hidden="true"><Gamepad2 size={19} /></span>
                   <span>
@@ -2141,7 +2116,7 @@ export default function Battle() {
                     Start Free Practice
                   </button>
                 </div>
-              </details>
+              </details>}
             </div>
           )}
           {!isConnected && !hasActiveSession && (
@@ -2150,14 +2125,16 @@ export default function Battle() {
               aria-label="Connect wallet to start Garden Battles"
             >
               <div className="gb-disconnected-onboarding-copy">
-                <p className="gb-disconnected-kicker">Ranked or practice</p>
-                <h1>Choose how you want to play</h1>
+                <p className="gb-disconnected-kicker">{pageMode === "garden-bot" ? "Ranked or practice" : "Live competitive play"}</p>
+                <h1>{pageMode === "garden-bot" ? "Grow against Garden Bot" : "Enter the PvP arena"}</h1>
                 <p>
-                  Connect for ranked battles, or start Practice Mode immediately without a wallet.
+                  {pageMode === "garden-bot"
+                    ? "Connect an NFTree wallet for Garden Bot, or start Practice Mode immediately without a wallet."
+                    : "Connect an NFTree wallet to enter the paid PvP queue."}
                 </p>
               </div>
               <div className="gb-disconnected-wallet-cta">
-                <ConnectButton connectText="Connect for Ranked Play" />
+                <ConnectButton connectText={pageMode === "garden-bot" ? "Connect for Garden Bot" : "Connect for PvP"} />
               </div>
               <MobileWalletLaunchers />
             </section>

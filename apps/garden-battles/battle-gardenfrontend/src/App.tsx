@@ -9,6 +9,8 @@ import { SuiWalletProvider } from "@/hooks/useSuiWallet";
 import { SUI_CONFIG } from "@/lib/sui-config";
 import Home from "@/pages/Home";
 import Battle from "@/pages/Battle";
+import BattleHub from "@/pages/BattleHub";
+import CanopyClash from "@/pages/CanopyClash";
 import ArboristTrials from "@/pages/ArboristTrials";
 import Mint from "@/pages/Mint";
 import Leaderboard from "@/pages/Leaderboard";
@@ -36,6 +38,9 @@ function Router() {
       <Route path="/leaderboard" component={Leaderboard} />
       <Route path="/battle/leaderboard" component={Leaderboard} />
       <Route path="/battle/trials" component={ArboristTrials} />
+      <Route path="/battle/garden-bot"><Battle pageMode="garden-bot" /></Route>
+      <Route path="/battle/pvp"><Battle pageMode="pvp" /></Route>
+      <Route path="/battle/canopy-clash" component={CanopyClash} />
       {import.meta.env.DEV && (
         <>
           <Route path="/badge-gallery" component={BadgeGalleryPreview} />
@@ -44,7 +49,7 @@ function Router() {
           <Route path="/battle/tree-power-preview" component={TreePowerPreview} />
         </>
       )}
-      <Route path="/battle" component={Battle} />
+      <Route path="/battle" component={BattleHub} />
       <Route component={NotFound} />
     </Switch>
   );
