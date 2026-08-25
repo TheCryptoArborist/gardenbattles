@@ -34,7 +34,7 @@ const modes = [
     title: "Arborist Trials",
     eyebrow: "Daily Ranked Challenge",
     description: "Face the same strategy puzzle as every NFTree owner and record one official score each day.",
-    facts: ["NFTree-gated", "One official run daily", "Unlimited practice"],
+    facts: ["NFTree required", "One official run daily", "Unlimited practice"],
     href: "/battle/trials",
     action: "Enter Today’s Trial",
     icon: ShieldCheck,
