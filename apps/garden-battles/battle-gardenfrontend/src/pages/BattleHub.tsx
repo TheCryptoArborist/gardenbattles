@@ -1,5 +1,5 @@
 import { ConnectButton } from "@mysten/dapp-kit";
-import { Bot, ChevronRight, Gamepad2, ShieldCheck, Swords, Trophy } from "lucide-react";
+import { Bot, ChevronRight, Gamepad2, House, ShieldCheck, Swords, Trophy } from "lucide-react";
 import { Link } from "wouter";
 import ModeCrest from "@/components/ModeCrest";
 import { useSuiWallet } from "@/hooks/useSuiWallet";
@@ -65,9 +65,11 @@ export default function BattleHub() {
       <header className="gb-hub-header">
         <img src={appAsset("assets/garden.png")} alt="Garden Battles" />
         <nav aria-label="Garden Battles navigation">
+          <a href="https://www.tree-token.xyz/"><House size={16} /> Home</a>
           <a href="https://tree-token.xyz/play/" target="_blank" rel="noopener noreferrer"><Gamepad2 size={16} /> TREE Arcade</a>
           <Link href="/battle/leaderboard"><Trophy size={16} /> Leaderboard</Link>
         </nav>
+        <a className="gb-hub-mobile-home" href="https://www.tree-token.xyz/" aria-label="Go to TREE home page"><House size={17} /><span>Home</span></a>
         <ConnectButton connectText="Connect Wallet" />
       </header>
 
