@@ -1,6 +1,11 @@
 import { Transaction, type TransactionArgument } from "@mysten/sui/transactions";
 import type { FifthMoveProof } from "./fifthMoveRouting";
 
+// Queue joins create and mutate several on-chain objects. Some mobile wallets
+// underestimate that storage work during gas simulation, so give joins the same
+// explicit safety ceiling used by PvP moves. This is a maximum, not a fixed fee.
+export const PVP_JOIN_GAS_BUDGET_MIST = 20_000_000;
+
 export type PvpQueueTypeForJoin = "legacy" | "v2" | "v3";
 
 export type DirectPvpJoinInput = {
@@ -72,6 +77,7 @@ export function buildDirectPvpJoinTransaction(input: DirectPvpJoinInput): {
   usesFifthMoveProof: boolean;
 } {
   const tx = new Transaction();
+  tx.setGasBudget(PVP_JOIN_GAS_BUDGET_MIST);
   const fee = makeFeeCoin(tx, input.entryFeeMist);
   const proof = input.queueType === "v3" ? input.fifthMoveProof : null;
   const usesFifthMoveProof = Boolean(proof);
@@ -123,6 +129,7 @@ export function buildKioskPvpJoinTransaction(input: KioskPvpJoinInput): {
   usesFifthMoveProof: boolean;
 } {
   const tx = new Transaction();
+  tx.setGasBudget(PVP_JOIN_GAS_BUDGET_MIST);
   const fee = makeFeeCoin(tx, input.entryFeeMist);
   const proof = input.queueType === "v3" ? input.fifthMoveProof : null;
   const usesFifthMoveProof = Boolean(proof);

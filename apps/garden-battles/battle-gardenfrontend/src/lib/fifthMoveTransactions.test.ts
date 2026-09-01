@@ -5,6 +5,7 @@ import {
   buildKioskPvpJoinTransaction,
   buildRankedBotBattleFromKioskTransaction,
   buildRankedBotBattleTransaction,
+  PVP_JOIN_GAS_BUDGET_MIST,
 } from "./fifthMoveTransactions";
 import type { FifthMoveProof } from "./fifthMoveRouting";
 
@@ -76,6 +77,7 @@ test("direct v3 qualified join uses join_queue_v3_with_fifth_move and Clock 0x6"
   assert.equal(built.functionName, "join_queue_v3_with_fifth_move");
   assert.equal(built.usesFifthMoveProof, true);
   assert.equal(data.sender, SENDER);
+  assert.equal(Number(data.gasData.budget), PVP_JOIN_GAS_BUDGET_MIST);
   assert.equal(moveCallData(data).package, PACKAGE_ID);
   assert.equal(moveCallData(data).module, "matchmaking");
   assert.equal(moveCallData(data).function, "join_queue_v3_with_fifth_move");
@@ -155,6 +157,7 @@ test("kiosk v3 qualified join uses join_queue_v3_with_fifth_move_from_kiosk and 
   const data = built.tx.getData() as any;
   assert.equal(built.functionName, "join_queue_v3_with_fifth_move_from_kiosk");
   assert.equal(built.usesFifthMoveProof, true);
+  assert.equal(Number(data.gasData.budget), PVP_JOIN_GAS_BUDGET_MIST);
   assert.equal(moveCallData(data).module, "matchmaking");
   assert.equal(moveCallData(data).function, "join_queue_v3_with_fifth_move_from_kiosk");
   assert.equal(hasObjectInput(data, "0x6"), true);

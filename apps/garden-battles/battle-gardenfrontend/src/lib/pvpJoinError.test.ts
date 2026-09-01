@@ -44,6 +44,15 @@ test("post-wallet transaction failures do not look like prep failures", () => {
   );
 });
 
+test("post-wallet insufficient gas failures explain that the entry fee was not taken", () => {
+  assert.equal(
+    formatPvpJoinFailureMessage(
+      "PvP queue transaction failed after wallet approval: InsufficientGas",
+    ),
+    "The wallet allowed too little gas for the PvP queue transaction. Your entry fee was not taken. Refresh and try again.",
+  );
+});
+
 test("queue-prep RPC failures are not double-wrapped", () => {
   assert.equal(
     formatPvpJoinFailureMessage(

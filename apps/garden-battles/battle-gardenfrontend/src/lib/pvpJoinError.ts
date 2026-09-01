@@ -39,6 +39,10 @@ export function formatPvpJoinFailureMessage(message: string) {
     return safeMessage;
   }
 
+  if (lowerMessage.includes("insufficientgas") || lowerMessage.includes("insufficient gas")) {
+    return "The wallet allowed too little gas for the PvP queue transaction. Your entry fee was not taken. Refresh and try again.";
+  }
+
   if (lowerMessage.includes("wallet not connected")) {
     return "Wallet not connected. Reconnect your wallet and try again.";
   }
