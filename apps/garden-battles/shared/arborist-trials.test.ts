@@ -22,6 +22,24 @@ test("daily challenges rotate when the UTC date changes", () => {
   assert.notEqual(first.seed, second.seed);
 });
 
+test("version two schedules all seven challenge types once per week without repeats", () => {
+  const challenges = Array.from({ length: 14 }, (_, index) => {
+    const date = new Date("2026-09-02T12:00:00.000Z");
+    date.setUTCDate(date.getUTCDate() + index);
+    return getArboristTrialChallenge(date);
+  });
+  assert.equal(new Set(challenges.slice(0, 7).map((challenge) => challenge.title)).size, 7);
+  assert.equal(new Set(challenges.slice(7).map((challenge) => challenge.title)).size, 7);
+  for (let index = 1; index < challenges.length; index += 1) {
+    assert.notEqual(challenges[index].title, challenges[index - 1].title);
+  }
+  assert.equal(challenges[0].id, "arborist-trial-v2-2026-09-02");
+  assert.equal(challenges[1].rule, "canopy_diagnosis");
+  assert.equal(challenges[3].rule, "toolbelt_rotation");
+  assert.equal(challenges[5].rule, "storm_response");
+  assert.equal(challenges[6].rule, "integrated_pest_management");
+});
+
 test("ranked proof messages bind the wallet, challenge, and complete move sequence", () => {
   assert.equal(
     createArboristTrialProofMessage(
@@ -39,4 +57,10 @@ test("winning efficiently and using more cards improves the score", () => {
   const loss = calculateArboristTrialScore({ won: false, rounds: 10, playerGrowth: 40, botGrowth: 50, uniqueMoves: 5 });
   assert.ok(efficient > slow);
   assert.ok(slow > loss);
+});
+
+test("specialty points improve a challenge score without replacing the base score", () => {
+  const base = calculateArboristTrialScore({ won: true, rounds: 10, playerGrowth: 50, botGrowth: 20, uniqueMoves: 4 });
+  const specialty = calculateArboristTrialScore({ won: true, rounds: 10, playerGrowth: 50, botGrowth: 20, uniqueMoves: 4, specialtyBonus: 1_500 });
+  assert.equal(specialty - base, 1_500);
 });

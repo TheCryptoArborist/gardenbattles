@@ -146,5 +146,7 @@ test("server replay derives a completed win from the submitted card sequence", (
     playerGrowth: 50,
     botGrowth: 41,
     uniqueMoves: 4,
+    specialtyBonus: 0,
+    specialtySummary: null,
   });
 });

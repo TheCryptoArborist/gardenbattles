@@ -1,6 +1,6 @@
 import type { ActionEntry } from "@/components/BattleLog";
 import type { BattleState } from "@/hooks/useSuiWallet";
-import { MOVE_LABELS, MOVE_META } from "@/lib/sui-config";
+import { MOVE_LABELS, MOVE_META, type MoveType } from "@/lib/sui-config";
 
 export const PRACTICE_PLAYER_ADDRESS = "practice-player";
 export const PRACTICE_BOT_ADDRESS = "practice-garden-bot";
@@ -24,6 +24,7 @@ type PracticeStatus = {
 export type PracticeBattle = BattleState & {
   mode: "practice" | "arborist-trial";
   botMoveHistory: number[];
+  allBotMoves: number[];
   playerMoveHistory: number[];
   allPlayerMoves: number[];
   totalTurns: number;
@@ -31,6 +32,7 @@ export type PracticeBattle = BattleState & {
   botStatus: PracticeStatus;
   randomState?: number;
   challengeId?: string;
+  botMoveTypeSchedule?: MoveType[];
 };
 
 export type CreatePracticeBattleOptions = {
@@ -40,6 +42,7 @@ export type CreatePracticeBattleOptions = {
   playerStartGrowth?: number;
   botStartGrowth?: number;
   bonusMoveId?: number | null;
+  botMoveTypeSchedule?: MoveType[];
 };
 
 type MoveOutcome = {
@@ -130,12 +133,14 @@ function createPracticeBattleInternal(options: CreatePracticeBattleOptions): Pra
     lastMoveMs: Date.now(),
     mode: options.mode ?? "practice",
     botMoveHistory: [],
+    allBotMoves: [],
     playerMoveHistory: [],
     allPlayerMoves: [],
     totalTurns: 0,
     playerStatus: emptyStatus(),
     botStatus: emptyStatus(),
     challengeId: options.challengeId,
+    botMoveTypeSchedule: options.botMoveTypeSchedule,
   };
 }
 
@@ -459,7 +464,16 @@ function scoreBotMove(moveId: number, battle: PracticeBattle) {
 }
 
 function choosePracticeBotMove(battle: PracticeBattle) {
-  const scored = battle.player2Moves.map((moveId) => ({
+  const scheduledType = battle.botMoveTypeSchedule?.length
+    ? battle.botMoveTypeSchedule[
+        battle.botMoveHistory.length % battle.botMoveTypeSchedule.length
+      ]
+    : null;
+  const scheduledMoves = scheduledType
+    ? battle.player2Moves.filter((moveId) => MOVE_META[moveId]?.type === scheduledType)
+    : battle.player2Moves;
+  const availableMoves = scheduledMoves.length > 0 ? scheduledMoves : battle.player2Moves;
+  const scored = availableMoves.map((moveId) => ({
     moveId,
     score: scoreBotMove(moveId, battle),
   }));
@@ -587,6 +601,7 @@ function playPracticeRoundInternal(
       playerStatus: botResolved.opponentStatus,
       botStatus: botResolved.selfStatus,
       botMoveHistory: [...nextBattle.botMoveHistory, botMoveId].slice(-8),
+      allBotMoves: [...nextBattle.allBotMoves, botMoveId],
       totalTurns: nextBattle.totalTurns + 1,
       lastMoveMs: Date.now(),
     };

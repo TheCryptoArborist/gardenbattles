@@ -15,9 +15,14 @@ import { appAsset } from "@/lib/assets";
 import { getBattleTreeAssetPath, resolveGrowthStage } from "@/lib/battleTreeArtwork";
 import {
   createArboristTrialBattle,
+  getCanopyDiagnosisCounterType,
+  getCanopyDiagnosisForecast,
   getArboristTrialResult,
+  getToolbeltLockedMoveIds,
+  isArboristTrialMoveDisabled,
+  playArboristTrialRound,
 } from "@/lib/arboristTrials";
-import { playPracticeRound, type PracticeBattle } from "@/lib/practiceBattle";
+import type { PracticeBattle } from "@/lib/practiceBattle";
 import { useFifthMoveEligibility } from "@/hooks/useFifthMoveEligibility";
 import { readCachedSuiName, resolveSuiNames } from "@/lib/suiNameService";
 import {
@@ -135,7 +140,7 @@ export default function ArboristTrials() {
   const playMove = (moveId: number) => {
     if (!battle || battle.finished) return;
     try {
-      const result = playPracticeRound(battle, moveId);
+      const result = playArboristTrialRound(battle, today!.challenge, moveId);
       setBattle(result.battle);
       setLog((entries) => [...entries, ...result.entries]);
       setError(null);
@@ -182,8 +187,17 @@ export default function ArboristTrials() {
   };
 
   const rounds = battle ? Math.ceil(battle.totalTurns / 2) : 0;
-  const result = useMemo(() => battle?.finished ? getArboristTrialResult(battle) : null, [battle]);
+  const result = useMemo(
+    () => battle?.finished && today ? getArboristTrialResult(battle, today.challenge) : null,
+    [battle, today],
+  );
   const lastBotMove = [...log].reverse().find((entry) => entry.actor === "opponent");
+  const diagnosisForecast = battle && today
+    ? getCanopyDiagnosisForecast(battle, today.challenge)
+    : null;
+  const toolbeltLockedMoves = battle && today
+    ? getToolbeltLockedMoveIds(battle, today.challenge)
+    : new Set<number>();
 
   return (
     <div className="gb-trials-page">
@@ -235,6 +249,7 @@ export default function ArboristTrials() {
                 <span><b>You start</b> {today.challenge.playerStartGrowth} Growth</span>
                 <span><b>Bot starts</b> {today.challenge.botStartGrowth} Growth</span>
                 <span><b>Fifth card</b> {fifthUnlocked ? "Unlocked" : "Requires TREE eligibility"}</span>
+                <span><b>Special rule</b> {today.challenge.ruleDescription}</span>
               </div>
               <div className="gb-trials-start-actions">
                 <button
@@ -353,18 +368,36 @@ export default function ArboristTrials() {
               <div className="gb-trials-last-move">Last Garden Bot card: <strong>{lastBotMove.label}</strong></div>
             )}
 
+            {!battle.finished && diagnosisForecast && (
+              <div className="gb-trials-last-move gb-trials-forecast">
+                Canopy diagnosis: Garden Bot is preparing a <strong>{diagnosisForecast.toUpperCase()}</strong> card.
+                Best response: <strong>{getCanopyDiagnosisCounterType(diagnosisForecast).toUpperCase()}</strong>.
+              </div>
+            )}
+
             {!battle.finished ? (
               <div className="gb-trials-hand">
-                <div className="gb-trials-hand-heading"><span>Choose your move</span><small>The same card cannot be played twice in a row.</small></div>
+                <div className="gb-trials-hand-heading">
+                  <span>Choose your move</span>
+                  <small>{today.challenge.rule === "toolbelt_rotation"
+                    ? "Use all four standard cards to reset your Toolbelt. The fifth move stays separate."
+                    : today.challenge.rule === "integrated_pest_management"
+                      ? "Win with two or fewer Attack plays for the full IPM bonus."
+                      : today.challenge.rule === "storm_response"
+                        ? "Storm damage strikes both trees after every third completed round."
+                        : "The same card cannot be played twice in a row."}</small>
+                </div>
                 <div className="gb-trials-move-grid">
                   {battle.player1Moves.map((moveId, index) => {
                     const usedLast = battle.playerMoveHistory.at(-1) === moveId;
+                    const toolLocked = toolbeltLockedMoves.has(moveId);
                     const fifth = index === 4;
                     return (
-                      <button key={moveId} type="button" className={`gb-trial-move-card${fifth ? " gb-trial-move-card-fifth" : ""}`} disabled={usedLast} onClick={() => playMove(moveId)}>
+                      <button key={moveId} type="button" className={`gb-trial-move-card${fifth ? " gb-trial-move-card-fifth" : ""}`} disabled={isArboristTrialMoveDisabled(battle, today.challenge, moveId)} onClick={() => playMove(moveId)}>
                         {fifth && <span className="gb-trial-fifth-banner">BONUS FIFTH MOVE</span>}
                         <MoveCardFace moveId={moveId} isFifth={fifth} />
                         {usedLast && <span className="gb-trial-used-last">Used last round</span>}
+                        {!usedLast && toolLocked && <span className="gb-trial-used-last">Tool locked this cycle</span>}
                       </button>
                     );
                   })}
@@ -373,7 +406,7 @@ export default function ArboristTrials() {
             ) : (
               <div className={`gb-trials-result ${result?.won ? "gb-trials-result-win" : "gb-trials-result-loss"}`}>
                 <Trophy size={34} />
-                <div><small>TRIAL COMPLETE · {rankedRun ? "OFFICIAL RUN" : "PRACTICE"}</small><h2>{result?.won ? "Canopy Conquered" : "Garden Bot Held the Grove"}</h2><p>{rounds} rounds · {battle.player1Growth}–{battle.player2Growth} final Growth</p>{submissionMessage && <strong>{submissionMessage}</strong>}{!rankedRun && <strong>Practice result only — no score or streak was submitted.</strong>}</div>
+                <div><small>TRIAL COMPLETE · {rankedRun ? "OFFICIAL RUN" : "PRACTICE"}</small><h2>{result?.won ? "Canopy Conquered" : "Garden Bot Held the Grove"}</h2><p>{rounds} rounds · {battle.player1Growth}–{battle.player2Growth} final Growth</p>{result?.specialtySummary && <p>{result.specialtySummary} · {result.specialtyBonus.toLocaleString()} specialty points</p>}{submissionMessage && <strong>{submissionMessage}</strong>}{!rankedRun && <strong>Practice result only — no score or streak was submitted.</strong>}</div>
                 {rankedRun && !scoreSaved && (
                   <button type="button" className="gb-trials-primary" disabled={submitting} onClick={() => void submitRankedScore()}>
                     <ShieldCheck size={16} /> {submitting ? "Waiting for Wallet..." : "Sign & Submit Official Score"}

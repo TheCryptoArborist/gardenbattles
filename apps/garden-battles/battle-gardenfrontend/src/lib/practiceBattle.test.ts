@@ -2,6 +2,14 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createPracticeBattle, playPracticeRound } from "./practiceBattle";
 import { MOVE_META } from "./sui-config";
+import { getArboristTrialChallenge } from "@shared/arborist-trials";
+import {
+  createArboristTrialBattle,
+  getArboristTrialResult,
+  getCanopyDiagnosisForecast,
+  getToolbeltLockedMoveIds,
+  playArboristTrialRound,
+} from "./arboristTrials";
 
 test("practice hands mirror the balanced four-card deal", () => {
   for (let i = 0; i < 500; i += 1) {
@@ -14,6 +22,51 @@ test("practice hands mirror the balanced four-card deal", () => {
       assert.ok(hand.some((move) => MOVE_META[move]?.type === "hybrid"));
     }
   }
+});
+
+test("Canopy Diagnosis forecasts and deals the announced Garden Bot card type", () => {
+  const challenge = getArboristTrialChallenge(new Date("2026-09-03T12:00:00.000Z"));
+  let battle = createArboristTrialBattle(challenge, false);
+  const forecast = getCanopyDiagnosisForecast(battle, challenge);
+  assert.ok(forecast);
+  battle = playArboristTrialRound(battle, challenge, battle.player1Moves[0]).battle;
+  assert.equal(MOVE_META[battle.allBotMoves[0]]?.type, forecast);
+});
+
+test("Toolbelt Rotation locks a standard card until the four-card cycle completes", () => {
+  const challenge = getArboristTrialChallenge(new Date("2026-09-05T12:00:00.000Z"));
+  const battle = createArboristTrialBattle(challenge, true);
+  const standardMove = battle.player1Moves[0];
+  const next = playArboristTrialRound(battle, challenge, standardMove).battle;
+  assert.equal(getToolbeltLockedMoveIds(next, challenge).has(standardMove), true);
+  assert.throws(
+    () => playArboristTrialRound(next, challenge, standardMove),
+    /tool is locked/i,
+  );
+});
+
+test("Storm Response applies four Growth of storm damage after round three", () => {
+  const challenge = getArboristTrialChallenge(new Date("2026-09-07T12:00:00.000Z"));
+  let battle = createArboristTrialBattle(challenge, false);
+  let stormLogged = false;
+  for (let round = 0; round < 3 && !battle.finished; round += 1) {
+    const move = battle.player1Moves.find((moveId) => moveId !== battle.playerMoveHistory.at(-1))!;
+    const played = playArboristTrialRound(battle, challenge, move);
+    battle = played.battle;
+    stormLogged ||= played.entries.some((entry) => entry.label === "Storm Front");
+  }
+  assert.equal(stormLogged, true);
+});
+
+test("Integrated Pest Management awards the full specialty bonus for two Attack plays", () => {
+  const challenge = getArboristTrialChallenge(new Date("2026-09-08T12:00:00.000Z"));
+  const battle = createArboristTrialBattle(challenge, false);
+  battle.finished = true;
+  battle.winner = "practice-player";
+  battle.allPlayerMoves = [1, 15, 9, 2];
+  const result = getArboristTrialResult(battle, challenge);
+  assert.equal(result.specialtyBonus, 1_500);
+  assert.match(result.specialtySummary ?? "", /2 Attack cards/);
 });
 
 test("practice mode enforces the catalog no-consecutive-card rule", () => {

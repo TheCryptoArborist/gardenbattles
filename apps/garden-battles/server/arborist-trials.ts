@@ -10,8 +10,8 @@ import {
   createArboristTrialBattle,
   getArboristTrialResult as getReplayedTrialResult,
   getDailyTrialFifthMoveId,
+  playArboristTrialRound,
 } from "../battle-gardenfrontend/src/lib/arboristTrials";
-import { playPracticeRound } from "../battle-gardenfrontend/src/lib/practiceBattle";
 import {
   getArboristTrialLeaderboard,
   getArboristTrialResult,
@@ -188,7 +188,7 @@ export function replayArboristTrial(
     for (let index = 0; index < moves.length; index += 1) {
       const moveId = moves[index];
       if (replay.finished) return { ok: false, reason: "moves_after_battle_finished" };
-      replay = playPracticeRound(replay, moveId).battle;
+      replay = playArboristTrialRound(replay, challenge, moveId).battle;
       if (replay.finished && index !== moves.length - 1) {
         return { ok: false, reason: "moves_after_battle_finished" };
       }
@@ -197,7 +197,7 @@ export function replayArboristTrial(
     return { ok: false, reason: "invalid_move_sequence" };
   }
   if (!replay.finished) return { ok: false, reason: "incomplete_trial" };
-  return { ok: true, result: getReplayedTrialResult(replay) };
+  return { ok: true, result: getReplayedTrialResult(replay, challenge) };
 }
 
 export async function submitTodayArboristTrial(
