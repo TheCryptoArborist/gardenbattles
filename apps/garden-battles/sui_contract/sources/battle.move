@@ -1,6 +1,7 @@
 #[allow(lint(public_random))]
 module battle_garden::battle {
     const PVP_V3_REROLL_COST_MULTIPLIER: u64 = 2;
+    const TREE_REROLL_RECIPIENT: address = @0x6f1020c2fd6c91129f7cb5e0d651295e87f7245f96b7d090715c89b38197e77f;
     use sui::event;
     use sui::balance::{Self, Balance};
     use sui::coin;
@@ -467,11 +468,10 @@ module battle_garden::battle {
         assert!(cost > 0, errors::e_tree_insufficient());
         assert!(coin::value(&payment) >= cost, errors::e_insufficient_payment());
 
-        // TREE has an external TreasuryCap, so this package cannot destroy its
-        // supply directly. Sending the exact fee to 0x0 permanently removes it
-        // from circulation while returning any accidental surplus.
+        // Send the exact reroll fee to the configured Garden Battles recipient
+        // while returning any accidental surplus to the player.
         let spent = coin::split(&mut payment, cost, ctx);
-        transfer::public_transfer(spent, @0x0);
+        transfer::public_transfer(spent, TREE_REROLL_RECIPIENT);
         if (coin::value(&payment) > 0) {
             transfer::public_transfer(payment, tx_context::sender(ctx));
         } else {
@@ -2350,9 +2350,9 @@ module battle_garden::battle {
         let cost = config::reroll_cost(tree_config);
         assert!(coin::value(&payment) >= cost, errors::e_insufficient_payment());
 
-        // Burn the cost amount (send to 0x0)
+        // Send the exact reroll fee to the Garden Battles recipient.
         let burn_coin = coin::split(&mut payment, cost, ctx);
-        transfer::public_transfer(burn_coin, @0x0);
+        transfer::public_transfer(burn_coin, TREE_REROLL_RECIPIENT);
 
         // Return any surplus to the sender
         if (coin::value(&payment) > 0) {
