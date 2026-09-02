@@ -1,12 +1,44 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  assertTreeRerollTreasuryPayment,
+  buildTreeRerollTransaction,
+  TREE_REROLL_TREASURY,
+  TREE_REROLL_PACKAGE,
   formatTreeRerollCost,
   getTreeRerollCostRaw,
   getTreeRerollMoveFunction,
   parseTreeRerollCostRaw,
   selectTreeCoinInputs,
 } from "./treeReroll";
+import { TREE_COIN_TYPE } from "./treeBalance";
+
+const testSender = `0x${"1".repeat(64)}`;
+const testFee = BigInt(20_000_000_000);
+const change = (owner: string, amount: string) => ({ coinType: TREE_COIN_TYPE, owner: { AddressOwner: owner }, amount });
+const preview = (balanceChanges: unknown[], status = "success") => ({ effects: { status: { status } }, balanceChanges });
+
+test("reroll payment permits only the exact sender debit and treasury credit", () => {
+  assert.doesNotThrow(() => assertTreeRerollTreasuryPayment(preview([
+    change(testSender, (-testFee).toString()), change(TREE_REROLL_TREASURY, testFee.toString()),
+    { coinType: "0x2::sui::SUI", owner: { AddressOwner: testSender }, amount: "-1500000" },
+  ]), testSender, testFee));
+});
+test("zero-address, wrong recipient, extra charge and unverifiable rerolls fail closed", () => {
+  for (const result of [null, {}, preview([]), preview([], "failure"),
+    preview([change(testSender, (-testFee).toString()), change(`0x${"0".repeat(64)}`, testFee.toString())]),
+    preview([change(testSender, (-testFee).toString()), change(`0x${"2".repeat(64)}`, testFee.toString())]),
+    preview([change(testSender, "-20000000001"), change(TREE_REROLL_TREASURY, testFee.toString())]),
+    preview([change(testSender, (-testFee).toString()), change(TREE_REROLL_TREASURY, "19000000000")]),
+    preview([change(testSender, (-testFee).toString()), change(TREE_REROLL_TREASURY, "NaN")]),
+  ]) assert.throws(() => assertTreeRerollTreasuryPayment(result, testSender, testFee), /Reroll blocked/);
+});
+test("paid reroll transaction targets the approved treasury-routing package", () => {
+  const tx = buildTreeRerollTransaction({ address: testSender, battleId: "0x2", battleVersion: "pvp-v3", treeConfigId: "0x3", randomObjectId: "0x8", costRaw: testFee, coinObjectIds: ["0x4"] });
+  const call = tx.getData().commands.find((command) => command.$kind === "MoveCall");
+  assert.equal(call?.MoveCall?.package, TREE_REROLL_PACKAGE);
+  assert.equal(call?.MoveCall?.function, "reroll_pvp_v3_moves");
+});
 
 test("reroll routes only to active paid PvP", () => {
   assert.equal(getTreeRerollMoveFunction("pvp-v3"), "reroll_pvp_v3_moves");

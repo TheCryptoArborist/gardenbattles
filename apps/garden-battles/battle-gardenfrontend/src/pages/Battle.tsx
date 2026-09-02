@@ -22,6 +22,7 @@ import PlayerRecord from "@/components/PlayerRecord";
 import ForestPower from "@/components/ForestPower";
 import { appAsset } from "@/lib/assets";
 import { appRoute } from "@/lib/routes";
+import { TREE_REROLL_TREASURY } from "@/lib/treeReroll";
 import { resolvePvpQueueUiAfterRefund } from "@/lib/pvpQueueState";
 import {
   getFifthMoveDraftState,
@@ -1344,7 +1345,9 @@ export default function Battle({ pageMode }: { pageMode: BattlePageMode }) {
 
   const matchLiveStatus =
     isTreeRerollTransactionPending
-      ? treeRerollLifecycleStage === "awaiting-wallet-approval"
+      ? treeRerollLifecycleStage === "verifying-payment"
+        ? "Verifying treasury payment"
+        : treeRerollLifecycleStage === "awaiting-wallet-approval"
         ? freeGardenBotRerollSupported
           ? "Approve free reroll in wallet"
           : "Approve TREE Reroll in wallet"
@@ -2734,7 +2737,9 @@ export default function Battle({ pageMode }: { pageMode: BattlePageMode }) {
               }}
             >
               {isTreeRerollTransactionPending
-                ? treeRerollLifecycleStage === "awaiting-wallet-approval"
+                ? treeRerollLifecycleStage === "verifying-payment"
+                  ? "Verifying the TREE payment goes to the treasury before wallet approval..."
+                  : treeRerollLifecycleStage === "awaiting-wallet-approval"
                   ? freeGardenBotRerollSupported
                     ? "Approve the free Garden Bot reroll in your wallet..."
                     : "Review and approve the TREE Reroll in your wallet..."
@@ -2985,6 +2990,9 @@ export default function Battle({ pageMode }: { pageMode: BattlePageMode }) {
                     <strong style={{ color: "#fff4ad" }}>Confirm before opening your wallet</strong>
                     <p style={{ margin: "6px 0 10px", color: "#f3f7ee", fontSize: "12px", lineHeight: 1.5 }}>
                       This spends exactly {treeRerollCostTree.toLocaleString()} TREE, replaces your entire hand, and cannot be undone. Your turn and Growth score stay the same.
+                    </p>
+                    <p style={{ margin: "6px 0 10px", color: "#f3f7ee", fontSize: "14px", lineHeight: 1.5, overflowWrap: "anywhere" }}>
+                      Paid to the TREE treasury, not burned: <code>{TREE_REROLL_TREASURY}</code>. The payment recipient is verified before your wallet opens.
                     </p>
                     <div style={{ display: "flex", gap: "9px", flexWrap: "wrap" }}>
                       <button type="button" onClick={handleConfirmReroll} disabled={!rerollCanReview} style={{ minHeight: "44px", padding: "10px 15px", borderRadius: "8px", border: "1px solid #ecffae", background: "#c8ff3d", color: "#07170d", fontWeight: 900 }}>

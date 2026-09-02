@@ -114,6 +114,7 @@ import {
 import { TREE_COIN_TYPE } from "@/lib/treeBalance";
 import {
   buildTreeRerollTransaction,
+  assertTreeRerollTreasuryPayment,
   formatTreeRerollCost,
   getTreeRerollCostRaw,
   getTreeRerollMoveFunction,
@@ -194,6 +195,7 @@ export type MoveLifecycleStage =
 
 export type TreeRerollLifecycleStage =
   | "idle"
+  | "verifying-payment"
   | "awaiting-wallet-approval"
   | "transaction-submitted"
   | "refreshing-battle";
@@ -3053,6 +3055,28 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
         costRaw,
         coinObjectIds: selectedCoins.coinObjectIds,
       });
+    }
+    if (!isFreeGardenBotReroll) {
+      setTreeRerollLifecycleStage("verifying-payment");
+      let checkTimer: ReturnType<typeof setTimeout> | undefined;
+      try {
+        await Promise.race([
+          (async () => {
+            const bytes = await tx.build({ client: suiClient });
+            const preview = await suiClient.dryRunTransactionBlock({ transactionBlock: bytes });
+            assertTreeRerollTreasuryPayment(preview, address, costRaw!);
+          })(),
+          new Promise<never>((_, reject) => {
+            checkTimer = setTimeout(() => reject(new Error("Treasury check timed out")), 25_000);
+          }),
+        ]);
+      } catch (error) {
+        setTreeRerollLifecycleStage("idle");
+        const message = error instanceof Error ? error.message : "";
+        throw new Error(message.startsWith("Reroll blocked:") ? message : "Reroll blocked: treasury payment verification is unavailable. No wallet approval was opened. Please try again after refreshing.");
+      } finally {
+        clearTimeout(checkTimer);
+      }
     }
     setTreeRerollLifecycleStage("awaiting-wallet-approval");
 

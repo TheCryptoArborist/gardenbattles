@@ -2,6 +2,29 @@ import { Transaction } from "@mysten/sui/transactions";
 import { SUI_CONFIG, type PvpBattleVersion } from "@/lib/sui-config";
 import { FALLBACK_TREE_DECIMALS, TREE_COIN_TYPE } from "@/lib/treeBalance";
 
+export const TREE_REROLL_TREASURY = "0x6f1020c2fd6c91129f7cb5e0d651295e87f7245f96b7d090715c89b38197e77f";
+export const TREE_REROLL_PACKAGE = "0x053f4cf0bd41ba3340a0580f4ae1aaca18656ba0032eb3e920de554309d97755";
+
+// Fail closed before wallet approval if a release points back at a burning
+// contract, or if the actual simulated TREE movement differs from the fee.
+export function assertTreeRerollTreasuryPayment(preview: unknown, sender: string, costRaw: bigint): void {
+  const blocked = () => new Error("Reroll blocked: the exact TREE payment to the treasury could not be verified. No wallet approval was opened. Refresh the page and try again.");
+  const result = preview as { effects?: { status?: { status?: string } }; balanceChanges?: Array<{coinType?: string; owner?: {AddressOwner?: string}; amount?: string}> } | null;
+  if (costRaw <= BigInt(0) || result?.effects?.status?.status !== "success" || !Array.isArray(result.balanceChanges)) throw blocked();
+  let treasuryCredit = BigInt(0);
+  let senderDebit = BigInt(0);
+  for (const change of result.balanceChanges) {
+    if (change.coinType !== TREE_COIN_TYPE) continue;
+    if (typeof change.amount !== "string" || !/^-?\d+$/.test(change.amount)) throw blocked();
+    const amount = BigInt(change.amount);
+    const owner = change.owner?.AddressOwner?.toLowerCase();
+    if (owner === TREE_REROLL_TREASURY) treasuryCredit += amount;
+    else if (owner === sender.toLowerCase()) senderDebit += amount;
+    else if (amount !== BigInt(0)) throw blocked();
+  }
+  if (treasuryCredit !== costRaw || senderDebit !== -costRaw) throw blocked();
+}
+
 export type TreeCoinInput = {
   coinObjectId: string;
   balance: string | number | bigint;
@@ -77,6 +100,9 @@ export function buildTreeRerollTransaction(options: {
   }
   if (!options.treeConfigId || options.coinObjectIds.length === 0 || options.costRaw <= BigInt(0)) {
     throw new Error("TREE Reroll is not configured.");
+  }
+  if (SUI_CONFIG.PACKAGE_ID !== TREE_REROLL_PACKAGE) {
+    throw new Error("Reroll blocked: this build does not use the approved treasury-routing package. Refresh the page.");
   }
 
   const tx = new Transaction();
