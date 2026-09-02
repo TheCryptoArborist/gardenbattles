@@ -12,6 +12,7 @@ import {
   type ArboristTrialTodayResponse,
 } from "@/lib/api";
 import { appAsset } from "@/lib/assets";
+import { encodeTrialDraft, restoreTrialDraft, trialDraftKey, trialSaveError } from "@/lib/trialScoreDraft";
 import { getBattleTreeAssetPath, resolveGrowthStage } from "@/lib/battleTreeArtwork";
 import {
   createArboristTrialBattle,
@@ -30,6 +31,7 @@ import {
   getArboristTrialChallenge,
 } from "@shared/arborist-trials";
 import "@/arborist-trials.css";
+import "@/trial-score-save.css";
 
 const LOCAL_PREVIEW_ENABLED = import.meta.env.VITE_ARB_TRIAL_LOCAL_PREVIEW === "true";
 
@@ -68,14 +70,53 @@ export default function ArboristTrials() {
   const [localPreview, setLocalPreview] = useState(false);
   const [suiNames, setSuiNames] = useState<Record<string, string | null>>({});
   const submittedBattleRef = useRef<string | null>(null);
+  const restoredWalletRef = useRef<string | null>(null);
+  const currentAddressRef = useRef(address);
+  const todayWalletRef = useRef<string | null | undefined>(undefined);
+  currentAddressRef.current = address;
+  const [runWallet, setRunWallet] = useState<string | null>(null);
+  const [runChallenge, setRunChallenge] = useState<ArboristTrialTodayResponse["challenge"] | null>(null);
+  const [savePhase, setSavePhase] = useState<"wallet" | "server" | null>(null);
+  const savePanelRef = useRef<HTMLElement | null>(null);
+  const unsavedResult = !!battle?.finished && rankedRun && !scoreSaved;
+  const activeChallenge = runChallenge ?? today?.challenge;
+  const wrongWallet = !!runWallet && runWallet.toLowerCase() !== address?.toLowerCase();
+
+  const confirmLeaving = () => !unsavedResult || (!submitting && window.confirm(
+    "Your official score has not been saved. Leave without saving? It will not count toward your daily check-in or streak until you sign and save it.",
+  ));
+
+  useEffect(() => {
+    if (!unsavedResult) return;
+    const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; };
+    window.addEventListener("beforeunload", warn);
+    savePanelRef.current?.scrollIntoView({ block: "center" });
+    savePanelRef.current?.focus({ preventScroll: true });
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [unsavedResult]);
+
+  useEffect(() => {
+    if (!unsavedResult || !battle || !runWallet || !runChallenge) return;
+    try {
+      localStorage.setItem(trialDraftKey(runWallet), encodeTrialDraft(
+        runWallet, runChallenge.id, battle.player1Moves.length === 5, battle.allPlayerMoves,
+      ));
+    } catch {
+      setSubmissionMessage("Browser storage is unavailable. Keep this page open until you sign and save your score.");
+    }
+  }, [unsavedResult, battle, runWallet, runChallenge]);
 
   const loadToday = async () => {
     setLoading(true);
     setError(null);
     try {
-      setToday(await fetchTodayArboristTrial(address));
+      const response = await fetchTodayArboristTrial(address);
+      if (currentAddressRef.current !== address) return;
+      todayWalletRef.current = address;
+      setToday(response);
       setLocalPreview(false);
     } catch (reason) {
+      if (currentAddressRef.current !== address) return;
       if (LOCAL_PREVIEW_ENABLED) {
         setToday({
           challenge: getArboristTrialChallenge(),
@@ -93,11 +134,31 @@ export default function ArboristTrials() {
         setError(reason instanceof Error ? reason.message : "Today’s trial could not be loaded.");
       }
     } finally {
-      setLoading(false);
+      if (currentAddressRef.current === address) setLoading(false);
     }
   };
 
   useEffect(() => { void loadToday(); }, [address]);
+
+  useEffect(() => {
+    if (!address || !today || todayWalletRef.current !== address || loading || battle || restoredWalletRef.current === address) return;
+    restoredWalletRef.current = address;
+    try {
+      if (today.rankedAttemptUsed) {
+        localStorage.removeItem(trialDraftKey(address));
+        return;
+      }
+      const restored = restoreTrialDraft(localStorage.getItem(trialDraftKey(address)), address, today.challenge);
+      if (!restored) return;
+      setRunWallet(address);
+      setRunChallenge(today.challenge);
+      setBattle(restored.battle);
+      setLog(restored.entries);
+      setRankedRun(true);
+      setScoreSaved(false);
+      setSubmissionMessage("Your unsaved official result was restored. Sign below to save it before today's challenge expires.");
+    } catch { /* Storage may be disabled by the wallet browser. */ }
+  }, [address, today, loading, battle]);
 
   useEffect(() => {
     if (!today?.leaderboard.length) return;
@@ -122,7 +183,8 @@ export default function ArboristTrials() {
   const rankedAccess = today?.nftreeAccess ?? (address ? "unavailable" : "not_connected");
   const rankedEligible = rankedAccess === "eligible";
   const startTrial = (ranked: boolean) => {
-    if (!today) return;
+    if (!today || loading || (ranked && (todayWalletRef.current !== address || today.rankedAttemptUsed))) return;
+    if (!confirmLeaving()) return;
     if (ranked && !rankedEligible) {
       setError(rankedAccess === "ineligible"
         ? "An NFTree must be held by this wallet to enter the official ranked Trial. Practice remains open to everyone."
@@ -130,6 +192,8 @@ export default function ArboristTrials() {
       return;
     }
     setBattle(createArboristTrialBattle(today.challenge, fifthUnlocked));
+    setRunWallet(ranked ? address : null);
+    setRunChallenge(today.challenge);
     setLog([]);
     setRankedRun(ranked);
     setSubmissionMessage(null);
@@ -138,9 +202,9 @@ export default function ArboristTrials() {
   };
 
   const playMove = (moveId: number) => {
-    if (!battle || battle.finished) return;
+    if (!battle || battle.finished || !activeChallenge) return;
     try {
-      const result = playArboristTrialRound(battle, today!.challenge, moveId);
+      const result = playArboristTrialRound(battle, activeChallenge, moveId);
       setBattle(result.battle);
       setLog((entries) => [...entries, ...result.entries]);
       setError(null);
@@ -150,59 +214,76 @@ export default function ArboristTrials() {
   };
 
   const submitRankedScore = async () => {
-    if (!battle?.finished || !rankedRun || !address || !today || scoreSaved) return;
+    if (!battle?.finished || !rankedRun || !address || !runWallet || !runChallenge || scoreSaved || wrongWallet) return;
     if (submittedBattleRef.current === battle.battleId) return;
     submittedBattleRef.current = battle.battleId;
     setSubmitting(true);
+    setSavePhase("wallet");
     setSubmissionMessage("Approve the free wallet signature to submit your official score.");
+    const markSaved = (score: number, alreadySaved = false) => {
+      setScoreSaved(true);
+      setSubmissionMessage(`${alreadySaved ? "Today's official score is already saved" : "Official score saved"}: ${score.toLocaleString()} points. Daily check-in recorded.`);
+      try { localStorage.removeItem(trialDraftKey(runWallet)); } catch { /* No persistent storage. */ }
+    };
     try {
       const proofMessage = createArboristTrialProofMessage(
-        today.challenge.id,
-        address,
+        runChallenge.id,
+        runWallet,
         battle.allPlayerMoves,
       );
       const proof = await signPersonalMessage.mutateAsync({
         message: new TextEncoder().encode(proofMessage),
       });
+      if (currentAddressRef.current?.toLowerCase() !== runWallet.toLowerCase()) throw new Error("wallet_changed");
+      setSavePhase("server");
+      setSubmissionMessage("Signature approved. Waiting for the server to confirm your saved score...");
       const saved = await submitArboristTrialResult({
-        challengeId: today.challenge.id,
-        wallet: address,
+        challengeId: runChallenge.id,
+        wallet: runWallet,
         playerMoves: battle.allPlayerMoves,
         signature: proof.signature,
       });
-      setScoreSaved(true);
-      setSubmissionMessage(`Ranked score saved: ${saved.result.score.toLocaleString()} points.`);
+      if (!saved.ok || !saved.recorded || !saved.result) throw new Error("save_not_confirmed");
+      markSaved(saved.result.score);
       await loadToday();
     } catch (reason) {
       submittedBattleRef.current = null;
-      const message = reason instanceof Error ? reason.message : "";
-      setSubmissionMessage(message === "nftree_required"
-        ? "This wallet no longer has a verified NFTree, so the official score was not saved."
-        : message === "nftree_access_unavailable"
-          ? "NFTree ownership could not be verified. Nothing was submitted; please try again."
-          : message || "The ranked score could not be saved.");
+      // A response can be lost after the server commits the result. Check before
+      // asking for another signature; never infer success from the wallet alone.
+      let confirmed = false;
+      try {
+        const latest = await fetchTodayArboristTrial(runWallet);
+        if (latest.challenge.id === runChallenge.id && latest.rankedAttemptUsed && latest.result
+          && latest.result.wallet.toLowerCase() === runWallet.toLowerCase()) {
+          markSaved(latest.result.score, true);
+          if (currentAddressRef.current === address) setToday(latest);
+          confirmed = true;
+        }
+      } catch { /* Keep the result available for an explicit retry. */ }
+      if (!confirmed) setSubmissionMessage(trialSaveError(reason));
     } finally {
       setSubmitting(false);
+      setSavePhase(null);
     }
   };
 
   const rounds = battle ? Math.ceil(battle.totalTurns / 2) : 0;
   const result = useMemo(
-    () => battle?.finished && today ? getArboristTrialResult(battle, today.challenge) : null,
-    [battle, today],
+    () => battle?.finished && activeChallenge ? getArboristTrialResult(battle, activeChallenge) : null,
+    [battle, activeChallenge],
   );
   const lastBotMove = [...log].reverse().find((entry) => entry.actor === "opponent");
-  const diagnosisForecast = battle && today
-    ? getCanopyDiagnosisForecast(battle, today.challenge)
+  const diagnosisForecast = battle && activeChallenge
+    ? getCanopyDiagnosisForecast(battle, activeChallenge)
     : null;
-  const toolbeltLockedMoves = battle && today
-    ? getToolbeltLockedMoveIds(battle, today.challenge)
+  const toolbeltLockedMoves = battle && activeChallenge
+    ? getToolbeltLockedMoveIds(battle, activeChallenge)
     : new Set<number>();
 
   return (
     <div className="gb-trials-page">
       <header className="gb-trials-header">
-        <Link href="/battle" className="gb-trials-back"><ArrowLeft size={17} /> Garden Battles</Link>
+        <Link href="/battle" className="gb-trials-back" onClick={(event) => { if (!confirmLeaving()) event.preventDefault(); }}><ArrowLeft size={17} /> Garden Battles</Link>
         <img src={appAsset("assets/garden.png")} alt="Garden Battles" />
         <ConnectButton connectText="Connect Wallet" />
       </header>
@@ -227,7 +308,7 @@ export default function ArboristTrials() {
                 <strong>{rankedAccess === "eligible" ? "NFTree Verified" : rankedAccess === "ineligible" ? "NFTree Required" : rankedAccess === "unavailable" ? "Verification Unavailable" : "Connect Wallet"}</strong>
               </span>
             </div>
-            <div className="gb-trials-streak"><Flame size={27} /><span><strong>{today?.streak ?? 0}</strong> day streak</span></div>
+            <div className="gb-trials-streak" title="Consecutive UTC days with a saved official Trial win. Separate from Garden Battles wins."><Flame size={27} /><span><strong>{today?.streak ?? 0}</strong> daily Trial win streak</span></div>
           </div>
         </section>
 
@@ -285,6 +366,7 @@ export default function ArboristTrials() {
                       : "Connect a wallet holding an NFTree to unlock today’s official ranked attempt."}
               </p>
               {today.result && <p className="gb-trials-saved-score">Today’s official score: <strong>{today.result.score.toLocaleString()}</strong></p>}
+              <p className="gb-trials-save-explainer">Finish → Sign &amp; Save Score → Get your daily check-in. This is a free message signature, not a payment. Only saved official Trials count; the win streak counts consecutive UTC days, not matches.</p>
             </section>
 
             <div className="gb-trials-progress-row">
@@ -352,12 +434,24 @@ export default function ArboristTrials() {
           </>
         )}
 
-        {today && battle && (
+        {today && battle && activeChallenge && (
           <section className="gb-trials-arena">
             <div className="gb-trials-live-heading">
-              <div><small>{rankedRun ? "OFFICIAL DAILY RUN" : "UNRANKED PRACTICE"}</small><h2>{today.challenge.title}</h2></div>
+              <div><small>{rankedRun ? "OFFICIAL DAILY RUN" : "UNRANKED PRACTICE"}</small><h2>{activeChallenge.title}</h2></div>
               <span>Round {Math.max(1, rounds)}</span>
             </div>
+            {rankedRun && !battle.finished && <p className="gb-trials-save-explainer">At the end, tap Sign &amp; Save Score and approve a free message in your wallet. Your check-in counts only after the server confirms it.</p>}
+            {rankedRun && battle.finished && (
+              <section ref={savePanelRef} tabIndex={-1} className={`gb-trials-save-panel${scoreSaved ? " gb-trials-save-panel-saved" : ""}`} aria-labelledby="trial-save-title">
+                <div role="status" aria-live="polite">
+                  <h2 id="trial-save-title">{scoreSaved ? "Official score saved" : submitting ? (savePhase === "server" ? "Saving your score…" : "Approve in your wallet") : "Trial complete — score not saved"}</h2>
+                  <p>{scoreSaved ? "Return to the daily board to see your score and updated check-in." : "One step left: sign a free message to record your official score and daily check-in. No SUI or TREE is spent."}</p>
+                  {submissionMessage && <p>{submissionMessage}</p>}
+                  {wrongWallet && !scoreSaved && <p>Reconnect {shortWallet(runWallet!)} to save this run. The connected wallet is different.</p>}
+                </div>
+                {!scoreSaved && <button type="button" className="gb-trials-primary" disabled={submitting || wrongWallet || !address} onClick={() => void submitRankedScore()}><ShieldCheck size={20} />{submitting ? (savePhase === "server" ? "Confirming save…" : "Waiting for wallet…") : "Sign & Save Score"}</button>}
+              </section>
+            )}
             <div className="gb-trials-versus">
               <TreePortrait growth={battle.player1Growth} />
               <strong>VS</strong>
@@ -379,11 +473,11 @@ export default function ArboristTrials() {
               <div className="gb-trials-hand">
                 <div className="gb-trials-hand-heading">
                   <span>Choose your move</span>
-                  <small>{today.challenge.rule === "toolbelt_rotation"
+                  <small>{activeChallenge.rule === "toolbelt_rotation"
                     ? "Use all four standard cards to reset your Toolbelt. The fifth move stays separate."
-                    : today.challenge.rule === "integrated_pest_management"
+                    : activeChallenge.rule === "integrated_pest_management"
                       ? "Win with two or fewer Attack plays for the full IPM bonus."
-                      : today.challenge.rule === "storm_response"
+                      : activeChallenge.rule === "storm_response"
                         ? "Storm damage strikes both trees after every third completed round."
                         : "The same card cannot be played twice in a row."}</small>
                 </div>
@@ -393,7 +487,7 @@ export default function ArboristTrials() {
                     const toolLocked = toolbeltLockedMoves.has(moveId);
                     const fifth = index === 4;
                     return (
-                      <button key={moveId} type="button" className={`gb-trial-move-card${fifth ? " gb-trial-move-card-fifth" : ""}`} disabled={isArboristTrialMoveDisabled(battle, today.challenge, moveId)} onClick={() => playMove(moveId)}>
+                      <button key={moveId} type="button" className={`gb-trial-move-card${fifth ? " gb-trial-move-card-fifth" : ""}`} disabled={isArboristTrialMoveDisabled(battle, activeChallenge, moveId)} onClick={() => playMove(moveId)}>
                         {fifth && <span className="gb-trial-fifth-banner">BONUS FIFTH MOVE</span>}
                         <MoveCardFace moveId={moveId} isFifth={fifth} />
                         {usedLast && <span className="gb-trial-used-last">Used last round</span>}
@@ -407,13 +501,8 @@ export default function ArboristTrials() {
               <div className={`gb-trials-result ${result?.won ? "gb-trials-result-win" : "gb-trials-result-loss"}`}>
                 <Trophy size={34} />
                 <div><small>TRIAL COMPLETE · {rankedRun ? "OFFICIAL RUN" : "PRACTICE"}</small><h2>{result?.won ? "Canopy Conquered" : "Garden Bot Held the Grove"}</h2><p>{rounds} rounds · {battle.player1Growth}–{battle.player2Growth} final Growth</p>{result?.specialtySummary && <p>{result.specialtySummary} · {result.specialtyBonus.toLocaleString()} specialty points</p>}{submissionMessage && <strong>{submissionMessage}</strong>}{!rankedRun && <strong>Practice result only — no score or streak was submitted.</strong>}</div>
-                {rankedRun && !scoreSaved && (
-                  <button type="button" className="gb-trials-primary" disabled={submitting} onClick={() => void submitRankedScore()}>
-                    <ShieldCheck size={16} /> {submitting ? "Waiting for Wallet..." : "Sign & Submit Official Score"}
-                  </button>
-                )}
-                <button type="button" onClick={() => startTrial(false)}><RotateCcw size={16} /> Practice Again</button>
-                <button type="button" onClick={() => setBattle(null)}>Return to Daily Board</button>
+                <button type="button" disabled={submitting} onClick={() => startTrial(false)}><RotateCcw size={16} /> Practice Again</button>
+                <button type="button" disabled={submitting} onClick={() => { if (confirmLeaving()) setBattle(null); }}>Return to Daily Board</button>
               </div>
             )}
 

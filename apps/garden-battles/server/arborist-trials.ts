@@ -20,6 +20,7 @@ import {
   type ArboristTrialResultRow,
 } from "./battle-storage";
 import { normalizeSuiAddress } from "../shared/tree-power-eligibility";
+import { dailyTrialWinStreak } from "../shared/trial-streak";
 
 function publicResult(row: ArboristTrialResultRow, rank?: number) {
   return {
@@ -36,18 +37,7 @@ function publicResult(row: ArboristTrialResultRow, rank?: number) {
 }
 
 function calculateStreak(wallet: string, startingDate: string): number {
-  const history = getArboristTrialWalletHistory(wallet, 365);
-  if (history.length === 0) return 0;
-  let expected = startingDate;
-  let streak = 0;
-  for (const row of history) {
-    if (row.challenge_date !== expected || row.won !== 1) break;
-    streak += 1;
-    const previous = new Date(`${expected}T12:00:00.000Z`);
-    previous.setUTCDate(previous.getUTCDate() - 1);
-    expected = previous.toISOString().slice(0, 10);
-  }
-  return streak;
+  return dailyTrialWinStreak(getArboristTrialWalletHistory(wallet, 365), startingDate);
 }
 
 function calculateCheckInStreak(wallet: string, startingDate: string): number {

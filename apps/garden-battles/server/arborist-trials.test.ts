@@ -13,6 +13,31 @@ import {
 
 const now = new Date("2026-08-23T12:00:00.000Z");
 
+test("a real signed completed run saves once, updates check-in, and keeps its streak tomorrow", async () => {
+  const keypair = new Ed25519Keypair();
+  const wallet = keypair.getPublicKey().toSuiAddress();
+  const challenge = getArboristTrialChallenge(now);
+  const playerMoves = [30, 18, 30, 11, 30, 18, 30, 24];
+  const proof = await keypair.signPersonalMessage(new TextEncoder().encode(
+    createArboristTrialProofMessage(challenge.id, wallet, playerMoves),
+  ));
+  const input = { wallet, challengeId: challenge.id, playerMoves, signature: proof.signature };
+  const saved = await submitTodayArboristTrial(input, now, { hasNftreeAccess: async () => true });
+  assert.equal(saved.status, 201);
+  const today = getTodayArboristTrial(wallet, now);
+  assert.equal(today.rankedAttemptUsed, true);
+  assert.equal(today.checkInStreak, 1);
+  assert.equal(today.streak, 1);
+  assert.equal(today.result?.won, true);
+  const duplicate = await submitTodayArboristTrial(input, now, { hasNftreeAccess: async () => true });
+  assert.equal(duplicate.status, 409);
+  assert.deepEqual(getTodayArboristTrial(wallet, now).result, today.result);
+  const tomorrow = getTodayArboristTrial(wallet, new Date("2026-08-24T12:00:00Z"));
+  assert.equal(tomorrow.rankedAttemptUsed, false);
+  assert.equal(tomorrow.streak, 1);
+  assert.equal(tomorrow.checkInStreak, 1);
+});
+
 test("today endpoint exposes a deterministic empty daily board", () => {
   const response = getTodayArboristTrial(undefined, now);
   assert.equal(response.challenge.id, "arborist-trial-v1-2026-08-23");
