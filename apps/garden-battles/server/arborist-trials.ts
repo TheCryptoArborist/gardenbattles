@@ -14,6 +14,8 @@ import {
 } from "../battle-gardenfrontend/src/lib/arboristTrials";
 import {
   getArboristTrialLeaderboard,
+  getArboristTrialStanding,
+  getArboristTrialCareerHistory,
   getArboristTrialResult,
   getArboristTrialWalletHistory,
   insertArboristTrialResult,
@@ -95,7 +97,14 @@ function maximumConsecutiveDays(history: ArboristTrialResultRow[], winsOnly: boo
 }
 
 function buildAchievements(wallet: string | null) {
-  const history = wallet ? getArboristTrialWalletHistory(wallet, 365) : [];
+  const career = wallet ? getArboristTrialCareerHistory(wallet) : [];
+  // A calendar day is one check-in even if an older schedule has multiple IDs.
+  const dates = new Set<string>();
+  const history = career.filter((row) => {
+    if (dates.has(row.challenge_date)) return false;
+    dates.add(row.challenge_date);
+    return true;
+  });
   const wins = history.filter((row) => row.won === 1);
   const checkInRun = maximumConsecutiveDays(history, false);
   const winRun = maximumConsecutiveDays(history, true);
@@ -106,6 +115,7 @@ function buildAchievements(wallet: string | null) {
     { id: "toolbelt_tactician", progress: history.filter((row) => row.won === 1 && row.unique_moves >= 4).length, target: 1 },
     { id: "speed_pruner", progress: history.filter((row) => row.won === 1 && row.rounds <= 8).length, target: 1 },
     { id: "perfect_week", progress: checkInRun, target: 7 },
+    { id: "thirty_checkins", progress: history.length, target: 30 },
     { id: "master_arborist", progress: winRun, target: 30 },
   ];
   return definitions.map((badge) => ({
@@ -120,10 +130,12 @@ export function getTodayArboristTrial(walletInput?: string, now = new Date()) {
   const wallet = walletInput ? normalizeSuiAddress(walletInput) : null;
   const leaderboard = getArboristTrialLeaderboard(challenge.id, 25);
   const result = wallet ? getArboristTrialResult(challenge.id, wallet) : null;
+  const standing = getArboristTrialStanding(challenge.id, wallet);
   return {
     challenge,
     rankedAttemptUsed: !!result,
-    result: result ? publicResult(result) : null,
+    result: result ? publicResult(result, standing.rank) : null,
+    leaderboardTotal: standing.total,
     streak: wallet ? calculateStreak(wallet, challenge.date) : 0,
     checkInStreak: wallet ? calculateCheckInStreak(wallet, challenge.date) : 0,
     checkIns: buildCheckIns(wallet, challenge.date),
@@ -267,15 +279,21 @@ export async function submitTodayArboristTrial(
     unique_moves: resultInput.uniqueMoves,
     completed_at: now.getTime(),
   };
+  const previousBadges = new Set(buildAchievements(wallet).filter((badge) => badge.earned).map((badge) => badge.id));
   const recorded = insertArboristTrialResult(row);
   const saved = getArboristTrialResult(challenge.id, wallet)!;
+  const achievements = buildAchievements(wallet);
+  const standing = getArboristTrialStanding(challenge.id, wallet);
   return {
     status: recorded ? 201 : 409,
     body: {
       ok: recorded,
       recorded,
       reason: recorded ? undefined : "ranked_attempt_already_used",
-      result: publicResult(saved),
+      result: publicResult(saved, standing.rank),
+      leaderboardTotal: standing.total,
+      achievements,
+      newAchievements: recorded ? achievements.filter((badge) => badge.earned && !previousBadges.has(badge.id)).map((badge) => badge.id) : [],
       streak: calculateStreak(wallet, challenge.date),
     },
   };

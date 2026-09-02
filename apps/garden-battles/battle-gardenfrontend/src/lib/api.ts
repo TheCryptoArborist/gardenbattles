@@ -225,6 +225,7 @@ export type ArboristTrialTodayResponse = {
   checkIns: Array<{ date: string; completed: boolean; won: boolean }>;
   achievements: Array<{ id: string; earned: boolean; progress: number; target: number }>;
   leaderboard: ArboristTrialPublicResult[];
+  leaderboardTotal?: number;
 };
 
 interface LeaderboardResponse {
@@ -332,6 +333,9 @@ export async function submitArboristTrialResult(input: {
   reason?: string;
   result: ArboristTrialPublicResult;
   streak: number;
+  leaderboardTotal?: number;
+  achievements?: ArboristTrialTodayResponse["achievements"];
+  newAchievements?: string[];
 }> {
   return postJson(
     "/api/arborist-trials/results",

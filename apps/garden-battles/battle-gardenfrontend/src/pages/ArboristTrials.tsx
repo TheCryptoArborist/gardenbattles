@@ -5,7 +5,8 @@ import { Link } from "wouter";
 import BattleLog, { type ActionEntry } from "@/components/BattleLog";
 import MoveCardFace from "@/components/MoveCardFace";
 import TrialCheckInMeter from "@/components/TrialCheckInMeter";
-import TrialAchievements from "@/components/TrialAchievements";
+import TrialAchievements, { TRIAL_BADGES } from "@/components/TrialAchievements";
+import TrialLeaderboard from "@/components/TrialLeaderboard";
 import {
   fetchTodayArboristTrial,
   submitArboristTrialResult,
@@ -32,6 +33,7 @@ import {
 } from "@shared/arborist-trials";
 import "@/arborist-trials.css";
 import "@/trial-score-save.css";
+import "@/trial-progression.css";
 
 const LOCAL_PREVIEW_ENABLED = import.meta.env.VITE_ARB_TRIAL_LOCAL_PREVIEW === "true";
 
@@ -66,6 +68,7 @@ export default function ArboristTrials() {
   const [rankedRun, setRankedRun] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [scoreSaved, setScoreSaved] = useState(false);
+  const [saveReceipt, setSaveReceipt] = useState<{ rank?: number; total?: number; badges: string[] } | null>(null);
   const [submissionMessage, setSubmissionMessage] = useState<string | null>(null);
   const [localPreview, setLocalPreview] = useState(false);
   const [suiNames, setSuiNames] = useState<Record<string, string | null>>({});
@@ -161,9 +164,9 @@ export default function ArboristTrials() {
   }, [address, today, loading, battle]);
 
   useEffect(() => {
-    if (!today?.leaderboard.length) return;
+    if (!today) return;
     let cancelled = false;
-    const addresses = Array.from(new Set(today.leaderboard.map((entry) => entry.wallet.toLowerCase())));
+    const addresses = Array.from(new Set([...today.leaderboard.map((entry) => entry.wallet.toLowerCase()), ...(today.result ? [today.result.wallet.toLowerCase()] : [])]));
     const cached = addresses.reduce<Record<string, string | null>>((next, entryAddress) => {
       const name = readCachedSuiName(entryAddress);
       if (name) next[entryAddress] = name;
@@ -177,7 +180,7 @@ export default function ArboristTrials() {
       if (!cancelled) setSuiNames((current) => ({ ...current, ...resolved }));
     });
     return () => { cancelled = true; };
-  }, [today?.leaderboard]);
+  }, [today?.leaderboard, today?.result]);
 
   const fifthUnlocked = eligibility.status === "qualified";
   const rankedAccess = today?.nftreeAccess ?? (address ? "unavailable" : "not_connected");
@@ -198,6 +201,7 @@ export default function ArboristTrials() {
     setRankedRun(ranked);
     setSubmissionMessage(null);
     setScoreSaved(false);
+    setSaveReceipt(null);
     submittedBattleRef.current = null;
   };
 
@@ -245,6 +249,12 @@ export default function ArboristTrials() {
       });
       if (!saved.ok || !saved.recorded || !saved.result) throw new Error("save_not_confirmed");
       markSaved(saved.result.score);
+      setSaveReceipt({ rank: saved.result.rank, total: saved.leaderboardTotal, badges: saved.newAchievements ?? [] });
+      if (currentAddressRef.current === runWallet) setToday((current) => current?.challenge.id === runChallenge.id ? {
+        ...current, result: saved.result, rankedAttemptUsed: true, streak: saved.streak,
+        leaderboardTotal: saved.leaderboardTotal ?? current.leaderboardTotal,
+        achievements: saved.achievements ?? current.achievements,
+      } : current);
       await loadToday();
     } catch (reason) {
       submittedBattleRef.current = null;
@@ -256,6 +266,8 @@ export default function ArboristTrials() {
         if (latest.challenge.id === runChallenge.id && latest.rankedAttemptUsed && latest.result
           && latest.result.wallet.toLowerCase() === runWallet.toLowerCase()) {
           markSaved(latest.result.score, true);
+          // An ambiguous response confirms saved state, not a new badge event.
+          setSaveReceipt({ rank: latest.result.rank, total: latest.leaderboardTotal, badges: [] });
           if (currentAddressRef.current === address) setToday(latest);
           confirmed = true;
         }
@@ -312,13 +324,19 @@ export default function ArboristTrials() {
           </div>
         </section>
 
+        {today && <nav className="gb-trials-progression-nav" aria-label="Trials sections">
+          <a href="#trial-gameplay">{battle ? "Gameplay" : "Today’s Trial"}</a>
+          <a href="#trial-leaderboard">Daily leaderboard</a>
+          <a href="#trial-achievements">Achievements</a>
+        </nav>}
+
         {loading && <section className="gb-trials-message">Preparing today’s trial...</section>}
         {error && <section className="gb-trials-message gb-trials-message-error">{error}</section>}
         {localPreview && <section className="gb-trials-message gb-trials-message-preview">Preview mode: gameplay and layout are live; official scores and streaks remain disabled until the ranked server is deployed.</section>}
 
         {today && !battle && (
           <>
-            <section className="gb-trials-briefing">
+            <section id="trial-gameplay" className="gb-trials-briefing">
               <div>
                 <small>TODAY · {today.challenge.date}</small>
                 <h2>{today.challenge.title}</h2>
@@ -369,11 +387,6 @@ export default function ArboristTrials() {
               <p className="gb-trials-save-explainer">Finish → Sign &amp; Save Score → Get your daily check-in. This is a free message signature, not a payment. Only saved official Trials count; the win streak counts consecutive UTC days, not matches.</p>
             </section>
 
-            <div className="gb-trials-progress-row">
-              <TrialCheckInMeter connected={!!address} checkInStreak={today?.checkInStreak} todayCheckedIn={today?.rankedAttemptUsed} />
-              <TrialAchievements achievements={today?.achievements} connected={!!address} />
-            </div>
-
             <details className="gb-trials-difference gb-trials-difference-collapsed">
               <summary>Why Arborist Trials is different from Garden Battles</summary>
               <div className="gb-trials-difference-heading">
@@ -405,37 +418,11 @@ export default function ArboristTrials() {
               </div>
             </details>
 
-            <section className="gb-trials-leaderboard">
-              <div className="gb-trials-leaderboard-head">
-                <div className="gb-trials-section-heading"><Trophy size={20} /><div><small>TODAY’S CANOPY</small><h2>Daily Leaders</h2></div></div>
-                <p>Ranked by score. Faster wins and a more varied hand improve your result.</p>
-              </div>
-              {today.leaderboard.length === 0 ? <p>Be the first wallet to complete today’s ranked trial.</p> : (
-                <ol>{today.leaderboard.slice(0, 10).map((entry, index) => {
-                  const normalizedWallet = entry.wallet.toLowerCase();
-                  const suiName = suiNames[normalizedWallet];
-                  const isCurrentWallet = normalizedWallet === address?.toLowerCase();
-                  const rank = entry.rank ?? index + 1;
-                  return (
-                    <li key={entry.wallet} className={`${rank <= 3 ? `gb-trials-leader-rank-${rank}` : ""}${isCurrentWallet ? " gb-trials-leader-current" : ""}`}>
-                      <b>#{rank}</b>
-                      <span className="gb-trials-leader-identity" title={suiName ? `${suiName} (${entry.wallet})` : entry.wallet}>
-                        <strong>{suiName || shortWallet(entry.wallet)}</strong>
-                        {suiName && <small>{shortWallet(entry.wallet)}</small>}
-                        {isCurrentWallet && <em>YOU</em>}
-                      </span>
-                      <span className="gb-trials-leader-score"><strong>{entry.score.toLocaleString()}</strong><small>points</small></span>
-                      <span className="gb-trials-leader-rounds"><strong>{entry.rounds}</strong><small>rounds</small></span>
-                    </li>
-                  );
-                })}</ol>
-              )}
-            </section>
           </>
         )}
 
         {today && battle && activeChallenge && (
-          <section className="gb-trials-arena">
+          <section id="trial-gameplay" className="gb-trials-arena">
             <div className="gb-trials-live-heading">
               <div><small>{rankedRun ? "OFFICIAL DAILY RUN" : "UNRANKED PRACTICE"}</small><h2>{activeChallenge.title}</h2></div>
               <span>Round {Math.max(1, rounds)}</span>
@@ -445,11 +432,16 @@ export default function ArboristTrials() {
               <section ref={savePanelRef} tabIndex={-1} className={`gb-trials-save-panel${scoreSaved ? " gb-trials-save-panel-saved" : ""}`} aria-labelledby="trial-save-title">
                 <div role="status" aria-live="polite">
                   <h2 id="trial-save-title">{scoreSaved ? "Official score saved" : submitting ? (savePhase === "server" ? "Saving your score…" : "Approve in your wallet") : "Trial complete — score not saved"}</h2>
-                  <p>{scoreSaved ? "Return to the daily board to see your score and updated check-in." : "One step left: sign a free message to record your official score and daily check-in. No SUI or TREE is spent."}</p>
+                  <p>{scoreSaved ? "Your official result counts toward the daily leaderboard and achievements below." : "One step left: sign a free message to record your official score and daily check-in. No SUI or TREE is spent."}</p>
                   {submissionMessage && <p>{submissionMessage}</p>}
                   {wrongWallet && !scoreSaved && <p>Reconnect {shortWallet(runWallet!)} to save this run. The connected wallet is different.</p>}
                 </div>
                 {!scoreSaved && <button type="button" className="gb-trials-primary" disabled={submitting || wrongWallet || !address} onClick={() => void submitRankedScore()}><ShieldCheck size={20} />{submitting ? (savePhase === "server" ? "Confirming save…" : "Waiting for wallet…") : "Sign & Save Score"}</button>}
+                {scoreSaved && saveReceipt && <div className="gb-trials-save-receipt" role="status">
+                  <strong>{saveReceipt.rank ? `Daily rank at save: #${saveReceipt.rank}${saveReceipt.total ? ` of ${saveReceipt.total}` : ""}` : "Score saved — refresh standings for your rank."}</strong>
+                  {saveReceipt.badges.length > 0 ? <><p>New achievements unlocked</p><ul>{saveReceipt.badges.map((id) => <li key={id}>{TRIAL_BADGES[id]?.title ?? id}</li>)}</ul></> : <p>View your earned badges and next milestone below.</p>}
+                  <a href="#trial-leaderboard">View leaderboard</a> · <a href="#trial-achievements">View achievements</a>
+                </div>}
               </section>
             )}
             <div className="gb-trials-versus">
@@ -509,6 +501,13 @@ export default function ArboristTrials() {
             <section className="gb-trials-log"><div className="gb-trials-section-heading"><span>📜</span><div><small>COUNTER INTELLIGENCE</small><h2>Battle Log</h2></div></div><BattleLog entries={log} isPlayer1 opponentLabel="Garden Bot" /></section>
           </section>
         )}
+        {today && todayWalletRef.current === address && <>
+          <TrialLeaderboard today={today} address={address} names={suiNames} refreshing={loading} onRefresh={() => void loadToday()} />
+          <div id="trial-achievements" className="gb-trials-progress-row">
+            <TrialAchievements achievements={today.achievements} connected={!!address} />
+            <TrialCheckInMeter connected={!!address} checkInStreak={today.checkInStreak} todayCheckedIn={today.rankedAttemptUsed} />
+          </div>
+        </>}
       </main>
     </div>
   );

@@ -444,7 +444,7 @@ const insertArboristTrialResultStmt = db.prepare(`
 const getArboristTrialLeaderboardStmt = db.prepare(`
   SELECT * FROM arborist_trial_results
   WHERE challenge_id = ?
-  ORDER BY won DESC, score DESC, rounds ASC, completed_at ASC
+  ORDER BY won DESC, score DESC, rounds ASC, completed_at ASC, wallet ASC
   LIMIT ?
 `);
 
@@ -454,6 +454,31 @@ const getArboristTrialWalletHistoryStmt = db.prepare(`
   ORDER BY challenge_date DESC
   LIMIT ?
 `);
+
+const getArboristTrialStandingStmt = db.prepare(`
+  SELECT rank FROM (
+    SELECT wallet, ROW_NUMBER() OVER (
+      ORDER BY won DESC, score DESC, rounds ASC, completed_at ASC, wallet ASC
+    ) AS rank FROM arborist_trial_results WHERE challenge_id = ?
+  ) WHERE wallet = ?
+`);
+const getArboristTrialParticipantCountStmt = db.prepare(`
+  SELECT COUNT(*) AS total FROM arborist_trial_results WHERE challenge_id = ?
+`);
+const getArboristTrialCareerHistoryStmt = db.prepare(`
+  SELECT * FROM arborist_trial_results WHERE wallet = ?
+  ORDER BY challenge_date DESC, completed_at ASC
+`);
+
+export function getArboristTrialStanding(challengeId: string, wallet: string | null) {
+  const standing = wallet ? getArboristTrialStandingStmt.get(challengeId, wallet.toLowerCase()) as { rank: number } | undefined : undefined;
+  const { total } = getArboristTrialParticipantCountStmt.get(challengeId) as { total: number };
+  return { rank: standing?.rank, total };
+}
+
+export function getArboristTrialCareerHistory(wallet: string): ArboristTrialResultRow[] {
+  return getArboristTrialCareerHistoryStmt.all(wallet.toLowerCase()) as ArboristTrialResultRow[];
+}
 
 const updateBattleFinishedAtByTransactionDigestStmt = db.prepare(`
   UPDATE battle_records

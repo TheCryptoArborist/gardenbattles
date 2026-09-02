@@ -10,6 +10,7 @@ import {
   replayArboristTrial,
   submitTodayArboristTrial,
 } from "./arborist-trials";
+import { insertArboristTrialResult, type ArboristTrialResultRow } from "./battle-storage";
 
 const now = new Date("2026-08-23T12:00:00.000Z");
 
@@ -24,6 +25,11 @@ test("a real signed completed run saves once, updates check-in, and keeps its st
   const input = { wallet, challengeId: challenge.id, playerMoves, signature: proof.signature };
   const saved = await submitTodayArboristTrial(input, now, { hasNftreeAccess: async () => true });
   assert.equal(saved.status, 201);
+  assert.ok("newAchievements" in saved.body);
+  if ("newAchievements" in saved.body) {
+    assert.deepEqual(saved.body.newAchievements, ["first_checkin", "canopy_conqueror", "toolbelt_tactician", "speed_pruner"]);
+    assert.equal(saved.body.result.rank, 1);
+  }
   const today = getTodayArboristTrial(wallet, now);
   assert.equal(today.rankedAttemptUsed, true);
   assert.equal(today.checkInStreak, 1);
@@ -31,6 +37,7 @@ test("a real signed completed run saves once, updates check-in, and keeps its st
   assert.equal(today.result?.won, true);
   const duplicate = await submitTodayArboristTrial(input, now, { hasNftreeAccess: async () => true });
   assert.equal(duplicate.status, 409);
+  assert.deepEqual("newAchievements" in duplicate.body && duplicate.body.newAchievements, []);
   assert.deepEqual(getTodayArboristTrial(wallet, now).result, today.result);
   const tomorrow = getTodayArboristTrial(wallet, new Date("2026-08-24T12:00:00Z"));
   assert.equal(tomorrow.rankedAttemptUsed, false);
@@ -51,7 +58,7 @@ test("today endpoint exposes a deterministic empty daily board", () => {
     completed: false,
     won: false,
   });
-  assert.equal(response.achievements.length, 7);
+  assert.equal(response.achievements.length, 8);
   assert.equal(response.achievements.every((badge) => !badge.earned), true);
 });
 
@@ -174,4 +181,56 @@ test("server replay derives a completed win from the submitted card sequence", (
     specialtyBonus: 0,
     specialtySummary: null,
   });
+});
+
+function insertFixture(wallet: string, date: string, overrides: Partial<ArboristTrialResultRow> = {}) {
+  insertArboristTrialResult({
+    challenge_id: getArboristTrialChallenge(new Date(`${date}T12:00:00Z`)).id,
+    challenge_date: date, wallet, score: 100, won: 1, rounds: 10,
+    player_growth: 50, bot_growth: 20, unique_moves: 2,
+    completed_at: Date.parse(`${date}T12:00:00Z`), ...overrides,
+  });
+}
+
+test("personal rank works outside the returned top 25 and ties use stable wallet ordering", () => {
+  const date = "2031-01-01";
+  const wallets = Array.from({ length: 32 }, (_, i) => `0x${(i + 1000).toString(16).padStart(64, "0")}`);
+  // Reverse insertion must not change the deterministic tie order.
+  [...wallets].reverse().forEach((wallet) => insertFixture(wallet, date));
+  const board = getTodayArboristTrial(wallets[31], new Date(`${date}T12:00:00Z`));
+  assert.equal(board.leaderboardTotal, 32);
+  assert.equal(board.leaderboard.length, 25);
+  assert.equal(board.result?.rank, 32);
+  assert.equal(board.leaderboard[0].wallet, wallets[0]);
+  assert.equal(board.leaderboard[24].rank, 25);
+});
+
+test("30 check-ins count distinct saved days with gaps, not a winning streak", () => {
+  const wallet = `0x${"ab".repeat(32)}`;
+  for (let i = 0; i < 29; i++) {
+    const date = new Date(Date.UTC(2020, 0, 1 + i * 3)).toISOString().slice(0, 10);
+    insertFixture(wallet, date, { won: 0 });
+  }
+  insertFixture(wallet, "2020-01-01", { challenge_id: "old-schedule-duplicate", won: 0 });
+  let board = getTodayArboristTrial(wallet, now);
+  assert.equal(board.achievements.find((b) => b.id === "thirty_checkins")?.progress, 29);
+  insertFixture(wallet, "2020-05-01", { won: 0 });
+  board = getTodayArboristTrial(wallet, now);
+  assert.equal(board.achievements.find((b) => b.id === "thirty_checkins")?.earned, true);
+  assert.equal(board.achievements.find((b) => b.id === "master_arborist")?.earned, false);
+  assert.equal(board.achievements.find((b) => b.id === "steady_hands")?.earned, false);
+  assert.equal(board.result, null);
+});
+
+test("old earned badges survive more than 365 subsequent saved runs", () => {
+  const wallet = `0x${"cd".repeat(32)}`;
+  insertFixture(wallet, "2019-01-01", { won: 1, unique_moves: 4, rounds: 8 });
+  for (let i = 0; i < 366; i++) {
+    const date = new Date(Date.UTC(2020, 0, 1 + i)).toISOString().slice(0, 10);
+    insertFixture(wallet, date, { won: 0 });
+  }
+  const board = getTodayArboristTrial(wallet, now);
+  for (const id of ["canopy_conqueror", "toolbelt_tactician", "speed_pruner", "thirty_checkins"]) {
+    assert.equal(board.achievements.find((b) => b.id === id)?.earned, true, id);
+  }
 });

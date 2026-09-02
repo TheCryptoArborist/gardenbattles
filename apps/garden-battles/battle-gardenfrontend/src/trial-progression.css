@@ -1,0 +1,24 @@
+.gb-trials-progression-nav { display:flex; flex-wrap:wrap; gap:8px; margin:12px 0; }
+.gb-trials-progression-nav a,.gb-trials-refresh { display:inline-flex; align-items:center; justify-content:center; min-height:44px; padding:10px 14px; border:1px solid #608d88; border-radius:9px; color:#dffff4; background:#072b28; font:600 15px/1.4 Arial,sans-serif; text-decoration:none; cursor:pointer; }
+.gb-trials-progression-nav a:focus-visible,.gb-trials-refresh:focus-visible { outline:3px solid #f5c542; outline-offset:3px; }
+#trial-leaderboard,#trial-achievements,#trial-gameplay { scroll-margin-top:110px; }
+.gb-trials-own-standing,.gb-trials-next-badge,.gb-trials-save-receipt { border:1px solid #609778; border-radius:10px; padding:14px; background:#07271f; }
+.gb-trials-own-standing { display:grid; gap:6px; color:#c5ffe4; }
+.gb-trials-save-receipt { flex-basis:100%; margin-top:10px; }
+.gb-trials-save-receipt ul { margin:8px 0; padding-left:22px; }
+.gb-trials-leaderboard p,.gb-trials-own-standing,.gb-trials-next-badge,.gb-trials-save-receipt { font:16px/1.5 Arial,sans-serif; }
+.gb-trials-leaderboard .gb-trials-leader-identity>strong { font:600 16px/1.4 Arial,sans-serif; }
+.gb-trials-leaderboard .gb-trials-leader-identity small,.gb-trials-leaderboard .gb-trials-leader-score small,.gb-trials-leaderboard .gb-trials-leader-rounds small { color:#c0d8d0; font:12px/1.5 Arial,sans-serif; }
+#trial-achievements .gb-trials-badge-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+#trial-achievements .gb-trials-badge { opacity:1; grid-template-columns:42px minmax(0,1fr); padding:15px; }
+#trial-achievements .gb-trials-badge>div>strong { font:700 16px/1.4 Arial,sans-serif; color:#f0fff7; }
+#trial-achievements .gb-trials-badge p,#trial-achievements .gb-trials-achievement-note { font:14px/1.5 Arial,sans-serif; color:#bfd3cc; }
+#trial-achievements .gb-trials-badge-progress { grid-column:1/-1; grid-row:auto; font:600 13px/1.4 Arial,sans-serif; color:#d7e7e0; }
+.gb-trials-badge-meter { grid-column:1/-1; width:100%; height:8px; accent-color:#49e9a0; }
+@media(max-width:540px) {
+  .gb-trials-progression-nav a { flex:1; padding:9px; }
+  .gb-trials-leaderboard li { grid-template-columns:30px minmax(0,1fr) auto; gap:8px; padding:10px; }
+  .gb-trials-leaderboard .gb-trials-leader-rounds { display:flex; gap:5px; grid-column:2/-1; align-items:center; }
+  .gb-trials-leaderboard .gb-trials-leader-score>strong { font-size:15px; }
+  #trial-achievements .gb-trials-badge-grid { grid-template-columns:1fr; }
+}
