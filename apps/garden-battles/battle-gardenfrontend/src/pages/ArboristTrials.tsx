@@ -102,7 +102,7 @@ export default function ArboristTrials() {
     if (!unsavedResult || !battle || !runWallet || !runChallenge) return;
     try {
       localStorage.setItem(trialDraftKey(runWallet), encodeTrialDraft(
-        runWallet, runChallenge.id, battle.player1Moves.length === 5, battle.allPlayerMoves,
+        runWallet, runChallenge.id, battle.player1Moves.length === 5, battle.allPlayerMoves, battle.trialEngine,
       ));
     } catch {
       setSubmissionMessage("Browser storage is unavailable. Keep this page open until you sign and save your score.");
@@ -234,6 +234,7 @@ export default function ArboristTrials() {
         runChallenge.id,
         runWallet,
         battle.allPlayerMoves,
+        battle.trialEngine,
       );
       const proof = await signPersonalMessage.mutateAsync({
         message: new TextEncoder().encode(proofMessage),
@@ -245,6 +246,7 @@ export default function ArboristTrials() {
         challengeId: runChallenge.id,
         wallet: runWallet,
         playerMoves: battle.allPlayerMoves,
+        replayVersion: battle.trialEngine,
         signature: proof.signature,
       });
       if (!saved.ok || !saved.recorded || !saved.result) throw new Error("save_not_confirmed");

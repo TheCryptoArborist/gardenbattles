@@ -1,4 +1,5 @@
 export const ARBORIST_TRIAL_TARGET_GROWTH = 50;
+import { TRIAL_PORTABLE_START_DATE } from "./trial-engine";
 export const ARBORIST_TRIAL_VERSION = 2;
 export const ARBORIST_TRIAL_V2_START_DATE = "2026-09-02";
 
@@ -22,6 +23,7 @@ export type ArboristTrialChallenge = {
   rule: ArboristTrialRule;
   ruleDescription: string;
   expiresAt: number;
+  simulationVersion?: number;
 };
 
 export type ArboristTrialResultInput = {
@@ -37,12 +39,14 @@ export function createArboristTrialProofMessage(
   challengeId: string,
   wallet: string,
   playerMoves: number[],
+  replayVersion?: string,
 ): string {
   return [
     "Garden Battles Arborist Trial",
     `Challenge: ${challengeId}`,
     `Wallet: ${wallet.toLowerCase()}`,
     `Moves: ${playerMoves.join(",")}`,
+    ...(replayVersion ? [`Replay: ${replayVersion}`] : []),
   ].join("\n");
 }
 
@@ -154,6 +158,7 @@ export function getArboristTrialChallenge(now = new Date()): ArboristTrialChalle
     seed,
     targetGrowth: ARBORIST_TRIAL_TARGET_GROWTH,
     expiresAt,
+    ...(date >= TRIAL_PORTABLE_START_DATE ? { simulationVersion: 2 } : {}),
     ...variant,
   };
 }

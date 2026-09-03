@@ -1,3 +1,5 @@
+import { boundedRequest } from "./boundedRequest";
+import type { TrialEngine } from "@shared/trial-engine";
 const API_UNAVAILABLE_MESSAGE =
   "Leaderboard backend is not connected on this deployment yet.";
 
@@ -11,11 +13,14 @@ function apiUrl(path: string): string {
   return `${API_BASE}${path.startsWith("/") ? path : `/${path}`}`;
 }
 
-async function fetchJson<T>(path: string, fallbackMessage: string): Promise<T> {
+function fetchJson<T>(path: string, fallbackMessage: string): Promise<T> {
+  return boundedRequest((signal) => fetchJsonInner<T>(path, fallbackMessage, signal));
+}
+async function fetchJsonInner<T>(path: string, fallbackMessage: string, signal: AbortSignal): Promise<T> {
   let res: Response;
 
   try {
-    res = await fetch(apiUrl(path));
+    res = await fetch(apiUrl(path), { signal, cache: "no-store" });
   } catch {
     throw new Error(fallbackMessage);
   }
@@ -46,15 +51,20 @@ async function fetchJson<T>(path: string, fallbackMessage: string): Promise<T> {
   return data as T;
 }
 
-async function postJson<T>(
+function postJson<T>(path: string, body: Record<string, unknown>, fallbackMessage: string): Promise<T> {
+  return boundedRequest((signal) => postJsonInner<T>(path, body, fallbackMessage, signal));
+}
+async function postJsonInner<T>(
   path: string,
   body: Record<string, unknown>,
   fallbackMessage: string,
+  signal: AbortSignal,
 ): Promise<T> {
   let res: Response;
 
   try {
     res = await fetch(apiUrl(path), {
+      signal,
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
@@ -323,6 +333,7 @@ export async function fetchTodayArboristTrial(
 }
 
 export async function submitArboristTrialResult(input: {
+  replayVersion?: TrialEngine;
   challengeId: string;
   wallet: string;
   playerMoves: number[];

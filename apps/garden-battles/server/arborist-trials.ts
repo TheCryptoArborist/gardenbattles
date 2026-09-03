@@ -23,6 +23,7 @@ import {
 } from "./battle-storage";
 import { normalizeSuiAddress } from "../shared/tree-power-eligibility";
 import { dailyTrialWinStreak } from "../shared/trial-streak";
+import { isTrialEngine, TRIAL_PORTABLE_START_DATE, type TrialEngine } from "../shared/trial-engine";
 
 function publicResult(row: ArboristTrialResultRow, rank?: number) {
   return {
@@ -182,10 +183,11 @@ export function replayArboristTrial(
   challenge: ArboristTrialChallenge,
   moves: number[],
   fifthMoveUnlocked: boolean,
+  engine?: TrialEngine,
 ):
   | { ok: true; result: ArboristTrialResultInput }
   | { ok: false; reason: string } {
-  let replay = createArboristTrialBattle(challenge, fifthMoveUnlocked);
+  let replay = createArboristTrialBattle(challenge, fifthMoveUnlocked, engine);
   try {
     for (let index = 0; index < moves.length; index += 1) {
       const moveId = moves[index];
@@ -227,9 +229,18 @@ export async function submitTodayArboristTrial(
   }
 
   const moves = playerMoves as number[];
+  const replayVersion = body.replayVersion;
+  if (replayVersion !== undefined && !isTrialEngine(replayVersion)) {
+    return { status: 400, body: { ok: false, reason: "trial_client_update_required" } };
+  }
+  // Only pre-fix challenges may use compatibility replays. The signature binds
+  // the chosen engine in new clients; old clients retain their original message.
+  if (challenge.date > TRIAL_PORTABLE_START_DATE && replayVersion !== "portable-v1") {
+    return { status: 409, body: { ok: false, reason: "trial_client_update_required" } };
+  }
   const signature = typeof body.signature === "string" ? body.signature : "";
   const message = new TextEncoder().encode(
-    createArboristTrialProofMessage(challenge.id, wallet, moves),
+    createArboristTrialProofMessage(challenge.id, wallet, moves, replayVersion),
   );
   const proofIsValid = await (options.verifyWalletProof ?? verifyWalletProof)(
     message,
@@ -252,7 +263,10 @@ export async function submitTodayArboristTrial(
     }
   }
 
-  const replayed = replayArboristTrial(challenge, moves, usesFifthMove);
+  let replayed = replayArboristTrial(challenge, moves, usesFifthMove, replayVersion ?? "legacy-v8");
+  if (!replayed.ok && replayVersion === undefined && challenge.date <= TRIAL_PORTABLE_START_DATE) {
+    replayed = replayArboristTrial(challenge, moves, usesFifthMove, "legacy-webkit");
+  }
   if (!replayed.ok) {
     return { status: 400, body: { ok: false, reason: replayed.reason } };
   }

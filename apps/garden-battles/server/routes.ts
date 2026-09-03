@@ -671,7 +671,7 @@ async function readNftreeForWallet(wallet: string) {
 }
 
 async function walletHasNftreeAccess(wallet: string): Promise<boolean> {
-  return !!(await readNftreeForWallet(wallet));
+  return !!(await withTimeout(readNftreeForWallet(wallet), 12_000, "trial_nftree_access"));
 }
 
 export function createNftreeAccessHandler(options: {

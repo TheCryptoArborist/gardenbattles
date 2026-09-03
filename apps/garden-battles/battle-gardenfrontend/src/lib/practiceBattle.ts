@@ -1,6 +1,7 @@
 import type { ActionEntry } from "@/components/BattleLog";
 import type { BattleState } from "@/hooks/useSuiWallet";
 import { MOVE_LABELS, MOVE_META, type MoveType } from "@/lib/sui-config";
+import { shuffleTrialHand, type TrialEngine } from "@shared/trial-engine";
 
 export const PRACTICE_PLAYER_ADDRESS = "practice-player";
 export const PRACTICE_BOT_ADDRESS = "practice-garden-bot";
@@ -31,11 +32,13 @@ export type PracticeBattle = BattleState & {
   playerStatus: PracticeStatus;
   botStatus: PracticeStatus;
   randomState?: number;
+  trialEngine?: TrialEngine;
   challengeId?: string;
   botMoveTypeSchedule?: MoveType[];
 };
 
 export type CreatePracticeBattleOptions = {
+  trialEngine?: TrialEngine;
   seed?: number;
   mode?: PracticeBattle["mode"];
   challengeId?: string;
@@ -110,7 +113,7 @@ function createPracticeBattleInternal(options: CreatePracticeBattleOptions): Pra
       ...drawUnique(HYBRID_MOVES, 1),
     ];
     cards.push(...drawUnique(ALL_MOVES, 1, new Set(cards)));
-    return cards.sort(() => practiceRandom() - 0.5);
+    return shuffleTrialHand(cards, practiceRandom, options.trialEngine ?? "portable-v1");
   };
   const playerMoves = drawBalancedHand();
   const botMoves = drawBalancedHand();
@@ -141,6 +144,7 @@ function createPracticeBattleInternal(options: CreatePracticeBattleOptions): Pra
     botStatus: emptyStatus(),
     challengeId: options.challengeId,
     botMoveTypeSchedule: options.botMoveTypeSchedule,
+    trialEngine: options.trialEngine,
   };
 }
 
@@ -466,7 +470,7 @@ function scoreBotMove(moveId: number, battle: PracticeBattle) {
 function choosePracticeBotMove(battle: PracticeBattle) {
   const scheduledType = battle.botMoveTypeSchedule?.length
     ? battle.botMoveTypeSchedule[
-        battle.botMoveHistory.length % battle.botMoveTypeSchedule.length
+        (battle.trialEngine === "portable-v1" ? battle.allBotMoves.length : battle.botMoveHistory.length) % battle.botMoveTypeSchedule.length
       ]
     : null;
   const scheduledMoves = scheduledType

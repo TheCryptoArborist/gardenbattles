@@ -11,8 +11,62 @@ import {
   submitTodayArboristTrial,
 } from "./arborist-trials";
 import { insertArboristTrialResult, type ArboristTrialResultRow } from "./battle-storage";
+import { IOS_SEPTEMBER_3_MOVES } from "../shared/trial-recovery-fixture";
+import { createArboristTrialBattle, playArboristTrialRound, isArboristTrialMoveDisabled } from "../battle-gardenfrontend/src/lib/arboristTrials";
 
 const now = new Date("2026-08-23T12:00:00.000Z");
+
+test("new portable runs save with signed engine metadata across all seven daily rules", async () => {
+  for (let day = 3; day < 10; day++) {
+    const date = new Date(`2026-09-${String(day).padStart(2,"0")}T12:00:00Z`);
+    const challenge = getArboristTrialChallenge(date);
+    let battle = createArboristTrialBattle(challenge,false);
+    for (let round = 0; round < 100 && !battle.finished; round++) {
+      const legal = battle.player1Moves.filter(move => !isArboristTrialMoveDisabled(battle,challenge,move));
+      battle = playArboristTrialRound(battle,challenge,legal[round % legal.length]).battle;
+    }
+    assert.equal(battle.finished,true,challenge.title);
+    const keypair = new Ed25519Keypair();
+    const wallet = keypair.getPublicKey().toSuiAddress();
+    const replayVersion = battle.trialEngine;
+    const signature = (await keypair.signPersonalMessage(new TextEncoder().encode(createArboristTrialProofMessage(challenge.id,wallet,battle.allPlayerMoves,replayVersion)))).signature;
+    const saved = await submitTodayArboristTrial({wallet,challengeId:challenge.id,playerMoves:battle.allPlayerMoves,replayVersion,signature},date,{hasNftreeAccess:async()=>true});
+    assert.equal(saved.status,201,challenge.title);
+    assert.ok("result" in saved.body);
+    if ("result" in saved.body) {
+      assert.equal(saved.body.result.playerGrowth,battle.player1Growth);
+      assert.equal(saved.body.result.botGrowth,battle.player2Growth);
+    }
+  }
+});
+
+test("a real iPhone recovery signature saves the complete legacy win exactly once", async () => {
+  const keypair = new Ed25519Keypair();
+  const wallet = keypair.getPublicKey().toSuiAddress();
+  const date = new Date("2026-09-03T12:00:00Z");
+  const challenge = getArboristTrialChallenge(date);
+  for (const replayVersion of [undefined,"legacy-webkit"] as const) {
+    const proof = await keypair.signPersonalMessage(new TextEncoder().encode(createArboristTrialProofMessage(challenge.id,wallet,IOS_SEPTEMBER_3_MOVES,replayVersion)));
+    const input = {wallet,challengeId:challenge.id,playerMoves:IOS_SEPTEMBER_3_MOVES,signature:proof.signature,replayVersion};
+    const response = await submitTodayArboristTrial(input,date,{hasNftreeAccess:async()=>true});
+    assert.equal(response.status,replayVersion ? 409 : 201);
+    if (!("result" in response.body)) throw new Error("Missing saved result");
+    assert.equal(response.body.result.rounds,59);
+    assert.equal(response.body.result.playerGrowth,50);
+    assert.equal(response.body.result.botGrowth,15);
+    assert.equal(response.body.result.won,true);
+    const tampered = await submitTodayArboristTrial({...input,replayVersion:"portable-v1"},date,{hasNftreeAccess:async()=>true});
+    assert.equal(tampered.status,401);
+  }
+});
+
+test("legacy replay cannot be used for new days and signature is still required", async () => {
+  const date = new Date("2026-09-04T12:00:00Z");
+  const response = await submitTodayArboristTrial({wallet:`0x${"a".repeat(64)}`,challengeId:getArboristTrialChallenge(date).id,playerMoves:[23],replayVersion:"legacy-webkit"},date);
+  assert.equal(response.body.reason,"trial_client_update_required");
+  const unsigned = await submitTodayArboristTrial({wallet:`0x${"a".repeat(64)}`,challengeId:"arborist-trial-v2-2026-09-03",playerMoves:IOS_SEPTEMBER_3_MOVES},new Date("2026-09-03T12:00:00Z"));
+  assert.equal(unsigned.status,401);
+});
 
 test("a real signed completed run saves once, updates check-in, and keeps its streak tomorrow", async () => {
   const keypair = new Ed25519Keypair();

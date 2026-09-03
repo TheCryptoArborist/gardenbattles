@@ -1,4 +1,5 @@
 import type { ArboristTrialChallenge } from "@shared/arborist-trials";
+import type { TrialEngine } from "@shared/trial-engine";
 import type { ActionEntry } from "@/components/BattleLog";
 import {
   PRACTICE_PLAYER_ADDRESS,
@@ -30,8 +31,10 @@ export function getDailyTrialFifthMoveId(challenge: ArboristTrialChallenge): num
 export function createArboristTrialBattle(
   challenge: ArboristTrialChallenge,
   fifthMoveUnlocked: boolean,
+  engine: TrialEngine = challenge.simulationVersion === 2 ? "portable-v1" : "legacy-v8",
 ): PracticeBattle {
   return createPracticeBattle({
+    trialEngine: engine,
     seed: challenge.seed,
     mode: "arborist-trial",
     challengeId: challenge.id,
