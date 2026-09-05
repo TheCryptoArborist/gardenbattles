@@ -10,6 +10,7 @@ import {
   clearTreePowerEligibilityCache,
   createGraphqlTreePowerClient,
   getCachedFifthMoveEligibility,
+  refreshFifthMoveEligibility,
 } from "./tree-power-eligibility";
 
 const wallet = "0x1111111111111111111111111111111111111111111111111111111111111111";
@@ -326,6 +327,27 @@ test("cache reuses a wallet response for approximately 60 seconds", async () => 
   await getCachedFifthMoveEligibility(client as any, wallet);
 
   assert.equal(client.callCount, 1);
+});
+
+test("fresh eligibility bypasses a cached pre-lock result and updates the cache", async () => {
+  clearTreePowerEligibilityCache();
+  const options: { lpBalance: string; treeLocks: any[] } = { lpBalance: "0", treeLocks: [] };
+  const client = makeClient(options) as any;
+
+  const beforeLock = await getCachedFifthMoveEligibility(client, wallet);
+  assert.equal(beforeLock.status, "not-qualified");
+
+  options.treeLocks.push(makeTreeLockObject());
+  const staleAfterLock = await getCachedFifthMoveEligibility(client, wallet);
+  assert.equal(staleAfterLock.status, "not-qualified");
+
+  const freshAfterLock = await refreshFifthMoveEligibility(client, wallet);
+  assert.equal(freshAfterLock.status, "qualified");
+  assert.equal(freshAfterLock.sources[2].source, "tree-lock");
+  assert.equal(freshAfterLock.sources[2].underlyingTreeRaw, "1000000000000");
+
+  const updatedCache = await getCachedFifthMoveEligibility(client, wallet);
+  assert.equal(updatedCache.status, "qualified");
 });
 
 test("provider failures remain unavailable and do not become verified zero", async () => {

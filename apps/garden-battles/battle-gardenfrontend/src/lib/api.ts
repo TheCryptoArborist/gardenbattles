@@ -297,9 +297,10 @@ export async function submitBattleRecord(
 
 export async function fetchFifthMoveEligibility(
   address: string,
+  options: { refresh?: boolean } = {},
 ): Promise<FifthMoveEligibilityResponse> {
   return fetchJson<FifthMoveEligibilityResponse>(
-    `/api/tree-power/eligibility/${address.toLowerCase()}`,
+    `/api/tree-power/eligibility/${address.toLowerCase()}${options.refresh ? "?refresh=1" : ""}`,
     "Fifth Move eligibility verification is temporarily unavailable.",
   );
 }

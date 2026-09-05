@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useCurrentAccount, useSignAndExecuteTransaction, useSuiClient } from "@mysten/dapp-kit";
 import { useQueryClient } from "@tanstack/react-query";
 import type { FifthMoveEligibilityResponse } from "@/lib/api";
+import { fetchFifthMoveEligibility } from "@/lib/api";
 import { SUI_CONFIG } from "@/lib/sui-config";
 import {
   assertTreeLockPreview,
@@ -27,7 +28,11 @@ export default function TreeLockControl({ address, eligibility }: Props) {
   const wallet = account?.address ?? address ?? null;
 
   const refresh = async () => {
-    await queryClient.invalidateQueries({ queryKey: ["fifth-move-eligibility", wallet?.toLowerCase()] });
+    if (wallet) {
+      const normalizedWallet = wallet.toLowerCase();
+      const freshEligibility = await fetchFifthMoveEligibility(normalizedWallet, { refresh: true });
+      queryClient.setQueryData(["fifth-move-eligibility", normalizedWallet], freshEligibility);
+    }
     await queryClient.invalidateQueries({ queryKey: ["tree-balance", wallet?.toLowerCase()] });
   };
 

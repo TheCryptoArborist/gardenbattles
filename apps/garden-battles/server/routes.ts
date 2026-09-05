@@ -28,6 +28,7 @@ import { readBattleTransactionViaGraphQL } from "./sui-graphql";
 import {
   createGraphqlTreePowerClient,
   getCachedFifthMoveEligibility,
+  refreshFifthMoveEligibility,
 } from "./tree-power-eligibility";
 import {
   TREE_COIN_TYPE,
@@ -456,7 +457,7 @@ export function createFifthMoveAttestationHandler(
   options: FifthMoveAttestationRouteOptions = {},
 ): RequestHandler {
   const getEligibility = options.getEligibility ?? ((wallet: string) =>
-    getCachedFifthMoveEligibility(treePowerGraphqlClient, wallet));
+    refreshFifthMoveEligibility(treePowerGraphqlClient, wallet));
   const getSigner = options.getSigner ?? getFifthMoveSigner;
   const readConfig = options.readConfig ?? readLiveFifthMoveConfig;
   const checkRateLimit = options.checkRateLimit ?? checkFifthMoveRateLimit;
@@ -1226,7 +1227,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const address = typeof req.params.address === "string" ? req.params.address : "";
 
     try {
-      const eligibility = await getCachedFifthMoveEligibility(
+      const readEligibility = req.query.refresh === "1"
+        ? refreshFifthMoveEligibility
+        : getCachedFifthMoveEligibility;
+      const eligibility = await readEligibility(
         treePowerGraphqlClient,
         address,
       );

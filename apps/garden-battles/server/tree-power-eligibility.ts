@@ -803,6 +803,25 @@ export async function getCachedFifthMoveEligibility(
     return cached.response;
   }
 
+  return refreshFifthMoveEligibility(client, wallet);
+}
+
+/**
+ * Re-read every supported source before returning an eligibility decision.
+ *
+ * This is used at transaction boundaries (for example, when issuing a fifth
+ * move attestation) where a recently created TREE Lock must be visible
+ * immediately instead of waiting for the short display cache to expire.
+ */
+export async function refreshFifthMoveEligibility(
+  client: TreePowerReadClient,
+  address: string,
+): Promise<FifthMoveEligibilityResponse> {
+  const wallet = normalizeSuiAddress(address);
+  if (!wallet) {
+    throw new Error("invalid_sui_address");
+  }
+
   const response = serializeFifthMoveEligibility(
     await withTimeout(getFifthMoveEligibility(client, wallet)),
   );
