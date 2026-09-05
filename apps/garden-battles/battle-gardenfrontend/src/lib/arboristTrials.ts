@@ -48,6 +48,17 @@ export function createArboristTrialBattle(
   });
 }
 
+export function applyArboristTrialFifthMove(
+  battle: PracticeBattle,
+  challenge: ArboristTrialChallenge,
+  fifthMoveUnlocked: boolean,
+): PracticeBattle {
+  if (!fifthMoveUnlocked || battle.player1Moves.length >= 5) return battle;
+  const fifthMoveId = getDailyTrialFifthMoveId(challenge);
+  if (battle.player1Moves.includes(fifthMoveId)) return battle;
+  return { ...battle, player1Moves: [...battle.player1Moves, fifthMoveId] };
+}
+
 export function getCanopyDiagnosisForecast(
   battle: PracticeBattle,
   challenge: ArboristTrialChallenge,

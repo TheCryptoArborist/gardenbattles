@@ -44,6 +44,7 @@ import {
   type PvpMatchTarget,
 } from "@/lib/sui-config";
 import {
+  fetchFifthMoveEligibility,
   fetchNftreeAccess,
   requestFifthMoveAttestation,
   submitBattleRecord,
@@ -601,13 +602,19 @@ async function getOptionalFifthMoveProof(address: string): Promise<{
   signatureBytes: number[];
 } | null> {
   if (!SUI_CONFIG.FIFTH_MOVE_CONFIG_ID.trim()) return null;
+
+  const eligibility = await fetchFifthMoveEligibility(address, { refresh: true });
+  if (eligibility.status !== "qualified") {
+    console.info("[fifth-move] standard four-move entry", {
+      reason: eligibility.status,
+    });
+    return null;
+  }
+
   try {
     const response = await requestFifthMoveAttestation(address);
     if (!response.attestation?.payload || !response.attestation.signature) {
-      console.info("[fifth-move] standard four-move entry", {
-        reason: response.reason ?? response.eligibility?.status ?? "not-qualified",
-      });
-      return null;
+      throw new Error(response.reason ?? "fifth_move_proof_missing");
     }
 
     const proof = {
@@ -615,8 +622,7 @@ async function getOptionalFifthMoveProof(address: string): Promise<{
       signatureBytes: Array.from(fromBase64(response.attestation.signature)) as number[],
     };
     if (!isUsableFifthMoveProof(proof, SUI_CONFIG.FIFTH_MOVE_CONFIG_ID)) {
-      console.warn("[fifth-move] proof rejected before transaction selection");
-      return null;
+      throw new Error("fifth_move_proof_invalid");
     }
 
     console.info("[fifth-move] proof ready", {
@@ -625,8 +631,10 @@ async function getOptionalFifthMoveProof(address: string): Promise<{
     });
     return proof;
   } catch (err) {
-    console.warn("[fifth-move] verification unavailable - continuing with four moves", err);
-    return null;
+    console.warn("[fifth-move] qualified wallet proof unavailable", err);
+    throw new Error(
+      "Your fifth card is unlocked, but its verification proof could not be loaded. No battle was created. Please try again.",
+    );
   }
 }
 

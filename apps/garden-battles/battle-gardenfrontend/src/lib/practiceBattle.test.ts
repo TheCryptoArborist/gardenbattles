@@ -4,12 +4,24 @@ import { createPracticeBattle, playPracticeRound } from "./practiceBattle";
 import { MOVE_META } from "./sui-config";
 import { getArboristTrialChallenge } from "@shared/arborist-trials";
 import {
+  applyArboristTrialFifthMove,
   createArboristTrialBattle,
   getArboristTrialResult,
   getCanopyDiagnosisForecast,
   getToolbeltLockedMoveIds,
   playArboristTrialRound,
 } from "./arboristTrials";
+
+test("a verified TREE Lock upgrades an active four-card Trial hand", () => {
+  const challenge = getArboristTrialChallenge(new Date("2026-09-05T12:00:00.000Z"));
+  const fourCardBattle = createArboristTrialBattle(challenge, false);
+  const upgraded = applyArboristTrialFifthMove(fourCardBattle, challenge, true);
+
+  assert.equal(fourCardBattle.player1Moves.length, 4);
+  assert.equal(upgraded.player1Moves.length, 5);
+  assert.ok(upgraded.player1Moves[4] >= 31 && upgraded.player1Moves[4] <= 39);
+  assert.equal(applyArboristTrialFifthMove(upgraded, challenge, true), upgraded);
+});
 
 test("practice hands mirror the balanced four-card deal", () => {
   for (let i = 0; i < 500; i += 1) {

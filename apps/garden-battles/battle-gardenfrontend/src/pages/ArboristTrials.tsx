@@ -16,6 +16,7 @@ import { appAsset } from "@/lib/assets";
 import { encodeTrialDraft, restoreTrialDraft, trialDraftKey, trialSaveError } from "@/lib/trialScoreDraft";
 import { getBattleTreeAssetPath, resolveGrowthStage } from "@/lib/battleTreeArtwork";
 import {
+  applyArboristTrialFifthMove,
   createArboristTrialBattle,
   getCanopyDiagnosisCounterType,
   getCanopyDiagnosisForecast,
@@ -144,6 +145,13 @@ export default function ArboristTrials() {
   };
 
   useEffect(() => { void loadToday(); }, [address]);
+
+  useEffect(() => {
+    if (!today?.fifthMoveUnlocked || !battle || !activeChallenge || battle.player1Moves.length >= 5) return;
+    setBattle((current) => current
+      ? applyArboristTrialFifthMove(current, activeChallenge, true)
+      : current);
+  }, [today?.fifthMoveUnlocked, battle?.battleId, battle?.player1Moves.length, activeChallenge?.id]);
 
   useEffect(() => {
     if (!address || !today || todayWalletRef.current !== address || loading || battle || restoredWalletRef.current === address) return;
