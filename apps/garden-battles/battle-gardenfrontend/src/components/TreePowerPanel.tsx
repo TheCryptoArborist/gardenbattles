@@ -15,6 +15,7 @@ import {
 import type { FifthMoveEligibility, FifthMoveQualificationSource } from "@/lib/suiDexTreePosition";
 import type { TreeBalanceView } from "@/lib/treeBalance";
 import TreeLockControl from "@/components/TreeLockControl";
+import { SUI_CONFIG } from "@/lib/sui-config";
 
 type TreePowerPanelProps = {
   address?: string | null;
@@ -348,7 +349,7 @@ export default function TreePowerPanel({
           })}
         </div>
 
-        {!compact && !isBattleActive && (
+        {!compact && !isBattleActive && SUI_CONFIG.TREE_LOCK_ENABLED && (
           <TreeLockControl address={address} eligibility={eligibilityResponse} />
         )}
 

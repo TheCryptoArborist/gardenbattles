@@ -56,6 +56,8 @@ export const SUI_CONFIG = {
   FIFTH_MOVE_CONFIG_ID:
     ((import.meta as any).env?.VITE_FIFTH_MOVE_CONFIG_ID as string | undefined) ||
     "0x083a9303bd13b789e87f3e746b817a8723290f25414f3686ac8868f90a5020b3",
+  TREE_LOCK_ENABLED:
+    ((import.meta as any).env?.VITE_TREE_LOCK_ENABLED as string | undefined) === "true",
   TREE_CONFIG_ID:
     ((import.meta as any).env?.VITE_TREE_CONFIG_ID as string | undefined) ||
     "0x828da1764a6c1d4d9c31cc2dc54eac9e1096172e9b68a629510818c5475119a1",
