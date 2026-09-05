@@ -254,6 +254,8 @@ function sourceBitmapFromEligibility(eligibility: Awaited<ReturnType<typeof getC
       bitmap |= 1 << 2;
     } else if (source.source === "moonbags-staking") {
       bitmap |= 1 << 3;
+    } else if (source.source === "tree-lock") {
+      bitmap |= 1 << 4;
     }
   }
   return bitmap;
@@ -515,7 +517,7 @@ export function createFifthMoveAttestationHandler(
         });
       }
       const sourceBitmap = sourceBitmapFromEligibility(eligibility);
-      if (sourceBitmap <= 0 || sourceBitmap > 15) {
+      if (sourceBitmap <= 0 || sourceBitmap > 31) {
         return res.status(503).json({
           ok: false,
           attestation: null,

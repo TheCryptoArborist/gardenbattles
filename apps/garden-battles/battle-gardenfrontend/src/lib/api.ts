@@ -143,7 +143,7 @@ export interface LeaderboardEntry {
   pvp_target_counts?: PvpTargetCounts;
 }
 
-export type FifthMoveSource = "suidex-v2" | "suidex-v3" | "moonbags-staking";
+export type FifthMoveSource = "suidex-v2" | "suidex-v3" | "tree-lock" | "moonbags-staking";
 export type FifthMoveEligibilityStatus =
   | "qualified"
   | "not-qualified"
@@ -158,6 +158,7 @@ export type FifthMoveSourceResult = {
     objectIds?: string[];
     poolId?: string;
     positionCount?: number;
+    locks?: Array<{ objectId: string; amountRaw: string; unlockAtMs: string }>;
   };
   reason?: string;
 };

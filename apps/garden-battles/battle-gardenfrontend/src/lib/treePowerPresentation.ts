@@ -50,7 +50,7 @@ function formatQualificationSources(sources: FifthMoveEligibility["sources"]): s
   if (sources.length > 1) return "Multiple TREE Positions";
   if (sources[0] === "suidex-v2") return "SuiDex V2";
   if (sources[0] === "suidex-v3") return "SuiDex V3";
-  if (sources[0] === "moonbags-staking") return "Moonbags Staking";
+  if (sources[0] === "tree-lock") return "30-Day TREE Lock";
   return "TREE Position";
 }
 
@@ -63,7 +63,7 @@ export function getFifthMovePresentation(options: {
   const slotCount = 5;
   const filledSlots = Math.max(0, Math.min(slotCount, Math.floor(options.currentMoveCount || 0)));
   const explainer =
-    "NFTree grants access to Garden Battles. Support TREE through SuiDex liquidity or Moonbags staking to unlock your fifth move.";
+    "NFTree grants access to Garden Battles. Support TREE through SuiDex liquidity or a non-yielding 30-Day TREE Lock to unlock your fifth move.";
 
   if (!options.isBattleActive) {
     return {
@@ -115,7 +115,7 @@ export function getFifthMovePresentation(options: {
       statusLabel: "Checking",
       handLabel: `Current Hand: ${filledSlots} / 5`,
       title: "Fifth Move Unlock",
-      description: "Checking SuiDex and Moonbags TREE positions.",
+      description: "Checking SuiDex liquidity and TREE Lock positions.",
       explainer,
       slotCount,
       filledSlots,
@@ -186,7 +186,7 @@ export function getFifthMovePresentation(options: {
     statusLabel: "No Qualifying TREE Position",
     handLabel: `Current Hand: ${filledSlots} / 5`,
     title: "Fifth Move Unlock",
-    description: "Build a combined 1,000,000 TREE position through supported SuiDex liquidity or Moonbags staking to unlock the fifth move.",
+    description: "Build a combined 1,000,000 TREE position through supported SuiDex liquidity, or lock 1,000,000 TREE for 30 days, to unlock the fifth move.",
     explainer,
     slotCount,
     filledSlots,

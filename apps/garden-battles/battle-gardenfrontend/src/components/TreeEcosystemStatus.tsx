@@ -46,9 +46,9 @@ export default function TreeEcosystemStatus() {
       value: sourceValues.get("suidex-v3") ?? "Checking...",
     },
     {
-      label: "Moonbags staking",
-      description: "TREE deposited in the supported staking program. Any verified amount can qualify.",
-      value: sourceValues.get("moonbags-staking") ?? "Checking...",
+      label: "30-Day TREE Lock",
+      description: "TREE held in the non-yielding 30-Day TREE Lock.",
+      value: sourceValues.get("tree-lock") ?? "Checking...",
     },
     {
       label: "Your fifth-card result",

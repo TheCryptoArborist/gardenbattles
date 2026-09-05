@@ -36,10 +36,10 @@ const ELIGIBILITY = {
   notQualified: { status: "not-qualified", sources: [] },
   v2: { status: "qualified", sources: ["suidex-v2"] },
   v3: { status: "qualified", sources: ["suidex-v3"] },
-  moonbags: { status: "qualified", sources: ["moonbags-staking"] },
-  v2Moonbags: { status: "qualified", sources: ["suidex-v2", "moonbags-staking"] },
-  v3Moonbags: { status: "qualified", sources: ["suidex-v3", "moonbags-staking"] },
-  all: { status: "qualified", sources: ["suidex-v2", "suidex-v3", "moonbags-staking"] },
+  treeLock: { status: "qualified", sources: ["tree-lock"] },
+  v2TreeLock: { status: "qualified", sources: ["suidex-v2", "tree-lock"] },
+  v3TreeLock: { status: "qualified", sources: ["suidex-v3", "tree-lock"] },
+  all: { status: "qualified", sources: ["suidex-v2", "suidex-v3", "tree-lock"] },
   unavailable: { status: "unavailable", sources: [] },
 } satisfies Record<string, FifthMoveEligibility>;
 
@@ -92,7 +92,7 @@ export const TREE_POWER_PREVIEW_SCENARIOS = [
   },
   {
     title: "Position verification loading",
-    note: "Connected mock wallet while SuiDex and Moonbags position checks are pending.",
+    note: "Connected mock wallet while SuiDex and TREE Lock position checks are pending.",
     props: {
       address: MOCK_WALLET,
       treeBalance: LOADING_BALANCE,
@@ -115,7 +115,7 @@ export const TREE_POWER_PREVIEW_SCENARIOS = [
         sources: [
           source("suidex-v2", "verified-zero"),
           source("suidex-v3", "verified-zero"),
-          source("moonbags-staking", "verified-zero"),
+          source("tree-lock", "verified-zero"),
         ],
       }),
       isBattleActive: true,
@@ -137,7 +137,7 @@ export const TREE_POWER_PREVIEW_SCENARIOS = [
         sources: [
           source("suidex-v2", "qualified-data", "999999"),
           source("suidex-v3", "verified-zero"),
-          source("moonbags-staking", "verified-zero"),
+          source("tree-lock", "verified-zero"),
         ],
       }),
       isBattleActive: true,
@@ -157,7 +157,7 @@ export const TREE_POWER_PREVIEW_SCENARIOS = [
         sources: [
           source("suidex-v2", "qualified-data", "1000000"),
           source("suidex-v3", "verified-zero"),
-          source("moonbags-staking", "verified-zero"),
+          source("tree-lock", "verified-zero"),
         ],
       }),
       isBattleActive: true,
@@ -177,7 +177,7 @@ export const TREE_POWER_PREVIEW_SCENARIOS = [
         sources: [
           source("suidex-v2", "qualified-data", "1000001"),
           source("suidex-v3", "verified-zero"),
-          source("moonbags-staking", "verified-zero"),
+          source("tree-lock", "verified-zero"),
         ],
       }),
       isBattleActive: true,
@@ -186,7 +186,7 @@ export const TREE_POWER_PREVIEW_SCENARIOS = [
     },
   },
   {
-    title: "400K V2 + 300K V3 + 300K Moonbags",
+    title: "400K V2 + 300K V3 + 1M TREE Lock",
     note: "A wallet may combine all verified sources to reach the threshold.",
     props: {
       address: MOCK_WALLET,
@@ -197,7 +197,7 @@ export const TREE_POWER_PREVIEW_SCENARIOS = [
         sources: [
           source("suidex-v2", "qualified-data", "400000"),
           source("suidex-v3", "qualified-data", "300000"),
-          source("moonbags-staking", "qualified-data", "300000"),
+          source("tree-lock", "qualified-data", "1000000"),
         ],
       }),
       isBattleActive: true,
@@ -206,7 +206,7 @@ export const TREE_POWER_PREVIEW_SCENARIOS = [
     },
   },
   {
-    title: "600K V2, Moonbags unavailable",
+    title: "600K V2, TREE Lock unavailable",
     note: "Below threshold plus an unavailable provider is verification incomplete, not not-qualified.",
     props: {
       address: MOCK_WALLET,
@@ -218,7 +218,7 @@ export const TREE_POWER_PREVIEW_SCENARIOS = [
         sources: [
           source("suidex-v2", "qualified-data", "600000"),
           source("suidex-v3", "verified-zero"),
-          source("moonbags-staking", "unavailable"),
+          source("tree-lock", "unavailable"),
         ],
       }),
       isBattleActive: true,
@@ -227,7 +227,7 @@ export const TREE_POWER_PREVIEW_SCENARIOS = [
     },
   },
   {
-    title: "1.1M V2, Moonbags unavailable",
+    title: "1.1M V2, TREE Lock unavailable",
     note: "Verified total at or above threshold qualifies even if another source is unavailable.",
     props: {
       address: MOCK_WALLET,
@@ -238,7 +238,7 @@ export const TREE_POWER_PREVIEW_SCENARIOS = [
         sources: [
           source("suidex-v2", "qualified-data", "1100000"),
           source("suidex-v3", "verified-zero"),
-          source("moonbags-staking", "unavailable"),
+          source("tree-lock", "unavailable"),
         ],
       }),
       isBattleActive: true,
@@ -259,7 +259,7 @@ export const TREE_POWER_PREVIEW_SCENARIOS = [
         sources: [
           source("suidex-v2", "unavailable"),
           source("suidex-v3", "unavailable"),
-          source("moonbags-staking", "unavailable"),
+          source("tree-lock", "unavailable"),
         ],
       }),
       isBattleActive: true,
@@ -279,7 +279,7 @@ export const TREE_POWER_PREVIEW_SCENARIOS = [
         sources: [
           source("suidex-v2", "qualified-data", "1000000"),
           source("suidex-v3", "verified-zero"),
-          source("moonbags-staking", "verified-zero"),
+          source("tree-lock", "verified-zero"),
         ],
       }),
       isBattleActive: true,
@@ -299,7 +299,7 @@ export const TREE_POWER_PREVIEW_SCENARIOS = [
         sources: [
           source("suidex-v2", "verified-zero"),
           source("suidex-v3", "qualified-data", "1000000"),
-          source("moonbags-staking", "verified-zero"),
+          source("tree-lock", "verified-zero"),
         ],
       }),
       isBattleActive: true,
@@ -308,8 +308,8 @@ export const TREE_POWER_PREVIEW_SCENARIOS = [
     },
   },
   {
-    title: "Moonbags TREE stake only",
-    note: "Future display reference for an active, verifiable, nonzero Moonbags TREE stake.",
+    title: "30-Day TREE Lock only",
+    note: "Display reference for a verified, non-yielding 1,000,000 TREE Lock.",
     props: {
       address: MOCK_WALLET,
       treeBalance: makeTreeBalanceView(11_345.6789),
@@ -319,7 +319,7 @@ export const TREE_POWER_PREVIEW_SCENARIOS = [
         sources: [
           source("suidex-v2", "verified-zero"),
           source("suidex-v3", "verified-zero"),
-          source("moonbags-staking", "qualified-data", "1000000"),
+          source("tree-lock", "qualified-data", "1000000"),
         ],
       }),
       isBattleActive: true,
@@ -328,7 +328,7 @@ export const TREE_POWER_PREVIEW_SCENARIOS = [
     },
   },
   {
-    title: "V2 + Moonbags",
+    title: "V2 + TREE Lock",
     note: "Multiple qualifying TREE positions still grant only one fifth move.",
     props: {
       address: MOCK_WALLET,
@@ -339,7 +339,7 @@ export const TREE_POWER_PREVIEW_SCENARIOS = [
         sources: [
           source("suidex-v2", "qualified-data", "500000"),
           source("suidex-v3", "verified-zero"),
-          source("moonbags-staking", "qualified-data", "500000"),
+          source("tree-lock", "qualified-data", "500000"),
         ],
       }),
       isBattleActive: true,
@@ -348,7 +348,7 @@ export const TREE_POWER_PREVIEW_SCENARIOS = [
     },
   },
   {
-    title: "V3 + Moonbags",
+    title: "V3 + TREE Lock",
     note: "Multiple qualifying TREE positions still grant only one fifth move.",
     props: {
       address: MOCK_WALLET,
@@ -359,7 +359,7 @@ export const TREE_POWER_PREVIEW_SCENARIOS = [
         sources: [
           source("suidex-v2", "verified-zero"),
           source("suidex-v3", "qualified-data", "500000"),
-          source("moonbags-staking", "qualified-data", "500000"),
+          source("tree-lock", "qualified-data", "500000"),
         ],
       }),
       isBattleActive: true,
@@ -368,7 +368,7 @@ export const TREE_POWER_PREVIEW_SCENARIOS = [
     },
   },
   {
-    title: "V2 + V3 + Moonbags",
+    title: "V2 + V3 + TREE Lock",
     note: "All qualifying TREE sources are detected, but only one fifth slot is shown.",
     props: {
       address: MOCK_WALLET,
@@ -379,7 +379,7 @@ export const TREE_POWER_PREVIEW_SCENARIOS = [
         sources: [
           source("suidex-v2", "qualified-data", "500000"),
           source("suidex-v3", "qualified-data", "500000"),
-          source("moonbags-staking", "qualified-data", "500000"),
+          source("tree-lock", "qualified-data", "500000"),
         ],
       }),
       isBattleActive: true,
@@ -388,8 +388,8 @@ export const TREE_POWER_PREVIEW_SCENARIOS = [
     },
   },
   {
-    title: "Moonbags stake verification unavailable",
-    note: "Moonbags RPC or indexer failure is not displayed as not-qualified.",
+    title: "TREE Lock verification unavailable",
+    note: "A TREE Lock RPC failure is not displayed as not-qualified.",
     props: {
       address: MOCK_WALLET,
       treeBalance: UNAVAILABLE_BALANCE,
@@ -400,8 +400,8 @@ export const TREE_POWER_PREVIEW_SCENARIOS = [
     },
   },
   {
-    title: "Zero Moonbags stake",
-    note: "A zero-value or withdrawn Moonbags TREE stake does not qualify.",
+    title: "No active TREE Lock",
+    note: "A withdrawn or missing TREE Lock does not qualify.",
     props: {
       address: MOCK_WALLET,
       treeBalance: makeTreeBalanceView(11_345.6789),
@@ -412,7 +412,7 @@ export const TREE_POWER_PREVIEW_SCENARIOS = [
     },
   },
   {
-    title: "Unrelated Moonbags token stake",
+    title: "Unrelated token lock",
     note: "Unrelated token stakes and generic token locks do not qualify.",
     props: {
       address: MOCK_WALLET,
@@ -429,7 +429,7 @@ export const TREE_POWER_PREVIEW_SCENARIOS = [
     props: {
       address: MOCK_WALLET,
       treeBalance: makeTreeBalanceView(11_345.6789),
-      fifthMoveEligibility: ELIGIBILITY.moonbags,
+      fifthMoveEligibility: ELIGIBILITY.treeLock,
       isBattleActive: true,
       currentMoveCount: 4,
       rerollStatus: "not-live" as TreeRerollStatus,
@@ -460,7 +460,7 @@ export const TREE_POWER_PREVIEW_SCENARIOS = [
         sources: [
           source("suidex-v2", "verified-zero"),
           source("suidex-v3", "verified-zero"),
-          source("moonbags-staking", "verified-zero"),
+          source("tree-lock", "verified-zero"),
         ],
       }),
       isBattleActive: true,
@@ -481,7 +481,7 @@ export const TREE_POWER_PREVIEW_SCENARIOS = [
         sources: [
           source("suidex-v2", "verified-zero"),
           source("suidex-v3", "verified-zero"),
-          source("moonbags-staking", "verified-zero"),
+          source("tree-lock", "verified-zero"),
         ],
       }),
       isBattleActive: true,

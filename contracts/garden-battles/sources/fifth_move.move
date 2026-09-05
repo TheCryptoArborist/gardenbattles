@@ -12,7 +12,8 @@ module battle_garden::fifth_move {
     const ALLOWED_FUTURE_SKEW_MS: u64 = 60_000;
     const PUBLIC_KEY_LENGTH: u64 = 32;
     const SIGNATURE_LENGTH: u64 = 64;
-    const SOURCE_BITMAP_MASK: u8 = 15;
+    // V2 direct, V2 farm, V3, Moonbags and the native 30-day TREE Lock.
+    const SOURCE_BITMAP_MASK: u8 = 31;
     const MAX_U64: u64 = 18446744073709551615;
 
     public struct FifthMoveConfig has key {

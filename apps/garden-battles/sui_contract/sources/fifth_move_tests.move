@@ -264,7 +264,7 @@ module battle_garden::fifth_move_tests {
                 true,
                 THRESHOLD,
                 THRESHOLD,
-                16,
+                32,
                 2,
                 ISSUED_AT_MS,
                 EXPIRES_AT_MS,

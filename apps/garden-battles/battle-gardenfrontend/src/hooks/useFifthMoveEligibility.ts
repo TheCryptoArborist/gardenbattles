@@ -20,7 +20,7 @@ export type FifthMoveEligibilityView = {
 };
 
 function isSourceId(value: FifthMoveSource): value is FifthMoveQualificationSource {
-  return value === "suidex-v2" || value === "suidex-v3" || value === "moonbags-staking";
+  return value === "suidex-v2" || value === "suidex-v3" || value === "tree-lock";
 }
 
 export function mapFifthMoveResponseToPanelEligibility(

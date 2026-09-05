@@ -14,6 +14,7 @@ import {
 } from "@/lib/treePowerPresentation";
 import type { FifthMoveEligibility, FifthMoveQualificationSource } from "@/lib/suiDexTreePosition";
 import type { TreeBalanceView } from "@/lib/treeBalance";
+import TreeLockControl from "@/components/TreeLockControl";
 
 type TreePowerPanelProps = {
   address?: string | null;
@@ -40,7 +41,7 @@ const QUALIFICATION_SOURCES: Array<{
   {
     id: "suidex-v2",
     label: "SuiDex V2",
-    description: "TREE committed to the original supported SuiDex liquidity and staking pool.",
+    description: "TREE committed to the original supported SuiDex liquidity pool.",
     logo: "assets/suidex-handshake.png",
   },
   {
@@ -50,9 +51,9 @@ const QUALIFICATION_SOURCES: Array<{
     logo: "assets/suidex-handshake.png",
   },
   {
-    id: "moonbags-staking",
-    label: "Moonbags Staking",
-    description: "TREE currently deposited in the supported Moonbags staking program.",
+    id: "tree-lock",
+    label: "30-Day TREE Lock",
+    description: "Lock 1,000,000 TREE for at least 30 days. No rewards or APY.",
     logo: "assets/thick.png",
   },
 ];
@@ -187,14 +188,14 @@ export default function TreePowerPanel({
               : "Unlock Your Fifth Card";
   const panelSubtitle =
     eligibility.status === "qualified"
-      ? "Your supported liquidity and staking positions meet the fifth-card requirement."
+      ? "Your supported liquidity or TREE Lock position meets the fifth-card requirement."
       : eligibility.status === "checking"
-        ? "The game is checking SuiDex V2, SuiDex V3, and Moonbags Staking."
+        ? "The game is checking SuiDex V2, SuiDex V3, and your 30-Day TREE Lock."
         : eligibility.status === "not-connected"
-          ? "Connect a wallet to check supported liquidity and staking positions."
+          ? "Connect a wallet to check supported liquidity and TREE Lock positions."
           : eligibility.status === "verification-incomplete" || eligibility.status === "unavailable"
             ? "Nothing is treated as zero when a supported service cannot be checked."
-            : "Your wallet needs 1,000,000 TREE placed in the supported liquidity or staking options shown below.";
+            : "Your wallet needs 1,000,000 TREE in supported liquidity or the 30-Day TREE Lock shown below.";
   const preBattleExplanation =
     eligibility.status === "qualified"
       ? "You are ready. Start Garden Bot, Arborist Trials, or a paid PvP match and the fifth card is added automatically. This check does not move or spend your TREE."
@@ -204,7 +205,7 @@ export default function TreePowerPanel({
           ? "Connect your wallet to run a read-only eligibility check. Checking does not move or spend your TREE."
           : eligibility.status === "verification-incomplete" || eligibility.status === "unavailable"
             ? "Try again shortly. A source that cannot be checked is not counted as zero."
-            : "Your wallet has not unlocked the fifth card yet. First get TREE, then place a total of 1,000,000 TREE into supported SuiDex liquidity or Moonbags staking. TREE sitting loose in your wallet does not count toward this unlock.";
+            : "Your wallet has not unlocked the fifth card yet. Supply a total of 1,000,000 TREE through supported SuiDex liquidity, or use the non-yielding 30-Day TREE Lock.";
 
   return (
     <aside
@@ -240,7 +241,7 @@ export default function TreePowerPanel({
         </div>
 
         <p className="gb-tree-power-plain-explainer">
-          This benefit works in Garden Bot, Arborist Trials, and paid PvP. Put enough TREE into one or more supported liquidity or staking options and your hand changes from four move cards to five. Practice Mode keeps a four-card training hand.
+          This benefit works in Garden Bot, Arborist Trials, and paid PvP. Supply enough TREE through supported liquidity or the 30-Day TREE Lock and your hand changes from four move cards to five. Practice Mode keeps a four-card training hand.
         </p>
 
         {isBattleActive ? (
@@ -347,9 +348,13 @@ export default function TreePowerPanel({
           })}
         </div>
 
+        {!compact && !isBattleActive && (
+          <TreeLockControl address={address} eligibility={eligibilityResponse} />
+        )}
+
         {!compact && <div className="gb-tree-power-note gb-tree-power-explainer">
           <span>NFTree grants access to Garden Battles.</span>
-          <span>Support TREE through SuiDex liquidity or Moonbags staking to unlock your fifth move.</span>
+          <span>Support TREE through SuiDex liquidity or a 30-Day TREE Lock to unlock your fifth move.</span>
         </div>}
       </section>
 

@@ -378,7 +378,7 @@ export default function Home() {
               <p style={{ marginBottom: 'clamp(0.8rem, 2vw, 1rem)', fontSize: 'clamp(0.8rem, 2.2vw, 0.9rem)' }}>
                 Built on the SUI network's high-speed, low-cost infrastructure, $TREE combines purpose with potential.
                 Whether you're a crypto sapling or a seasoned arborist, THICKQUIDITY invites you to stake your $TREE
-                and grow with us toward a greener financial future with robust project utility. Stake your TREE on moonbags.io, and Turbos.finance
+                and grow with us toward a greener financial future with robust project utility. Use supported TREE liquidity and Garden Battles utilities.
               </p>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'clamp(0.6rem, 1.8vw, 0.8rem)' }}>
@@ -603,7 +603,7 @@ export default function Home() {
                 Fair Launch
               </h3>
               <p style={{ fontSize: 'clamp(0.8rem, 2.2vw, 0.9rem)' }}>
-                Launched off moonbags.io, focused on utility and thick liquidity for sustained growth.
+                Focused on utility and thick liquidity for sustained growth.
               </p>
             </div>
           </div>

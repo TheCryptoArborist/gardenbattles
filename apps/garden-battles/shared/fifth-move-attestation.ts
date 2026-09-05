@@ -11,6 +11,7 @@ export const FIFTH_MOVE_SOURCE_BITS = {
   suidexV2Farm: 1 << 1,
   suidexV3: 1 << 2,
   moonbagsStaking: 1 << 3,
+  treeLock: 1 << 4,
 } as const;
 
 export interface FifthMoveAttestationPayload {

@@ -55,7 +55,7 @@ test("NFTree access copy does not qualify the fifth move", () => {
   });
 
   assert.match(fifth.explainer ?? "", /NFTree grants access to Garden Battles/i);
-  assert.match(fifth.explainer ?? "", /SuiDex liquidity or Moonbags staking/i);
+  assert.match(fifth.explainer ?? "", /SuiDex liquidity or a non-yielding 30-Day TREE Lock/i);
   assert.equal(fifth.isUnlocked, false);
 });
 
@@ -87,7 +87,7 @@ test("qualified SuiDex positions can render future unlocked source labels", () =
   const both = getFifthMovePresentation({
     isBattleActive: true,
     currentMoveCount: 4,
-    eligibility: { status: "qualified", sources: ["suidex-v2", "suidex-v3", "moonbags-staking"] },
+    eligibility: { status: "qualified", sources: ["suidex-v2", "suidex-v3", "tree-lock"] },
     isFifthMoveActivationLive: true,
   });
 
@@ -97,23 +97,23 @@ test("qualified SuiDex positions can render future unlocked source labels", () =
   assert.equal(both.filledSlots, 5);
 });
 
-test("Moonbags TREE stake can render future unlocked source label", () => {
-  const moonbags = getFifthMovePresentation({
+test("TREE Lock can render the unlocked source label", () => {
+  const treeLock = getFifthMovePresentation({
     isBattleActive: true,
     currentMoveCount: 4,
-    eligibility: { status: "qualified", sources: ["moonbags-staking"] },
+    eligibility: { status: "qualified", sources: ["tree-lock"] },
     isFifthMoveActivationLive: true,
   });
 
-  assert.equal(moonbags.statusLabel, "Unlocked via Moonbags Staking");
-  assert.equal(moonbags.filledSlots, 5);
+  assert.equal(treeLock.statusLabel, "Unlocked via 30-Day TREE Lock");
+  assert.equal(treeLock.filledSlots, 5);
 });
 
 test("qualified position does not create a fake fifth move before activation", () => {
   const fifth = getFifthMovePresentation({
     isBattleActive: true,
     currentMoveCount: 4,
-    eligibility: { status: "qualified", sources: ["moonbags-staking"] },
+    eligibility: { status: "qualified", sources: ["tree-lock"] },
   });
 
   assert.equal(fifth.status, "qualified-not-live");

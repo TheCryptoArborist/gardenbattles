@@ -3,6 +3,7 @@ import test, { after } from "node:test";
 import {
   CANONICAL_TREE_SUIDEX_V2_LP_COIN_TYPE,
   CANONICAL_TREE_SUIDEX_V2_POOL_ID,
+  GARDEN_BATTLES_TREE_LOCK_TYPE,
   MOONBAGS_TREE_STAKING_ACCOUNT_TYPE,
   MOONBAGS_TREE_STAKING_POOL_ID,
   MOONBAGS_TREE_STAKING_POOL_TYPE,
@@ -90,6 +91,21 @@ function makeV3PositionObject(options: {
       },
     },
   };
+}
+
+function makeTreeLockObject(options: { amount?: string; owner?: string; unlockAt?: string; type?: string } = {}) {
+  const owner = options.owner ?? wallet;
+  return { data: {
+    objectId: "0x9999999999999999999999999999999999999999999999999999999999999999",
+    type: options.type ?? GARDEN_BATTLES_TREE_LOCK_TYPE,
+    owner: { AddressOwner: owner },
+    content: { dataType: "moveObject", type: options.type ?? GARDEN_BATTLES_TREE_LOCK_TYPE, fields: {
+      owner,
+      funds: options.amount ?? "1000000000000",
+      locked_at_ms: "1000",
+      unlock_at_ms: options.unlockAt ?? "2592001000",
+    } },
+  } };
 }
 
 function makeMoonbagsPoolObject(options: { type?: string; stakingTokenType?: string } = {}) {
@@ -223,6 +239,7 @@ function makeClient(options: {
   moonbagsAccount?: any | null;
   moonbagsPool?: any;
   failMoonbags?: boolean;
+  treeLocks?: any[];
 } = {}) {
   installGraphqlMock(options.v2FarmPositions ?? []);
   let coinMetadataCalls = 0;
@@ -261,12 +278,12 @@ function makeClient(options: {
         nextCursor: null,
       };
     },
-    async getOwnedObjects({ cursor }: { cursor?: string | null }) {
+    async getOwnedObjects({ cursor, filter }: { cursor?: string | null; filter?: { StructType?: string } }) {
       if (cursor) {
         return { data: [], hasNextPage: false, nextCursor: null };
       }
       return {
-        data: options.v3Positions ?? [],
+        data: filter?.StructType === GARDEN_BATTLES_TREE_LOCK_TYPE ? (options.treeLocks ?? []) : (options.v3Positions ?? []),
         hasNextPage: false,
         nextCursor: null,
       };
@@ -322,19 +339,19 @@ test("provider failures remain unavailable and do not become verified zero", asy
   assert.equal(response.sources[1].status, "verified-zero");
 });
 
-test("zero direct V2 LP and zero verified farmed LP remain incomplete while Moonbags is unavailable", async () => {
+test("zero supported positions remain not qualified after Moonbags removal", async () => {
   clearTreePowerEligibilityCache();
   const client = makeClient({ lpBalance: "0", failMoonbags: true }) as any;
   const response = await getCachedFifthMoveEligibility(client, wallet);
 
-  assert.equal(response.status, "verification-incomplete");
+  assert.equal(response.status, "not-qualified");
   assert.equal(response.sources[0].source, "suidex-v2");
   assert.equal(response.sources[0].status, "verified-zero");
   assert.equal(response.sources[0].underlyingTreeRaw, "0");
   assert.equal(response.sources[0].reason, "direct_wallet_lp_and_verified_farmed_lp_zero");
   assert.equal(response.sources[1].reason, "v3_pool_and_owned_positions_verified_principal_only");
   assert.equal(response.sources[1].underlyingTreeRaw, "0");
-  assert.equal(response.sources[2].reason, "moonbags_unavailable");
+  assert.equal(response.sources[2].reason, "garden_battles_tree_lock_not_found");
 });
 
 test("verified V2 farmed LP principal can qualify through the V2 source", async () => {
@@ -368,7 +385,7 @@ test("V2 farmed LP excludes mismatched vault, owner, and pool type", async () =>
   assert.equal(response.sources[0].underlyingTreeRaw, "0");
 });
 
-test("verified V3 principal can qualify while Moonbags remains unavailable", async () => {
+test("verified V3 principal can qualify alongside an empty TREE Lock", async () => {
   clearTreePowerEligibilityCache();
   const client = makeClient({
     lpBalance: "0",
@@ -386,79 +403,22 @@ test("verified V3 principal can qualify while Moonbags remains unavailable", asy
   ]);
 });
 
-test("Moonbags active TREE staking principal qualifies and excludes reward fields", async () => {
+test("a canonical 30-day TREE Lock qualifies and malformed locks do not count", async () => {
   clearTreePowerEligibilityCache();
-  const client = makeClient({
-    lpBalance: "0",
-    moonbagsAccount: makeMoonbagsAccountObject({
-      balance: "2000000000000",
-      earned: "5000000000000",
-    }),
-  }) as any;
-  const response = await getCachedFifthMoveEligibility(client, wallet);
-
-  assert.equal(response.status, "qualified");
-  assert.equal(response.sources[2].source, "moonbags-staking");
-  assert.equal(response.sources[2].status, "qualified-data");
-  assert.equal(response.sources[2].underlyingTreeRaw, "2000000000000");
-  assert.equal(response.sources[2].reason, "moonbags_tree_staking_account_principal_verified");
-});
-
-test("Moonbags missing account and zero principal are verified zero, not unavailable", async () => {
-  clearTreePowerEligibilityCache();
-  const missing = await getCachedFifthMoveEligibility(makeClient({ lpBalance: "0", moonbagsAccount: null }) as any, wallet);
-
-  assert.equal(missing.status, "not-qualified");
-  assert.equal(missing.sources[2].status, "verified-zero");
-  assert.equal(missing.sources[2].underlyingTreeRaw, "0");
-  assert.equal(missing.sources[2].reason, "moonbags_tree_staking_account_not_found");
+  const qualified = await getCachedFifthMoveEligibility(makeClient({ treeLocks: [makeTreeLockObject()] }) as any, wallet);
+  assert.equal(qualified.status, "qualified");
+  assert.equal(qualified.sources[2].source, "tree-lock");
+  assert.equal(qualified.sources[2].underlyingTreeRaw, "1000000000000");
+  assert.equal(qualified.sources[2].reason, "garden_battles_tree_lock_principal_verified");
 
   clearTreePowerEligibilityCache();
-  const zero = await getCachedFifthMoveEligibility(
-    makeClient({ lpBalance: "0", moonbagsAccount: makeMoonbagsAccountObject({ balance: "0", earned: "1000" }) }) as any,
-    wallet,
-  );
-
-  assert.equal(zero.status, "not-qualified");
-  assert.equal(zero.sources[2].status, "verified-zero");
-  assert.equal(zero.sources[2].underlyingTreeRaw, "0");
-  assert.equal(zero.sources[2].reason, "moonbags_tree_staking_account_zero_principal");
-});
-
-test("Moonbags shape and owner mismatches remain unavailable", async () => {
-  clearTreePowerEligibilityCache();
-  const wrongPool = await getCachedFifthMoveEligibility(
-    makeClient({ lpBalance: "0", moonbagsPool: makeMoonbagsPoolObject({ type: "0x2::bad::Pool" }) }) as any,
-    wallet,
-  );
-  assert.equal(wrongPool.status, "verification-incomplete");
-  assert.equal(wrongPool.sources[2].status, "unavailable");
-  assert.equal(wrongPool.sources[2].reason, "moonbags_tree_staking_pool_shape_mismatch");
-
-  clearTreePowerEligibilityCache();
-  const wrongAccountType = await getCachedFifthMoveEligibility(
-    makeClient({
-      lpBalance: "0",
-      moonbagsAccount: makeMoonbagsAccountObject({ type: "0x2::bad::Account", balance: "1000" }),
-    }) as any,
-    wallet,
-  );
-  assert.equal(wrongAccountType.sources[2].status, "unavailable");
-  assert.equal(wrongAccountType.sources[2].reason, "moonbags_tree_staking_account_shape_mismatch");
-
-  clearTreePowerEligibilityCache();
-  const wrongOwner = await getCachedFifthMoveEligibility(
-    makeClient({
-      lpBalance: "0",
-      moonbagsAccount: makeMoonbagsAccountObject({
-        staker: "0x2222222222222222222222222222222222222222222222222222222222222222",
-        balance: "1000",
-      }),
-    }) as any,
-    wallet,
-  );
-  assert.equal(wrongOwner.sources[2].status, "unavailable");
-  assert.equal(wrongOwner.sources[2].reason, "moonbags_tree_staking_account_owner_mismatch");
+  const malformed = await getCachedFifthMoveEligibility(makeClient({ treeLocks: [
+    makeTreeLockObject({ owner: "0x2222222222222222222222222222222222222222222222222222222222222222" }),
+    makeTreeLockObject({ unlockAt: "1001" }),
+    makeTreeLockObject({ type: "0x2::bad::Lock" }),
+  ] }) as any, wallet);
+  assert.equal(malformed.status, "not-qualified");
+  assert.equal(malformed.sources[2].status, "verified-zero");
 });
 
 test("V3 provider excludes unrelated, closed, wrong-owner, and zero-liquidity positions", async () => {

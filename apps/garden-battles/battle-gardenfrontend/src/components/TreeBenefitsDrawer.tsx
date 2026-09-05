@@ -96,7 +96,7 @@ export default function TreeBenefitsDrawer({
               <p>
                 {isQualified
                   ? "Start Garden Bot, Arborist Trials, or a paid PvP match with this wallet and your fifth move card is added automatically. Practice Mode keeps the standard four-card training hand."
-                  : "Get TREE, then place a combined total of 1,000,000 TREE into supported SuiDex liquidity or Moonbags staking to unlock a fifth move card. Practice Mode always uses four cards."}
+                  : "Get TREE, then supply a combined 1,000,000 TREE through supported SuiDex liquidity or use the non-yielding 30-Day TREE Lock. Practice Mode always uses four cards."}
               </p>
               <div className="gb-tree-benefits-reward-row">
                 <div>
@@ -113,7 +113,7 @@ export default function TreeBenefitsDrawer({
                 <div>
                   <span>TREE held directly in this wallet</span>
                   <strong>{treeBalance.status === "ready" ? treeBalance.exactLabel : treeBalance.label}</strong>
-                  <small>This wallet balance does not unlock the fifth card by itself. Only TREE represented by supported V2/V3 liquidity or Moonbags staking positions counts toward the 1,000,000 TREE requirement.</small>
+                  <small>Liquid TREE does not unlock the fifth card by itself. Supported V2/V3 liquidity counts, or you can lock 1,000,000 TREE for at least 30 days with no rewards or APY.</small>
                 </div>
               </div>
               <section className="gb-tree-benefits-actions-compact" aria-labelledby="gb-tree-benefits-actions-title">

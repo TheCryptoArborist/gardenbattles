@@ -16,6 +16,7 @@ export const MOONBAGS_TREE_STAKING_POSITION_TYPE: string | null = null;
 export type FifthMoveQualificationSource =
   | "suidex-v2"
   | "suidex-v3"
+  | "tree-lock"
   | "moonbags-staking";
 
 export type FifthMoveEligibility =

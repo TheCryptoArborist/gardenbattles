@@ -39,6 +39,13 @@ export const MOONBAGS_TREE_STAKING_ACCOUNT_TYPE =
   `${MOONBAGS_TYPE_ORIGIN_PACKAGE_ID}::moonbags_stake::StakingAccount`;
 export const MOONBAGS_TREE_STAKING_POOL_TYPE =
   `${MOONBAGS_TYPE_ORIGIN_PACKAGE_ID}::moonbags_stake::StakingPool<${TREE_COIN_TYPE}>`;
+export const GARDEN_BATTLES_TREE_LOCK_PACKAGE_ID =
+  process.env.TREE_LOCK_PACKAGE_ID?.trim() ||
+  process.env.BATTLE_PACKAGE_ID?.trim() ||
+  "0x053f4cf0bd41ba3340a0580f4ae1aaca18656ba0032eb3e920de554309d97755";
+export const GARDEN_BATTLES_TREE_LOCK_TYPE =
+  `${GARDEN_BATTLES_TREE_LOCK_PACKAGE_ID}::tree_lock::TreeLock<${TREE_COIN_TYPE}>`;
+export const TREE_LOCK_PERIOD_MS = BigInt(2_592_000_000);
 
 const TREE_POWER_CACHE_MS = 60_000;
 const TREE_POWER_READ_TIMEOUT_MS = 8_000;
@@ -697,6 +704,66 @@ async function readMoonbagsStatus(client: TreePowerReadClient, wallet: string): 
   }
 }
 
+function parseTreeLockU64(value: unknown): bigint | null {
+  const candidate = typeof value === "object" && value !== null && "fields" in value
+    ? (value as { fields?: { value?: unknown } }).fields?.value
+    : value;
+  try {
+    const parsed = BigInt(String(candidate));
+    return parsed >= BigInt(0) ? parsed : null;
+  } catch { return null; }
+}
+
+async function readTreeLockStatus(client: TreePowerReadClient, wallet: string): Promise<FifthMoveSourceResult> {
+  try {
+    let cursor: string | null | undefined = null;
+    let hasNextPage = true;
+    let total = BigInt(0);
+    const objectIds: string[] = [];
+    const locks: Array<{ objectId: string; amountRaw: string; unlockAtMs: string }> = [];
+    while (hasNextPage) {
+      const page = await client.getOwnedObjects({
+        owner: wallet,
+        filter: { StructType: GARDEN_BATTLES_TREE_LOCK_TYPE },
+        options: { showType: true, showOwner: true, showContent: true },
+        cursor,
+        limit: 50,
+      });
+      for (const entry of page.data) {
+        const data = entry.data;
+        if (!data || normalizeMoveTypeName(data.type ?? "") !== normalizeMoveTypeName(GARDEN_BATTLES_TREE_LOCK_TYPE)) continue;
+        if (!isAddressOwner(data.owner, wallet) || data.content?.dataType !== "moveObject") continue;
+        const fields = data.content.fields as Record<string, unknown>;
+        if (String(fields.owner ?? "").toLowerCase() !== wallet) continue;
+        const amount = parseTreeLockU64(fields.funds);
+        const lockedAt = parseTreeLockU64(fields.locked_at_ms);
+        const unlockAt = parseTreeLockU64(fields.unlock_at_ms);
+        if (amount === null || lockedAt === null || unlockAt === null || unlockAt < lockedAt || unlockAt - lockedAt < TREE_LOCK_PERIOD_MS) continue;
+        total += amount;
+        objectIds.push(data.objectId);
+        locks.push({ objectId: data.objectId, amountRaw: amount.toString(), unlockAtMs: unlockAt.toString() });
+      }
+      hasNextPage = page.hasNextPage;
+      cursor = page.nextCursor;
+      if (hasNextPage && !cursor) throw new Error("tree_lock_invalid_cursor");
+    }
+    return {
+      source: "tree-lock",
+      status: total > BigInt(0) ? "qualified-data" : "verified-zero",
+      underlyingTreeRaw: total,
+      reason: total > BigInt(0) ? "garden_battles_tree_lock_principal_verified" : "garden_battles_tree_lock_not_found",
+      evidence: { objectIds, positionCount: objectIds.length, locks },
+    };
+  } catch (err) {
+    return {
+      source: "tree-lock",
+      status: "unavailable",
+      reason: err instanceof Error ? err.message : "tree_lock_read_failed",
+      evidence: { positionCount: 0 },
+    };
+  }
+}
+
 export async function getFifthMoveEligibility(
   client: TreePowerReadClient,
   address: string,
@@ -708,16 +775,17 @@ export async function getFifthMoveEligibility(
 
   await verifyTreeMetadata(client);
 
-  const [v2, v3, moonbags] = await Promise.all([
+  // Moonbags has shut down and is intentionally no longer queried or counted.
+  const [v2, v3, treeLock] = await Promise.all([
     readSuiDexV2DirectLp(client, wallet),
     readSuiDexV3StatusForWallet(client, wallet),
-    readMoonbagsStatus(client, wallet),
+    readTreeLockStatus(client, wallet),
   ]);
 
   return aggregateFifthMoveEligibility({
     wallet,
     thresholdRaw: FIFTH_MOVE_THRESHOLD_RAW,
-    sources: [v2, v3, moonbags],
+    sources: [v2, v3, treeLock],
   });
 }
 

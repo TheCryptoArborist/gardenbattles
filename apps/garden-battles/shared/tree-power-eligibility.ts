@@ -14,7 +14,7 @@ function pow10(decimals: number): bigint {
 export const FIFTH_MOVE_THRESHOLD_RAW = BigInt(1_000_000) * pow10(VERIFIED_TREE_DECIMALS);
 export const Q64 = BigInt(1) << BigInt(64);
 
-export type FifthMoveSource = "suidex-v2" | "suidex-v3" | "moonbags-staking";
+export type FifthMoveSource = "suidex-v2" | "suidex-v3" | "moonbags-staking" | "tree-lock";
 export type PositionSourceStatus = "qualified-data" | "verified-zero" | "unavailable";
 export type FifthMoveEligibilityStatus =
   | "qualified"
@@ -31,6 +31,7 @@ export type FifthMoveSourceResult = {
     objectIds?: string[];
     poolId?: string;
     positionCount?: number;
+    locks?: Array<{ objectId: string; amountRaw: string; unlockAtMs: string }>;
   };
   reason?: string;
 };
