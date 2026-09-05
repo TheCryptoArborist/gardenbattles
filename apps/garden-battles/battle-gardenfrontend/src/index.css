@@ -11041,8 +11041,10 @@
 .gb-trials-rules .gb-trials-fifth-rule { gap: 12px; }
 .gb-trials-unlock-fifth {
   background: linear-gradient(90deg, #cfff39, #42efaa);
+  border: 0;
   border-radius: 7px;
   color: #05150d;
+  cursor: pointer;
   font-family: Orbitron, sans-serif;
   font-size: 9px;
   font-weight: 900;

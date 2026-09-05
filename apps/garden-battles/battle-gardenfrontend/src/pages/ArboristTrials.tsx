@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ConnectButton, useCurrentAccount, useSignPersonalMessage } from "@mysten/dapp-kit";
-import { ArrowLeft, Bot, CalendarDays, Flame, RotateCcw, ShieldCheck, Swords, Trophy } from "lucide-react";
+import { ArrowLeft, Bot, CalendarDays, Flame, LockKeyhole, RotateCcw, ShieldCheck, Swords, Trophy } from "lucide-react";
 import { Link } from "wouter";
 import BattleLog, { type ActionEntry } from "@/components/BattleLog";
 import MoveCardFace from "@/components/MoveCardFace";
@@ -73,6 +73,7 @@ export default function ArboristTrials() {
   const [localPreview, setLocalPreview] = useState(false);
   const [startingTrial, setStartingTrial] = useState(false);
   const [suiNames, setSuiNames] = useState<Record<string, string | null>>({});
+  const [activeInfoTab, setActiveInfoTab] = useState<"leaders" | "achievements" | "lock">("leaders");
   const submittedBattleRef = useRef<string | null>(null);
   const restoredWalletRef = useRef<string | null>(null);
   const currentAddressRef = useRef(address);
@@ -198,6 +199,16 @@ export default function ArboristTrials() {
   const fifthMoveAccess = today?.fifthMoveAccess ?? (address ? "unavailable" : "not_connected");
   const rankedAccess = today?.nftreeAccess ?? (address ? "unavailable" : "not_connected");
   const rankedEligible = rankedAccess === "eligible";
+  const activeTreeLocks = today?.fifthMoveEligibility?.sources.find(
+    (source) => source.source === "tree-lock",
+  )?.evidence?.locks ?? [];
+  const hasActiveTreeLock = activeTreeLocks.length > 0;
+  const selectInfoTab = (tab: "leaders" | "achievements" | "lock") => {
+    setActiveInfoTab(tab);
+    window.requestAnimationFrame(() => {
+      document.getElementById("trial-resources")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  };
   const startTrial = async (ranked: boolean) => {
     if (!today || loading || (ranked && (todayWalletRef.current !== address || today.rankedAttemptUsed))) return;
     if (!confirmLeaving()) return;
@@ -370,8 +381,7 @@ export default function ArboristTrials() {
 
         {today && <nav className="gb-trials-progression-nav" aria-label="Trials sections">
           <a href="#trial-gameplay">{battle ? "Gameplay" : "Today’s Trial"}</a>
-          <a href="#trial-leaderboard">Daily leaderboard</a>
-          <a href="#trial-achievements">Achievements</a>
+          <a href="#trial-resources">Daily tools</a>
         </nav>}
 
         {loading && <section className="gb-trials-message">Preparing today’s trial...</section>}
@@ -397,7 +407,7 @@ export default function ArboristTrials() {
                     ? "Unlocked · 1,000,000 TREE verified"
                     : fifthMoveAccess === "unavailable" || fifthMoveAccess === "verification-incomplete"
                       ? "Verification unavailable · retry before starting"
-                      : <Link className="gb-trials-unlock-fifth" href="/battle/garden-bot?unlock=fifth-card">Unlock Fifth Card</Link>}
+                      : <button className="gb-trials-unlock-fifth" type="button" onClick={() => selectInfoTab("lock")}>Unlock Fifth Card</button>}
                 </span>
                 <span><b>Special rule</b> {today.challenge.ruleDescription}</span>
               </div>
@@ -425,37 +435,6 @@ export default function ArboristTrials() {
                   {startingTrial ? "Verifying Benefits…" : "Practice Today’s Trial"}
                 </button>
               </div>
-              {address && fifthMoveAccess === "not-qualified" && (
-                <section className="gb-trials-inline-lock" aria-label="Unlock the Arborist Trials fifth card">
-                  <div>
-                    <small>FIFTH-CARD ACCESS</small>
-                    <h3>Unlock your fifth card here</h3>
-                    <p>Lock 1,000,000 liquid TREE for 30 days. The TREE stays in your wallet-owned lock, earns no rewards, and can be withdrawn when the lock ends.</p>
-                  </div>
-                  <TreeLockControl
-                    address={address}
-                    eligibility={today.fifthMoveEligibility}
-                    onEligibilityChange={(eligibility) => {
-                      setToday((current) => current ? {
-                        ...current,
-                        fifthMoveAccess: eligibility.status,
-                        fifthMoveUnlocked: eligibility.status === "qualified",
-                        fifthMoveEligibility: eligibility,
-                      } : current);
-                    }}
-                  />
-                </section>
-              )}
-              {address && fifthMoveAccess === "qualified" && today.fifthMoveEligibility?.sources.some((source) => source.source === "tree-lock" && source.status === "qualified-data") && (
-                <section className="gb-trials-inline-lock" aria-label="Your active TREE Lock">
-                  <div>
-                    <small>FIFTH-CARD ACCESS</small>
-                    <h3>Your TREE Lock is active</h3>
-                    <p>The fifth card is unlocked. Your locked amount and withdrawal date are shown below.</p>
-                  </div>
-                  <TreeLockControl address={address} eligibility={today.fifthMoveEligibility} showLockForm={false} />
-                </section>
-              )}
               <p className={`gb-trials-access-status gb-trials-access-${rankedAccess}`}>
                 {rankedAccess === "eligible"
                   ? "NFTree verified — this wallet can enter today’s official ranked Trial."
@@ -522,7 +501,9 @@ export default function ArboristTrials() {
                 {scoreSaved && saveReceipt && <div className="gb-trials-save-receipt" role="status">
                   <strong>{saveReceipt.rank ? `Daily rank at save: #${saveReceipt.rank}${saveReceipt.total ? ` of ${saveReceipt.total}` : ""}` : "Score saved — refresh standings for your rank."}</strong>
                   {saveReceipt.badges.length > 0 ? <><p>New achievements unlocked</p><ul>{saveReceipt.badges.map((id) => <li key={id}>{TRIAL_BADGES[id]?.title ?? id}</li>)}</ul></> : <p>View your earned badges and next milestone below.</p>}
-                  <a href="#trial-leaderboard">View leaderboard</a> · <a href="#trial-achievements">View achievements</a>
+                  <button type="button" className="gb-trials-receipt-link" onClick={() => selectInfoTab("leaders")}>View leaderboard</button>
+                  <span aria-hidden="true"> · </span>
+                  <button type="button" className="gb-trials-receipt-link" onClick={() => selectInfoTab("achievements")}>View achievements</button>
                 </div>}
               </section>
             )}
@@ -583,13 +564,66 @@ export default function ArboristTrials() {
             <section className="gb-trials-log"><div className="gb-trials-section-heading"><span>📜</span><div><small>COUNTER INTELLIGENCE</small><h2>Battle Log</h2></div></div><BattleLog entries={log} isPlayer1 opponentLabel="Garden Bot" /></section>
           </section>
         )}
-        {today && todayWalletRef.current === address && <>
-          <TrialLeaderboard today={today} address={address} names={suiNames} refreshing={loading} onRefresh={() => void loadToday()} />
-          <div id="trial-achievements" className="gb-trials-progress-row">
-            <TrialAchievements achievements={today.achievements} connected={!!address} />
-            <TrialCheckInMeter connected={!!address} checkInStreak={today.checkInStreak} todayCheckedIn={today.rankedAttemptUsed} />
-          </div>
-        </>}
+        {today && todayWalletRef.current === address && (
+          <section id="trial-resources" className="gb-trials-resource-tabs" aria-label="Arborist Trial resources">
+            <div className="gb-trials-resource-tablist" role="tablist" aria-label="Trial information">
+              <button type="button" role="tab" aria-selected={activeInfoTab === "leaders"} className={activeInfoTab === "leaders" ? "is-active" : ""} onClick={() => setActiveInfoTab("leaders")}>
+                <Trophy size={17} /> Daily Leaders
+              </button>
+              <button type="button" role="tab" aria-selected={activeInfoTab === "achievements"} className={activeInfoTab === "achievements" ? "is-active" : ""} onClick={() => setActiveInfoTab("achievements")}>
+                <ShieldCheck size={17} /> Arborist Achievements
+              </button>
+              <button type="button" role="tab" aria-selected={activeInfoTab === "lock"} className={activeInfoTab === "lock" ? "is-active" : ""} onClick={() => setActiveInfoTab("lock")}>
+                <LockKeyhole size={17} /> TREE Lock {hasActiveTreeLock ? "✓" : ""}
+              </button>
+            </div>
+
+            <div className="gb-trials-resource-panel" role="tabpanel">
+              {activeInfoTab === "leaders" && (
+                <TrialLeaderboard today={today} address={address} names={suiNames} refreshing={loading} onRefresh={() => void loadToday()} />
+              )}
+              {activeInfoTab === "achievements" && (
+                <div id="trial-achievements" className="gb-trials-progress-row">
+                  <TrialAchievements achievements={today.achievements} connected={!!address} />
+                  <TrialCheckInMeter connected={!!address} checkInStreak={today.checkInStreak} todayCheckedIn={today.rankedAttemptUsed} />
+                </div>
+              )}
+              {activeInfoTab === "lock" && (
+                <section className="gb-trials-inline-lock gb-trials-tab-lock" aria-label="TREE Lock status and controls">
+                  <div>
+                    <small>{hasActiveTreeLock ? "VERIFIED ACTIVE LOCK" : "FIFTH-CARD ACCESS"}</small>
+                    <h3>{hasActiveTreeLock ? "Your TREE Lock" : fifthUnlocked ? "No TREE Lock required" : "Unlock your fifth card"}</h3>
+                    <p>{hasActiveTreeLock
+                      ? "Your locked amount, time remaining, exact unlock date, and withdrawal status are shown below."
+                      : fifthUnlocked
+                        ? "Your fifth card is already unlocked through verified liquidity. This wallet has no active TREE Lock."
+                        : "Lock 1,000,000 liquid TREE for 30 days. It earns no rewards and can be withdrawn when the lock ends."}</p>
+                  </div>
+                  {!address ? (
+                    <p className="gb-trials-tab-lock-message">Connect the wallet that owns or will create the TREE Lock.</p>
+                  ) : hasActiveTreeLock ? (
+                    <TreeLockControl address={address} eligibility={today.fifthMoveEligibility} showLockForm={false} compact />
+                  ) : fifthMoveAccess === "not-qualified" ? (
+                    <TreeLockControl
+                      address={address}
+                      eligibility={today.fifthMoveEligibility}
+                      onEligibilityChange={(eligibility) => {
+                        setToday((current) => current ? {
+                          ...current,
+                          fifthMoveAccess: eligibility.status,
+                          fifthMoveUnlocked: eligibility.status === "qualified",
+                          fifthMoveEligibility: eligibility,
+                        } : current);
+                      }}
+                    />
+                  ) : fifthMoveAccess === "unavailable" || fifthMoveAccess === "verification-incomplete" ? (
+                    <button type="button" className="gb-trials-refresh" onClick={() => void loadToday()}>Retry TREE Lock verification</button>
+                  ) : null}
+                </section>
+              )}
+            </div>
+          </section>
+        )}
       </main>
     </div>
   );
