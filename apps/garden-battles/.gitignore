@@ -6,6 +6,10 @@ vite.config.ts.*
 *.tar.gz
 .env
 scripts/.env
+sui_contract/.local/
+dist-*/
+battle-gardenfrontend/dist-*/
+battle-gardenfrontend/battle-gardenfrontend/
 
 build/*
 traces/*
