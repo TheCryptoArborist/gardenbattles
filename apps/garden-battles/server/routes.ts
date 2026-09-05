@@ -1349,25 +1349,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const wallet = typeof req.query.wallet === "string" ? req.query.wallet : undefined;
     const normalizedWallet = wallet ? normalizeSuiAddress(wallet) : null;
     let nftreeAccess: "not_connected" | "eligible" | "ineligible" | "unavailable" = "not_connected";
+    let fifthMoveAccess: "not_connected" | "qualified" | "not-qualified" | "verification-incomplete" | "unavailable" = "not_connected";
     if (normalizedWallet) {
-      try {
-        nftreeAccess = await walletHasNftreeAccess(normalizedWallet) ? "eligible" : "ineligible";
-      } catch (error) {
+      const [nftreeResult, fifthMoveResult] = await Promise.allSettled([
+        walletHasNftreeAccess(normalizedWallet),
+        refreshFifthMoveEligibility(treePowerGraphqlClient, normalizedWallet),
+      ]);
+      if (nftreeResult.status === "fulfilled") {
+        nftreeAccess = nftreeResult.value ? "eligible" : "ineligible";
+      } else {
         console.warn("[arborist-trials] NFTree access check failed", {
           wallet: normalizedWallet,
-          error: error instanceof Error ? error.message : String(error),
+          error: nftreeResult.reason instanceof Error ? nftreeResult.reason.message : String(nftreeResult.reason),
         });
         nftreeAccess = "unavailable";
       }
+      if (fifthMoveResult.status === "fulfilled") {
+        fifthMoveAccess = fifthMoveResult.value.status;
+      } else {
+        console.warn("[arborist-trials] fifth-card access check failed", {
+          wallet: normalizedWallet,
+          error: fifthMoveResult.reason instanceof Error ? fifthMoveResult.reason.message : String(fifthMoveResult.reason),
+        });
+        fifthMoveAccess = "unavailable";
+      }
     }
-    return res.json({ ...getTodayArboristTrial(wallet), nftreeAccess });
+    return res.json({
+      ...getTodayArboristTrial(wallet),
+      nftreeAccess,
+      fifthMoveAccess,
+      fifthMoveUnlocked: fifthMoveAccess === "qualified",
+    });
   });
 
   app.post("/api/arborist-trials/results", async (req, res) => {
     const submission = await submitTodayArboristTrial(req.body ?? {}, new Date(), {
       hasNftreeAccess: walletHasNftreeAccess,
       getFifthMoveUnlocked: async (wallet) => {
-        const eligibility = await getCachedFifthMoveEligibility(
+        const eligibility = await refreshFifthMoveEligibility(
           treePowerGraphqlClient,
           wallet,
         );

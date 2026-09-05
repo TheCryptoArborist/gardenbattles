@@ -63,6 +63,12 @@ function calculateCheckInStreak(wallet: string, startingDate: string): number {
   return streak;
 }
 
+function calculateTotalCheckIns(wallet: string): number {
+  return new Set(
+    getArboristTrialCareerHistory(wallet).map((row) => row.challenge_date),
+  ).size;
+}
+
 function buildCheckIns(wallet: string | null, startingDate: string) {
   const history = wallet ? getArboristTrialWalletHistory(wallet, 7) : [];
   const byDate = new Map(history.map((row) => [row.challenge_date, row]));
@@ -139,6 +145,7 @@ export function getTodayArboristTrial(walletInput?: string, now = new Date()) {
     leaderboardTotal: standing.total,
     streak: wallet ? calculateStreak(wallet, challenge.date) : 0,
     checkInStreak: wallet ? calculateCheckInStreak(wallet, challenge.date) : 0,
+    totalCheckIns: wallet ? calculateTotalCheckIns(wallet) : 0,
     checkIns: buildCheckIns(wallet, challenge.date),
     achievements: buildAchievements(wallet),
     leaderboard: leaderboard.map((row, index) => publicResult(row, index + 1)),

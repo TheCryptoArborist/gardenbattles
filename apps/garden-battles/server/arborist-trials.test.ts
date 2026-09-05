@@ -87,6 +87,7 @@ test("a real signed completed run saves once, updates check-in, and keeps its st
   const today = getTodayArboristTrial(wallet, now);
   assert.equal(today.rankedAttemptUsed, true);
   assert.equal(today.checkInStreak, 1);
+  assert.equal(today.totalCheckIns, 1);
   assert.equal(today.streak, 1);
   assert.equal(today.result?.won, true);
   const duplicate = await submitTodayArboristTrial(input, now, { hasNftreeAccess: async () => true });
@@ -106,6 +107,7 @@ test("today endpoint exposes a deterministic empty daily board", () => {
   assert.equal(response.result, null);
   assert.equal(response.streak, 0);
   assert.equal(response.checkInStreak, 0);
+  assert.equal(response.totalCheckIns, 0);
   assert.equal(response.checkIns.length, 7);
   assert.deepEqual(response.checkIns.at(-1), {
     date: "2026-08-23",
@@ -267,9 +269,11 @@ test("30 check-ins count distinct saved days with gaps, not a winning streak", (
   }
   insertFixture(wallet, "2020-01-01", { challenge_id: "old-schedule-duplicate", won: 0 });
   let board = getTodayArboristTrial(wallet, now);
+  assert.equal(board.totalCheckIns, 29);
   assert.equal(board.achievements.find((b) => b.id === "thirty_checkins")?.progress, 29);
   insertFixture(wallet, "2020-05-01", { won: 0 });
   board = getTodayArboristTrial(wallet, now);
+  assert.equal(board.totalCheckIns, 30);
   assert.equal(board.achievements.find((b) => b.id === "thirty_checkins")?.earned, true);
   assert.equal(board.achievements.find((b) => b.id === "master_arborist")?.earned, false);
   assert.equal(board.achievements.find((b) => b.id === "steady_hands")?.earned, false);

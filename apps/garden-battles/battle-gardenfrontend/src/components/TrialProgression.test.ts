@@ -11,8 +11,9 @@ const wallet = `0x${"1".repeat(64)}`;
 const own = { wallet, rank: 32, score: 2400, won: true, rounds: 12, playerGrowth: 50, botGrowth: 20, uniqueMoves: 3, completedAt: 1 };
 const today: ArboristTrialTodayResponse = {
   challenge: getArboristTrialChallenge(new Date("2026-09-02T12:00:00Z")),
-  nftreeAccess: "eligible", rankedAttemptUsed: true, result: own, streak: 1,
-  checkInStreak: 1, checkIns: [], achievements: [], leaderboardTotal: 32,
+  nftreeAccess: "eligible", fifthMoveAccess: "qualified", fifthMoveUnlocked: true,
+  rankedAttemptUsed: true, result: own, streak: 1,
+  checkInStreak: 1, totalCheckIns: 1, checkIns: [], achievements: [], leaderboardTotal: 32,
   leaderboard: [{ ...own, wallet: `0x${"2".repeat(64)}`, rank: 1 }],
 };
 const board = (data = today, address: string | null = wallet) => renderToStaticMarkup(React.createElement(TrialLeaderboard, {

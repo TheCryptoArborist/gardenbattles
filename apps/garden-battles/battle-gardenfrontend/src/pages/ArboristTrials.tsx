@@ -25,7 +25,6 @@ import {
   playArboristTrialRound,
 } from "@/lib/arboristTrials";
 import type { PracticeBattle } from "@/lib/practiceBattle";
-import { useFifthMoveEligibility } from "@/hooks/useFifthMoveEligibility";
 import { readCachedSuiName, resolveSuiNames } from "@/lib/suiNameService";
 import {
   createArboristTrialProofMessage,
@@ -59,7 +58,6 @@ export default function ArboristTrials() {
   const account = useCurrentAccount();
   const signPersonalMessage = useSignPersonalMessage();
   const address = account?.address ?? null;
-  const eligibility = useFifthMoveEligibility(address);
   const [today, setToday] = useState<ArboristTrialTodayResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -71,6 +69,7 @@ export default function ArboristTrials() {
   const [saveReceipt, setSaveReceipt] = useState<{ rank?: number; total?: number; badges: string[] } | null>(null);
   const [submissionMessage, setSubmissionMessage] = useState<string | null>(null);
   const [localPreview, setLocalPreview] = useState(false);
+  const [startingTrial, setStartingTrial] = useState(false);
   const [suiNames, setSuiNames] = useState<Record<string, string | null>>({});
   const submittedBattleRef = useRef<string | null>(null);
   const restoredWalletRef = useRef<string | null>(null);
@@ -124,10 +123,13 @@ export default function ArboristTrials() {
         setToday({
           challenge: getArboristTrialChallenge(),
           nftreeAccess: "unavailable",
+          fifthMoveAccess: "unavailable",
+          fifthMoveUnlocked: false,
           rankedAttemptUsed: false,
           result: null,
           streak: 0,
           checkInStreak: 0,
+          totalCheckIns: 0,
           checkIns: [],
           achievements: [],
           leaderboard: [],
@@ -182,21 +184,38 @@ export default function ArboristTrials() {
     return () => { cancelled = true; };
   }, [today?.leaderboard, today?.result]);
 
-  const fifthUnlocked = eligibility.status === "qualified";
+  const fifthUnlocked = today?.fifthMoveUnlocked ?? false;
+  const fifthMoveAccess = today?.fifthMoveAccess ?? (address ? "unavailable" : "not_connected");
   const rankedAccess = today?.nftreeAccess ?? (address ? "unavailable" : "not_connected");
   const rankedEligible = rankedAccess === "eligible";
-  const startTrial = (ranked: boolean) => {
+  const startTrial = async (ranked: boolean) => {
     if (!today || loading || (ranked && (todayWalletRef.current !== address || today.rankedAttemptUsed))) return;
     if (!confirmLeaving()) return;
-    if (ranked && !rankedEligible) {
-      setError(rankedAccess === "ineligible"
+    setStartingTrial(true);
+    let currentToday = today;
+    try {
+      if (address && !localPreview) {
+        currentToday = await fetchTodayArboristTrial(address);
+        if (currentAddressRef.current !== address) return;
+        todayWalletRef.current = address;
+        setToday(currentToday);
+      }
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Fifth-card eligibility could not be refreshed.");
+      return;
+    } finally {
+      setStartingTrial(false);
+    }
+    const currentRankedAccess = currentToday.nftreeAccess;
+    if (ranked && currentRankedAccess !== "eligible") {
+      setError(currentRankedAccess === "ineligible"
         ? "An NFTree must be held by this wallet to enter the official ranked Trial. Practice remains open to everyone."
         : "NFTree ownership could not be verified right now. Please try again before starting the official Trial.");
       return;
     }
-    setBattle(createArboristTrialBattle(today.challenge, fifthUnlocked));
+    setBattle(createArboristTrialBattle(currentToday.challenge, currentToday.fifthMoveUnlocked));
     setRunWallet(ranked ? address : null);
-    setRunChallenge(today.challenge);
+    setRunChallenge(currentToday.challenge);
     setLog([]);
     setRankedRun(ranked);
     setSubmissionMessage(null);
@@ -322,7 +341,7 @@ export default function ArboristTrials() {
                 <strong>{rankedAccess === "eligible" ? "NFTree Verified" : rankedAccess === "ineligible" ? "NFTree Required" : rankedAccess === "unavailable" ? "Verification Unavailable" : "Connect Wallet"}</strong>
               </span>
             </div>
-            <div className="gb-trials-streak" title="Consecutive UTC days with a saved official Trial win. Separate from Garden Battles wins."><Flame size={27} /><span><strong>{today?.streak ?? 0}</strong> daily Trial win streak</span></div>
+            <div className="gb-trials-streak" title="Official check-ins are saved ranked Trials. Current streak counts consecutive UTC check-in days; wins are tracked separately in Achievements."><Flame size={27} /><span><strong>{today?.totalCheckIns ?? 0}</strong> official check-ins · {today?.checkInStreak ?? 0} day current streak</span></div>
           </div>
         </section>
 
@@ -352,8 +371,10 @@ export default function ArboristTrials() {
                 <span className="gb-trials-fifth-rule">
                   <b>Fifth card</b>
                   {fifthUnlocked
-                    ? "Unlocked"
-                    : <Link className="gb-trials-unlock-fifth" href="/battle/garden-bot?unlock=fifth-card">Unlock Fifth Card</Link>}
+                    ? "Unlocked · 1,000,000 TREE verified"
+                    : fifthMoveAccess === "unavailable" || fifthMoveAccess === "verification-incomplete"
+                      ? "Verification unavailable · retry before starting"
+                      : <Link className="gb-trials-unlock-fifth" href="/battle/garden-bot?unlock=fifth-card">Unlock Fifth Card</Link>}
                 </span>
                 <span><b>Special rule</b> {today.challenge.ruleDescription}</span>
               </div>
@@ -361,8 +382,8 @@ export default function ArboristTrials() {
                 <button
                   type="button"
                   className="gb-trials-primary"
-                  disabled={localPreview || !address || !rankedEligible || today.rankedAttemptUsed}
-                  onClick={() => startTrial(true)}
+                  disabled={startingTrial || localPreview || !address || !rankedEligible || today.rankedAttemptUsed}
+                  onClick={() => void startTrial(true)}
                 >
                   <ShieldCheck size={18} />
                   {localPreview
@@ -375,10 +396,10 @@ export default function ArboristTrials() {
                           ? "NFTree Required for Ranked Trial"
                           : rankedAccess === "unavailable"
                             ? "NFTree Check Unavailable — Retry"
-                            : "Start Ranked Attempt"}
+                            : startingTrial ? "Verifying Benefits…" : "Start Ranked Attempt"}
                 </button>
-                <button type="button" className="gb-trials-secondary" onClick={() => startTrial(false)}>
-                  Practice Today’s Trial
+                <button type="button" className="gb-trials-secondary" disabled={startingTrial} onClick={() => void startTrial(false)}>
+                  {startingTrial ? "Verifying Benefits…" : "Practice Today’s Trial"}
                 </button>
               </div>
               <p className={`gb-trials-access-status gb-trials-access-${rankedAccess}`}>
@@ -500,7 +521,7 @@ export default function ArboristTrials() {
               <div className={`gb-trials-result ${result?.won ? "gb-trials-result-win" : "gb-trials-result-loss"}`}>
                 <Trophy size={34} />
                 <div><small>TRIAL COMPLETE · {rankedRun ? "OFFICIAL RUN" : "PRACTICE"}</small><h2>{result?.won ? "Canopy Conquered" : "Garden Bot Held the Grove"}</h2><p>{rounds} rounds · {battle.player1Growth}–{battle.player2Growth} final Growth</p>{result?.specialtySummary && <p>{result.specialtySummary} · {result.specialtyBonus.toLocaleString()} specialty points</p>}{submissionMessage && <strong>{submissionMessage}</strong>}{!rankedRun && <strong>Practice result only — no score or streak was submitted.</strong>}</div>
-                <button type="button" disabled={submitting} onClick={() => startTrial(false)}><RotateCcw size={16} /> Practice Again</button>
+                <button type="button" disabled={submitting || startingTrial} onClick={() => void startTrial(false)}><RotateCcw size={16} /> Practice Again</button>
                 <button type="button" disabled={submitting} onClick={() => { if (confirmLeaving()) setBattle(null); }}>Return to Daily Board</button>
               </div>
             )}
