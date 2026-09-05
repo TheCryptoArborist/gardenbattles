@@ -21,7 +21,7 @@ test("production defaults use independent JSON-RPC compatibility providers", () 
 test("production defaults use live v3 queue and FifthMoveConfig IDs", () => {
   assert.equal(
     SUI_CONFIG.PACKAGE_ID,
-    "0x053f4cf0bd41ba3340a0580f4ae1aaca18656ba0032eb3e920de554309d97755",
+    "0x4a77289a2cd3d54c18f16a17cc7fe7b8890322e60e566df8683391d5a479f7ec",
   );
   assert.equal(
     getPvpBattleV3UpdateEvent(),

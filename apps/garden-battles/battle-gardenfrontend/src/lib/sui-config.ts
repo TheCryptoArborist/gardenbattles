@@ -30,7 +30,7 @@ export const SUI_CONFIG = {
     ((import.meta as any).env?.VITE_SUI_RPC_FALLBACK_URL as string | undefined) ||
     DEFAULT_PUBLIC_SUI_RPC_FALLBACK_URL,
   WS_URL: "wss://fullnode.mainnet.sui.io:443",
-  PACKAGE_ID: "0x053f4cf0bd41ba3340a0580f4ae1aaca18656ba0032eb3e920de554309d97755",
+  PACKAGE_ID: "0x4a77289a2cd3d54c18f16a17cc7fe7b8890322e60e566df8683391d5a479f7ec",
   PVP_EVENT_PACKAGE_ID:
     "0x9a80317a43e1d59a4d13f9771a003b773153d729e79da329fa1793d301042edf",
   ORIGINAL_PACKAGE_ID:
@@ -57,7 +57,7 @@ export const SUI_CONFIG = {
     ((import.meta as any).env?.VITE_FIFTH_MOVE_CONFIG_ID as string | undefined) ||
     "0x083a9303bd13b789e87f3e746b817a8723290f25414f3686ac8868f90a5020b3",
   TREE_LOCK_ENABLED:
-    ((import.meta as any).env?.VITE_TREE_LOCK_ENABLED as string | undefined) === "true",
+    (((import.meta as any).env?.VITE_TREE_LOCK_ENABLED as string | undefined) ?? "true") === "true",
   TREE_CONFIG_ID:
     ((import.meta as any).env?.VITE_TREE_CONFIG_ID as string | undefined) ||
     "0x828da1764a6c1d4d9c31cc2dc54eac9e1096172e9b68a629510818c5475119a1",

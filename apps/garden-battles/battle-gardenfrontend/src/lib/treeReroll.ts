@@ -3,7 +3,7 @@ import { SUI_CONFIG, type PvpBattleVersion } from "@/lib/sui-config";
 import { FALLBACK_TREE_DECIMALS, TREE_COIN_TYPE } from "@/lib/treeBalance";
 
 export const TREE_REROLL_TREASURY = "0x6f1020c2fd6c91129f7cb5e0d651295e87f7245f96b7d090715c89b38197e77f";
-export const TREE_REROLL_PACKAGE = "0x053f4cf0bd41ba3340a0580f4ae1aaca18656ba0032eb3e920de554309d97755";
+export const TREE_REROLL_PACKAGE = "0x4a77289a2cd3d54c18f16a17cc7fe7b8890322e60e566df8683391d5a479f7ec";
 
 // Fail closed before wallet approval if a release points back at a burning
 // contract, or if the actual simulated TREE movement differs from the fee.

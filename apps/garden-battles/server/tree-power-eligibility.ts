@@ -41,8 +41,8 @@ export const MOONBAGS_TREE_STAKING_POOL_TYPE =
   `${MOONBAGS_TYPE_ORIGIN_PACKAGE_ID}::moonbags_stake::StakingPool<${TREE_COIN_TYPE}>`;
 export const GARDEN_BATTLES_TREE_LOCK_PACKAGE_ID =
   process.env.TREE_LOCK_PACKAGE_ID?.trim() ||
-  process.env.BATTLE_PACKAGE_ID?.trim() ||
-  "0x053f4cf0bd41ba3340a0580f4ae1aaca18656ba0032eb3e920de554309d97755";
+  process.env.BATTLE_CALL_PACKAGE_ID?.trim() ||
+  "0x4a77289a2cd3d54c18f16a17cc7fe7b8890322e60e566df8683391d5a479f7ec";
 export const GARDEN_BATTLES_TREE_LOCK_TYPE =
   `${GARDEN_BATTLES_TREE_LOCK_PACKAGE_ID}::tree_lock::TreeLock<${TREE_COIN_TYPE}>`;
 export const TREE_LOCK_PERIOD_MS = BigInt(2_592_000_000);
