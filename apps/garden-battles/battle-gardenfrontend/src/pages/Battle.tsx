@@ -24,6 +24,7 @@ import { appAsset } from "@/lib/assets";
 import { appRoute } from "@/lib/routes";
 import { TREE_REROLL_TREASURY } from "@/lib/treeReroll";
 import { resolvePvpQueueUiAfterRefund } from "@/lib/pvpQueueState";
+import { formatGardenBotStartFailureMessage } from "@/lib/battleStartErrors";
 import {
   getFifthMoveDraftState,
   isUnlockedFifthMoveCard,
@@ -525,19 +526,7 @@ export default function Battle({ pageMode }: { pageMode: BattlePageMode }) {
       setIsStartingBot(false);
       const message = error?.message || "";
       const lowerMessage = message.toLowerCase();
-      const friendlyMessage =
-        lowerMessage.includes("timed out waiting")
-          ? "Timed out waiting for the Garden Bot battle to start. Please try again."
-          : lowerMessage.includes("could not scan your nftrees")
-            ? "Could not scan your NFTrees because the Sui RPC request failed. Wait a moment and try again."
-          : lowerMessage.includes("did not refresh")
-            ? "Battle transaction confirmed, but the game did not refresh. Try Refresh Battle."
-          : lowerMessage.includes("reject") ||
-              lowerMessage.includes("cancel") ||
-              lowerMessage.includes("denied") ||
-              lowerMessage.includes("declined")
-            ? "Start cancelled in wallet."
-            : "Could not start Garden Bot battle. Try again.";
+      const friendlyMessage = formatGardenBotStartFailureMessage(message);
       setDialogKind(
         lowerMessage.includes("timed out waiting")
           ? "start-timeout"
@@ -1137,7 +1126,7 @@ export default function Battle({ pageMode }: { pageMode: BattlePageMode }) {
     (
       !!recoveredPvpQueueState ||
       !!pvpQueueState ||
-      ((localPvpQueued || isWaiting) && !battleFinished && !hasOpponent)
+      (localPvpQueued && !battleFinished && !hasOpponent)
     );
   const shouldShowPvpQueuePanel = isPvpQueued || !!pvpQueueState;
   const hasRefundablePvpQueue = shouldShowPvpQueuePanel;
@@ -1193,13 +1182,9 @@ export default function Battle({ pageMode }: { pageMode: BattlePageMode }) {
       console.info("[pvp-status] queue recovery NOT cleared during transient refresh");
     }
 
-    if (isWaiting) {
-      setLocalPvpQueued(true);
-    }
   }, [
     isConnected,
     address,
-    isWaiting,
     hasOpponent,
     hasActivePvpBattle,
     battleFinished,
