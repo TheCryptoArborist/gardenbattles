@@ -3262,14 +3262,19 @@ export default function Battle({ pageMode }: { pageMode: BattlePageMode }) {
               </div>
               <span>{hasActiveTreeLock ? "Active lock" : "30-day access route"}</span>
             </div>
-            <p>
-              View your locked TREE and its unlock date here. A verified 1,000,000 TREE Lock unlocks your fifth card immediately.
-            </p>
-            <TreeLockControl
-              address={address}
-              eligibility={fifthCardEligibility.response}
-              showLockForm={!hasActiveTreeLock}
-            />
+            {hasActiveTreeLock ? (
+              <TreeLockControl
+                address={address}
+                eligibility={fifthCardEligibility.response}
+                showLockForm={false}
+                compact
+              />
+            ) : (
+              <div className="gb-battle-tree-lock-empty">
+                <p>A verified 1,000,000 TREE Lock unlocks your fifth card immediately.</p>
+                <button type="button" onClick={() => setUtilityDrawer("tree")}>Manage TREE Lock</button>
+              </div>
+            )}
           </section>
         )}
         </main>

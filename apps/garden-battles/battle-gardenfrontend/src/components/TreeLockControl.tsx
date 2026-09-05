@@ -18,9 +18,10 @@ type Props = {
   eligibility?: FifthMoveEligibilityResponse | null;
   onEligibilityChange?: (eligibility: FifthMoveEligibilityResponse) => void;
   showLockForm?: boolean;
+  compact?: boolean;
 };
 
-export default function TreeLockControl({ address, eligibility, onEligibilityChange, showLockForm = true }: Props) {
+export default function TreeLockControl({ address, eligibility, onEligibilityChange, showLockForm = true, compact = false }: Props) {
   const account = useCurrentAccount();
   const client = useSuiClient();
   const queryClient = useQueryClient();
@@ -103,11 +104,11 @@ export default function TreeLockControl({ address, eligibility, onEligibilityCha
   };
 
   return (
-    <div className="gb-tree-lock-control">
-      <div className="gb-tree-lock-copy">
+    <div className={`gb-tree-lock-control${compact ? " gb-tree-lock-control-compact" : ""}`}>
+      {!compact && <div className="gb-tree-lock-copy">
         <strong>Lock 1,000,000 TREE for 30 days</strong>
         <span>Your fifth card unlocks immediately. This is not staking: there is no APY, reward, or treasury payment.</span>
-      </div>
+      </div>}
       {locks.map((lock) => {
         const unlockAt = Number(lock.unlockAtMs);
         const matured = Number.isFinite(unlockAt) && Date.now() >= unlockAt;

@@ -10953,9 +10953,13 @@
 }
 
 .gb-battle-tree-lock-panel {
+  display: grid;
+  grid-template-columns: minmax(210px, 0.8fr) minmax(0, 1.7fr);
+  align-items: center;
+  gap: 1rem;
   width: min(980px, calc(100% - 32px));
-  margin: 2rem auto;
-  padding: clamp(1rem, 2vw, 1.4rem);
+  margin: 1.25rem auto;
+  padding: 0.9rem 1rem;
   border: 1px solid rgba(190, 255, 57, 0.5);
   border-radius: 16px;
   background: linear-gradient(135deg, rgba(8, 30, 20, 0.96), rgba(3, 21, 28, 0.96));
@@ -10965,8 +10969,20 @@
 .gb-battle-tree-lock-heading small { color: #cfff59; font-family: Orbitron, sans-serif; font-size: 0.68rem; font-weight: 900; letter-spacing: 0.08em; }
 .gb-battle-tree-lock-heading h2 { color: #f4fff8; font-family: Orbitron, sans-serif; font-size: clamp(1.2rem, 2.2vw, 1.7rem); margin: 0.2rem 0 0; }
 .gb-battle-tree-lock-heading > span { padding: 0.4rem 0.65rem; border: 1px solid rgba(81, 238, 173, 0.4); border-radius: 999px; color: #7effb6; font-size: 0.75rem; font-weight: 800; }
-.gb-battle-tree-lock-panel > p { color: #cfe4d8; line-height: 1.5; margin: 0.8rem 0 0; }
-.gb-battle-tree-lock-panel .gb-tree-lock-control { margin-top: 1rem; }
+.gb-battle-tree-lock-panel .gb-tree-lock-control { margin: 0; }
+.gb-tree-lock-control-compact { padding: 0; border: 0; background: transparent; }
+.gb-battle-tree-lock-empty { align-items: center; display: flex; justify-content: flex-end; gap: 1rem; }
+.gb-battle-tree-lock-empty p { color: #cfe4d8; line-height: 1.4; margin: 0; }
+.gb-battle-tree-lock-empty button {
+  min-height: 40px;
+  padding: 0.55rem 0.85rem;
+  border: 1px solid #6df3b1;
+  border-radius: 9px;
+  background: linear-gradient(90deg, #baff39, #38e8b0);
+  color: #03130d;
+  font-weight: 800;
+  white-space: nowrap;
+}
 
 .gb-tree-lock-copy { display: grid; gap: 0.3rem; }
 .gb-tree-lock-copy strong { color: #cfff59; font-size: 1rem; }
@@ -11033,8 +11049,10 @@
 }
 
 @media (max-width: 640px) {
-  .gb-battle-tree-lock-panel { width: calc(100% - 20px); margin: 1.25rem auto; }
+  .gb-battle-tree-lock-panel { grid-template-columns: 1fr; width: calc(100% - 20px); margin: 0.9rem auto; }
   .gb-battle-tree-lock-heading { align-items: flex-start; flex-direction: column; }
+  .gb-battle-tree-lock-empty { align-items: stretch; flex-direction: column; }
+  .gb-battle-tree-lock-empty button { width: 100%; }
   .gb-tree-lock-position { align-items: stretch; flex-direction: column; }
   .gb-tree-lock-button, .gb-tree-lock-position button { width: 100%; }
 }
