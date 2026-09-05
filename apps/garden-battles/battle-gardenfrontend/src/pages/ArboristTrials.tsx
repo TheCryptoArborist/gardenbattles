@@ -132,6 +132,7 @@ export default function ArboristTrials() {
           streak: 0,
           checkInStreak: 0,
           totalCheckIns: 0,
+          fifthMoveEligibility: null,
           checkIns: [],
           achievements: [],
           leaderboard: [],
@@ -433,14 +434,26 @@ export default function ArboristTrials() {
                   </div>
                   <TreeLockControl
                     address={address}
+                    eligibility={today.fifthMoveEligibility}
                     onEligibilityChange={(eligibility) => {
                       setToday((current) => current ? {
                         ...current,
                         fifthMoveAccess: eligibility.status,
                         fifthMoveUnlocked: eligibility.status === "qualified",
+                        fifthMoveEligibility: eligibility,
                       } : current);
                     }}
                   />
+                </section>
+              )}
+              {address && fifthMoveAccess === "qualified" && today.fifthMoveEligibility?.sources.some((source) => source.source === "tree-lock" && source.status === "qualified-data") && (
+                <section className="gb-trials-inline-lock" aria-label="Your active TREE Lock">
+                  <div>
+                    <small>FIFTH-CARD ACCESS</small>
+                    <h3>Your TREE Lock is active</h3>
+                    <p>The fifth card is unlocked. Your locked amount and withdrawal date are shown below.</p>
+                  </div>
+                  <TreeLockControl address={address} eligibility={today.fifthMoveEligibility} showLockForm={false} />
                 </section>
               )}
               <p className={`gb-trials-access-status gb-trials-access-${rankedAccess}`}>

@@ -1350,6 +1350,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const normalizedWallet = wallet ? normalizeSuiAddress(wallet) : null;
     let nftreeAccess: "not_connected" | "eligible" | "ineligible" | "unavailable" = "not_connected";
     let fifthMoveAccess: "not_connected" | "qualified" | "not-qualified" | "verification-incomplete" | "unavailable" = "not_connected";
+    let fifthMoveEligibility: Awaited<ReturnType<typeof refreshFifthMoveEligibility>> | null = null;
     if (normalizedWallet) {
       const [nftreeResult, fifthMoveResult] = await Promise.allSettled([
         walletHasNftreeAccess(normalizedWallet),
@@ -1365,6 +1366,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         nftreeAccess = "unavailable";
       }
       if (fifthMoveResult.status === "fulfilled") {
+        fifthMoveEligibility = fifthMoveResult.value;
         fifthMoveAccess = fifthMoveResult.value.status;
       } else {
         console.warn("[arborist-trials] fifth-card access check failed", {
@@ -1379,6 +1381,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       nftreeAccess,
       fifthMoveAccess,
       fifthMoveUnlocked: fifthMoveAccess === "qualified",
+      fifthMoveEligibility,
     });
   });
 

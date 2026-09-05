@@ -35,6 +35,11 @@ test("qualified valid proof is usable", () => {
   assert.equal(isUsableFifthMoveProof(proof(), CONFIG_ID), true);
 });
 
+test("TREE Lock source bit produces a usable fifth-move proof", () => {
+  assert.equal(isUsableFifthMoveProof(proof({ source_bitmap: 16 }), CONFIG_ID), true);
+  assert.equal(isUsableFifthMoveProof(proof({ source_bitmap: 32 }), CONFIG_ID), false);
+});
+
 test("unqualified, unavailable, malformed, and config mismatch proofs are not usable", () => {
   assert.equal(isUsableFifthMoveProof(null, CONFIG_ID), false);
   assert.equal(isUsableFifthMoveProof(proof({ qualified: false }), CONFIG_ID), false);

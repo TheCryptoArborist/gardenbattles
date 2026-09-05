@@ -26,7 +26,9 @@ export function isUsableFifthMoveProof(
   }
   if (payload.qualified !== true) return false;
   const sourceBitmap = Number(payload.source_bitmap);
-  if (!Number.isInteger(sourceBitmap) || sourceBitmap <= 0 || sourceBitmap > 15) return false;
+  // TREE Lock uses bit 4 (decimal 16), so the complete supported source mask
+  // spans five bits. Keep this aligned with the server and on-chain config.
+  if (!Number.isInteger(sourceBitmap) || sourceBitmap <= 0 || sourceBitmap > 31) return false;
 
   const amount = BigInt(String(payload.verified_underlying_tree_raw ?? "0"));
   const threshold = BigInt(String(payload.threshold_raw ?? "0"));

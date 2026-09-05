@@ -17,9 +17,10 @@ type Props = {
   address?: string | null;
   eligibility?: FifthMoveEligibilityResponse | null;
   onEligibilityChange?: (eligibility: FifthMoveEligibilityResponse) => void;
+  showLockForm?: boolean;
 };
 
-export default function TreeLockControl({ address, eligibility, onEligibilityChange }: Props) {
+export default function TreeLockControl({ address, eligibility, onEligibilityChange, showLockForm = true }: Props) {
   const account = useCurrentAccount();
   const client = useSuiClient();
   const queryClient = useQueryClient();
@@ -110,20 +111,23 @@ export default function TreeLockControl({ address, eligibility, onEligibilityCha
       {locks.map((lock) => {
         const unlockAt = Number(lock.unlockAtMs);
         const matured = Number.isFinite(unlockAt) && Date.now() >= unlockAt;
+        const amount = (Number(lock.amountRaw) / 1_000_000).toLocaleString(undefined, { maximumFractionDigits: 6 });
         return (
           <div className="gb-tree-lock-position" key={lock.objectId}>
-            <span>{matured ? "30 days complete — withdrawal available" : `Locked until ${new Date(unlockAt).toLocaleDateString()}`}</span>
+            <span><strong>{amount} TREE locked</strong><br />{matured ? "30 days complete — withdrawal available" : `Unlocks ${new Date(unlockAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}`}</span>
             <button type="button" disabled={!matured || busy} onClick={() => unlockTree(lock.objectId)}>Withdraw TREE</button>
           </div>
         );
       })}
-      <label className="gb-tree-lock-confirm">
-        <input type="checkbox" checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} />
-        I understand the TREE cannot be withdrawn for 30 days and earns no rewards.
-      </label>
-      <button className="gb-tree-lock-button" type="button" disabled={busy || !wallet || !confirmed} onClick={lockTree}>
-        {busy ? "Working…" : `Lock ${(Number(TREE_LOCK_MINIMUM_RAW) / 1_000_000).toLocaleString()} TREE`}
-      </button>
+      {showLockForm && <>
+        <label className="gb-tree-lock-confirm">
+          <input type="checkbox" checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} />
+          I understand the TREE cannot be withdrawn for 30 days and earns no rewards.
+        </label>
+        <button className="gb-tree-lock-button" type="button" disabled={busy || !wallet || !confirmed} onClick={lockTree}>
+          {busy ? "Working…" : `Lock ${(Number(TREE_LOCK_MINIMUM_RAW) / 1_000_000).toLocaleString()} TREE`}
+        </button>
+      </>}
       {message && <p role="status" className="gb-tree-lock-message">{message}</p>}
     </div>
   );

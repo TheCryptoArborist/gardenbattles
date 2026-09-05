@@ -10952,6 +10952,22 @@
   background: linear-gradient(135deg, rgba(39, 67, 13, 0.58), rgba(1, 24, 25, 0.92));
 }
 
+.gb-battle-tree-lock-panel {
+  width: min(980px, calc(100% - 32px));
+  margin: 2rem auto;
+  padding: clamp(1rem, 2vw, 1.4rem);
+  border: 1px solid rgba(190, 255, 57, 0.5);
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(8, 30, 20, 0.96), rgba(3, 21, 28, 0.96));
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.28), inset 0 0 30px rgba(88, 255, 153, 0.04);
+}
+.gb-battle-tree-lock-heading { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.gb-battle-tree-lock-heading small { color: #cfff59; font-family: Orbitron, sans-serif; font-size: 0.68rem; font-weight: 900; letter-spacing: 0.08em; }
+.gb-battle-tree-lock-heading h2 { color: #f4fff8; font-family: Orbitron, sans-serif; font-size: clamp(1.2rem, 2.2vw, 1.7rem); margin: 0.2rem 0 0; }
+.gb-battle-tree-lock-heading > span { padding: 0.4rem 0.65rem; border: 1px solid rgba(81, 238, 173, 0.4); border-radius: 999px; color: #7effb6; font-size: 0.75rem; font-weight: 800; }
+.gb-battle-tree-lock-panel > p { color: #cfe4d8; line-height: 1.5; margin: 0.8rem 0 0; }
+.gb-battle-tree-lock-panel .gb-tree-lock-control { margin-top: 1rem; }
+
 .gb-tree-lock-copy { display: grid; gap: 0.3rem; }
 .gb-tree-lock-copy strong { color: #cfff59; font-size: 1rem; }
 .gb-tree-lock-copy span, .gb-tree-lock-confirm, .gb-tree-lock-message { color: #e8f5ea; line-height: 1.45; }
@@ -11017,6 +11033,8 @@
 }
 
 @media (max-width: 640px) {
+  .gb-battle-tree-lock-panel { width: calc(100% - 20px); margin: 1.25rem auto; }
+  .gb-battle-tree-lock-heading { align-items: flex-start; flex-direction: column; }
   .gb-tree-lock-position { align-items: stretch; flex-direction: column; }
   .gb-tree-lock-button, .gb-tree-lock-position button { width: 100%; }
 }

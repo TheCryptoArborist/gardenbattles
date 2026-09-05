@@ -231,6 +231,7 @@ export type ArboristTrialTodayResponse = {
   nftreeAccess: "not_connected" | "eligible" | "ineligible" | "unavailable";
   fifthMoveAccess: "not_connected" | "qualified" | "not-qualified" | "verification-incomplete" | "unavailable";
   fifthMoveUnlocked: boolean;
+  fifthMoveEligibility: FifthMoveEligibilityResponse | null;
   rankedAttemptUsed: boolean;
   result: ArboristTrialPublicResult | null;
   streak: number;

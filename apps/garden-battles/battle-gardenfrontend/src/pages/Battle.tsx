@@ -39,6 +39,7 @@ import ModeCrest from "@/components/ModeCrest";
 import MoveCardFace, { getMoveIconUrl } from "@/components/MoveCardFace";
 import CardGuide from "@/components/CardGuide";
 import TreeBenefitsDrawer from "@/components/TreeBenefitsDrawer";
+import TreeLockControl from "@/components/TreeLockControl";
 import NftreeAcquisitionDrawer from "@/components/NftreeAcquisitionDrawer";
 import { useFifthMoveEligibility } from "@/hooks/useFifthMoveEligibility";
 import { getFifthCardPromoPresentation } from "@/lib/fifthCardPromo";
@@ -95,41 +96,6 @@ function getCurrentMoveOutcome(
     case 34: return playerGrowth < opponentGrowth ? "Active bonus: gains 11 Growth" : "Current result: gains 10 Growth";
     default: return null;
   }
-}
-
-function ArboretumComingSoonPromo() {
-  return (
-    <section className="gb-arboretum-promo" aria-label="Arboretum coming soon">
-      <div className="gb-arboretum-promo-panel">
-        <img
-          src={appAsset("assets/arboretum-promo.png")}
-          alt="COMING SOON!!! Arboretum. Plant your NFTrees and EARN SUI!!!"
-          className="gb-arboretum-promo-image"
-        />
-      </div>
-
-      <details className="gb-arboretum-mobile-card">
-        <summary>
-          <span>COMING SOON!!!</span>
-          <strong>Arboretum</strong>
-          <small>Plant your NFTrees and EARN SUI!!!</small>
-        </summary>
-        <div className="gb-arboretum-mobile-card-body">
-          <p>
-            A future TREE utility for planting, care, rewards, and garden
-            progression.
-          </p>
-          <a
-            href="https://nftree.net"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Buy NFTree
-          </a>
-        </div>
-      </details>
-    </section>
-  );
 }
 
 export type BattleRole =
@@ -288,6 +254,10 @@ export default function Battle({ pageMode }: { pageMode: BattlePageMode }) {
     getFirstValidSaplingNft,
   } = useSuiWallet();
   const fifthCardEligibility = useFifthMoveEligibility(address);
+  const activeTreeLocks = fifthCardEligibility.response?.sources.find(
+    (source) => source.source === "tree-lock",
+  )?.evidence?.locks ?? [];
+  const hasActiveTreeLock = activeTreeLocks.length > 0;
   const fifthCardPromo = getFifthCardPromoPresentation(fifthCardEligibility.status);
   const {
     battleState: practiceBattleState,
@@ -3283,7 +3253,25 @@ export default function Battle({ pageMode }: { pageMode: BattlePageMode }) {
           </div>
           </div>}
 
-        {!battleState && <ArboretumComingSoonPromo />}
+        {!battleState && address && (
+          <section className="gb-battle-tree-lock-panel" aria-label="Your TREE Lock">
+            <div className="gb-battle-tree-lock-heading">
+              <div>
+                <small>FIFTH-CARD ACCESS</small>
+                <h2>Your TREE Lock</h2>
+              </div>
+              <span>{hasActiveTreeLock ? "Active lock" : "30-day access route"}</span>
+            </div>
+            <p>
+              View your locked TREE and its unlock date here. A verified 1,000,000 TREE Lock unlocks your fifth card immediately.
+            </p>
+            <TreeLockControl
+              address={address}
+              eligibility={fifthCardEligibility.response}
+              showLockForm={!hasActiveTreeLock}
+            />
+          </section>
+        )}
         </main>
         {/* Footer */}
         <footer
