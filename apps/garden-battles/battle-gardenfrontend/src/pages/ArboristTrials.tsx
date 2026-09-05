@@ -7,6 +7,7 @@ import MoveCardFace from "@/components/MoveCardFace";
 import TrialCheckInMeter from "@/components/TrialCheckInMeter";
 import TrialAchievements, { TRIAL_BADGES } from "@/components/TrialAchievements";
 import TrialLeaderboard from "@/components/TrialLeaderboard";
+import TreeLockControl from "@/components/TreeLockControl";
 import {
   fetchTodayArboristTrial,
   submitArboristTrialResult,
@@ -423,6 +424,25 @@ export default function ArboristTrials() {
                   {startingTrial ? "Verifying Benefits…" : "Practice Today’s Trial"}
                 </button>
               </div>
+              {address && fifthMoveAccess === "not-qualified" && (
+                <section className="gb-trials-inline-lock" aria-label="Unlock the Arborist Trials fifth card">
+                  <div>
+                    <small>FIFTH-CARD ACCESS</small>
+                    <h3>Unlock your fifth card here</h3>
+                    <p>Lock 1,000,000 liquid TREE for 30 days. The TREE stays in your wallet-owned lock, earns no rewards, and can be withdrawn when the lock ends.</p>
+                  </div>
+                  <TreeLockControl
+                    address={address}
+                    onEligibilityChange={(eligibility) => {
+                      setToday((current) => current ? {
+                        ...current,
+                        fifthMoveAccess: eligibility.status,
+                        fifthMoveUnlocked: eligibility.status === "qualified",
+                      } : current);
+                    }}
+                  />
+                </section>
+              )}
               <p className={`gb-trials-access-status gb-trials-access-${rankedAccess}`}>
                 {rankedAccess === "eligible"
                   ? "NFTree verified — this wallet can enter today’s official ranked Trial."

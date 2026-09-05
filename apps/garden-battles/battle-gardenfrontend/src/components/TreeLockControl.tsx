@@ -13,9 +13,13 @@ import {
 } from "@/lib/treeLock";
 import { TREE_COIN_TYPE } from "@/lib/treeBalance";
 
-type Props = { address?: string | null; eligibility?: FifthMoveEligibilityResponse | null };
+type Props = {
+  address?: string | null;
+  eligibility?: FifthMoveEligibilityResponse | null;
+  onEligibilityChange?: (eligibility: FifthMoveEligibilityResponse) => void;
+};
 
-export default function TreeLockControl({ address, eligibility }: Props) {
+export default function TreeLockControl({ address, eligibility, onEligibilityChange }: Props) {
   const account = useCurrentAccount();
   const client = useSuiClient();
   const queryClient = useQueryClient();
@@ -32,6 +36,7 @@ export default function TreeLockControl({ address, eligibility }: Props) {
       const normalizedWallet = wallet.toLowerCase();
       const freshEligibility = await fetchFifthMoveEligibility(normalizedWallet, { refresh: true });
       queryClient.setQueryData(["fifth-move-eligibility", normalizedWallet], freshEligibility);
+      onEligibilityChange?.(freshEligibility);
     }
     await queryClient.invalidateQueries({ queryKey: ["tree-balance", wallet?.toLowerCase()] });
   };
