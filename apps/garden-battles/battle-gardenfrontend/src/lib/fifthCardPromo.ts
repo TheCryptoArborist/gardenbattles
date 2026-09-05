@@ -34,7 +34,7 @@ export function getFifthCardPromoPresentation(
         eyebrow: "TREE Holder Battle Advantage",
         title: "Unlock a Fifth Battle Card with TREE",
         description: "See the supported liquidity and TREE Lock routes that count toward unlocking your extra move.",
-        action: "See How to Qualify",
+        action: "Unlock Fifth Card",
         badge: "+1",
       };
     case "checking":

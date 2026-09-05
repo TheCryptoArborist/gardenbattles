@@ -369,6 +369,15 @@ export default function Battle({ pageMode }: { pageMode: BattlePageMode }) {
   const [inlineError, setInlineError] = useState<string | null>(null);
   const inlineErrorTimer = useRef<NodeJS.Timeout | null>(null);
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("unlock") !== "fifth-card") return;
+    setUtilityDrawer("tree");
+    params.delete("unlock");
+    const nextQuery = params.toString();
+    window.history.replaceState(null, "", `${window.location.pathname}${nextQuery ? `?${nextQuery}` : ""}${window.location.hash}`);
+  }, []);
+
   const openCardGuide = (currentHandOnly = false) => {
     setCardGuideCurrentHandOnly(currentHandOnly);
     setCardGuideOpen(true);
@@ -1952,7 +1961,7 @@ export default function Battle({ pageMode }: { pageMode: BattlePageMode }) {
                 <PlayerRecord address={address} />
                 <aside className="gb-rank-showcase-copy gb-rank-showcase-copy-right" aria-label="TREE holder battle benefits">
                   <span>TREE Holder Battle Benefits</span>
-                  <strong>Put TREE to work through verified liquidity or staking to unlock a fifth battle card.</strong>
+                  <strong>Use verified liquidity or a 30-Day TREE Lock to unlock a fifth battle card.</strong>
                   <button
                     type="button"
                     className="gb-rank-tree-benefits-button"

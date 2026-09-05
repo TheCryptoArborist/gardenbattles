@@ -1,6 +1,7 @@
 import { ConnectButton } from "@mysten/dapp-kit";
-import { ArrowUpRight, Bot, Sparkles, Swords } from "lucide-react";
+import { ArrowUpRight, Bot, LockKeyhole, Sparkles, Swords } from "lucide-react";
 import TreePowerPanel from "@/components/TreePowerPanel";
+import TreeLockControl from "@/components/TreeLockControl";
 import UtilityDrawer from "@/components/UtilityDrawer";
 import { useFifthMoveEligibility } from "@/hooks/useFifthMoveEligibility";
 import { useTreeBalance } from "@/hooks/useTreeBalance";
@@ -63,6 +64,11 @@ export default function TreeBenefitsDrawer({
       document.querySelector(".gb-mode-select")?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
   };
+  const handleShowTreeLock = () => {
+    const lockSection = document.getElementById("gb-tree-lock-action");
+    lockSection?.scrollIntoView({ behavior: "smooth", block: "start" });
+    window.setTimeout(() => lockSection?.focus({ preventScroll: true }), 350);
+  };
 
   return (
     <UtilityDrawer
@@ -120,7 +126,7 @@ export default function TreeBenefitsDrawer({
                 <div className="gb-tree-benefits-actions-compact-head">
                   <span>Next step</span>
                   <strong id="gb-tree-benefits-actions-title">
-                    {isQualified ? "Choose a battle—your fifth card is ready" : "Buy TREE, then choose an unlock route"}
+                    {isQualified ? "Choose a battle—your fifth card is ready" : "Choose how to unlock your fifth card"}
                   </strong>
                 </div>
                 {isQualified ? (
@@ -131,22 +137,37 @@ export default function TreeBenefitsDrawer({
                     </button>
                   </div>
                 ) : (
-                  <div className="gb-tree-benefits-action-grid-compact">
-                    {QUALIFICATION_ACTIONS.map((action) => (
-                      <a
-                        key={action.id}
-                        className={`gb-tree-benefits-action-compact gb-tree-benefits-action-${action.id}`}
-                        href={action.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        <span>{action.eyebrow}</span>
-                        <strong>{action.label}</strong>
-                        <small>{action.description}</small>
-                        <ArrowUpRight size={16} aria-hidden="true" />
-                      </a>
-                    ))}
-                  </div>
+                  <>
+                    <button
+                      type="button"
+                      className="gb-tree-benefits-lock-cta"
+                      disabled={isBattleActive}
+                      onClick={handleShowTreeLock}
+                    >
+                      <LockKeyhole size={19} aria-hidden="true" />
+                      <span>
+                        <small>{isBattleActive ? "Available after this battle" : "Direct unlock route"}</small>
+                        <strong>{isBattleActive ? "Finish Battle to Unlock" : "Unlock Fifth Card"}</strong>
+                        <em>Lock 1,000,000 TREE for 30 days · no rewards or APY</em>
+                      </span>
+                    </button>
+                    <div className="gb-tree-benefits-action-grid-compact">
+                      {QUALIFICATION_ACTIONS.map((action) => (
+                        <a
+                          key={action.id}
+                          className={`gb-tree-benefits-action-compact gb-tree-benefits-action-${action.id}`}
+                          href={action.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          <span>{action.eyebrow}</span>
+                          <strong>{action.label}</strong>
+                          <small>{action.description}</small>
+                          <ArrowUpRight size={16} aria-hidden="true" />
+                        </a>
+                      ))}
+                    </div>
+                  </>
                 )}
               </section>
             </div>
@@ -157,6 +178,24 @@ export default function TreeBenefitsDrawer({
               </div>
             )}
           </section>
+          {!isQualified && !isBattleActive && (
+            <section
+              id="gb-tree-lock-action"
+              className="gb-tree-benefits-lock-section"
+              aria-label="Unlock fifth card with a 30-day TREE Lock"
+              tabIndex={-1}
+            >
+              <div className="gb-tree-benefits-lock-section-head">
+                <LockKeyhole size={22} aria-hidden="true" />
+                <div>
+                  <small>UNLOCK FIFTH CARD</small>
+                  <h3>Use Your 30-Day TREE Lock</h3>
+                  <p>The wallet verifies the lock before asking for approval. Your TREE is not paid to another wallet.</p>
+                </div>
+              </div>
+              <TreeLockControl address={address} eligibility={qualification ?? undefined} />
+            </section>
+          )}
           <TreePowerPanel
             address={address}
             isBattleActive={isBattleActive}

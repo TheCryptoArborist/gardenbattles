@@ -10,10 +10,10 @@ test("qualified wallets receive a battle-ready fifth-card message", () => {
   assert.equal(promo.badge, "check");
 });
 
-test("not-qualified wallets receive qualification guidance", () => {
+test("not-qualified wallets receive a direct fifth-card unlock action", () => {
   const promo = getFifthCardPromoPresentation("not-qualified");
   assert.equal(promo.tone, "not-qualified");
-  assert.equal(promo.action, "See How to Qualify");
+  assert.equal(promo.action, "Unlock Fifth Card");
 });
 
 test("disconnected wallets are asked to connect for a read-only check", () => {

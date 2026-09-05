@@ -349,7 +349,12 @@ export default function ArboristTrials() {
                 <span><b>Target</b> 50 Growth</span>
                 <span><b>You start</b> {today.challenge.playerStartGrowth} Growth</span>
                 <span><b>Bot starts</b> {today.challenge.botStartGrowth} Growth</span>
-                <span><b>Fifth card</b> {fifthUnlocked ? "Unlocked" : "Requires TREE eligibility"}</span>
+                <span className="gb-trials-fifth-rule">
+                  <b>Fifth card</b>
+                  {fifthUnlocked
+                    ? "Unlocked"
+                    : <Link className="gb-trials-unlock-fifth" href="/battle/garden-bot?unlock=fifth-card">Unlock Fifth Card</Link>}
+                </span>
                 <span><b>Special rule</b> {today.challenge.ruleDescription}</span>
               </div>
               <div className="gb-trials-start-actions">
