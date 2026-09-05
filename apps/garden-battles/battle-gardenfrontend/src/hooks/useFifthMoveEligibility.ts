@@ -57,7 +57,9 @@ export function useFifthMoveEligibility(address?: string | null): FifthMoveEligi
     gcTime: FIFTH_MOVE_ELIGIBILITY_GC_TIME_MS,
     queryFn: async () => {
       if (!normalizedAddress) return null;
-      return fetchFifthMoveEligibility(normalizedAddress);
+      // Bypass the short server cache when a wallet first loads so a newly
+      // created TREE Lock and its maturity data are visible immediately.
+      return fetchFifthMoveEligibility(normalizedAddress, { refresh: true });
     },
   });
 

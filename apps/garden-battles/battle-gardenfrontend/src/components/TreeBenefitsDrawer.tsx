@@ -58,6 +58,10 @@ export default function TreeBenefitsDrawer({
   const qualification = fifthMoveEligibility.response;
   const isQualified = qualification?.status === "qualified";
   const verifiedTree = qualification?.verifiedUnderlyingTree;
+  const activeTreeLocks = qualification?.sources.find(
+    (source) => source.source === "tree-lock",
+  )?.evidence?.locks ?? [];
+  const hasActiveTreeLock = activeTreeLocks.length > 0;
   const handleChooseBattle = () => {
     onClose();
     window.requestAnimationFrame(() => {
@@ -178,6 +182,19 @@ export default function TreeBenefitsDrawer({
               </div>
             )}
           </section>
+          {hasActiveTreeLock && (
+            <section className="gb-tree-benefits-lock-section" aria-label="Verified TREE Lock status">
+              <div className="gb-tree-benefits-lock-section-head">
+                <LockKeyhole size={22} aria-hidden="true" />
+                <div>
+                  <small>VERIFIED ACTIVE LOCK</small>
+                  <h3>Your TREE Lock</h3>
+                  <p>Your locked amount, time remaining, and exact unlock date are shown below.</p>
+                </div>
+              </div>
+              <TreeLockControl address={address} eligibility={qualification} showLockForm={false} compact />
+            </section>
+          )}
           {!isQualified && !isBattleActive && (
             <section
               id="gb-tree-lock-action"

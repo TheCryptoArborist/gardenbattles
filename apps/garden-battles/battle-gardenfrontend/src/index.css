@@ -10970,6 +10970,7 @@
 .gb-battle-tree-lock-heading h2 { color: #f4fff8; font-family: Orbitron, sans-serif; font-size: clamp(1.2rem, 2.2vw, 1.7rem); margin: 0.2rem 0 0; }
 .gb-battle-tree-lock-heading > span { padding: 0.4rem 0.65rem; border: 1px solid rgba(81, 238, 173, 0.4); border-radius: 999px; color: #7effb6; font-size: 0.75rem; font-weight: 800; }
 .gb-battle-tree-lock-panel .gb-tree-lock-control { margin: 0; }
+.gb-battle-tree-lock-checking { color: #cfe4d8; margin: 0; }
 .gb-tree-lock-control-compact { padding: 0; border: 0; background: transparent; }
 .gb-battle-tree-lock-empty { align-items: center; display: flex; justify-content: flex-end; gap: 1rem; }
 .gb-battle-tree-lock-empty p { color: #cfe4d8; line-height: 1.4; margin: 0; }
@@ -11000,6 +11001,8 @@
 }
 .gb-tree-lock-button:disabled, .gb-tree-lock-position button:disabled { opacity: 0.48; cursor: not-allowed; }
 .gb-tree-lock-position { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; padding: 0.7rem; border: 1px solid rgba(81, 238, 173, 0.28); border-radius: 10px; }
+.gb-tree-lock-position span > strong { color: #7effb6; font-family: Orbitron, sans-serif; font-size: 0.78rem; }
+.gb-tree-lock-position span > b { color: #f4fff8; }
 .gb-tree-lock-message { margin: 0; color: #ffe17a; }
 
 .gb-tree-benefits-lock-cta {

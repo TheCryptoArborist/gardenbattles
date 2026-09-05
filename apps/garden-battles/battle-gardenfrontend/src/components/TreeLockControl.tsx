@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useCurrentAccount, useSignAndExecuteTransaction, useSuiClient } from "@mysten/dapp-kit";
 import { useQueryClient } from "@tanstack/react-query";
 import type { FifthMoveEligibilityResponse } from "@/lib/api";
@@ -29,9 +29,17 @@ export default function TreeLockControl({ address, eligibility, onEligibilityCha
   const [confirmed, setConfirmed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [nowMs, setNowMs] = useState(() => Date.now());
   const lockSource = eligibility?.sources.find((source) => source.source === "tree-lock");
   const locks = lockSource?.evidence?.locks ?? [];
   const wallet = account?.address ?? address ?? null;
+
+  useEffect(() => {
+    if (locks.length === 0) return;
+    setNowMs(Date.now());
+    const timer = window.setInterval(() => setNowMs(Date.now()), 60_000);
+    return () => window.clearInterval(timer);
+  }, [locks.length]);
 
   const refresh = async () => {
     if (wallet) {
@@ -111,11 +119,27 @@ export default function TreeLockControl({ address, eligibility, onEligibilityCha
       </div>}
       {locks.map((lock) => {
         const unlockAt = Number(lock.unlockAtMs);
-        const matured = Number.isFinite(unlockAt) && Date.now() >= unlockAt;
+        const matured = Number.isFinite(unlockAt) && nowMs >= unlockAt;
+        const remainingMs = Math.max(0, unlockAt - nowMs);
+        const totalRemainingMinutes = Math.max(1, Math.ceil(remainingMs / 60_000));
+        const remainingDays = Math.floor(totalRemainingMinutes / 1_440);
+        const remainingHours = Math.floor((totalRemainingMinutes % 1_440) / 60);
+        const remainingMinutes = totalRemainingMinutes % 60;
+        const remainingLabel = remainingDays > 0
+          ? `${remainingDays}d ${remainingHours}h remaining`
+          : remainingHours > 0
+            ? `${remainingHours}h ${remainingMinutes}m remaining`
+            : `${remainingMinutes}m remaining`;
         const amount = (Number(lock.amountRaw) / 1_000_000).toLocaleString(undefined, { maximumFractionDigits: 6 });
         return (
           <div className="gb-tree-lock-position" key={lock.objectId}>
-            <span><strong>{amount} TREE locked</strong><br />{matured ? "30 days complete — withdrawal available" : `Unlocks ${new Date(unlockAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}`}</span>
+            <span>
+              <strong>✓ TREE Lock verified</strong><br />
+              <b>{amount} TREE locked</b><br />
+              {matured
+                ? "30 days complete — withdrawal available"
+                : `${remainingLabel} · Unlocks ${new Date(unlockAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}`}
+            </span>
             <button type="button" disabled={!matured || busy} onClick={() => unlockTree(lock.objectId)}>Withdraw TREE</button>
           </div>
         );

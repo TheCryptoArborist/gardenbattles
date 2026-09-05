@@ -3260,9 +3260,11 @@ export default function Battle({ pageMode }: { pageMode: BattlePageMode }) {
                 <small>FIFTH-CARD ACCESS</small>
                 <h2>Your TREE Lock</h2>
               </div>
-              <span>{hasActiveTreeLock ? "Active lock" : "30-day access route"}</span>
+              <span>{fifthCardEligibility.status === "checking" ? "Checking lock…" : hasActiveTreeLock ? "Verified active lock" : "30-day access route"}</span>
             </div>
-            {hasActiveTreeLock ? (
+            {fifthCardEligibility.status === "checking" ? (
+              <p className="gb-battle-tree-lock-checking">Verifying your TREE Lock and unlock time…</p>
+            ) : hasActiveTreeLock ? (
               <TreeLockControl
                 address={address}
                 eligibility={fifthCardEligibility.response}
