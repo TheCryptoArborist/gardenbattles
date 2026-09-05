@@ -341,7 +341,20 @@ export default function ArboristTrials() {
                 <strong>{rankedAccess === "eligible" ? "NFTree Verified" : rankedAccess === "ineligible" ? "NFTree Required" : rankedAccess === "unavailable" ? "Verification Unavailable" : "Connect Wallet"}</strong>
               </span>
             </div>
-            <div className="gb-trials-streak" title="Official check-ins are saved ranked Trials. Current streak counts consecutive UTC check-in days; wins are tracked separately in Achievements."><Flame size={27} /><span><strong>{today?.totalCheckIns ?? 0}</strong> official check-ins · {today?.checkInStreak ?? 0} day current streak</span></div>
+            <div className="gb-trials-streak" aria-label="Daily check-ins and Trial win streak">
+              <span title="Every saved official ranked Trial counts as one daily check-in.">
+                <CalendarDays size={22} />
+                <small>DAILY CHECK-INS</small>
+                <strong>{today?.totalCheckIns ?? 0}</strong>
+                <em>{today?.checkInStreak ?? 0}-day current streak</em>
+              </span>
+              <span title="Consecutive UTC days with a saved official Trial win.">
+                <Flame size={22} />
+                <small>WIN STREAK</small>
+                <strong>{today?.streak ?? 0}</strong>
+                <em>consecutive Trial wins</em>
+              </span>
+            </div>
           </div>
         </section>
 
