@@ -14,7 +14,7 @@ import {
   type ArboristTrialTodayResponse,
 } from "@/lib/api";
 import { appAsset } from "@/lib/assets";
-import { encodeTrialDraft, restoreTrialDraft, trialDraftKey, trialSaveError } from "@/lib/trialScoreDraft";
+import { encodeTrialDraft, restoreTrialDraft, shouldRetryTrialSave, trialDraftKey, trialSaveError } from "@/lib/trialScoreDraft";
 import { getBattleTreeAssetPath, resolveGrowthStage } from "@/lib/battleTreeArtwork";
 import {
   applyArboristTrialFifthMove,
@@ -282,22 +282,38 @@ export default function ArboristTrials() {
       if (currentAddressRef.current?.toLowerCase() !== runWallet.toLowerCase()) throw new Error("wallet_changed");
       setSavePhase("server");
       setSubmissionMessage("Signature approved. Waiting for the server to confirm your saved score...");
-      const saved = await submitArboristTrialResult({
+      const submission = {
         challengeId: runChallenge.id,
         wallet: runWallet,
         playerMoves: battle.allPlayerMoves,
         replayVersion: battle.trialEngine,
         signature: proof.signature,
-      });
-      if (!saved.ok || !saved.recorded || !saved.result) throw new Error("save_not_confirmed");
-      markSaved(saved.result.score);
+      };
+      let saved: Awaited<ReturnType<typeof submitArboristTrialResult>> | null = null;
+      let lastSaveError: unknown = null;
+      for (let attempt = 0; attempt < 3 && !saved; attempt += 1) {
+        try {
+          saved = await submitArboristTrialResult(submission);
+        } catch (reason) {
+          lastSaveError = reason;
+          if (!shouldRetryTrialSave(reason) || attempt === 2) throw reason;
+          setSubmissionMessage(`The server response was interrupted. Retrying your approved signature automatically (${attempt + 2}/3)…`);
+          await new Promise((resolve) => window.setTimeout(resolve, 900 * (attempt + 1)));
+        }
+      }
+      if (!saved) throw lastSaveError ?? new Error("save_not_confirmed");
+      if (!saved.ok || !saved.result) throw new Error("save_not_confirmed");
+      markSaved(saved.result.score, saved.alreadySaved === true);
       setSaveReceipt({ rank: saved.result.rank, total: saved.leaderboardTotal, badges: saved.newAchievements ?? [] });
       if (currentAddressRef.current === runWallet) setToday((current) => current?.challenge.id === runChallenge.id ? {
         ...current, result: saved.result, rankedAttemptUsed: true, streak: saved.streak,
         leaderboardTotal: saved.leaderboardTotal ?? current.leaderboardTotal,
         achievements: saved.achievements ?? current.achievements,
       } : current);
-      await loadToday();
+      // The save is already authoritative. Refresh the board separately so a
+      // slow standings request can never turn a confirmed save back into an
+      // apparent failure.
+      void loadToday();
     } catch (reason) {
       submittedBattleRef.current = null;
       // A response can be lost after the server commits the result. Check before

@@ -347,6 +347,7 @@ export async function submitArboristTrialResult(input: {
 }): Promise<{
   ok: boolean;
   recorded: boolean;
+  alreadySaved?: boolean;
   reason?: string;
   result: ArboristTrialPublicResult;
   streak: number;

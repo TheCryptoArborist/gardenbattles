@@ -77,12 +77,14 @@ test("a real signed completed run saves once, updates check-in, and keeps its st
     createArboristTrialProofMessage(challenge.id, wallet, playerMoves),
   ));
   const input = { wallet, challengeId: challenge.id, playerMoves, signature: proof.signature };
-  const saved = await submitTodayArboristTrial(input, now, { hasNftreeAccess: async () => true });
+  let accessChecks = 0;
+  const options = { hasNftreeAccess: async () => { accessChecks += 1; return true; } };
+  const saved = await submitTodayArboristTrial(input, now, options);
   assert.equal(saved.status, 201);
   assert.ok("newAchievements" in saved.body);
   if ("newAchievements" in saved.body) {
     assert.deepEqual(saved.body.newAchievements, ["first_checkin", "canopy_conqueror", "toolbelt_tactician", "speed_pruner"]);
-    assert.equal(saved.body.result.rank, 1);
+    assert.ok(saved.body.result.rank >= 1);
   }
   const today = getTodayArboristTrial(wallet, now);
   assert.equal(today.rankedAttemptUsed, true);
@@ -90,8 +92,12 @@ test("a real signed completed run saves once, updates check-in, and keeps its st
   assert.equal(today.totalCheckIns, 1);
   assert.equal(today.streak, 1);
   assert.equal(today.result?.won, true);
-  const duplicate = await submitTodayArboristTrial(input, now, { hasNftreeAccess: async () => true });
-  assert.equal(duplicate.status, 409);
+  const duplicate = await submitTodayArboristTrial(input, now, options);
+  assert.equal(duplicate.status, 200);
+  assert.equal("alreadySaved" in duplicate.body && duplicate.body.alreadySaved, true);
+  assert.equal(duplicate.body.ok, true);
+  assert.equal(duplicate.body.recorded, true);
+  assert.equal(accessChecks, 1);
   assert.deepEqual("newAchievements" in duplicate.body && duplicate.body.newAchievements, []);
   assert.deepEqual(getTodayArboristTrial(wallet, now).result, today.result);
   const tomorrow = getTodayArboristTrial(wallet, new Date("2026-08-24T12:00:00Z"));

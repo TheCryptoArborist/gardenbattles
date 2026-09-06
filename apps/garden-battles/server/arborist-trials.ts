@@ -258,6 +258,29 @@ export async function submitTodayArboristTrial(
     return { status: 401, body: { ok: false, reason: "wallet_signature_required" } };
   }
 
+  // A mobile response can be lost after the first request commits. Once the
+  // wallet has signed this daily challenge, return the existing saved result
+  // immediately instead of repeating slow chain eligibility reads or treating
+  // a safe retry as an error.
+  const existing = getArboristTrialResult(challenge.id, wallet);
+  if (existing) {
+    const achievements = buildAchievements(wallet);
+    const standing = getArboristTrialStanding(challenge.id, wallet);
+    return {
+      status: 200,
+      body: {
+        ok: true,
+        recorded: true,
+        alreadySaved: true,
+        result: publicResult(existing, standing.rank),
+        leaderboardTotal: standing.total,
+        achievements,
+        newAchievements: [],
+        streak: calculateStreak(wallet, challenge.date),
+      },
+    };
+  }
+
   const fifthMoveId = getDailyTrialFifthMoveId(challenge);
   const usesFifthMove = moves.some((moveId) => moveId >= 31);
   if (usesFifthMove && moves.some((moveId) => moveId >= 31 && moveId !== fifthMoveId)) {
@@ -306,11 +329,11 @@ export async function submitTodayArboristTrial(
   const achievements = buildAchievements(wallet);
   const standing = getArboristTrialStanding(challenge.id, wallet);
   return {
-    status: recorded ? 201 : 409,
+    status: recorded ? 201 : 200,
     body: {
-      ok: recorded,
-      recorded,
-      reason: recorded ? undefined : "ranked_attempt_already_used",
+      ok: true,
+      recorded: true,
+      alreadySaved: !recorded,
       result: publicResult(saved, standing.rank),
       leaderboardTotal: standing.total,
       achievements,

@@ -51,3 +51,11 @@ export function trialSaveError(reason: unknown): string {
   if (/reject|denied|cancel/i.test(message)) return "Signature cancelled. Your score is not saved yet. Tap Sign & Save Score when you are ready.";
   return "The server has not confirmed a saved score. Your result is still here; check your connection and try Sign & Save Score again.";
 }
+
+export function shouldRetryTrialSave(reason: unknown): boolean {
+  const message = reason instanceof Error ? reason.message : "";
+  return message === "request_timeout"
+    || message === "nftree_access_unavailable"
+    || message === "ranked_attempt_already_used"
+    || message === "The ranked Arborist Trial result could not be saved.";
+}
