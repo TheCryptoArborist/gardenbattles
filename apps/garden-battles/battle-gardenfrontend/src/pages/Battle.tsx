@@ -3289,7 +3289,7 @@ export default function Battle({ pageMode }: { pageMode: BattlePageMode }) {
           </div>
           </div>}
 
-        {!battleState && <ArboretumComingSoonPromo />}
+        
         </main>
         {/* Footer */}
         <footer
