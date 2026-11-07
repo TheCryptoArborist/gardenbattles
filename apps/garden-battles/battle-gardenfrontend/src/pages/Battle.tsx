@@ -528,7 +528,7 @@ export default function Battle({ pageMode }: { pageMode: BattlePageMode }) {
               lowerMessage.includes("denied") ||
               lowerMessage.includes("declined")
             ? "Start cancelled in wallet."
-            : "Could not start Garden Bot battle. Try again.";
+            : `Could not start Garden Bot battle. ${error?.message || "Please try again."}`;
       setDialogKind(
         lowerMessage.includes("timed out waiting")
           ? "start-timeout"

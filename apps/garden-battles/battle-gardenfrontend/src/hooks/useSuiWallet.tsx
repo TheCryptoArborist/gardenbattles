@@ -600,34 +600,27 @@ async function getOptionalFifthMoveProof(address: string): Promise<{
   payload: FifthMoveAttestationPayload;
   signatureBytes: number[];
 } | null> {
-  if (!SUI_CONFIG.FIFTH_MOVE_CONFIG_ID.trim()) return null;
-  try {
-    const response = await requestFifthMoveAttestation(address);
-    if (!response.attestation?.payload || !response.attestation.signature) {
-      console.info("[fifth-move] standard four-move entry", {
-        reason: response.reason ?? response.eligibility?.status ?? "not-qualified",
-      });
-      return null;
+  const configId = SUI_CONFIG.FIFTH_MOVE_CONFIG_ID;
+  if (!configId.trim()) throw new Error("Fifth-card verification is not configured. Queue entry was stopped before payment.");
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const response = await requestFifthMoveAttestation(address);
+      if (response.ok && response.eligibility?.status === "not-qualified" && !response.attestation) return null;
+      const attestation = response.attestation;
+      if (!response.ok || !attestation?.payload || !attestation.signature) throw new Error("missing_proof");
+      const proof = {
+        payload: attestation.payload,
+        signatureBytes: Array.from(fromBase64(attestation.signature)) as number[],
+      };
+      if (!isUsableFifthMoveProof(proof, configId) ||
+          proof.payload.wallet.toLowerCase() !== address.toLowerCase() ||
+          BigInt(proof.payload.expires_at_ms) <= BigInt(Date.now())) throw new Error("invalid_proof");
+      return proof;
+    } catch {
+      if (attempt === 0) await new Promise((resolve) => setTimeout(resolve, 800));
     }
-
-    const proof = {
-      payload: response.attestation.payload,
-      signatureBytes: Array.from(fromBase64(response.attestation.signature)) as number[],
-    };
-    if (!isUsableFifthMoveProof(proof, SUI_CONFIG.FIFTH_MOVE_CONFIG_ID)) {
-      console.warn("[fifth-move] proof rejected before transaction selection");
-      return null;
-    }
-
-    console.info("[fifth-move] proof ready", {
-      keyId: response.attestation.keyId,
-      expiresAtMs: response.attestation.expiresAtMs,
-    });
-    return proof;
-  } catch (err) {
-    console.warn("[fifth-move] verification unavailable - continuing with four moves", err);
-    return null;
   }
+  throw new Error("Your fifth-card verification could not be completed. Entry was stopped before payment so you do not lose your bonus card. Please try again.");
 }
 
 function resolveBotMoveId(
@@ -2565,10 +2558,19 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
         try {
           console.info("[bot-start] wallet request opened");
           options?.onStatus?.("wallet-request-opened");
-          signAndExecuteTransaction(
-            { transaction: tx, chain: SUI_CONFIG.CHAIN },
-            {
-              onSuccess: async (result) => {
+          if (!currentWallet || !currentAccount) {
+            throw new Error("Wallet disconnected before transaction approval");
+          }
+          // Let the wallet build and submit, as PvP already does. The dApp Kit
+          // default signs in the wallet but submits through the app's legacy RPC.
+          walletSignAndExecuteTransaction(currentWallet, {
+            account: currentAccount,
+            chain: SUI_CONFIG.CHAIN,
+            transaction: {
+              toJSON: async () => tx.toJSON({ supportedIntents }),
+            },
+          }).then(
+              async (result) => {
                 try {
                   console.info("[bot-start] transaction digest received", {
                     digest: result.digest,
@@ -2576,6 +2578,9 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
                   options?.onStatus?.("transaction-digest-received", {
                     digest: result.digest,
                   });
+                  if (!result.digest) {
+                    throw new Error("Wallet returned no transaction digest. Check wallet activity before trying again.");
+                  }
                   const newState = await getBattleStateFromTransaction(
                     suiClient,
                     result.digest,
@@ -2611,7 +2616,7 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
                   );
                 }
               },
-              onError: (err: any) => {
+              (err: any) => {
                 const message = err?.message ?? "Failed to start bot battle";
                 if (/reject|cancel|denied|declined/i.test(message)) {
                   console.info("[bot-start] cancelled");
@@ -2620,7 +2625,6 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
                 }
                 fail(new Error(err?.message ?? "Failed to start bot battle"));
               },
-            },
           );
         } catch (err: any) {
           console.warn("[bot-start] failed", err);
@@ -2635,7 +2639,9 @@ export function SuiWalletProvider({ children }: { children: ReactNode }) {
       applyBattleState,
       clearBattleState,
       clearActionLog,
-      signAndExecuteTransaction,
+      currentWallet,
+      currentAccount,
+      supportedIntents,
     ],
   );
 
