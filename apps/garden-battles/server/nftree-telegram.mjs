@@ -1,8 +1,10 @@
 import { mkdirSync, readFileSync, writeFileSync, renameSync, existsSync } from 'node:fs';
 import path from 'node:path';
+import { TRADEPORT_STREAMS, prepareTradeportEvent } from './tradeport-telegram.mjs';
 
 export const COLLECTION = '0xf6c6d439ea0da2f3e9ba79e4992a7a4c113215fbf54c442ac9020c315f953705';
-const STREAMS = ['NFTMinted', 'NFTPurchased'].map(kind => `${COLLECTION}::collection::${kind}`);
+const COLLECTION_STREAMS = ['NFTMinted', 'NFTPurchased'].map(kind => `${COLLECTION}::collection::${kind}`);
+const STREAMS = [...COLLECTION_STREAMS, ...TRADEPORT_STREAMS];
 const ENDPOINT = 'https://graphql.mainnet.sui.io/graphql';
 const IMAGE_BASE = 'https://black-persistent-capybara-279.mypinata.cloud/ipfs/bafybeibcs6wmqckyw2xmsl3u2m6si2uww5orz4l6ewbmio5scmllvux7le';
 
@@ -10,7 +12,7 @@ export async function queryEvents(type, cursor, fetchFn = fetch) {
   const initial = cursor === undefined;
   const query = `query Alerts($type: String!${initial ? "" : ", $cursor: String"}) {
     events(${initial ? 'last: 1' : 'first: 50, after: $cursor'}, filter: {type: $type}) {
-      edges { cursor node { contents { type { repr } json } transaction { digest } } }
+      edges { cursor node { contents { type { repr } json } transaction { digest sender { address } } } }
       pageInfo { endCursor hasNextPage }
     }
   }`;
@@ -37,15 +39,16 @@ export function eventMessage(event) {
   const wallet = String(purchased ? fields.buyer : fields.recipient);
   const inventory = !purchased && /^0x0+$/.test(wallet);
   return {
-    text: `${purchased ? '🌳 NFTree purchased!' : inventory ? '🌱 NFTree minted to sale inventory' : '🌱 NFTree minted!'}\n\nNFTree #${fields.number}${purchased ? `\nPrice: ${price}` : ''}\n${purchased ? 'Buyer' : 'Recipient'}: ${wallet}\n\nhttps://suiscan.xyz/mainnet/tx/${event.transaction.digest}`,
-    photo: `${IMAGE_BASE}/${fields.number}.jpg`,
+    text: `${purchased ? (fields.marketplace ? '🌳 NFTree sold on TradePort!' : '🌳 NFTree purchased!') : inventory ? '🌱 NFTree minted to sale inventory' : '🌱 NFTree minted!'}\n\nNFTree #${fields.number}${purchased ? `\nPrice: ${price}` : ''}\n${purchased ? 'Buyer' : 'Recipient'}: ${wallet}${fields.seller ? `\nSeller: ${fields.seller}` : ''}\n\nhttps://suiscan.xyz/mainnet/tx/${event.transaction.digest}`,
+    photo: typeof fields.image_url === 'string' && /^https:\/\//.test(fields.image_url) ? fields.image_url : `${IMAGE_BASE}/${fields.number}.jpg`,
+    saleKey: `${purchased ? "sale" : "mint"}:${event.transaction.digest}:${fields.object_id}`,
     reply_markup: {inline_keyboard: [[{text: 'View transaction', url: `https://suiscan.xyz/mainnet/tx/${event.transaction.digest}`}, {text: 'Get an NFTree', url: 'https://nftree.net/'}]]},
   };
 }
 
 // Only advance an event's cursor after Telegram confirms delivery. Persist every
 // successful send, so a later failure on the same page does not replay the page.
-export async function pollStream(type, state, { query = queryEvents, send, save }) {
+export async function pollStream(type, state, { query = queryEvents, send, save, prepare = async event => event }) {
   if (!Object.hasOwn(state.cursors, type)) {
     const page = await query(type, undefined);
     if (!page.pageInfo.endCursor) throw new Error('Missing initial event checkpoint');
@@ -57,10 +60,16 @@ export async function pollStream(type, state, { query = queryEvents, send, save 
   for (let pages = 0; pages < 10; pages++) {
     const page = await query(type, state.cursors[type]);
     for (const edge of page.edges) {
-      await send(eventMessage(edge.node));
+      const event = await prepare(edge.node);
+      const message = event ? eventMessage(event) : null;
+      if (message && !state.deliveredSales?.includes(message.saleKey)) {
+        await send(message);
+        state.deliveredSales = [...(state.deliveredSales || []), message.saleKey].slice(-10000);
+        console.log(`[nftree-alerts] Delivered ${event.contents.json.marketplace || 'collection'} sale/mint #${event.contents.json.number}`);
+      }
       state.cursors[type] = edge.cursor;
       save();
-      console.log(`[nftree-alerts] Delivered ${edge.node.contents.type.repr.split('::').at(-1)} #${edge.node.contents.json.number}`);
+
     }
     if (page.pageInfo.endCursor) {
       state.cursors[type] = page.pageInfo.endCursor;
@@ -112,7 +121,8 @@ export function startNftreeTelegramNotifier() {
         console.log(`[nftree-alerts] Verified @${me.username}; monitoring collection mint and purchase events`);
       }
       for (const type of STREAMS) {
-        await pollStream(type, state, {save, send: async message => {
+        try {
+        await pollStream(type, state, {save, prepare: TRADEPORT_STREAMS.includes(type) ? prepareTradeportEvent : undefined, send: async message => {
           // Retry transient photo errors without advancing. Do not also send a
           // text alert on a timeout, as Telegram may already have sent the photo.
           try {
@@ -122,8 +132,15 @@ export function startNftreeTelegramNotifier() {
             await telegram('sendMessage', {...target, text: message.text, reply_markup: message.reply_markup, disable_web_page_preview: true});
           }
         }});
+        } catch (error) { console.error(`[nftree-alerts] ${type}: ${error instanceof Error ? error.message : 'Poll failed'}`); }
       }
-      if (!state.activationSent) {
+      if (!state.tradeportActivationSent && TRADEPORT_STREAMS.every(type => Object.hasOwn(state.cursors, type))) {
+        const result = await telegram('sendMessage', {...target, text: '🌳 TradePort purchase alerts are now active for NFTree!\n\nNew completed NFTree sales through TradePort listing and matched-bid contracts will appear here with artwork, SUI price, buyer, seller, and transaction link. Historical sales will not be reposted.'});
+        state.tradeportActivationSent = true;
+        save();
+        console.log(`[nftree-alerts] TradePort activation test delivered; message ID ${result.message_id}`);
+      }
+      if (!state.activationSent && COLLECTION_STREAMS.every(type => Object.hasOwn(state.cursors, type))) {
         const result = await telegram('sendMessage', {...target, text: '🌳 NFTree mint & purchase alerts are now active!\n\nNew collection mints and purchases will appear here with the NFT artwork, wallet, purchase price when available, and transaction link. Monitoring starts now; historical events will not be reposted.\n\nhttps://nftree.net/', disable_web_page_preview: true});
         state.activationSent = true;
         save();

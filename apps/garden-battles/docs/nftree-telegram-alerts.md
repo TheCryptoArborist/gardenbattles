@@ -7,8 +7,11 @@ The configured bot must identify as @NFTreeHolderBot.
 
 Every 30 seconds it reads the canonical collection's `NFTMinted` and `NFTPurchased`
 events using Sui GraphQL. `NFTPurchased` covers purchases from the collection sale
-pool on nftree.net. Marketplace resales with different marketplace events are not
-covered. Inventory batch mints are explicitly labeled as sale inventory.
+pool on nftree.net. TradePort resales are also monitored directly on Sui through its legacy
+listings, kiosk listings, current simple listings, and matched-bid events. Each
+sale object is checked against the exact NFTree type before alerting. The same
+transaction/NFT is deduplicated across event streams. No TradePort API key is used.
+Other marketplace contracts and future TradePort contract changes are not covered. Inventory batch mints are explicitly labeled as sale inventory.
 
 On first enable, it saves a current checkpoint for each event stream and skips
 history. It sends one activation test message after both checkpoints are saved.
@@ -30,3 +33,9 @@ turn off this monitor only.
 
 Validation: `node --test server/nftree-telegram.test.mjs`, `npm run check`,
 `npm run build`. Live Sui baseline and follow-up cursor queries were checked.
+
+TradePort support sends its own one-time activation notice and starts at the
+current chain checkpoint without posting historical sales. Seller is taken from
+the sale event; the current matched single-bid event uses the transaction sender
+as seller. New streams fail independently so existing mint alerts continue.
+Tests: `node --test server/nftree-telegram.test.mjs server/tradeport-telegram.test.mjs`.
