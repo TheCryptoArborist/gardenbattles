@@ -1,10 +1,11 @@
 import { mkdirSync, readFileSync, writeFileSync, renameSync, existsSync } from 'node:fs';
 import path from 'node:path';
+import { GARDEN_BOT_STREAMS, prepareGardenBotEvent } from './garden-bot-telegram.mjs';
 import { TRADEPORT_STREAMS, prepareTradeportEvent } from './tradeport-telegram.mjs';
 
 export const COLLECTION = '0xf6c6d439ea0da2f3e9ba79e4992a7a4c113215fbf54c442ac9020c315f953705';
 const COLLECTION_STREAMS = ['NFTMinted', 'NFTPurchased'].map(kind => `${COLLECTION}::collection::${kind}`);
-const STREAMS = [...COLLECTION_STREAMS, ...TRADEPORT_STREAMS];
+const STREAMS = [...COLLECTION_STREAMS, ...TRADEPORT_STREAMS, ...GARDEN_BOT_STREAMS];
 const ENDPOINT = 'https://graphql.mainnet.sui.io/graphql';
 const IMAGE_BASE = 'https://black-persistent-capybara-279.mypinata.cloud/ipfs/bafybeibcs6wmqckyw2xmsl3u2m6si2uww5orz4l6ewbmio5scmllvux7le';
 
@@ -29,6 +30,7 @@ export async function queryEvents(type, cursor, fetchFn = fetch) {
 }
 
 export function eventMessage(event) {
+  if (event.notificationKind === 'garden-bot') return event.notification;
   const fields = event.contents.json;
   const purchased = event.contents.type.repr.endsWith('::NFTPurchased');
   if (!/^0x[0-9a-f]{1,64}$/i.test(fields.object_id) || !/^\d+$/.test(String(fields.number))) {
@@ -65,7 +67,7 @@ export async function pollStream(type, state, { query = queryEvents, send, save,
       if (message && !state.deliveredSales?.includes(message.saleKey)) {
         await send(message);
         state.deliveredSales = [...(state.deliveredSales || []), message.saleKey].slice(-10000);
-        console.log(`[nftree-alerts] Delivered ${event.contents.json.marketplace || 'collection'} sale/mint #${event.contents.json.number}`);
+        console.log(`[nftree-alerts] Delivered ${event.notificationKind === 'garden-bot' ? 'Garden Bot completion ' + event.contents.json.battle_id : (event.contents.json.marketplace || 'collection') + ' sale/mint #' + event.contents.json.number}`);
       }
       state.cursors[type] = edge.cursor;
       save();
@@ -122,9 +124,13 @@ export function startNftreeTelegramNotifier() {
       }
       for (const type of STREAMS) {
         try {
-        await pollStream(type, state, {save, prepare: TRADEPORT_STREAMS.includes(type) ? prepareTradeportEvent : undefined, send: async message => {
+        await pollStream(type, state, {save, prepare: TRADEPORT_STREAMS.includes(type) ? prepareTradeportEvent : GARDEN_BOT_STREAMS.includes(type) ? prepareGardenBotEvent : undefined, send: async message => {
           // Retry transient photo errors without advancing. Do not also send a
           // text alert on a timeout, as Telegram may already have sent the photo.
+          if (!message.photo) {
+            await telegram('sendMessage', {...target, text: message.text, reply_markup: message.reply_markup, disable_web_page_preview: true});
+            return;
+          }
           try {
             await telegram('sendPhoto', {...target, photo: message.photo, caption: message.text, reply_markup: message.reply_markup});
           } catch (error) {
@@ -133,6 +139,12 @@ export function startNftreeTelegramNotifier() {
           }
         }});
         } catch (error) { console.error(`[nftree-alerts] ${type}: ${error instanceof Error ? error.message : 'Poll failed'}`); }
+      }
+      if (!state.gardenBotActivationSent && GARDEN_BOT_STREAMS.every(type => Object.hasOwn(state.cursors, type))) {
+        const result = await telegram('sendMessage', {...target, text: '🌳 Garden Bot match-completion alerts are now active!\n\nNew completed on-chain Garden Bot matches will appear here with the result, player wallet, growth totals, and transaction link. Both player wins and losses are included. Historical matches and free practice runs will not be reposted.'});
+        state.gardenBotActivationSent = true;
+        save();
+        console.log(`[nftree-alerts] Garden Bot activation test delivered; message ID ${result.message_id}`);
       }
       if (!state.tradeportActivationSent && TRADEPORT_STREAMS.every(type => Object.hasOwn(state.cursors, type))) {
         const result = await telegram('sendMessage', {...target, text: '🌳 TradePort purchase alerts are now active for NFTree!\n\nNew completed NFTree sales through TradePort listing and matched-bid contracts will appear here with artwork, SUI price, buyer, seller, and transaction link. Historical sales will not be reposted.'});

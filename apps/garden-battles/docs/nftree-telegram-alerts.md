@@ -39,3 +39,20 @@ current chain checkpoint without posting historical sales. Seller is taken from
 the sale event; the current matched single-bid event uses the transaction sender
 as seller. New streams fail independently so existing mint alerts continue.
 Tests: `node --test server/nftree-telegram.test.mjs server/tradeport-telegram.test.mjs`.
+
+## Garden Bot completions
+
+Garden Bot on-chain completions use `RankedBotBattleV2Update` plus legacy
+`BattleUpdate` events with `is_bot_battle=true`. Package/module settings match the
+existing backend battle event configuration. Empty/zero winners and PvP events
+are ignored; valid player and bot wins both notify. Player 1 is the human player,
+player 2 the bot, as defined by the contract creation functions.
+
+Alerts contain result, player wallet, both growth totals, target where supplied,
+transaction link and a Play Garden Bot button. Durable deduplication uses battle
+ID so repeated final events produce one notification per match. First startup
+baselines skip historical matches and send one activation notice. Free practice
+runs do not emit these events and are not included.
+
+Validate with `node --test server/garden-bot-telegram.test.mjs` alongside the other
+notification tests. No user-submitted unverified completion endpoint is exposed.
