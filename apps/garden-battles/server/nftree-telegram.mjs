@@ -1,5 +1,6 @@
 import { mkdirSync, readFileSync, writeFileSync, renameSync, existsSync } from 'node:fs';
 import path from 'node:path';
+import { pollTreeForceCompletions } from './treeforce89-telegram.mjs';
 import { namesInNotificationText } from './suins-names.mjs';
 import { pollCanopyCompletions } from './canopy-breaker-telegram.mjs';
 import { GARDEN_BOT_STREAMS, prepareGardenBotEvent } from './garden-bot-telegram.mjs';
@@ -147,6 +148,8 @@ export function startNftreeTelegramNotifier() {
       try {
         await pollCanopyCompletions({state, save, send: message => telegram('sendMessage', {...target, text: message.text, reply_markup: message.reply_markup, disable_web_page_preview: true})});
       } catch (error) { console.error('[nftree-alerts] Canopy Breaker:', error instanceof Error ? error.message : 'Poll failed'); }
+      try { await pollTreeForceCompletions({state,save,send: message => telegram('sendMessage', {...target,text:message.text,reply_markup:message.reply_markup,disable_web_page_preview:true})}); }
+      catch(error){console.error('[nftree-alerts] TREE FORCE:',error instanceof Error?error.message:'Poll failed');}
       if (!state.suinsActivationSent) {
         const result = await telegram('sendMessage', {...target, text: '🌳 SuiNS names are now enabled across NFTree mint/purchase, TradePort, Garden Bot, PvP queue, and Canopy Breaker alerts. Primary .sui names appear when available; existing wallet, username, or anonymous fallbacks remain in place.'});
         state.suinsActivationSent = true; save();
