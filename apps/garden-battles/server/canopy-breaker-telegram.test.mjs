@@ -21,3 +21,5 @@ test('failure retries without advancing; restarted poll deduplicates',async()=>{
 test('malformed data and failed feed cannot activate alerts',async()=>{
  const state={};await assert.rejects(pollCanopyCompletions({state,save:()=>{},send:async()=>assert.fail(),fetchFn:async()=>new Response('unavailable',{status:503})}),/503/);assert.equal(state.canopyCursor,undefined);
 });
+
+test('SuiNS takes precedence over the optional username',()=>{assert.match(canopyCompletionMessage({...entry,suinsName:'tree.sui'}).text,/Player: tree.sui/);});

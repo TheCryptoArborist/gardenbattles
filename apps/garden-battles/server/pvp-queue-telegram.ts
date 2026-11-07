@@ -1,3 +1,4 @@
+import { resolveSuiName } from './suins-names.mjs';
 import {
   getActivePvpQueueTelegramAlert,
   getPvpQueueTelegramAlertByKey,
@@ -406,14 +407,14 @@ const sqliteQueueAlertStore: QueueAlertStore = {
   resolveActive: resolveActivePvpQueueTelegramAlerts,
 };
 
-function buildQueueMessage(entry: PendingQueueEntry, battleUrl: string): string {
+function buildQueueMessage(entry: PendingQueueEntry, battleUrl: string, playerName?: string | null): string {
   return [
     "&#x2694;&#xfe0f; <b>PvP Opponent Needed</b>",
     "",
     `Match target: <b>${entry.targetGrowth} Growth</b>`,
     `<b>${escapeHtml(entry.displayLabel)}</b>`,
     "",
-    `Player: <code>${escapeHtml(shortAddress(entry.player))}</code>`,
+    `Player: <code>${escapeHtml(playerName || shortAddress(entry.player))}</code>`,
     `Entry: <b>${escapeHtml(formatSui(entry.entryFeeMist))}</b>`,
     "Winner receives: <b>5 SUI</b>",
     "",
@@ -484,6 +485,7 @@ export function createPvpQueueTelegramPoller(options: {
   messageThreadId?: number | null;
   additionalDestinations?: TelegramDestination[];
   getAdditionalDestinations?: () => TelegramDestination[];
+  resolvePlayerName?: (address: string) => Promise<string | null>;
   suiClient: QueueSuiClient;
   telegramClient: TelegramClient;
   store: QueueAlertStore;
@@ -553,7 +555,7 @@ export function createPvpQueueTelegramPoller(options: {
           continue;
         }
 
-        const text = buildQueueMessage(pending, options.battleUrl);
+        const text = buildQueueMessage(pending, options.battleUrl, await options.resolvePlayerName?.(pending.player));
         const replyMarkup = buildQueueReplyMarkup(options.battleUrl);
         const telegramResults = await Promise.allSettled(
           getDestinations().map((destination) =>
@@ -703,6 +705,7 @@ export function startPvpQueueTelegramNotifier(
     messageThreadId,
     additionalDestinations,
     getAdditionalDestinations: () => destinationStore.list(),
+    resolvePlayerName: options.telegramClient ? undefined : resolveSuiName,
     suiClient,
     telegramClient: options.telegramClient ?? new FetchTelegramClient(),
     store: options.store ?? sqliteQueueAlertStore,

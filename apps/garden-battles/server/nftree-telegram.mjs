@@ -1,5 +1,6 @@
 import { mkdirSync, readFileSync, writeFileSync, renameSync, existsSync } from 'node:fs';
 import path from 'node:path';
+import { namesInNotificationText } from './suins-names.mjs';
 import { pollCanopyCompletions } from './canopy-breaker-telegram.mjs';
 import { GARDEN_BOT_STREAMS, prepareGardenBotEvent } from './garden-bot-telegram.mjs';
 import { TRADEPORT_STREAMS, prepareTradeportEvent } from './tradeport-telegram.mjs';
@@ -100,6 +101,8 @@ export function startNftreeTelegramNotifier() {
   };
   const telegram = async (method, body) => {
     let response;
+    if (body.text) body = {...body, text: await namesInNotificationText(body.text)};
+    if (body.caption) body = {...body, caption: await namesInNotificationText(body.caption)};
     try {
       response = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
         method: 'POST', headers: {'content-type': 'application/json'},
@@ -144,6 +147,11 @@ export function startNftreeTelegramNotifier() {
       try {
         await pollCanopyCompletions({state, save, send: message => telegram('sendMessage', {...target, text: message.text, reply_markup: message.reply_markup, disable_web_page_preview: true})});
       } catch (error) { console.error('[nftree-alerts] Canopy Breaker:', error instanceof Error ? error.message : 'Poll failed'); }
+      if (!state.suinsActivationSent) {
+        const result = await telegram('sendMessage', {...target, text: '🌳 SuiNS names are now enabled across NFTree mint/purchase, TradePort, Garden Bot, PvP queue, and Canopy Breaker alerts. Primary .sui names appear when available; existing wallet, username, or anonymous fallbacks remain in place.'});
+        state.suinsActivationSent = true; save();
+        console.log(`[nftree-alerts] SuiNS activation notice delivered; message ID ${result.message_id}`);
+      }
       if (!state.gardenBotActivationSent && GARDEN_BOT_STREAMS.every(type => Object.hasOwn(state.cursors, type))) {
         const result = await telegram('sendMessage', {...target, text: '🌳 Garden Bot match-completion alerts are now active!\n\nNew completed on-chain Garden Bot matches will appear here with the result, player wallet, growth totals, and transaction link. Both player wins and losses are included. Historical matches and free practice runs will not be reposted.'});
         state.gardenBotActivationSent = true;
