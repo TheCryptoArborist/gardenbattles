@@ -1,5 +1,6 @@
 import { mkdirSync, readFileSync, writeFileSync, renameSync, existsSync } from 'node:fs';
 import path from 'node:path';
+import { pollCanopyCompletions } from './canopy-breaker-telegram.mjs';
 import { GARDEN_BOT_STREAMS, prepareGardenBotEvent } from './garden-bot-telegram.mjs';
 import { TRADEPORT_STREAMS, prepareTradeportEvent } from './tradeport-telegram.mjs';
 
@@ -140,6 +141,9 @@ export function startNftreeTelegramNotifier() {
         }});
         } catch (error) { console.error(`[nftree-alerts] ${type}: ${error instanceof Error ? error.message : 'Poll failed'}`); }
       }
+      try {
+        await pollCanopyCompletions({state, save, send: message => telegram('sendMessage', {...target, text: message.text, reply_markup: message.reply_markup, disable_web_page_preview: true})});
+      } catch (error) { console.error('[nftree-alerts] Canopy Breaker:', error instanceof Error ? error.message : 'Poll failed'); }
       if (!state.gardenBotActivationSent && GARDEN_BOT_STREAMS.every(type => Object.hasOwn(state.cursors, type))) {
         const result = await telegram('sendMessage', {...target, text: '🌳 Garden Bot match-completion alerts are now active!\n\nNew completed on-chain Garden Bot matches will appear here with the result, player wallet, growth totals, and transaction link. Both player wins and losses are included. Historical matches and free practice runs will not be reposted.'});
         state.gardenBotActivationSent = true;
