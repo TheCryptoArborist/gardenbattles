@@ -78,6 +78,17 @@ async function tg(method,payload,form=false){
 
 let chatId=null;
 async function verifyTelegram(){const me=await tg('getMe',{});if(me.username!==env.TELEGRAM_EXPECTED_BOT_USERNAME)throw Error('Configured token belongs to a different bot');const chat=await tg('getChat',{chat_id:env.TELEGRAM_CHAT_ID});if(env.TELEGRAM_MESSAGE_THREAD_ID&&(!chat.is_forum||chat.type!=='supergroup'))throw Error('Destination is not a forum group');chatId=chat.id;log('telegram_verified',{bot:me.username,chatId,forum:!!chat.is_forum,topic:Number(env.TELEGRAM_MESSAGE_THREAD_ID)||null});}
+
+const ALERT_QUIPS={
+ buy:["Someone just turned over a new leaf. 🌿","A fresh branch joins the TREE family. 🌳","This wallet just put down roots. 🌱","Another buyer branching into TREE. 🍃"],
+ liquidity:["Now that’s what we call liquid roots. 💧","A little more water for the money tree. 🌳","Fresh liquidity. Stronger roots. 🌱","Someone’s watering the TREE pool. 💦"],
+ up10:["TREE is branching out—10% higher in 24 hours. 🌿","Leafing yesterday’s price behind. 🍃","The canopy just climbed another level. 🌳"],
+ up20:["That’s some serious trunk strength—20% up in 24 hours. 🌳","TREE just raised the canopy. 🚀","Looks like TREE found its growth spurt. 🌿"],
+ daily:["Today’s biggest buy just took root. 🏆","A new daily branch-mark has been set. 🌳","That buy just topped today’s canopy. 🍃"],
+ weekly:["The biggest branch on this week’s TREE. 👑","This week’s buy record just got uprooted. 🌳","A new heavyweight in the weekly grove. 🏆"]
+};
+function alertQuip(kind,key){const options=ALERT_QUIPS[kind]||ALERT_QUIPS.buy;let hash=0;for(const c of String(key))hash=(Math.imul(hash,31)+c.charCodeAt(0))>>>0;return options[hash%options.length];}
+
 const assets=Object.fromEntries(['buy','liquidity','up10','up20','daily','weekly'].map(k=>[k,readFileSync(new URL('./graphics/'+k+'.b64',import.meta.url),'utf8')]));
 async function deliver(key,payload,{force=false}={}){
  if(!enabled&&!force){log('dry_run_alert',{key,kind:payload.graphic,text:payload.text});return;}
@@ -115,6 +126,7 @@ async function processTx(tx){
  lines.push('',(a.buy?'Buyer':'Provider')+': '+person);
  if(flags.daily||flags.weekly)lines.push('Record among USD-valued buys observed since monitoring began. Central Time; week starts Monday.');
  lines.push('','www.tree-token.xyz');
+ lines.splice(1,0,alertQuip(graphic,a.digest));
  const payload={graphic,text:lines.join('\n'),tx:a.digest};
  await deliver('tx:'+a.digest,payload);
  db.exec('BEGIN IMMEDIATE');try{if(a.buy)db.prepare('INSERT OR IGNORE INTO buys VALUES(?,?,?,?,?)').run(a.digest,a.time,period.day,period.week,value);db.prepare('INSERT OR IGNORE INTO seen VALUES(?,?)').run(tx.digest,Date.now());db.exec('COMMIT');}catch(e){db.exec('ROLLBACK');throw e;}
@@ -143,7 +155,7 @@ async function market(){
  if(prior.length<3||prior.at(-1).at-prior[0].at<110000||!Number.isFinite(pct)||Number(p.volume?.h24)<50)return;
  const confirmed=Math.min(...prior.map(s=>s.pct));if(!Number.isFinite(confirmed))return;
  const old=get('priceMilestones',{}),step=priceStep(old,confirmed,now);
- if(step.hit){await deliver('price:'+step.hit+':'+now,{graphic:step.hit===20?'up20':'up10',text:`${step.hit===20?'🚀':'📈'} TREE UP ${step.hit}%\n\n24-hour change: +${pct.toFixed(2)}%\nReference price: $${price.toFixed(8)}\nSource: Dexscreener · ${p.dexId}\nReference pool: ${p.pairAddress}\n\nConfirmed across three samples.\nwww.tree-token.xyz`});}
+ if(step.hit){await deliver('price:'+step.hit+':'+now,{graphic:step.hit===20?'up20':'up10',text:`${step.hit===20?'🚀':'📈'} TREE UP ${step.hit}%\n${alertQuip(step.hit===20?'up20':'up10',now)}\n\n24-hour change: +${pct.toFixed(2)}%\nReference price: $${price.toFixed(8)}\nSource: Dexscreener · ${p.dexId}\nReference pool: ${p.pairAddress}\n\nConfirmed across three samples.\nwww.tree-token.xyz`});}
  put('priceMilestones',step.state);
 }
 async function main(){
