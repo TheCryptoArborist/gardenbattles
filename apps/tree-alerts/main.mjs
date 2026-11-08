@@ -1,7 +1,8 @@
+import {compact,usd,balances,coinUSD,treeValue,growthBar,alertButtons} from './rich-alerts.mjs';
 import {DatabaseSync} from 'node:sqlite';
 import {mkdirSync,readFileSync} from 'node:fs';
 import {createServer} from 'node:http';
-import {TREE,SUI,USDC,SEEDS,PACKAGES,norm,poolInfo,analyze,units,periods,recordFlags,priceStep,chooseMarket,estimateBuyUSD} from './core.mjs';
+import {TREE,SUI,USDC,SEEDS,PACKAGES,norm,poolInfo,classify,analyze,units,periods,recordFlags,priceStep,chooseMarket,estimateBuyUSD} from './core.mjs';
 const env=process.env;
 const enabled=env.TELEGRAM_ENABLED==='true'&&env.DRY_RUN==='false';
 const endpoint=env.SUI_GRAPHQL_URL||'https://graphql.mainnet.sui.io/graphql';
@@ -97,7 +98,7 @@ async function deliver(key,payload,{force=false}={}){
  if(row?.status==='sending'||row?.status==='uncertain')throw Error('An alert has uncertain delivery; manual review required');
  if(!row){db.prepare('INSERT INTO outbox(k,payload,status) VALUES(?,?,?)').run(key,JSON.stringify(payload),'pending');row={status:'pending'};}
  db.prepare('UPDATE outbox SET status=? WHERE k=?').run('sending',key);
- const form=new FormData();form.set('chat_id',String(chatId));if(env.TELEGRAM_MESSAGE_THREAD_ID)form.set('message_thread_id',env.TELEGRAM_MESSAGE_THREAD_ID);form.set('caption',payload.text.slice(0,1024));form.set('photo',new Blob([Buffer.from(assets[payload.graphic]||assets.buy,'base64')],{type:'image/jpeg'}),'tree-'+payload.graphic+'.jpg');form.set('reply_markup',JSON.stringify({inline_keyboard:[[{text:payload.tx?'View transaction':'TREE website',url:payload.tx?'https://suiscan.xyz/mainnet/tx/'+payload.tx:'https://tree-token.xyz/'}]]}));
+ const form=new FormData();form.set('chat_id',String(chatId));if(env.TELEGRAM_MESSAGE_THREAD_ID)form.set('message_thread_id',env.TELEGRAM_MESSAGE_THREAD_ID);form.set('caption',payload.text.slice(0,1024));form.set('photo',new Blob([Buffer.from(assets[payload.graphic]||assets.buy,'base64')],{type:'image/jpeg'}),'tree-'+payload.graphic+'.jpg');form.set('reply_markup',JSON.stringify(alertButtons(payload.tx)));
  try{const message=await tg('sendPhoto',form,true);db.prepare('UPDATE outbox SET status=?,message_id=? WHERE k=?').run('sent',message.message_id,key);if(env.TELEGRAM_MESSAGE_THREAD_ID&&message.message_thread_id!==Number(env.TELEGRAM_MESSAGE_THREAD_ID))throw Error('Telegram delivered to an unexpected topic');log('telegram_delivered',{key,messageId:message.message_id,topic:message.message_thread_id,kind:payload.graphic});}
  catch(e){db.prepare("UPDATE outbox SET status=? WHERE k=? AND status!='sent'").run(e.rejected?'pending':'uncertain',key);throw e;}
  await sleep(1200);
@@ -113,10 +114,23 @@ function marketLines(snapshot=quote,now=Date.now()){
  if(!snapshot||now-snapshot.at>180000)return ['Token price: temporarily unavailable','Market cap: temporarily unavailable'];
  const price=Number(snapshot.price),cap=Number(snapshot.marketCap);
  return ['Token price: '+(Number.isFinite(price)&&price>0?'$'+price.toFixed(8):'unavailable'),
- 'Market cap: '+(Number.isFinite(cap)&&cap>0?'$'+cap.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}):'unavailable'),
- 'Market snapshot: Dexscreener'];
+ 'Market cap: '+(Number.isFinite(cap)&&cap>0?usd(cap):'unavailable'),
+ '24h change: '+(Number.isFinite(snapshot.pct24)?(snapshot.pct24>=0?'+':'')+snapshot.pct24.toFixed(2)+'%':'unavailable')];
 }
 async function labelAmount(coin,amount){const m=await metadata(coin);return units(amount,m.decimals)+' '+(norm(coin)===norm(TREE)?'TREE':m.symbol);}
+
+async function poolSnapshot(id){
+ const p=pools.get(id);if(!p)return null;
+ try{
+  const r=await gql('query($id:SuiAddress!){object(address:$id){asMoveObject{contents{json}}}}',{id});
+  const raw=balances(p.venue,r.object?.asMoveObject?.contents?.json||{});
+  let total=0,valued=true;const parts=[];
+  for(let i=0;i<2;i++){const m=await metadata(p.coins[i]),n=Number(raw[i])/10**m.decimals,price=coinUSD(p.coins[i],quote);
+   parts.push(compact(n)+' '+(p.coins[i]===norm(TREE)?'TREE':m.symbol));if(price===null)valued=false;else total+=n*price;}
+  return '💧 '+p.venue+' pool: '+parts.join(' | ')+(valued?' | ~'+usd(total)+' total':' | USD total unavailable');
+ }catch(e){log('pool_snapshot_warning',{pool:id,error:e.message});return '💧 '+p.venue+' pool snapshot unavailable';}
+}
+
 async function processTx(tx){
  if(db.prepare('SELECT 1 FROM seen WHERE digest=?').get(tx.digest))return;
  await transactionEvents(tx);
@@ -125,12 +139,18 @@ async function processTx(tx){
  const a=analyze(tx,pools);if(!a){db.prepare('INSERT OR IGNORE INTO seen VALUES(?,?)').run(tx.digest,Date.now());return;}
  let value=null,flags={daily:false,weekly:false},period=periods(a.time);
  if(a.buy){value=estimateBuyUSD(a.buy,meta,quote,a.time,Date.now());const prev={dayCount:db.prepare('SELECT COUNT(*) n FROM buys WHERE day=? AND usd>0').get(period.day).n,weekCount:db.prepare('SELECT COUNT(*) n FROM buys WHERE week=? AND usd>0').get(period.week).n,dayMax:db.prepare('SELECT COALESCE(MAX(usd),0) n FROM buys WHERE day=?').get(period.day).n,weekMax:db.prepare('SELECT COALESCE(MAX(usd),0) n FROM buys WHERE week=?').get(period.week).n};flags=recordFlags(prev,value);}
- const person=await nameFor(a.wallet)||a.wallet;
+ const person=await nameFor(a.wallet)||(a.wallet.slice(0,6)+'…'+a.wallet.slice(-4));
  const graphic=flags.weekly?'weekly':flags.daily?'daily':a.buy?'buy':'liquidity';
  const lines=[flags.weekly?'👑 LARGEST BUY THIS WEEK':flags.daily?'🏆 LARGEST BUY TODAY':a.buy?'🌳 NEW TREE PURCHASE':'💧 LIQUIDITY ADDED',''];
- if(a.buy){lines.push('Purchased: '+await labelAmount(TREE,a.buy.tree));const spent=await Promise.all(a.buy.spent.map(([c,v])=>labelAmount(c,v)));lines.push('Spent: '+spent.join(' + '),'Exchange: '+a.buy.venues.join(' + '));if(value)lines.push('Estimated value: $'+value.toFixed(2));if(flags.daily&&flags.weekly)lines.push('🏆 Also the largest buy today');}
+ if(a.buy){lines.push('Purchased: '+await labelAmount(TREE,a.buy.tree));const spent=await Promise.all(a.buy.spent.map(([c,v])=>labelAmount(c,v)));lines.push('Spent: '+spent.join(' + '),'Exchange: '+a.buy.venues.join(' + '));if(value)lines.push('Spent value: ~'+usd(value));const received=treeValue(a.buy.tree,(await metadata(TREE)).decimals,quote);if(received!==null)lines.push('TREE received value: ~'+usd(received));if(flags.daily&&flags.weekly)lines.push('🏆 Also the largest buy today');}
  if(a.deposits.length){if(a.buy)lines.push('','💧 Liquidity added in the same transaction');for(const d of a.deposits){lines.push(d.venue+': '+(await Promise.all(d.coins.map((c,i)=>labelAmount(c,d.amounts[i])))).join(' + '));}}
- lines.push('',...marketLines(),'',(a.buy?'Buyer':'Provider')+': '+person);
+ lines.push('',...marketLines());
+ const touched=[...new Set(tx.effects.events.nodes.map(e=>classify(e.contents,pools)).filter(Boolean).map(e=>e.pool))];
+ for(const id of touched.slice(0,3)){const info=await poolSnapshot(id);if(info)lines.push(info);}
+ if(touched.length>3)lines.push('Additional pools: '+(touched.length-3)+' (see TX)');
+ lines.push('Current snapshots; USD values estimated.');
+ if(a.buy){const bar=growthBar(value);if(bar)lines.push('',bar);}
+ lines.push('',(a.buy?'Buyer':'Provider')+': '+person);
  if(flags.daily||flags.weekly)lines.push('Record among USD-valued buys observed since monitoring began. Central Time; week starts Monday.');
  lines.push('','www.tree-token.xyz');
  lines.splice(1,0,alertQuip(graphic,a.digest));
@@ -156,7 +176,7 @@ async function market(){
  const pairs=await fetchMarket();let source=get('priceSource');if(!source){const p=chooseMarket(pairs);if(!p)throw Error('No suitable liquid reference pool');source=p.pairAddress;put('priceSource',source);}
  const p=pairs.find(p=>p.pairAddress===source);if(!p||norm(p.baseToken.address)!==norm(TREE)||!(Number(p.priceUsd)>0)||Number(p.liquidity?.usd)<1000)throw Error('Reference price unavailable; milestones paused');
  const now=Date.now(),pct=Number(p.priceChange?.h24);const price=Number(p.priceUsd),native=Number(p.priceNative);
- quote={at:now,marketCap:Number(p.marketCap)>0?Number(p.marketCap):null,suiUSD:native>0&&norm(p.quoteToken.address)===norm(SUI)?price/native:null,price};
+ quote={at:now,pct24:Number.isFinite(pct)?pct:null,marketCap:Number(p.marketCap)>0?Number(p.marketCap):null,suiUSD:native>0&&norm(p.quoteToken.address)===norm(SUI)?price/native:null,price};
  // Require 3 consecutive valid samples at least one minute apart and $50 daily volume.
  const prior=get('priceSamples',[]).filter(s=>now-s.at<=600000);if(!prior.length||now-prior.at(-1).at>=55000)prior.push({at:now,pct});put('priceSamples',prior.slice(-3));
  if(prior.length<3||prior.at(-1).at-prior[0].at<110000||!Number.isFinite(pct)||Number(p.volume?.h24)<50)return;
