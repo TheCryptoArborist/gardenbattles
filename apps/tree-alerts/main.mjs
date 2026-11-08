@@ -1,3 +1,4 @@
+import {parseIndexer,marketSupplement} from './suidex-indexer.mjs';
 import {compact,usd,balances,coinUSD,treeValue,growthBar,alertButtons} from './rich-alerts.mjs';
 import {DatabaseSync} from 'node:sqlite';
 import {mkdirSync,readFileSync} from 'node:fs';
@@ -33,11 +34,20 @@ async function loadPool(id){
 async function fetchMarket(){
  const r=await request('https://api.dexscreener.com/latest/dex/tokens/'+TREE);if(!Array.isArray(r.pairs))throw Error('Missing market pairs');return r.pairs;
 }
+
+let indexerCache=null,indexerAt=0;
+async function getIndexer(){
+ if(indexerCache&&Date.now()-indexerAt<55000)return indexerCache;
+ const [tokens,v2,v3]=await Promise.all(['/api/tokens','/api/pools','/api/v3/pools'].map(path=>request('https://dex.suidex.org'+path)));
+ const result=parseIndexer(tokens,v2,v3);indexerCache=result;indexerAt=Date.now();return result;
+}
+
 async function discover(){
  const ids=new Set([...SEEDS,...get('poolIds',[])]);let sourceSuccess=0;
  try{const pairs=await fetchMarket();for(const p of pairs)if(['turbos-finance','cetus','suidex'].includes(p.dexId)&&/^0x[0-9a-f]{64}$/.test(p.pairAddress))ids.add(p.pairAddress);sourceSuccess++;}catch(e){log('discovery_warning',{source:'dexscreener',error:e.message});}
  try{const r=await request('https://dex.suidex.org/api/v3/pools');if(!Array.isArray(r))throw Error('Missing SuiDex pools');for(const p of r)if([p.token_x_type,p.token_y_type].map(norm).includes(norm(TREE)))ids.add(p.pool_id);sourceSuccess++;}catch(e){log('discovery_warning',{source:'suidex-v3',error:e.message});}
- for(const id of ids){if(!/^0x[0-9a-f]{64}$/.test(id))continue;await loadPool(id);}
+ try{const idx=await getIndexer();for(const p of idx.pools)ids.add(p.id);sourceSuccess++;}catch(e){log('discovery_warning',{source:'suidex-indexer',error:e.message});}
+ for(const id of ids){if(!/^0x[0-9a-f]{64}$/.test(id))continue;try{await loadPool(id);}catch(e){if(SEEDS.includes(id))throw e;log('discovery_warning',{pool:id,error:e.message});}}
  put('poolIds',[...pools.keys()]);health.pools=pools.size;log('pool_discovery',{pools:[...pools.values()].map(p=>({venue:p.venue,id:p.id})),sources:sourceSuccess});
  if(!SEEDS.every(id=>pools.has(id)))throw Error('A required TREE pool is missing');
 }
@@ -115,7 +125,8 @@ function marketLines(snapshot=quote,now=Date.now()){
  const price=Number(snapshot.price),cap=Number(snapshot.marketCap);
  return ['Token price: '+(Number.isFinite(price)&&price>0?'$'+price.toFixed(8):'unavailable'),
  'Market cap: '+(Number.isFinite(cap)&&cap>0?usd(cap):'unavailable'),
- '24h change: '+(Number.isFinite(snapshot.pct24)?(snapshot.pct24>=0?'+':'')+snapshot.pct24.toFixed(2)+'%':'unavailable')];
+ '24h change: '+(Number.isFinite(snapshot.pct24)?(snapshot.pct24>=0?'+':'')+snapshot.pct24.toFixed(2)+'%':'unavailable'),
+ 'Sources: price '+snapshot.priceSource+'; cap '+(snapshot.capSource||'unavailable')+'; 24h '+(snapshot.changeSource||'unavailable')];
 }
 async function labelAmount(coin,amount){const m=await metadata(coin);return units(amount,m.decimals)+' '+(norm(coin)===norm(TREE)?'TREE':m.symbol);}
 
@@ -127,7 +138,9 @@ async function poolSnapshot(id){
   let total=0,valued=true;const parts=[];
   for(let i=0;i<2;i++){const m=await metadata(p.coins[i]),n=Number(raw[i])/10**m.decimals,price=coinUSD(p.coins[i],quote);
    parts.push(compact(n)+' '+(p.coins[i]===norm(TREE)?'TREE':m.symbol));if(price===null)valued=false;else total+=n*price;}
-  return '💧 '+p.venue+' pool: '+parts.join(' | ')+(valued?' | ~'+usd(total)+' total':' | USD total unavailable');
+  const indexed=indexerCache&&Date.now()-indexerAt<=180000?indexerCache.pools.find(x=>x.id===id&&Number.isFinite(x.updatedAt)&&Date.now()-x.updatedAt<=300000):null;
+  const tvl=indexed&&Number.isFinite(indexed.tvl)&&indexed.tvl>=0?indexed.tvl:null;
+  return '💧 '+p.venue+' pool: '+parts.join(' | ')+(tvl!==null?' | ~'+usd(tvl)+' total (SuiDex indexer)':valued?' | ~'+usd(total)+' total':' | USD total unavailable')+(indexed&&Number.isFinite(indexed.volume)?' | 24h vol '+usd(indexed.volume):'');
  }catch(e){log('pool_snapshot_warning',{pool:id,error:e.message});return '💧 '+p.venue+' pool snapshot unavailable';}
 }
 
@@ -173,10 +186,22 @@ async function poll(){
  health.lastPoll=new Date().toISOString();
 }
 async function market(){
- const pairs=await fetchMarket();let source=get('priceSource');if(!source){const p=chooseMarket(pairs);if(!p)throw Error('No suitable liquid reference pool');source=p.pairAddress;put('priceSource',source);}
- const p=pairs.find(p=>p.pairAddress===source);if(!p||norm(p.baseToken.address)!==norm(TREE)||!(Number(p.priceUsd)>0)||Number(p.liquidity?.usd)<1000)throw Error('Reference price unavailable; milestones paused');
- const now=Date.now(),pct=Number(p.priceChange?.h24);const price=Number(p.priceUsd),native=Number(p.priceNative);
- quote={at:now,pct24:Number.isFinite(pct)?pct:null,marketCap:Number(p.marketCap)>0?Number(p.marketCap):null,suiUSD:native>0&&norm(p.quoteToken.address)===norm(SUI)?price/native:null,price};
+
+ let pairs=[],idx=null;
+ try{idx=await getIndexer();}catch(e){log('indexer_warning',{error:e.message});}
+ try{pairs=await fetchMarket();}catch(e){log('market_supplement_warning',{error:e.message});}
+ let source=get('priceSource');
+ if(!source){const selected=chooseMarket(pairs);if(selected){source=selected.pairAddress;put('priceSource',source);}}
+ const p=pairs.find(p=>p.pairAddress===source);
+ const now=Date.now(),pct=typeof p?.priceChange?.h24==='number'?p.priceChange.h24:NaN;
+ const supplement=marketSupplement(pairs,p);
+ const price=idx?.treePrice||(Number(p?.priceUsd)>0?Number(p.priceUsd):null),native=Number(p?.priceNative);
+ if(!(price>0))throw Error('TREE price unavailable from both sources');
+ quote={at:now,...supplement,priceSource:idx?.treePrice?'SuiDex indexer':'Dexscreener '+p.dexId,
+ suiUSD:idx?.suiPrice||(native>0&&norm(p?.quoteToken?.address)===norm(SUI)?Number(p.priceUsd)/native:null),price};
+ log('market_snapshot',{priceSource:quote.priceSource,marketCap:quote.marketCap,capSource:quote.capSource,pct24:quote.pct24,changeSource:quote.changeSource});
+ // Keep milestone history pinned to its existing reference pool.
+ if(!p||Number(p.liquidity?.usd)<1000)return;
  // Require 3 consecutive valid samples at least one minute apart and $50 daily volume.
  const prior=get('priceSamples',[]).filter(s=>now-s.at<=600000);if(!prior.length||now-prior.at(-1).at>=55000)prior.push({at:now,pct});put('priceSamples',prior.slice(-3));
  if(prior.length<3||prior.at(-1).at-prior[0].at<110000||!Number.isFinite(pct)||Number(p.volume?.h24)<50)return;
