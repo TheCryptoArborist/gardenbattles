@@ -1,9 +1,10 @@
+import {GAME_ALERT_IMAGES} from './game-alert-photo.mjs';
 const URL_BASE='https://tree-token.xyz/play/canopy-breaker/';
 export function canopyCompletionMessage(entry){
  if(!/^[a-f0-9]{32}$/.test(entry.id)||!Number.isSafeInteger(entry.completedAt)||!Number.isSafeInteger(entry.score)||entry.score<0||!Number.isInteger(entry.level)||entry.level<1||entry.level>30||!['won','gameover'].includes(entry.outcome))throw Error('Invalid Canopy Breaker completion');
  const suiName=typeof entry.suinsName==='string'&&/^(?:[a-z0-9-]+\.)+sui$/i.test(entry.suinsName)?entry.suinsName:null;
  const player=suiName || (typeof entry.username==='string'&&/^[A-Za-z0-9][A-Za-z0-9 _-]{2,19}$/.test(entry.username)?entry.username:'An NFTree player');
- return {text:`🌳 Canopy Breaker run complete!\n\n${entry.outcome==='won'?'🏆 All 30 groves cleared!':'🧱 Three lives down — another canopy awaits!'}\nPlayer: ${player}\nScore: ${entry.score.toLocaleString('en-US')}\nGrove: ${entry.level} / 30\n\n${URL_BASE}`,reply_markup:{inline_keyboard:[[{text:'Play Canopy Breaker',url:URL_BASE},{text:'Leaderboard',url:URL_BASE+'#leaderboard'}]]}};
+ return {photo:GAME_ALERT_IMAGES.canopy,text:`🌳 Canopy Breaker run complete!\n\n${entry.outcome==='won'?'🏆 All 30 groves cleared!':'🧱 Three lives down — another canopy awaits!'}\nPlayer: ${player}\nScore: ${entry.score.toLocaleString('en-US')}\nGrove: ${entry.level} / 30\n\n${URL_BASE}`,reply_markup:{inline_keyboard:[[{text:'Play Canopy Breaker',url:URL_BASE},{text:'Leaderboard',url:URL_BASE+'#leaderboard'}]]}};
 }
 export async function pollCanopyCompletions({state,save,send,fetchFn=fetch}){
  const get=async suffix=>{

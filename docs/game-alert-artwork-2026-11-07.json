@@ -1,0 +1,20 @@
+{
+  "assets": [
+    {
+      "game": "Tree Force 89",
+      "path": "apps/garden-battles/battle-gardenfrontend/public/images/treeforce89-alert.png",
+      "sha256": "2df0ecde973dfbd9b8dc2ac214ca037acb97ebda4c86e756d98bddf24b4f79e6",
+      "gitBlob": "9aefb1076d27c51ae008203b0e0b175b37bba295",
+      "bytes": 485152
+    },
+    {
+      "game": "Canopy Breaker",
+      "path": "apps/garden-battles/battle-gardenfrontend/public/images/canopy-breaker-alert.png",
+      "sha256": "80176da660e2dac863ec6d7487467458fc673d7a6b839e3a74f6515b206656f4",
+      "gitBlob": "6acbd0b81a87c2232e04e699a4e2497c31bddd73",
+      "bytes": 950974
+    }
+  ],
+  "behavior": "Photo plus existing result caption, SuiNS name and play button. Only explicit image rejection falls back to text. One setup photo per game verifies Telegram delivery. No historical results are replayed.",
+  "testsPassed": 50
+}

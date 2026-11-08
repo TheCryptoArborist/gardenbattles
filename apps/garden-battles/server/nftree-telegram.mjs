@@ -1,3 +1,4 @@
+import {sendGameAlert,announceGameArtwork} from './game-alert-photo.mjs';
 import {pollWeekly} from './weekly-arcade.mjs';
 import { mkdirSync, readFileSync, writeFileSync, renameSync, existsSync } from 'node:fs';
 import path from 'node:path';
@@ -147,10 +148,12 @@ export function startNftreeTelegramNotifier() {
         } catch (error) { console.error(`[nftree-alerts] ${type}: ${error instanceof Error ? error.message : 'Poll failed'}`); }
       }
       try {
-        await pollCanopyCompletions({state, save, send: message => telegram('sendMessage', {...target, text: message.text, reply_markup: message.reply_markup, disable_web_page_preview: true})});
+        await pollCanopyCompletions({state, save, send: message => sendGameAlert(message,(method,body)=>telegram(method,{...target,...body}))});
       } catch (error) { console.error('[nftree-alerts] Canopy Breaker:', error instanceof Error ? error.message : 'Poll failed'); }
-      try { await pollTreeForceCompletions({state,save,send: message => telegram('sendMessage', {...target,text:message.text,reply_markup:message.reply_markup,disable_web_page_preview:true})}); }
+      try { await pollTreeForceCompletions({state,save,send: message => sendGameAlert(message,(method,body)=>telegram(method,{...target,...body}))}); }
       catch(error){console.error('[nftree-alerts] TREE FORCE:',error instanceof Error?error.message:'Poll failed');}
+      try { await announceGameArtwork({state,save,telegram:(method,body)=>telegram(method,{...target,...body})}); }
+      catch(error){console.error('[nftree-alerts] Game artwork:',error instanceof Error?error.message:'Delivery failed');}
       try { await pollWeekly({state,save,query:queryEvents,streams:GARDEN_BOT_STREAMS,send:message=>telegram('sendMessage',{...target,text:message.text,reply_markup:message.reply_markup,disable_web_page_preview:true})}); }
       catch(error){console.error('[weekly-arcade]',error instanceof Error?error.message:'Poll failed');}
       if (!state.suinsActivationSent) {

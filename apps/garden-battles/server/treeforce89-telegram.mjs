@@ -1,9 +1,10 @@
+import {GAME_ALERT_IMAGES} from './game-alert-photo.mjs';
 const endpoint='https://tree-token.xyz/api/treeforce89-leaderboard?completions=1';
 const game='https://tree-token.xyz/play/treeforce89/';
 export function treeForceMessage(e){
  if(!/^[a-f0-9]{32}$/.test(e.id)||!Number.isSafeInteger(e.completedAt)||!Number.isSafeInteger(e.score)||e.score<0||!Number.isInteger(e.wave)||e.wave<1||e.wave>10||typeof e.cleared!=='boolean')throw Error('Invalid TREE FORCE ending');
  const name=typeof e.suinsName==='string'&&/^(?:[a-z0-9-]+\.)+sui$/i.test(e.suinsName)?e.suinsName:typeof e.username==='string'&&/^[A-Za-z0-9][A-Za-z0-9 _-]{2,19}$/.test(e.username)?e.username:'An NFTree pilot';
- return {text:`🌳 TREE FORCE ’89 mission complete!\n\n${e.cleared?'🏆 Canopy Tyrant defeated!':'🚀 Patrol finished — ready for another flight?'}\nPilot: ${name}\nScore: ${e.score.toLocaleString('en-US')}\nWave reached: ${e.wave}\nAchievements this run: ${Number.isInteger(e.badges)?e.badges:0}\n\n${game}`,reply_markup:{inline_keyboard:[[{text:'Play TREE FORCE ’89',url:game}]]}};
+ return {photo:GAME_ALERT_IMAGES.force,text:`🌳 TREE FORCE ’89 mission complete!\n\n${e.cleared?'🏆 Canopy Tyrant defeated!':'🚀 Patrol finished — ready for another flight?'}\nPilot: ${name}\nScore: ${e.score.toLocaleString('en-US')}\nWave reached: ${e.wave}\nAchievements this run: ${Number.isInteger(e.badges)?e.badges:0}\n\n${game}`,reply_markup:{inline_keyboard:[[{text:'Play TREE FORCE ’89',url:game}]]}};
 }
 export async function pollTreeForceCompletions({state,save,send,fetchFn=fetch}){
  const get=async suffix=>{const r=await fetchFn(endpoint+suffix,{signal:AbortSignal.timeout(20000),cache:'no-store'});if(!r.ok)throw Error(`TREE FORCE completion feed HTTP ${r.status}`);const p=await r.json();if(!Array.isArray(p.entries)||!Number.isSafeInteger(p.cursor?.at)||p.cursor.at<0||typeof p.cursor.key!=='string'||!/^([a-f0-9]{32})?$/.test(p.cursor.key)||typeof p.hasMore!=='boolean')throw Error('Invalid TREE FORCE completion feed');return p;};
