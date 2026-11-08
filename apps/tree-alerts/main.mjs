@@ -109,6 +109,145 @@ async function pagePool(id,cursor,initial=false){
  return(await gql(query,{id,c:cursor,cp:from})).transactions;
 }
 let quote=null;
+function marketLines(snapshot=quote,now=Date.now()){
+ if(!snapshot||now-snapshot.at>180000)return ['Token price: temporarily unavailable','Market cap: temporarily unavailable'];
+ const price=Number(snapshot.price),cap=Number(snapshot.marketCap);
+ return ['Token price: '+(Number.isFinite(price)&&price>0?'
+async function labelAmount(coin,amount){const m=await metadata(coin);return units(amount,m.decimals)+' '+(norm(coin)===norm(TREE)?'TREE':m.symbol);}
+async function processTx(tx){
+ if(db.prepare('SELECT 1 FROM seen WHERE digest=?').get(tx.digest))return;
+ await transactionEvents(tx);
+ // Load other pools touched by this transaction so routed swaps are counted once.
+ for(const e of tx.effects.events.nodes){const f=e.contents.json;const pkg=e.contents.type.repr.split('::')[0];if(PACKAGES[pkg]&&(f.pool||f.pool_id))await loadPool(f.pool||f.pool_id);}
+ const a=analyze(tx,pools);if(!a){db.prepare('INSERT OR IGNORE INTO seen VALUES(?,?)').run(tx.digest,Date.now());return;}
+ let value=null,flags={daily:false,weekly:false},period=periods(a.time);
+ if(a.buy){value=estimateBuyUSD(a.buy,meta,quote,a.time,Date.now());const prev={dayCount:db.prepare('SELECT COUNT(*) n FROM buys WHERE day=? AND usd>0').get(period.day).n,weekCount:db.prepare('SELECT COUNT(*) n FROM buys WHERE week=? AND usd>0').get(period.week).n,dayMax:db.prepare('SELECT COALESCE(MAX(usd),0) n FROM buys WHERE day=?').get(period.day).n,weekMax:db.prepare('SELECT COALESCE(MAX(usd),0) n FROM buys WHERE week=?').get(period.week).n};flags=recordFlags(prev,value);}
+ const person=await nameFor(a.wallet)||a.wallet;
+ const graphic=flags.weekly?'weekly':flags.daily?'daily':a.buy?'buy':'liquidity';
+ const lines=[flags.weekly?'👑 LARGEST BUY THIS WEEK':flags.daily?'🏆 LARGEST BUY TODAY':a.buy?'🌳 NEW TREE PURCHASE':'💧 LIQUIDITY ADDED',''];
+ if(a.buy){lines.push('Purchased: '+await labelAmount(TREE,a.buy.tree));const spent=await Promise.all(a.buy.spent.map(([c,v])=>labelAmount(c,v)));lines.push('Spent: '+spent.join(' + '),'Exchange: '+a.buy.venues.join(' + '));if(value)lines.push('Estimated value: $'+value.toFixed(2));if(flags.daily&&flags.weekly)lines.push('🏆 Also the largest buy today');}
+ if(a.deposits.length){if(a.buy)lines.push('','💧 Liquidity added in the same transaction');for(const d of a.deposits){lines.push(d.venue+': '+(await Promise.all(d.coins.map((c,i)=>labelAmount(c,d.amounts[i])))).join(' + '));}}
+ lines.push('',...marketLines(),'',(a.buy?'Buyer':'Provider')+': '+person);
+ if(flags.daily||flags.weekly)lines.push('Record among USD-valued buys observed since monitoring began. Central Time; week starts Monday.');
+ lines.push('','www.tree-token.xyz');
+ lines.splice(1,0,alertQuip(graphic,a.digest));
+ const payload={graphic,text:lines.join('\n'),tx:a.digest};
+ await deliver('tx:'+a.digest,payload);
+ db.exec('BEGIN IMMEDIATE');try{if(a.buy)db.prepare('INSERT OR IGNORE INTO buys VALUES(?,?,?,?,?)').run(a.digest,a.time,period.day,period.week,value);db.prepare('INSERT OR IGNORE INTO seen VALUES(?,?)').run(tx.digest,Date.now());db.exec('COMMIT');}catch(e){db.exec('ROLLBACK');throw e;}
+ log('transaction_processed',{digest:a.digest,buy:!!a.buy,liquidity:a.deposits.length,record:flags,usd:value});
+}
+async function poll(){
+ const batches=[];
+ for(const p of pools.values()){
+  const cursor=get('cursor:'+p.id);
+  if(!cursor&&get('fromCheckpoint:'+p.id)===null){const page=await pagePool(p.id,null,true);if(!page.pageInfo.endCursor)throw Error('Cannot baseline pool '+p.id);put('cursor:'+p.id,page.pageInfo.endCursor);log('pool_baselined',{venue:p.venue,pool:p.id});continue;}
+  let c=cursor;for(let n=0;n<40;n++){const page=await pagePool(p.id,c);batches.push({id:p.id,page});if(!page.pageInfo.hasNextPage)break;if(!page.pageInfo.endCursor||page.pageInfo.endCursor===c)throw Error('Pool cursor did not advance');c=page.pageInfo.endCursor;if(n===39)log('backlog_warning',{pool:p.id});}
+ }
+ const transactions=new Map();for(const b of batches)for(const edge of b.page.edges)transactions.set(edge.node.digest,edge.node);
+ for(const tx of [...transactions.values()].sort((a,b)=>Date.parse(a.effects.timestamp)-Date.parse(b.effects.timestamp)))await processTx(tx);
+ // Commit pool cursors only when every transaction in the batch is processed.
+ for(const b of batches)if(b.page.pageInfo.endCursor)put('cursor:'+b.id,b.page.pageInfo.endCursor);
+ health.lastPoll=new Date().toISOString();
+}
+async function market(){
+ const pairs=await fetchMarket();let source=get('priceSource');if(!source){const p=chooseMarket(pairs);if(!p)throw Error('No suitable liquid reference pool');source=p.pairAddress;put('priceSource',source);}
+ const p=pairs.find(p=>p.pairAddress===source);if(!p||norm(p.baseToken.address)!==norm(TREE)||!(Number(p.priceUsd)>0)||Number(p.liquidity?.usd)<1000)throw Error('Reference price unavailable; milestones paused');
+ const now=Date.now(),pct=Number(p.priceChange?.h24);const price=Number(p.priceUsd),native=Number(p.priceNative);
+ quote={at:now,marketCap:Number(p.marketCap)>0?Number(p.marketCap):null,suiUSD:native>0&&norm(p.quoteToken.address)===norm(SUI)?price/native:null,price};
+ // Require 3 consecutive valid samples at least one minute apart and $50 daily volume.
+ const prior=get('priceSamples',[]).filter(s=>now-s.at<=600000);if(!prior.length||now-prior.at(-1).at>=55000)prior.push({at:now,pct});put('priceSamples',prior.slice(-3));
+ if(prior.length<3||prior.at(-1).at-prior[0].at<110000||!Number.isFinite(pct)||Number(p.volume?.h24)<50)return;
+ const confirmed=Math.min(...prior.map(s=>s.pct));if(!Number.isFinite(confirmed))return;
+ const old=get('priceMilestones',{}),step=priceStep(old,confirmed,now);
+ if(step.hit){await deliver('price:'+step.hit+':'+now,{graphic:step.hit===20?'up20':'up10',text:`${step.hit===20?'🚀':'📈'} TREE UP ${step.hit}%\n${alertQuip(step.hit===20?'up20':'up10',now)}\n\n24-hour change: +${pct.toFixed(2)}%\n${marketLines().join('\n')}\nSource: Dexscreener · ${p.dexId}\nReference pool: ${p.pairAddress}\n\nConfirmed across three samples.\nwww.tree-token.xyz`});}
+ put('priceMilestones',step.state);
+}
+async function main(){
+ if(get('startedAt')===null)put('startedAt',new Date().toISOString());
+ await discover();await newPools();
+ if(env.TELEGRAM_BOT_TOKEN){await verifyTelegram();if(env.SEND_SETUP_TEST==='true')await deliver('setup-test-v1',{graphic:'buy',text:'🌳 TREE ALERTS — SETUP TEST\n\n@TreeGatekeeperBot is connected to this topic.\nPrepared: TREE buys, liquidity deposits, +10% / +20% price milestones, and daily / weekly buy records.\n\nThis is a connection test, not a purchase.\nwww.tree-token.xyz'},{force:true});}
+
+ if(env.TEST_NOTIFICATION_BATCH&&chatId){
+  const batch=env.TEST_NOTIFICATION_BATCH;
+  await deliver('manual-test:'+batch+':buy',{graphic:'buy',text:"🧪 TEST — NEW TREE PURCHASE\\n\\nTree-mendous! This wallet just put down roots. 🌱\\n\\nExample purchase: 100,000 TREE\\nExample spend: 3 SUI\\nExchange example: SuiDex\\n\\nSample data only—no actual purchase occurred.\\nwww.tree-token.xyz"},{force:true});
+  await deliver('manual-test:'+batch+':liquidity',{graphic:'liquidity',text:"🧪 TEST — LIQUIDITY ADDED\\n\\nNow that’s what we call liquid roots. 💧\\n\\nExample deposit: 100,000 TREE + 3 SUI\\nExchange example: Turbos\\n\\nSample data only—no actual deposit occurred.\\nwww.tree-token.xyz"},{force:true});
+ }
+
+ if(enabled&&!chatId)throw Error('Live mode needs verified Telegram settings');
+ try{await market();}catch(e){log('price_warning',{error:e.message});}await poll();health.ready=true;health.lastError=null;log('watcher_ready',{mode:health.mode,pools:pools.size,startedAt:get('startedAt')});
+ let cycle=0;while(true){await sleep(30000);try{await newPools();if(cycle%20===0)await discover();if(cycle%2===0)try{await market();}catch(e){log('price_warning',{error:e.message});}await poll();health.ready=true;health.lastError=null;cycle++;}catch(e){health.ready=false;health.lastError=e.message;log('watcher_error',{error:e.message});}}
+}
+main().catch(e=>{health.lastError=e.message;log('startup_failed',{error:e.message});setTimeout(()=>process.exit(1),2000);});
++price.toFixed(8):'unavailable'),
+ 'Market cap: '+(Number.isFinite(cap)&&cap>0?'
+async function labelAmount(coin,amount){const m=await metadata(coin);return units(amount,m.decimals)+' '+(norm(coin)===norm(TREE)?'TREE':m.symbol);}
+async function processTx(tx){
+ if(db.prepare('SELECT 1 FROM seen WHERE digest=?').get(tx.digest))return;
+ await transactionEvents(tx);
+ // Load other pools touched by this transaction so routed swaps are counted once.
+ for(const e of tx.effects.events.nodes){const f=e.contents.json;const pkg=e.contents.type.repr.split('::')[0];if(PACKAGES[pkg]&&(f.pool||f.pool_id))await loadPool(f.pool||f.pool_id);}
+ const a=analyze(tx,pools);if(!a){db.prepare('INSERT OR IGNORE INTO seen VALUES(?,?)').run(tx.digest,Date.now());return;}
+ let value=null,flags={daily:false,weekly:false},period=periods(a.time);
+ if(a.buy){value=estimateBuyUSD(a.buy,meta,quote,a.time,Date.now());const prev={dayCount:db.prepare('SELECT COUNT(*) n FROM buys WHERE day=? AND usd>0').get(period.day).n,weekCount:db.prepare('SELECT COUNT(*) n FROM buys WHERE week=? AND usd>0').get(period.week).n,dayMax:db.prepare('SELECT COALESCE(MAX(usd),0) n FROM buys WHERE day=?').get(period.day).n,weekMax:db.prepare('SELECT COALESCE(MAX(usd),0) n FROM buys WHERE week=?').get(period.week).n};flags=recordFlags(prev,value);}
+ const person=await nameFor(a.wallet)||a.wallet;
+ const graphic=flags.weekly?'weekly':flags.daily?'daily':a.buy?'buy':'liquidity';
+ const lines=[flags.weekly?'👑 LARGEST BUY THIS WEEK':flags.daily?'🏆 LARGEST BUY TODAY':a.buy?'🌳 NEW TREE PURCHASE':'💧 LIQUIDITY ADDED',''];
+ if(a.buy){lines.push('Purchased: '+await labelAmount(TREE,a.buy.tree));const spent=await Promise.all(a.buy.spent.map(([c,v])=>labelAmount(c,v)));lines.push('Spent: '+spent.join(' + '),'Exchange: '+a.buy.venues.join(' + '));if(value)lines.push('Estimated value: $'+value.toFixed(2));if(flags.daily&&flags.weekly)lines.push('🏆 Also the largest buy today');}
+ if(a.deposits.length){if(a.buy)lines.push('','💧 Liquidity added in the same transaction');for(const d of a.deposits){lines.push(d.venue+': '+(await Promise.all(d.coins.map((c,i)=>labelAmount(c,d.amounts[i])))).join(' + '));}}
+ lines.push('',(a.buy?'Buyer':'Provider')+': '+person);
+ if(flags.daily||flags.weekly)lines.push('Record among USD-valued buys observed since monitoring began. Central Time; week starts Monday.');
+ lines.push('','www.tree-token.xyz');
+ lines.splice(1,0,alertQuip(graphic,a.digest));
+ const payload={graphic,text:lines.join('\n'),tx:a.digest};
+ await deliver('tx:'+a.digest,payload);
+ db.exec('BEGIN IMMEDIATE');try{if(a.buy)db.prepare('INSERT OR IGNORE INTO buys VALUES(?,?,?,?,?)').run(a.digest,a.time,period.day,period.week,value);db.prepare('INSERT OR IGNORE INTO seen VALUES(?,?)').run(tx.digest,Date.now());db.exec('COMMIT');}catch(e){db.exec('ROLLBACK');throw e;}
+ log('transaction_processed',{digest:a.digest,buy:!!a.buy,liquidity:a.deposits.length,record:flags,usd:value});
+}
+async function poll(){
+ const batches=[];
+ for(const p of pools.values()){
+  const cursor=get('cursor:'+p.id);
+  if(!cursor&&get('fromCheckpoint:'+p.id)===null){const page=await pagePool(p.id,null,true);if(!page.pageInfo.endCursor)throw Error('Cannot baseline pool '+p.id);put('cursor:'+p.id,page.pageInfo.endCursor);log('pool_baselined',{venue:p.venue,pool:p.id});continue;}
+  let c=cursor;for(let n=0;n<40;n++){const page=await pagePool(p.id,c);batches.push({id:p.id,page});if(!page.pageInfo.hasNextPage)break;if(!page.pageInfo.endCursor||page.pageInfo.endCursor===c)throw Error('Pool cursor did not advance');c=page.pageInfo.endCursor;if(n===39)log('backlog_warning',{pool:p.id});}
+ }
+ const transactions=new Map();for(const b of batches)for(const edge of b.page.edges)transactions.set(edge.node.digest,edge.node);
+ for(const tx of [...transactions.values()].sort((a,b)=>Date.parse(a.effects.timestamp)-Date.parse(b.effects.timestamp)))await processTx(tx);
+ // Commit pool cursors only when every transaction in the batch is processed.
+ for(const b of batches)if(b.page.pageInfo.endCursor)put('cursor:'+b.id,b.page.pageInfo.endCursor);
+ health.lastPoll=new Date().toISOString();
+}
+async function market(){
+ const pairs=await fetchMarket();let source=get('priceSource');if(!source){const p=chooseMarket(pairs);if(!p)throw Error('No suitable liquid reference pool');source=p.pairAddress;put('priceSource',source);}
+ const p=pairs.find(p=>p.pairAddress===source);if(!p||norm(p.baseToken.address)!==norm(TREE)||!(Number(p.priceUsd)>0)||Number(p.liquidity?.usd)<1000)throw Error('Reference price unavailable; milestones paused');
+ const now=Date.now(),pct=Number(p.priceChange?.h24);const price=Number(p.priceUsd),native=Number(p.priceNative);
+ quote={at:now,suiUSD:native>0&&norm(p.quoteToken.address)===norm(SUI)?price/native:null,price};
+ // Require 3 consecutive valid samples at least one minute apart and $50 daily volume.
+ const prior=get('priceSamples',[]).filter(s=>now-s.at<=600000);if(!prior.length||now-prior.at(-1).at>=55000)prior.push({at:now,pct});put('priceSamples',prior.slice(-3));
+ if(prior.length<3||prior.at(-1).at-prior[0].at<110000||!Number.isFinite(pct)||Number(p.volume?.h24)<50)return;
+ const confirmed=Math.min(...prior.map(s=>s.pct));if(!Number.isFinite(confirmed))return;
+ const old=get('priceMilestones',{}),step=priceStep(old,confirmed,now);
+ if(step.hit){await deliver('price:'+step.hit+':'+now,{graphic:step.hit===20?'up20':'up10',text:`${step.hit===20?'🚀':'📈'} TREE UP ${step.hit}%\n${alertQuip(step.hit===20?'up20':'up10',now)}\n\n24-hour change: +${pct.toFixed(2)}%\nReference price: $${price.toFixed(8)}\nSource: Dexscreener · ${p.dexId}\nReference pool: ${p.pairAddress}\n\nConfirmed across three samples.\nwww.tree-token.xyz`});}
+ put('priceMilestones',step.state);
+}
+async function main(){
+ if(get('startedAt')===null)put('startedAt',new Date().toISOString());
+ await discover();await newPools();
+ if(env.TELEGRAM_BOT_TOKEN){await verifyTelegram();if(env.SEND_SETUP_TEST==='true')await deliver('setup-test-v1',{graphic:'buy',text:'🌳 TREE ALERTS — SETUP TEST\n\n@TreeGatekeeperBot is connected to this topic.\nPrepared: TREE buys, liquidity deposits, +10% / +20% price milestones, and daily / weekly buy records.\n\nThis is a connection test, not a purchase.\nwww.tree-token.xyz'},{force:true});}
+
+ if(env.TEST_NOTIFICATION_BATCH&&chatId){
+  const batch=env.TEST_NOTIFICATION_BATCH;
+  await deliver('manual-test:'+batch+':buy',{graphic:'buy',text:"🧪 TEST — NEW TREE PURCHASE\\n\\nTree-mendous! This wallet just put down roots. 🌱\\n\\nExample purchase: 100,000 TREE\\nExample spend: 3 SUI\\nExchange example: SuiDex\\n\\nSample data only—no actual purchase occurred.\\nwww.tree-token.xyz"},{force:true});
+  await deliver('manual-test:'+batch+':liquidity',{graphic:'liquidity',text:"🧪 TEST — LIQUIDITY ADDED\\n\\nNow that’s what we call liquid roots. 💧\\n\\nExample deposit: 100,000 TREE + 3 SUI\\nExchange example: Turbos\\n\\nSample data only—no actual deposit occurred.\\nwww.tree-token.xyz"},{force:true});
+ }
+
+ if(enabled&&!chatId)throw Error('Live mode needs verified Telegram settings');
+ try{await market();}catch(e){log('price_warning',{error:e.message});}await poll();health.ready=true;health.lastError=null;log('watcher_ready',{mode:health.mode,pools:pools.size,startedAt:get('startedAt')});
+ let cycle=0;while(true){await sleep(30000);try{await newPools();if(cycle%20===0)await discover();if(cycle%2===0)try{await market();}catch(e){log('price_warning',{error:e.message});}await poll();health.ready=true;health.lastError=null;cycle++;}catch(e){health.ready=false;health.lastError=e.message;log('watcher_error',{error:e.message});}}
+}
+main().catch(e=>{health.lastError=e.message;log('startup_failed',{error:e.message});setTimeout(()=>process.exit(1),2000);});
++cap.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}):'unavailable'),
+ 'Market snapshot: Dexscreener'];
+}
 async function labelAmount(coin,amount){const m=await metadata(coin);return units(amount,m.decimals)+' '+(norm(coin)===norm(TREE)?'TREE':m.symbol);}
 async function processTx(tx){
  if(db.prepare('SELECT 1 FROM seen WHERE digest=?').get(tx.digest))return;
