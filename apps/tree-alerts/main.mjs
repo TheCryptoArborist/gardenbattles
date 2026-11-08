@@ -190,10 +190,27 @@ async function main(){
  await discover();await newPools();
  if(env.TELEGRAM_BOT_TOKEN){await verifyTelegram();if(env.SEND_SETUP_TEST==='true')await deliver('setup-test-v1',{graphic:'buy',text:'🌳 TREE ALERTS — SETUP TEST\n\n@TreeGatekeeperBot is connected to this topic.\nPrepared: TREE buys, liquidity deposits, +10% / +20% price milestones, and daily / weekly buy records.\n\nThis is a connection test, not a purchase.\nwww.tree-token.xyz'},{force:true});}
 
+
  if(env.TEST_NOTIFICATION_BATCH&&chatId){
   const batch=env.TEST_NOTIFICATION_BATCH;
-  await deliver('manual-test:'+batch+':buy',{graphic:'buy',text:"🧪 TEST — NEW TREE PURCHASE\\n\\nTree-mendous! This wallet just put down roots. 🌱\\n\\nExample purchase: 100,000 TREE\\nExample spend: 3 SUI\\nExchange example: SuiDex\\n\\nSample data only—no actual purchase occurred.\\nwww.tree-token.xyz"},{force:true});
-  await deliver('manual-test:'+batch+':liquidity',{graphic:'liquidity',text:"🧪 TEST — LIQUIDITY ADDED\\n\\nNow that’s what we call liquid roots. 💧\\n\\nExample deposit: 100,000 TREE + 3 SUI\\nExchange example: Turbos\\n\\nSample data only—no actual deposit occurred.\\nwww.tree-token.xyz"},{force:true});
+  try{await market();}catch(e){log('test_market_warning',{error:e.message});}
+  const fresh=quote&&Date.now()-quote.at<=180000;
+  const amount=fresh&&quote.suiUSD>0?3*quote.suiUSD:null;
+  const treeEstimate=amount&&quote.price>0?amount/quote.price:null;
+  const sample=treeEstimate?compact(treeEstimate)+' TREE':'100,000 TREE (example)';
+  const snapshot=await poolSnapshot(SEEDS[0]);
+  const buyLines=['🧪 TEST — NEW TREE PURCHASE','Tree-mendous! This wallet just put down roots. 🌱','',
+   '💰 Example spent: 3 SUI'+(amount?' (~'+usd(amount)+')':''),
+   '🌳 Example received: '+sample+(amount?' (~'+usd(amount)+')':''),
+   'Exchange example: SuiDex V2','',...marketLines(),'',snapshot||'Pool snapshot unavailable',
+   'Current pool snapshot; USD values estimated.','',growthBar(amount)||'🌳 Example purchase',
+   'Buyer: demonstration only','','TEST DATA — no actual purchase occurred.','www.tree-token.xyz'];
+  await deliver('manual-test:'+batch+':buy',{graphic:'buy',text:buyLines.join('\n')},{force:true});
+  const lpLines=['🧪 TEST — LIQUIDITY ADDED','Now that’s what we call liquid roots. 💧','',
+   'Example deposit: '+sample+' + 3 SUI','Exchange example: SuiDex V2','',...marketLines(),'',snapshot||'Pool snapshot unavailable',
+   'Current pool snapshot; USD values estimated.','','Provider: demonstration only',
+   'TEST DATA — no actual deposit occurred.','www.tree-token.xyz'];
+  await deliver('manual-test:'+batch+':liquidity',{graphic:'liquidity',text:lpLines.join('\n')},{force:true});
  }
 
  if(enabled&&!chatId)throw Error('Live mode needs verified Telegram settings');
