@@ -84,8 +84,8 @@ const ALERT_QUIPS={
  liquidity:["Now that’s what we call liquid roots. 💧","A little more water for the money tree. 🌳","Fresh liquidity. Stronger roots. 🌱","Someone’s watering the TREE pool. 💦"],
  up10:["TREE is branching out—10% higher in 24 hours. 🌿","Leafing yesterday’s price behind. 🍃","The canopy just climbed another level. 🌳"],
  up20:["That’s some serious trunk strength—20% up in 24 hours. 🌳","TREE just raised the canopy. 🚀","Looks like TREE found its growth spurt. 🌿"],
- daily:["Today’s biggest buy just took root. 🏆","A new daily branch-mark has been set. 🌳","That buy just topped today’s canopy. 🍃"],
- weekly:["The biggest branch on this week’s TREE. 👑","This week’s buy record just got uprooted. 🌳","A new heavyweight in the weekly grove. 🏆"]
+ daily:["Tree-mendous! Today’s biggest buy just took root. 🏆","A new daily branch-mark has been set. 🌳","That buy just topped today’s canopy. 🍃"],
+ weekly:["A Tree-mendous buy—the biggest branch on this week’s TREE. 👑","This week’s buy record just got uprooted. 🌳","A new heavyweight in the weekly grove. 🏆"]
 };
 function alertQuip(kind,key){const options=ALERT_QUIPS[kind]||ALERT_QUIPS.buy;let hash=0;for(const c of String(key))hash=(Math.imul(hash,31)+c.charCodeAt(0))>>>0;return options[hash%options.length];}
 
