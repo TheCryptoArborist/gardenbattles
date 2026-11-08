@@ -162,6 +162,13 @@ async function main(){
  if(get('startedAt')===null)put('startedAt',new Date().toISOString());
  await discover();await newPools();
  if(env.TELEGRAM_BOT_TOKEN){await verifyTelegram();if(env.SEND_SETUP_TEST==='true')await deliver('setup-test-v1',{graphic:'buy',text:'🌳 TREE ALERTS — SETUP TEST\n\n@TreeGatekeeperBot is connected to this topic.\nPrepared: TREE buys, liquidity deposits, +10% / +20% price milestones, and daily / weekly buy records.\n\nThis is a connection test, not a purchase.\nwww.tree-token.xyz'},{force:true});}
+
+ if(env.TEST_NOTIFICATION_BATCH&&chatId){
+  const batch=env.TEST_NOTIFICATION_BATCH;
+  await deliver('manual-test:'+batch+':buy',{graphic:'buy',text:"🧪 TEST — NEW TREE PURCHASE\\n\\nTree-mendous! This wallet just put down roots. 🌱\\n\\nExample purchase: 100,000 TREE\\nExample spend: 3 SUI\\nExchange example: SuiDex\\n\\nSample data only—no actual purchase occurred.\\nwww.tree-token.xyz"},{force:true});
+  await deliver('manual-test:'+batch+':liquidity',{graphic:'liquidity',text:"🧪 TEST — LIQUIDITY ADDED\\n\\nNow that’s what we call liquid roots. 💧\\n\\nExample deposit: 100,000 TREE + 3 SUI\\nExchange example: Turbos\\n\\nSample data only—no actual deposit occurred.\\nwww.tree-token.xyz"},{force:true});
+ }
+
  if(enabled&&!chatId)throw Error('Live mode needs verified Telegram settings');
  try{await market();}catch(e){log('price_warning',{error:e.message});}await poll();health.ready=true;health.lastError=null;log('watcher_ready',{mode:health.mode,pools:pools.size,startedAt:get('startedAt')});
  let cycle=0;while(true){await sleep(30000);try{await newPools();if(cycle%20===0)await discover();if(cycle%2===0)try{await market();}catch(e){log('price_warning',{error:e.message});}await poll();health.ready=true;health.lastError=null;cycle++;}catch(e){health.ready=false;health.lastError=e.message;log('watcher_error',{error:e.message});}}
