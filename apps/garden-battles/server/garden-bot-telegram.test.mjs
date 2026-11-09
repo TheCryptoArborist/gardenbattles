@@ -16,3 +16,13 @@ test('repeated finish events and process restart send one alert per battle',asyn
  await pollStream('bot',state,options);assert.equal(sent,1);
  await pollStream('bot',JSON.parse(persisted),{...options,save:()=>{}});assert.equal(sent,1);
 });
+
+test('completed matches include approved artwork and retain caption and buttons',()=>{
+ for(const winner of ['0x123','0x456']){
+  const message=eventMessage(prepareGardenBotEvent(event(winner)));
+  assert.equal(message.photo,'https://gardenbattles-production.up.railway.app/images/garden-bot-alert.png');
+  assert(message.text.length<=1024);
+  assert.match(message.text,/50 \(player\) · 32 \(Garden Bot\)/);
+  assert.equal(message.reply_markup.inline_keyboard[0][0].text,'Play Garden Bot');
+ }
+});

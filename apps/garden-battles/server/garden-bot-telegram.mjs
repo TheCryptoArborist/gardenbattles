@@ -23,6 +23,7 @@ export function prepareGardenBotEvent(event) {
   const won = winner === player;
   return {...event, notificationKind:'garden-bot', notification: {
     text: `🌳 Garden Bot match complete!\n\n${won ? '🏆 Player victory!' : '🤖 Garden Bot wins — ready for a rematch?'}\nPlayer: ${player}\nGrowth: ${growth[0]} (player) · ${growth[1]} (Garden Bot)${/^\d+$/.test(String(f.target_growth)) ? `\nTarget: ${f.target_growth} Growth` : ''}\n\nhttps://suiscan.xyz/mainnet/tx/${event.transaction.digest}`,
+    photo: 'https://gardenbattles-production.up.railway.app/images/garden-bot-alert.png',
     saleKey: `garden-bot:${String(f.battle_id).toLowerCase()}`,
     reply_markup:{inline_keyboard:[[{text:'Play Garden Bot',url:'https://nftree.net/battle/garden-bot'},{text:'View match transaction',url:`https://suiscan.xyz/mainnet/tx/${event.transaction.digest}`}]]},
   }};
