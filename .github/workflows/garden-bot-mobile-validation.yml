@@ -31,3 +31,22 @@ jobs:
         run: |
           test -f dist/public/index.html
           echo "Garden Battles browser bundle generated. No deployment performed."
+      - name: Install headless browser for mobile viewport checks
+        run: |
+          npm install --no-save --no-package-lock playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Test Garden Bot layout in browser (no wallet)
+        run: |
+          npx vite --host 127.0.0.1 --port 4173 --strictPort > /tmp/garden-bot-vite.log 2>&1 &
+          for i in $(seq 1 40); do
+            if curl -fsS http://127.0.0.1:4173/mobile-preview.html > /dev/null; then break; fi
+            sleep 1
+          done
+          node scripts/garden-bot-mobile-viewport-check.mjs
+      - name: Upload mobile screenshots and findings
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: garden-bot-mobile-qa
+          path: mobile-screenshots/
+          if-no-files-found: warn
