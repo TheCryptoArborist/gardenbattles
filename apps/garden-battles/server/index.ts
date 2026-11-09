@@ -1,3 +1,4 @@
+import {getArboristTrialCompletions} from "./battle-storage";
 import "dotenv/config";
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
@@ -98,7 +99,7 @@ app.use((req, res, next) => {
 
 (async () => {
   const server = await registerRoutes(app);
-  startNftreeTelegramNotifier();
+  startNftreeTelegramNotifier({listTrials:getArboristTrialCompletions});
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;

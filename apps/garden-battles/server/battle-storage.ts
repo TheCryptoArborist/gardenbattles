@@ -1,3 +1,4 @@
+import {TRIAL_COMPLETIONS_SQL} from "./arborist-trials-telegram.mjs";
 import Database from "better-sqlite3";
 import { mkdirSync } from "fs";
 import path from "path";
@@ -967,4 +968,11 @@ export function getArboristTrialWalletHistory(
     wallet.toLowerCase(),
     Math.max(1, Math.min(365, limit)),
   ) as ArboristTrialResultRow[];
+}
+
+const trialCompletionsStmt = db.prepare(TRIAL_COMPLETIONS_SQL);
+/** All verified saved trials after a stable timestamp/key cursor; no leaderboard limit. */
+export function getArboristTrialCompletions(cursor: {at: number; key: string}, limit = 100): ArboristTrialResultRow[] {
+  if (!Number.isSafeInteger(cursor.at) || cursor.at < 0 || typeof cursor.key !== "string") throw new Error("Invalid trial completion cursor");
+  return trialCompletionsStmt.all(cursor.at, cursor.key, Math.max(1, Math.min(100, limit))) as ArboristTrialResultRow[];
 }

@@ -1,3 +1,4 @@
+import {pollTrialCompletions} from './arborist-trials-telegram.mjs';
 import {sendGameAlert,announceGameArtwork} from './game-alert-photo.mjs';
 import {pollWeekly} from './weekly-arcade.mjs';
 import { mkdirSync, readFileSync, writeFileSync, renameSync, existsSync } from 'node:fs';
@@ -86,7 +87,7 @@ export async function pollStream(type, state, { query = queryEvents, send, save,
   }
 }
 
-export function startNftreeTelegramNotifier() {
+export function startNftreeTelegramNotifier({listTrials}={}) {
   if (process.env.ENABLE_NFTREE_TELEGRAM !== 'true') return;
   const token = process.env.TELEGRAM_BOT_TOKEN;
   const chat = process.env.NFTREE_TELEGRAM_CHAT_ID || process.env.TELEGRAM_CHAT_ID;
@@ -154,7 +155,9 @@ export function startNftreeTelegramNotifier() {
       catch(error){console.error('[nftree-alerts] TREE FORCE:',error instanceof Error?error.message:'Poll failed');}
       try { await announceGameArtwork({state,save,telegram:(method,body)=>telegram(method,{...target,...body})}); }
       catch(error){console.error('[nftree-alerts] Game artwork:',error instanceof Error?error.message:'Delivery failed');}
-      try { await pollWeekly({state,save,query:queryEvents,streams:GARDEN_BOT_STREAMS,send:message=>telegram('sendMessage',{...target,text:message.text,reply_markup:message.reply_markup,disable_web_page_preview:true})}); }
+      try { await pollTrialCompletions({state,save,listTrials,send:message=>telegram('sendMessage',{...target,text:message.text,reply_markup:message.reply_markup,disable_web_page_preview:true})}); }
+      catch(error){console.error('[nftree-alerts] Arborist Trials:',error instanceof Error?error.message:'Poll failed');}
+      try { await pollWeekly({state,save,listTrials,trialsStartedAt:state.trialsStartedAt,query:queryEvents,streams:GARDEN_BOT_STREAMS,send:message=>telegram('sendMessage',{...target,text:message.text,reply_markup:message.reply_markup,disable_web_page_preview:true})}); }
       catch(error){console.error('[weekly-arcade]',error instanceof Error?error.message:'Poll failed');}
       if (!state.suinsActivationSent) {
         const result = await telegram('sendMessage', {...target, text: '🌳 SuiNS names are now enabled across NFTree mint/purchase, TradePort, Garden Bot, PvP queue, and Canopy Breaker alerts. Primary .sui names appear when available; existing wallet, username, or anonymous fallbacks remain in place.'});
