@@ -2,6 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   buildTelegramSendMessagePayload,
+  buildTelegramSendPhotoPayload,
+  PVP_QUEUE_ALERT_PHOTO,
   createPvpQueueTelegramPoller,
   getConfiguredPvpQueueDefinitions,
   parsePendingQueueEntry,
@@ -883,4 +885,16 @@ test("duplicate watcher startup does not create duplicate alerts", async () => {
   stopA?.();
   assert.equal(stopA, stopB);
   assert.equal(telegramClient.sent.length, 1);
+});
+
+test("PVP photo preserves forum topic, HTML caption and Join Battle button", () => {
+  const replyMarkup = { inline_keyboard: [[{ text: "Join Battle", url: "https://nftree.net/battle" }]] };
+  const payload = buildTelegramSendPhotoPayload({chatId: "-100123", messageThreadId: 42, text: "Winner receives: <b>5 SUI</b>", photo: PVP_QUEUE_ALERT_PHOTO, replyMarkup});
+  assert.equal(payload.photo, PVP_QUEUE_ALERT_PHOTO);
+  assert.equal(payload.caption, "Winner receives: <b>5 SUI</b>");
+  assert.equal(payload.message_thread_id, 42);
+  assert.equal(payload.parse_mode, "HTML");
+  assert.deepEqual(payload.reply_markup, replyMarkup);
+  assert.equal(payload.text, undefined);
+  assert.equal(payload.disable_web_page_preview, undefined);
 });

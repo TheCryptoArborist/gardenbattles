@@ -85,6 +85,7 @@ interface TelegramClient {
     chatId: string;
     messageThreadId?: number | null;
     text: string;
+    photo?: string;
     replyMarkup?: Record<string, unknown>;
   }): Promise<{ messageId: string | null }>;
 }
@@ -337,25 +338,27 @@ class FetchTelegramClient implements TelegramClient {
     chatId: string;
     messageThreadId?: number | null;
     text: string;
+    photo?: string;
     replyMarkup?: Record<string, unknown>;
   }): Promise<{ messageId: string | null }> {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), TELEGRAM_TIMEOUT_MS);
 
+    const method = input.photo ? "sendPhoto" : "sendMessage";
     try {
       const response = await fetch(
-        `https://api.telegram.org/bot${input.botToken}/sendMessage`,
+        `https://api.telegram.org/bot${input.botToken}/${method}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(buildTelegramSendMessagePayload(input)),
+          body: JSON.stringify(input.photo ? buildTelegramSendPhotoPayload({ ...input, photo: input.photo }) : buildTelegramSendMessagePayload(input)),
           signal: controller.signal,
         },
       );
 
       if (!response.ok) {
         const body = await response.text().catch(() => "");
-        throw new Error(`Telegram sendMessage failed: ${response.status} ${body}`);
+        throw new Error(`Telegram ${method} failed: ${response.status} ${body}`);
       }
 
       const json = await response.json().catch(() => null);
@@ -365,6 +368,19 @@ class FetchTelegramClient implements TelegramClient {
       clearTimeout(timeout);
     }
   }
+}
+
+export const PVP_QUEUE_ALERT_PHOTO = "https://gardenbattles-production.up.railway.app/images/pvp-queue-alert.jpg";
+
+export function buildTelegramSendPhotoPayload(input: {
+  chatId: string;
+  messageThreadId?: number | null;
+  text: string;
+  photo: string;
+  replyMarkup?: Record<string, unknown>;
+}): Record<string, unknown> {
+  const { text, disable_web_page_preview, ...payload } = buildTelegramSendMessagePayload(input);
+  return { ...payload, photo: input.photo, caption: text };
 }
 
 export function buildTelegramSendMessagePayload(input: {
@@ -564,6 +580,7 @@ export function createPvpQueueTelegramPoller(options: {
               chatId: destination.chatId,
               messageThreadId: destination.messageThreadId,
               replyMarkup,
+              photo: PVP_QUEUE_ALERT_PHOTO,
               text,
             }),
           ),
@@ -771,5 +788,6 @@ export async function sendManualPvpQueueTelegramTest(
     messageThreadId,
     replyMarkup: buildQueueReplyMarkup(battleUrl),
     text: buildQueueMessage(entry, battleUrl),
+    photo: PVP_QUEUE_ALERT_PHOTO,
   });
 }
