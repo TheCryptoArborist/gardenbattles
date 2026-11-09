@@ -1,0 +1,33 @@
+name: Garden Bot mobile validation
+on:
+  push:
+    branches:
+      - ui/garden-bot-mobile-viewport-20261109
+  pull_request:
+    paths:
+      - 'battle-gardenfrontend/src/**'
+      - '.github/workflows/garden-bot-mobile-validation.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  typecheck-and-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: TypeScript typecheck
+        run: npm run check
+      - name: Build browser frontend and server
+        run: npm run build
+      - name: Record output without deploying
+        run: |
+          test -f dist/public/index.html
+          echo "Garden Battles browser bundle generated. No deployment performed."
