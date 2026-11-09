@@ -14,6 +14,7 @@ import WaitingOverlay from "@/components/WaitingOverlay";
 import AdminPanel from "@/components/AdminPanel";
 import HowToPlay from "@/components/HowToPlay";
 import BattleLog from "@/components/BattleLog";
+import GardenBotMobileBattle from "@/components/GardenBotMobileBattle";
 import PlayerRecord from "@/components/PlayerRecord";
 import ForestPower from "@/components/ForestPower";
 
@@ -653,6 +654,7 @@ export default function Battle() {
   }
 `}</style>
       <div
+        className={isGardenBotBattle && !battleFinished ? "garden-bot-active" : ""}
         style={{
           backgroundImage: "url(/assets/background4.jpg)",
           backgroundSize: "cover",
@@ -671,6 +673,7 @@ export default function Battle() {
       >
         {/* Header */}
         <header
+          className="garden-battle-header"
           style={{
             display: "flex",
             justifyContent: "space-between",
@@ -864,7 +867,7 @@ export default function Battle() {
         <img
           src="/assets/garden.png"
           alt="The Garden Battles"
-          className="title-image"
+          className="title-image garden-battle-title"
           style={{
             width: "100%",
             maxWidth: "680px",
@@ -877,10 +880,34 @@ export default function Battle() {
           data-testid="img-battle-title"
         />
         {/* How to Play */}
-        <HowToPlay />
+        <div className="garden-battle-help"><HowToPlay /></div>
 
         {/* Battle Area */}
-        <div className="battle-grid">
+        {/* Active Garden Bot on phones: no change to wallet/contract handlers. */}
+        {isGardenBotBattle && !battleFinished && (
+          <GardenBotMobileBattle
+            playerGrowth={playerGrowth}
+            botGrowth={opponentGrowth}
+            growthTarget={growthTarget}
+            playerImage={getNFTImage(playerGrowth, playerNftImageUrl || undefined, growthTarget)}
+            botImage={getNFTImage(opponentGrowth, undefined, growthTarget)}
+            playerMoves={playerMoves}
+            actionLog={actionLog}
+            pendingMoveId={pendingMoveId}
+            isMyTurn={!!isMyTurn}
+            inlineError={inlineError}
+            handNeedsReroll={handNeedsReroll}
+            attacksAreStalled={attacksAreStalled}
+            isForfeiting={isForfeiting}
+            isStartingBot={isStartingBot}
+            onMove={handleUseAbility}
+            onForfeit={handleForfeitBattle}
+            onNewHand={handleStartBotBattle}
+            onDismissError={() => setInlineError(null)}
+          />
+        )}
+
+        <div className="battle-grid garden-battle-arena">
           {/* Player 1 NFT */}
           <div
             className="player-card"
@@ -1409,6 +1436,7 @@ export default function Battle() {
 
         {battleState && !battleFinished && (
           <div
+            className="garden-battle-move-panel"
             style={{
               margin: "15px auto",
               maxWidth: "95%",
@@ -1951,6 +1979,7 @@ export default function Battle() {
 
         {/* Battle Info */}
         <p
+          className="garden-battle-info"
           style={{
             margin: "15px 0",
             fontSize: "clamp(14px, 3.5vw, 20px)",
@@ -1968,6 +1997,7 @@ export default function Battle() {
             color: "#ffff00",
             padding: "0 15px",
           }}
+          className="garden-battle-info"
           data-testid="text-battle-status"
         >
           {battleStatus}
@@ -1975,6 +2005,7 @@ export default function Battle() {
 
         {/* Game Info Section */}
         <div
+          className="garden-battle-game-info"
           style={{
             margin: "clamp(15px, 4vw, 25px) auto",
             maxWidth: "900px",
@@ -2109,6 +2140,7 @@ export default function Battle() {
 
         {/* Footer */}
         <footer
+          className="garden-battle-footer"
           style={{
             textAlign: "center",
             padding: "25px",
@@ -2161,10 +2193,12 @@ export default function Battle() {
         />
         <WaitingOverlay isWaiting={isWaiting} onLeaveQueue={cancelQueue} />
 
-        <AdminPanel
-          adminAddresses={SUI_CONFIG.ADMIN_ADDRESSES}
-          currentAddress={address || null}
-        />
+        <div className="garden-battle-admin">
+          <AdminPanel
+            adminAddresses={SUI_CONFIG.ADMIN_ADDRESSES}
+            currentAddress={address || null}
+          />
+        </div>
 
         {/* Arboretum Coming Soon Modal */}
         {arboretumModalOpen && (
