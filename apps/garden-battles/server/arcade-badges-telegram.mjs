@@ -1,0 +1,13 @@
+export const BADGE_LABELS={seedling:'TREE Spark',sapling:'NFTree Scout','deep-roots':'TREE FORCE Vanguard','full-canopy':'Thickquidity Legend','arcade-passport':'Arcade Passport'};
+const how={seedling:'Collect 3 monthly check-ins.',sapling:'Collect 7 monthly check-ins.','deep-roots':'Collect 14 monthly check-ins.','full-canopy':'Collect 21 monthly check-ins.','arcade-passport':'Collect the month’s required game stamps. See your Arcade Passport for the current game list.'};
+export function badgeMessage(e){if(!/^[a-f0-9]{32}$/.test(e.id)||!Number.isSafeInteger(e.at)||!/^\d{4}-(0[1-9]|1[0-2])$/.test(e.month)||!Object.hasOwn(BADGE_LABELS,e.badgeId)||!/^0x[0-9a-f]{6}…[0-9a-f]{6}$/.test(e.walletLabel)||e.streakId!==null&&!/^[a-f0-9]{32}$/.test(e.streakId))throw Error('Invalid saved Arcade badge');const name=typeof e.suinsName==='string'&&/^(?:[a-z0-9-]+\.)+sui$/i.test(e.suinsName)&&e.suinsName.length<=253?e.suinsName:e.walletLabel;return {text:`🏅 ${name} unlocked ${BADGE_LABELS[e.badgeId]}!\n\nTree Arcade monthly badge · ${e.month}\n\nWant to earn yours? ${how[e.badgeId]}\nMonthly attendance and consecutive-day streaks are separate achievements.`,reply_markup:{inline_keyboard:[[{text:'Explore Arcade rewards',url:'https://tree-token.xyz/play/'}]]}};}
+export async function pollBadgeUnlocks({state,save,send,fetchFn=fetch,now=Date.now()}){
+ const w=state.arcadeBadges||(state.arcadeBadges={lastScan:0,deliveries:{}});save();let cursor={at:Math.max(0,w.lastScan-300000),key:''},complete=false;
+ for(let page=0;page<100;page++){const r=await fetchFn(`https://tree-token.xyz/api/arcade-streak-milestones?kind=badges&after=${cursor.at}&key=${cursor.key}`,{signal:AbortSignal.timeout(20000),cache:'no-store'});if(!r.ok)throw Error('Arcade badge feed HTTP '+r.status);const p=await r.json();if(!Array.isArray(p.entries)||typeof p.hasMore!=='boolean'||!Number.isSafeInteger(p.cursor?.at)||!/^([a-f0-9]{32})?$/.test(p.cursor?.key))throw Error('Invalid Arcade badge feed');
+  for(const e of p.entries){const message=badgeMessage(e);if(w.deliveries[e.id])continue;
+   // The streak feed includes every real badge earned in that same transaction.
+   if(e.streakId){w.deliveries[e.id]='combined-with-streak';save();continue;}
+   w.deliveries[e.id]='sending';save();try{await send(message);w.deliveries[e.id]='sent';save();console.log('[nftree-alerts] Arcade badge unlock delivered '+e.badgeId);}catch(error){if(error instanceof Error&&/^Telegram sendMessage:/.test(error.message))delete w.deliveries[e.id];else w.deliveries[e.id]='uncertain';save();throw error;}
+  }cursor=p.cursor;if(!p.hasMore){complete=true;break;}}
+ if(!complete)throw Error('Badge backlog; retrying without advancing');w.lastScan=now;save();
+}

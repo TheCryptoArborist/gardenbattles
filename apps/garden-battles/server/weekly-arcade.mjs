@@ -1,3 +1,4 @@
+import {weeklyDiscoveryLine} from './arcade-discovery.mjs';
 import {trialRecord} from './arborist-trials-telegram.mjs';
 import {createHash} from 'node:crypto';
 export const ZONE='America/Chicago';
@@ -51,6 +52,7 @@ export function buildWeekly(weekly,period){const records=Object.values(weekly.re
  }
  if(busiest)lines.push(`\nBusiest game: ${titles[busiest.game]} (${busiest.count} recorded endings).`);
  if(Object.values(weekly.health).some(h=>h.error||!h.at||h.at<period.end-10*60000))lines.push('\n⚠️ Some sources have incomplete coverage. These standings include recorded results only.');
+ lines.push(weeklyDiscoveryLine(period.key));
  lines.push('\nOne score slot per player per game. Recognition only; no prize eligibility.','https://tree-token.xyz/play/');return {text:lines.join('\n'),reply_markup:{inline_keyboard:[[{text:'Play Tree Arcade',url:'https://tree-token.xyz/play/'}]]}};
 }
 export async function pollWeekly({state,save,send,query,streams,listTrials,trialsStartedAt,fetchFn=fetch,now=Date.now()}){
