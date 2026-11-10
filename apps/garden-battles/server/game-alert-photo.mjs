@@ -14,6 +14,10 @@ export async function sendGameAlert(message,telegram){
  }
 }
 export async function announceGameArtwork({state,save,telegram}){
+ if(!state.trialsArtworkTest20261110){
+  await telegram('sendPhoto',{photo:GAME_ALERT_IMAGES.trials,caption:'🧪 TEST — Arborist Trials complete!\n\nThis is a notification preview, not a real player result.\n\nPlayer: Demonstration\nResult: Win (example)\nScore: 12,345 (example)\nRounds: 8 (example)\nGrowth: 50 (player) · 27 (opponent) (example)\n\nFuture ranked completion alerts will include the actual player and results.\nwww.tree-token.xyz',reply_markup:{inline_keyboard:[[{text:'Play Arborist Trials',url:'https://nftree.net/battle/trials'}]]}});
+  state.trialsArtworkTest20261110=true;save();console.log('[nftree-alerts] Arborist Trials test artwork delivered to Telegram');
+ }
  for(const [game,title,url]of [['force','TREE FORCE ’89','https://tree-token.xyz/play/treeforce89/'],['canopy','Canopy Breaker','https://tree-token.xyz/play/canopy-breaker/']]){
   const key=game+'ArtworkEnabled';if(state[key])continue;
   // This clearly labeled setup notice also checks that Telegram accepts the
