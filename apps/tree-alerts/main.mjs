@@ -154,7 +154,7 @@ async function processTx(tx){
  if(a.buy){value=estimateBuyUSD(a.buy,meta,quote,a.time,Date.now());const prev={dayCount:db.prepare('SELECT COUNT(*) n FROM buys WHERE day=? AND usd>0').get(period.day).n,weekCount:db.prepare('SELECT COUNT(*) n FROM buys WHERE week=? AND usd>0').get(period.week).n,dayMax:db.prepare('SELECT COALESCE(MAX(usd),0) n FROM buys WHERE day=?').get(period.day).n,weekMax:db.prepare('SELECT COALESCE(MAX(usd),0) n FROM buys WHERE week=?').get(period.week).n};flags=recordFlags(prev,value);}
  const person=await nameFor(a.wallet)||(a.wallet.slice(0,6)+'…'+a.wallet.slice(-4));
  const graphic=flags.weekly?'weekly':flags.daily?'daily':a.buy?'buy':'liquidity';
- const lines=[flags.weekly?'👑 LARGEST BUY THIS WEEK':flags.daily?'🏆 LARGEST BUY TODAY':a.buy?'🌳 NEW TREE PURCHASE':'💧 LIQUIDITY ADDED',''];
+ const lines=[flags.weekly?'👑 LARGEST BUY THIS WEEK':flags.daily?'🏆 LARGEST BUY TODAY':a.buy?'🌳 TREE BUY ALERT':'💧 LIQUIDITY ADDED',''];
  if(a.buy){lines.push('Purchased: '+await labelAmount(TREE,a.buy.tree));const spent=await Promise.all(a.buy.spent.map(([c,v])=>labelAmount(c,v)));lines.push('Spent: '+spent.join(' + '),'Exchange: '+a.buy.venues.join(' + '));if(value)lines.push('Spent value: ~'+usd(value));const received=treeValue(a.buy.tree,(await metadata(TREE)).decimals,quote);if(received!==null)lines.push('TREE received value: ~'+usd(received));if(flags.daily&&flags.weekly)lines.push('🏆 Also the largest buy today');}
  if(a.deposits.length){if(a.buy)lines.push('','💧 Liquidity added in the same transaction');for(const d of a.deposits){lines.push(d.venue+': '+(await Promise.all(d.coins.map((c,i)=>labelAmount(c,d.amounts[i])))).join(' + '));}}
  lines.push('',...marketLines());
@@ -224,7 +224,7 @@ async function main(){
   const treeEstimate=amount&&quote.price>0?amount/quote.price:null;
   const sample=treeEstimate?compact(treeEstimate)+' TREE':'100,000 TREE (example)';
   const snapshot=await poolSnapshot(SEEDS[0]);
-  const buyLines=['🧪 TEST — NEW TREE PURCHASE','Tree-mendous! This wallet just put down roots. 🌱','',
+  const buyLines=['🧪 TEST — TREE BUY ALERT','Tree-mendous! This wallet just put down roots. 🌱','',
    '💰 Example spent: 3 SUI'+(amount?' (~'+usd(amount)+')':''),
    '🌳 Example received: '+sample+(amount?' (~'+usd(amount)+')':''),
    'Exchange example: SuiDex V2','',...marketLines(),'',snapshot||'Pool snapshot unavailable',
