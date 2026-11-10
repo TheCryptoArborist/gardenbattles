@@ -18,6 +18,17 @@ export async function sendGameAlert(message,telegram){
  }
 }
 export async function announceGameArtwork({state,save,telegram}){
+ for(const [game,title,cta,url,description] of [
+  ['weekly','Weekly Arcade Roundup','Play Tree Arcade','https://tree-token.xyz/play/','Weekly highlights and standings will appear with this graphic. This preview contains no real standings.'],
+  ['quest','Daily Quest Spotlight','View today’s quest','https://tree-token.xyz/play/','Your daily challenge awaits! Open the Arcade to see the current verified quest.'],
+  ['trialsSpotlight','Arborist Trials Spotlight','Take the daily trial','https://nftree.net/battle/trials','One hand. Your strategy. Take on the daily turn-based challenge.'],
+  ['gardenSpotlight','Garden Bot Spotlight','Play Garden Bot','https://nftree.net/battle/garden-bot','Outsmart the bot. Grow your tree. Ready for your next card battle?'],
+ ]){
+  const key='approvedSpotlightTest20261110:'+game;if(state[key])continue;
+  await telegram('sendPhoto',{photo:GAME_ALERT_IMAGES[game],caption:'🧪 TEST — '+title+'\n\n'+description+'\n\nNotification preview only — no player result or reward is being announced.\nhttps://tree-token.xyz/play/',reply_markup:{inline_keyboard:[[{text:cta,url}]]}});
+  state[key]=true;save();console.log('[nftree-alerts] Requested spotlight test delivered: '+game);
+ }
+
  if(!state.trialsArtworkTest20261110){
   await telegram('sendPhoto',{photo:GAME_ALERT_IMAGES.trials,caption:'🧪 TEST — Arborist Trials complete!\n\nThis is a notification preview, not a real player result.\n\nPlayer: Demonstration\nResult: Win (example)\nScore: 12,345 (example)\nRounds: 8 (example)\nGrowth: 50 (player) · 27 (opponent) (example)\n\nFuture ranked completion alerts will include the actual player and results.\nwww.tree-token.xyz',reply_markup:{inline_keyboard:[[{text:'Play Arborist Trials',url:'https://nftree.net/battle/trials'}]]}});
   state.trialsArtworkTest20261110=true;save();console.log('[nftree-alerts] Arborist Trials test artwork delivered to Telegram');
