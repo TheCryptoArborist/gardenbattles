@@ -1,1 +1,1 @@
-{"name":"tree-purchase-alerts","private":true,"type":"module","version":"1.0.0","engines":{"node":">=24"},"scripts":{"start":"node main.mjs","test":"node --test test.mjs"}}
+{"name":"tree-purchase-alerts","private":true,"type":"module","version":"1.0.0","engines":{"node":">=24"},"scripts":{"start":"node main.mjs","test":"node --test test.mjs rich-test.mjs indexer-test.mjs buy-presentation.test.mjs"}}

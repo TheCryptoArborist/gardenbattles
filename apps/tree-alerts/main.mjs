@@ -1,3 +1,4 @@
+import {buyThresholds,buyPresentation} from './buy-presentation.mjs';
 import {parseIndexer,marketSupplement} from './suidex-indexer.mjs';
 import {compact,usd,balances,coinUSD,treeValue,growthBar,alertButtons} from './rich-alerts.mjs';
 import {DatabaseSync} from 'node:sqlite';
@@ -5,6 +6,7 @@ import {mkdirSync,readFileSync} from 'node:fs';
 import {createServer} from 'node:http';
 import {TREE,SUI,USDC,SEEDS,PACKAGES,norm,poolInfo,classify,analyze,units,periods,recordFlags,priceStep,chooseMarket,estimateBuyUSD} from './core.mjs';
 const env=process.env;
+const purchaseThresholds=buyThresholds(env);
 const enabled=env.TELEGRAM_ENABLED==='true'&&env.DRY_RUN==='false';
 const endpoint=env.SUI_GRAPHQL_URL||'https://graphql.mainnet.sui.io/graphql';
 const dir=env.RAILWAY_VOLUME_MOUNT_PATH||env.DATA_DIR||'/data';mkdirSync(dir,{recursive:true});
@@ -100,16 +102,17 @@ const ALERT_QUIPS={
 };
 function alertQuip(kind,key){const options=ALERT_QUIPS[kind]||ALERT_QUIPS.buy;let hash=0;for(const c of String(key))hash=(Math.imul(hash,31)+c.charCodeAt(0))>>>0;return options[hash%options.length];}
 
-const assets=Object.fromEntries(['buy','liquidity','up10','up20','daily','weekly'].map(k=>[k,readFileSync(new URL('./graphics/'+k+'.b64',import.meta.url),'utf8')]));
+const assets=Object.fromEntries(['buy','buyLarge','buyHuge','liquidity','up10','up20','daily','weekly'].map(k=>[k,readFileSync(new URL('./graphics/'+k+'.b64',import.meta.url),'utf8')]));
 async function deliver(key,payload,{force=false}={}){
  if(!enabled&&!force){log('dry_run_alert',{key,kind:payload.graphic,text:payload.text});return;}
  let row=db.prepare('SELECT * FROM outbox WHERE k=?').get(key);
  if(row?.status==='sent')return;
+ if(row)payload=JSON.parse(row.payload);
  if(row?.status==='sending'||row?.status==='uncertain')throw Error('An alert has uncertain delivery; manual review required');
  if(!row){db.prepare('INSERT INTO outbox(k,payload,status) VALUES(?,?,?)').run(key,JSON.stringify(payload),'pending');row={status:'pending'};}
  db.prepare('UPDATE outbox SET status=? WHERE k=?').run('sending',key);
  const form=new FormData();form.set('chat_id',String(chatId));if(env.TELEGRAM_MESSAGE_THREAD_ID)form.set('message_thread_id',env.TELEGRAM_MESSAGE_THREAD_ID);form.set('caption',payload.text.slice(0,1024));form.set('photo',new Blob([Buffer.from(assets[payload.graphic]||assets.buy,'base64')],{type:'image/jpeg'}),'tree-'+payload.graphic+'.jpg');form.set('reply_markup',JSON.stringify(alertButtons(payload.tx)));
- try{const message=await tg('sendPhoto',form,true);db.prepare('UPDATE outbox SET status=?,message_id=? WHERE k=?').run('sent',message.message_id,key);if(env.TELEGRAM_MESSAGE_THREAD_ID&&message.message_thread_id!==Number(env.TELEGRAM_MESSAGE_THREAD_ID))throw Error('Telegram delivered to an unexpected topic');log('telegram_delivered',{key,messageId:message.message_id,topic:message.message_thread_id,kind:payload.graphic});}
+ try{const message=await tg('sendPhoto',form,true);db.exec('BEGIN IMMEDIATE');try{db.prepare('UPDATE outbox SET status=?,message_id=? WHERE k=?').run('sent',message.message_id,key);if(Number.isSafeInteger(payload.captionIndex))put('buyCaptionIndex',payload.captionIndex+1);db.exec('COMMIT');}catch(e){db.exec('ROLLBACK');throw e;}if(env.TELEGRAM_MESSAGE_THREAD_ID&&message.message_thread_id!==Number(env.TELEGRAM_MESSAGE_THREAD_ID))throw Error('Telegram delivered to an unexpected topic');log('telegram_delivered',{key,messageId:message.message_id,topic:message.message_thread_id,kind:payload.graphic});}
  catch(e){db.prepare("UPDATE outbox SET status=? WHERE k=? AND status!='sent'").run(e.rejected?'pending':'uncertain',key);throw e;}
  await sleep(1200);
 }
@@ -153,8 +156,9 @@ async function processTx(tx){
  let value=null,flags={daily:false,weekly:false},period=periods(a.time);
  if(a.buy){value=estimateBuyUSD(a.buy,meta,quote,a.time,Date.now());const prev={dayCount:db.prepare('SELECT COUNT(*) n FROM buys WHERE day=? AND usd>0').get(period.day).n,weekCount:db.prepare('SELECT COUNT(*) n FROM buys WHERE week=? AND usd>0').get(period.week).n,dayMax:db.prepare('SELECT COALESCE(MAX(usd),0) n FROM buys WHERE day=?').get(period.day).n,weekMax:db.prepare('SELECT COALESCE(MAX(usd),0) n FROM buys WHERE week=?').get(period.week).n};flags=recordFlags(prev,value);}
  const person=await nameFor(a.wallet)||(a.wallet.slice(0,6)+'…'+a.wallet.slice(-4));
- const graphic=flags.weekly?'weekly':flags.daily?'daily':a.buy?'buy':'liquidity';
- const lines=[flags.weekly?'👑 LARGEST BUY THIS WEEK':flags.daily?'🏆 LARGEST BUY TODAY':a.buy?'🌳 TREE BUY ALERT':'💧 LIQUIDITY ADDED',''];
+ const presentation=a.buy?buyPresentation(value,get('buyCaptionIndex',0),purchaseThresholds):null;
+ const graphic=presentation?.graphic||'liquidity';
+ const lines=[flags.weekly?'👑 LARGEST BUY THIS WEEK':flags.daily?'🏆 LARGEST BUY TODAY':a.buy?presentation.heading:'💧 LIQUIDITY ADDED',''];
  if(a.buy){lines.push('Purchased: '+await labelAmount(TREE,a.buy.tree));const spent=await Promise.all(a.buy.spent.map(([c,v])=>labelAmount(c,v)));lines.push('Spent: '+spent.join(' + '),'Exchange: '+a.buy.venues.join(' + '));if(value)lines.push('Spent value: ~'+usd(value));const received=treeValue(a.buy.tree,(await metadata(TREE)).decimals,quote);if(received!==null)lines.push('TREE received value: ~'+usd(received));if(flags.daily&&flags.weekly)lines.push('🏆 Also the largest buy today');}
  if(a.deposits.length){if(a.buy)lines.push('','💧 Liquidity added in the same transaction');for(const d of a.deposits){lines.push(d.venue+': '+(await Promise.all(d.coins.map((c,i)=>labelAmount(c,d.amounts[i])))).join(' + '));}}
  lines.push('',...marketLines());
@@ -166,8 +170,8 @@ async function processTx(tx){
  lines.push('',(a.buy?'Buyer':'Provider')+': '+person);
  if(flags.daily||flags.weekly)lines.push('Record among USD-valued buys observed since monitoring began. Central Time; week starts Monday.');
  lines.push('','www.tree-token.xyz');
- lines.splice(1,0,alertQuip(graphic,a.digest));
- const payload={graphic,text:lines.join('\n'),tx:a.digest};
+ lines.splice(1,0,presentation?.quip||alertQuip(graphic,a.digest));
+ const payload={graphic,text:lines.join('\n'),tx:a.digest,...(presentation?{captionIndex:presentation.captionIndex}:{})};
  await deliver('tx:'+a.digest,payload);
  db.exec('BEGIN IMMEDIATE');try{if(a.buy)db.prepare('INSERT OR IGNORE INTO buys VALUES(?,?,?,?,?)').run(a.digest,a.time,period.day,period.week,value);db.prepare('INSERT OR IGNORE INTO seen VALUES(?,?)').run(tx.digest,Date.now());db.exec('COMMIT');}catch(e){db.exec('ROLLBACK');throw e;}
  log('transaction_processed',{digest:a.digest,buy:!!a.buy,liquidity:a.deposits.length,record:flags,usd:value});
