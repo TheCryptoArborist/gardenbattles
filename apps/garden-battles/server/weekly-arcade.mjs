@@ -1,3 +1,4 @@
+import {GAME_ALERT_IMAGES} from './game-alert-photo.mjs';
 import {weeklyDiscoveryLine} from './arcade-discovery.mjs';
 import {trialRecord} from './arborist-trials-telegram.mjs';
 import {createHash} from 'node:crypto';
@@ -53,7 +54,7 @@ export function buildWeekly(weekly,period){const records=Object.values(weekly.re
  if(busiest)lines.push(`\nBusiest game: ${titles[busiest.game]} (${busiest.count} recorded endings).`);
  if(Object.values(weekly.health).some(h=>h.error||!h.at||h.at<period.end-10*60000))lines.push('\n⚠️ Some sources have incomplete coverage. These standings include recorded results only.');
  lines.push(weeklyDiscoveryLine(period.key));
- lines.push('\nOne score slot per player per game. Recognition only; no prize eligibility.','https://tree-token.xyz/play/');return {text:lines.join('\n'),reply_markup:{inline_keyboard:[[{text:'Play Tree Arcade',url:'https://tree-token.xyz/play/'}]]}};
+ lines.push('\nOne score slot per player per game. Recognition only; no prize eligibility.','https://tree-token.xyz/play/');return {photo:GAME_ALERT_IMAGES.weekly,text:lines.join('\n'),reply_markup:{inline_keyboard:[[{text:'Play Tree Arcade',url:'https://tree-token.xyz/play/'}]]}};
 }
 export async function pollWeekly({state,save,send,query,streams,listTrials,trialsStartedAt,fetchFn=fetch,now=Date.now()}){
  if(!state.weeklyArcade){state.weeklyArcade={startedAt:now,cursors:{},records:{},health:{},reports:{}};save();}
@@ -64,5 +65,5 @@ export async function pollWeekly({state,save,send,query,streams,listTrials,trial
  // Reserve before sending: ambiguous network failures must not post duplicate roundups.
  const message=buildWeekly(w,p);w.reports[p.key]={status:'sending',at:now};save();
  try{await send(message);w.reports[p.key]={status:'sent',at:now};save();console.log('[weekly-arcade] Delivered '+p.key);}
- catch(error){if(error instanceof Error&&/^Telegram sendMessage:/.test(error.message)){delete w.reports[p.key];save();throw error;}w.reports[p.key].status='uncertain';save();console.error('[weekly-arcade] Delivery uncertain; manual reconciliation required for '+p.key);throw error;}
+ catch(error){if(error instanceof Error&&/^Telegram send(?:Message|Photo):/.test(error.message)){delete w.reports[p.key];save();throw error;}w.reports[p.key].status='uncertain';save();console.error('[weekly-arcade] Delivery uncertain; manual reconciliation required for '+p.key);throw error;}
 }

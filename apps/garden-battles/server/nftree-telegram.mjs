@@ -2,7 +2,7 @@ import {pollDiscovery} from './arcade-discovery.mjs';
 import {pollBadgeUnlocks} from './arcade-badges-telegram.mjs';
 import {pollStreakMilestones} from './arcade-streak-telegram.mjs';
 import {pollTrialCompletions} from './arborist-trials-telegram.mjs';
-import {sendGameAlert,announceGameArtwork} from './game-alert-photo.mjs';
+import {sendGameAlert,sendWeeklyAlert,announceGameArtwork} from './game-alert-photo.mjs';
 import {pollWeekly} from './weekly-arcade.mjs';
 import { mkdirSync, readFileSync, writeFileSync, renameSync, existsSync } from 'node:fs';
 import path from 'node:path';
@@ -166,7 +166,7 @@ export function startNftreeTelegramNotifier({listTrials}={}) {
       catch(error){console.error('[nftree-alerts] Arcade discovery:',error instanceof Error?error.message:'Poll failed');}
       try { await pollTrialCompletions({state,save,listTrials,send:message=>sendGameAlert(message,(method,body)=>telegram(method,{...target,...body}))}); }
       catch(error){console.error('[nftree-alerts] Arborist Trials:',error instanceof Error?error.message:'Poll failed');}
-      try { await pollWeekly({state,save,listTrials,trialsStartedAt:state.trialsStartedAt,query:queryEvents,streams:GARDEN_BOT_STREAMS,send:message=>telegram('sendMessage',{...target,text:message.text,reply_markup:message.reply_markup,disable_web_page_preview:true})}); }
+      try { await pollWeekly({state,save,listTrials,trialsStartedAt:state.trialsStartedAt,query:queryEvents,streams:GARDEN_BOT_STREAMS,send:message=>sendWeeklyAlert(message,(method,body)=>telegram(method,{...target,...body}))}); }
       catch(error){console.error('[weekly-arcade]',error instanceof Error?error.message:'Poll failed');}
       if (!state.suinsActivationSent) {
         const result = await telegram('sendMessage', {...target, text: '🌳 SuiNS names are now enabled across NFTree mint/purchase, TradePort, Garden Bot, PvP queue, and Canopy Breaker alerts. Primary .sui names appear when available; existing wallet, username, or anonymous fallbacks remain in place.'});

@@ -1,4 +1,8 @@
 export const GAME_ALERT_IMAGES={
+ weekly:'https://gardenbattles-production.up.railway.app/images/weekly-arcade-roundup.jpg',
+ quest:'https://gardenbattles-production.up.railway.app/images/daily-quest-spotlight.jpg',
+ trialsSpotlight:'https://gardenbattles-production.up.railway.app/images/arborist-trials-spotlight.jpg',
+ gardenSpotlight:'https://gardenbattles-production.up.railway.app/images/garden-bot-spotlight.jpg',
  trials:'https://gardenbattles-production.up.railway.app/images/arborist-trials-alert.jpg',
  force:'https://gardenbattles-production.up.railway.app/images/treeforce89-alert.png',
  canopy:'https://gardenbattles-production.up.railway.app/images/canopy-breaker-alert.png',
@@ -25,4 +29,12 @@ export async function announceGameArtwork({state,save,telegram}){
   await telegram('sendPhoto',{photo:GAME_ALERT_IMAGES[game],caption:`🌳 ${title} alert artwork enabled!\n\nFuture completed-game alerts will use this image with the player name, score and game result.\n\n${url}`,reply_markup:{inline_keyboard:[[{text:'Play '+title,url}]]}});
   state[key]=true;save();console.log(`[nftree-alerts] ${game} artwork delivered to Telegram`);
  }
+}
+
+// Long standings remain complete: deliver a cover, then the original report.
+export async function sendWeeklyAlert(message,telegram){
+ if(!message.photo||message.text.length<=1024)return sendGameAlert(message,telegram);
+ await telegram('sendPhoto',{photo:message.photo,caption:'🌳 TREE ARCADE — WEEKLY ROUNDUP\n\nSee the full standings in the next message. Ready for your next run?\nhttps://tree-token.xyz/play/',reply_markup:message.reply_markup});
+ try{return await telegram('sendMessage',{text:message.text,reply_markup:message.reply_markup,disable_web_page_preview:true});}
+ catch{throw Error('Weekly standings delivery uncertain after artwork was accepted; manual review required');}
 }
