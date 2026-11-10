@@ -1,4 +1,5 @@
 import {createHash} from 'node:crypto';
+import {GAME_ALERT_IMAGES} from './game-alert-photo.mjs';
 export const TRIAL_URL='https://nftree.net/battle/trials';
 // Internal SQLite query only; no new public result endpoint or writes.
 export const TRIAL_COMPLETIONS_SQL=`SELECT *, challenge_id || ':' || wallet AS completion_key
@@ -10,7 +11,7 @@ export function trialRecord(row){
  const wallet=row.wallet.toLowerCase();
  return {id:createHash('sha256').update(row.challenge_id+':'+wallet).digest('hex'),game:'trials',playerId:createHash('sha256').update('tree-arcade-weekly:'+wallet).digest('hex'),wallet,completedAt:row.completed_at,challengeDate:row.challenge_date,score:row.score,won:row.won===1,rounds:row.rounds,playerGrowth:row.player_growth,botGrowth:row.bot_growth,uniqueMoves:row.unique_moves};
 }
-export function trialCompletionMessage(row){const r=trialRecord(row);return {text:`🌳 Arborist Trials complete!\n\n${r.won?'🏆 Daily trial victory!':'🌱 Daily trial finished — another challenge awaits!'}\nPlayer: ${r.wallet}\nChallenge: ${r.challengeDate} (UTC)\nResult: ${r.won?'Win':'Loss'}\nScore: ${r.score.toLocaleString('en-US')}\nRounds: ${r.rounds}\nGrowth: ${r.playerGrowth} (player) · ${r.botGrowth} (opponent)\nUnique moves: ${r.uniqueMoves}\n\n${TRIAL_URL}`,reply_markup:{inline_keyboard:[[{text:'Play Arborist Trials',url:TRIAL_URL}]]}};}
+export function trialCompletionMessage(row){const r=trialRecord(row);return {photo:GAME_ALERT_IMAGES.trials,text:`🌳 Arborist Trials complete!\n\n${r.won?'🏆 Daily trial victory!':'🌱 Daily trial finished — another challenge awaits!'}\nPlayer: ${r.wallet}\nChallenge: ${r.challengeDate} (UTC)\nResult: ${r.won?'Win':'Loss'}\nScore: ${r.score.toLocaleString('en-US')}\nRounds: ${r.rounds}\nGrowth: ${r.playerGrowth} (player) · ${r.botGrowth} (opponent)\nUnique moves: ${r.uniqueMoves}\n\n${TRIAL_URL}`,reply_markup:{inline_keyboard:[[{text:'Play Arborist Trials',url:TRIAL_URL}]]}};}
 export async function pollTrialCompletions({state,save,send,listTrials,now=Date.now()}){
  if(typeof listTrials!=='function')throw Error('Arborist Trials result source is unavailable');
  if(!state.trialsStartedAt){state.trialsStartedAt=now;save();}

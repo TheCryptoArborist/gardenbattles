@@ -164,7 +164,7 @@ export function startNftreeTelegramNotifier({listTrials}={}) {
       catch(error){console.error('[nftree-alerts] Arcade badges:',error instanceof Error?error.message:'Poll failed');}
       try { await pollDiscovery({state,save,send:message=>sendGameAlert(message,(method,body)=>telegram(method,{...target,...body}))}); }
       catch(error){console.error('[nftree-alerts] Arcade discovery:',error instanceof Error?error.message:'Poll failed');}
-      try { await pollTrialCompletions({state,save,listTrials,send:message=>telegram('sendMessage',{...target,text:message.text,reply_markup:message.reply_markup,disable_web_page_preview:true})}); }
+      try { await pollTrialCompletions({state,save,listTrials,send:message=>sendGameAlert(message,(method,body)=>telegram(method,{...target,...body}))}); }
       catch(error){console.error('[nftree-alerts] Arborist Trials:',error instanceof Error?error.message:'Poll failed');}
       try { await pollWeekly({state,save,listTrials,trialsStartedAt:state.trialsStartedAt,query:queryEvents,streams:GARDEN_BOT_STREAMS,send:message=>telegram('sendMessage',{...target,text:message.text,reply_markup:message.reply_markup,disable_web_page_preview:true})}); }
       catch(error){console.error('[weekly-arcade]',error instanceof Error?error.message:'Poll failed');}

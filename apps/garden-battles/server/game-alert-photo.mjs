@@ -1,4 +1,5 @@
 export const GAME_ALERT_IMAGES={
+ trials:'https://gardenbattles-production.up.railway.app/images/arborist-trials-alert.jpg',
  force:'https://gardenbattles-production.up.railway.app/images/treeforce89-alert.png',
  canopy:'https://gardenbattles-production.up.railway.app/images/canopy-breaker-alert.png',
 };
