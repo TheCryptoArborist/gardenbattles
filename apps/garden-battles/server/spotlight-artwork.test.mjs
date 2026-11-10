@@ -11,7 +11,7 @@ test('game spotlights use approved individual art and correct play destinations'
 });
 test('verified daily quest carries approved quest art',async()=>{
  const now=Date.parse('2026-11-10T16:00Z');
- const message=await discoveryMessage({ordinal:4},async()=>Response.json({status:'ok',dateKey:'2026-11-10',configuration:{resetAt:'2026-11-11T00:00Z',todayPick:{id:'arborist-trials',creditRule:'complete-result'},enabledGames:[{id:'arborist-trials'}]}}),now);
+ const message=await discoveryMessage({ordinal:DISCOVERY_GAMES.length},async()=>Response.json({status:'ok',dateKey:'2026-11-10',configuration:{resetAt:'2026-11-11T00:00Z',todayPick:{id:'arborist-trials',creditRule:'complete-result'},enabledGames:[{id:'arborist-trials'}]}}),now);
  assert.equal(message.photo,GAME_ALERT_IMAGES.quest);assert.match(message.text,/Arborist Trials/);assert.equal(message.reply_markup.inline_keyboard[0][0].url,'https://tree-token.xyz/play/');
 });
 test('weekly builder includes roundup graphic',()=>{
