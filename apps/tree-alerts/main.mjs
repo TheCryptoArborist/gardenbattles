@@ -220,6 +220,16 @@ async function main(){
  if(env.TELEGRAM_BOT_TOKEN){await verifyTelegram();if(env.SEND_SETUP_TEST==='true')await deliver('setup-test-v1',{graphic:'buy',text:'🌳 TREE ALERTS — SETUP TEST\n\n@TreeGatekeeperBot is connected to this topic.\nPrepared: TREE buys, liquidity deposits, +10% / +20% price milestones, and daily / weekly buy records.\n\nThis is a connection test, not a purchase.\nwww.tree-token.xyz'},{force:true});}
 
 
+ if(chatId){
+  for(const [tier,example,index] of [['standard',1,0],['large',purchaseThresholds.large,1],['huge',purchaseThresholds.huge,2]]){
+   const preview=buyPresentation(example,index,purchaseThresholds);
+   await deliver('approved-buy-tier-preview-20261110:'+tier,{
+    graphic:preview.graphic,
+    text:'🧪 TEST — '+preview.heading+'\n'+preview.quip+'\n\nArtwork tier: '+tier+'\nExample purchase value: '+usd(example)+' (demonstration only)\n\nTEST PREVIEW — no actual purchase occurred.\nwww.tree-token.xyz'
+   },{force:true});
+  }
+ }
+
  if(env.TEST_NOTIFICATION_BATCH&&chatId){
   const batch=env.TEST_NOTIFICATION_BATCH;
   try{await market();}catch(e){log('test_market_warning',{error:e.message});}
