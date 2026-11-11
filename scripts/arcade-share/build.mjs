@@ -14,3 +14,14 @@ for(const name of ['index-tree-lock-v16.js','garden-bot-same-origin-preview.js',
 }
 for(const name of ['arcade-share-handoff.js','arcade-end-share-prompt.js','arcade-result-share-builder.js'])fs.copyFileSync(path.join(shared,name),path.join(out,name));
 fs.writeFileSync(path.join(out,'build-report.json'),JSON.stringify(report,null,2));console.log(JSON.stringify(report));
+// Update historical snapshot tests to normalize only these approved insertions.
+const testOut=path.join(out,'test');fs.mkdirSync(testOut,{recursive:true});
+fs.copyFileSync('scripts/arcade-share/normalize.mjs',path.join(testOut,'arcade-share-normalize.mjs'));
+for(const name of ['pvp-mobile-preview.test.mjs','tree-lock-fifth-proof-release.test.mjs']){
+ let code=fs.readFileSync(path.resolve(source,'../../../test',name),'utf8');
+ code='import {beforeArcadeHandoff} from "./arcade-share-normalize.mjs";\n'+code;
+ if(name==='pvp-mobile-preview.test.mjs'){
+  code=code.replace('const original = read("public/battle/assets/index-tree-lock-v16.js");','const original = beforeArcadeHandoff(read("public/battle/assets/index-tree-lock-v16.js"));').replace('const preview = read("public/battle/assets/pvp-mobile-preview.js");','const preview = beforeArcadeHandoff(read("public/battle/assets/pvp-mobile-preview.js"));').replace('read("public/battle/assets/garden-bot-same-origin-preview.js"))','beforeArcadeHandoff(read("public/battle/assets/garden-bot-same-origin-preview.js")))');
+ }else code=code.replace('const read = name => readFileSync("public/battle/assets/" + name, "utf8");','const read = name => beforeArcadeHandoff(readFileSync("public/battle/assets/" + name, "utf8"));');
+ fs.writeFileSync(path.join(testOut,name),code);
+}
