@@ -1,3 +1,4 @@
+import {pollGroveChessInvitations} from './grove-chess-telegram.mjs';
 import {pollDiscovery} from './arcade-discovery.mjs';
 import {pollBadgeUnlocks} from './arcade-badges-telegram.mjs';
 import {pollStreakMilestones} from './arcade-streak-telegram.mjs';
@@ -154,6 +155,8 @@ export function startNftreeTelegramNotifier({listTrials}={}) {
       try {
         await pollCanopyCompletions({state, save, send: message => sendGameAlert(message,(method,body)=>telegram(method,{...target,...body}))});
       } catch (error) { console.error('[nftree-alerts] Canopy Breaker:', error instanceof Error ? error.message : 'Poll failed'); }
+      try { await pollGroveChessInvitations({state,save,send:message=>sendGameAlert(message,(method,body)=>telegram(method,{...target,message_thread_id:115319,...body}))}); }
+      catch(error){console.error('[nftree-alerts] Grove Chess:',error instanceof Error?error.message:'Poll failed');}
       try { await pollTreeForceCompletions({state,save,send: message => sendGameAlert(message,(method,body)=>telegram(method,{...target,...body}))}); }
       catch(error){console.error('[nftree-alerts] TREE FORCE:',error instanceof Error?error.message:'Poll failed');}
       try { await announceGameArtwork({state,save,telegram:(method,body)=>telegram(method,{...target,...body})}); }
