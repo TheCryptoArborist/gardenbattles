@@ -89,6 +89,7 @@ export const sqliteTelegramDestinationStore: TelegramDestinationStore = {
 
 export const TELEGRAM_SELF_SERVICE_COMMANDS = [
   { command: "announce", description: "Share a @thickquidity X post from a private chat" },
+  { command: "arcade", description: "Publish a Tree Arcade update from a private chat" },
   { command: "youtube", description: "Share a Crypto Arborist video from a private chat" },
   { command: "gardenalerts_on", description: "Send matchup alerts here" },
   { command: "gardenalerts_off", description: "Stop alerts here" },
@@ -234,15 +235,16 @@ async function isAdministrator(
 async function handleAnnouncement(
   input: {api: TelegramSelfServiceApi; botToken: string},
   message: TelegramMessage,
-  command: "announce" | "youtube",
+  command: "announce" | "youtube" | "arcade",
 ): Promise<void> {
   const {api, botToken} = input;
   if (message.chat.type !== "private" || !message.from) return;
   const youtube = command === "youtube";
+  const arcade = command === "arcade";
   const group = process.env.TELEGRAM_ANNOUNCEMENT_GROUP_ID;
   const topic = Number(youtube
     ? process.env.TELEGRAM_YOUTUBE_TOPIC_ID
-    : process.env.TELEGRAM_X_TOPIC_ID);
+    : arcade ? process.env.TELEGRAM_ARCADE_TOPIC_ID : process.env.TELEGRAM_X_TOPIC_ID);
   const channel = process.env.TELEGRAM_YOUTUBE_CHANNEL_ID;
   if (!group || !Number.isSafeInteger(topic) || topic < 1 || (youtube && !channel)) {
     await reply(api, botToken, message, "This announcement destination is still being set up.");
@@ -255,7 +257,28 @@ async function handleAnnouncement(
     return;
   }
 
-  const link = message.text?.trim().split(/\s+/)[1] ?? "";
+  const [, link = "", caption = ""] = /^(\S+)\s+(\S+)(?:\s+([\s\S]+))?$/.exec(message.text?.trim() ?? "")?.slice(1) ?? [];
+  if (arcade) {
+    const url = URL.canParse(link) ? new URL(link) : null;
+    if (!url || url.protocol !== "https:" || url.username || url.password || !caption || caption.length > 3500) {
+      await reply(api, botToken, message, "Usage: /arcade https://tree-token.xyz/play/ Your update (up to 3,500 characters)");
+      return;
+    }
+    const safeCaption = caption.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+    try {
+      await api.sendMessage({
+        botToken, chatId: group, messageThreadId: topic,
+        text: `🌳 <b>Tree Arcade Update</b>\n\n${safeCaption}`,
+        replyMarkup: {inline_keyboard: [[{text: "Open Arcade Update", url: url.href}]]},
+      });
+    } catch {
+      await reply(api, botToken, message, "Tree Arcade update delivery could not be confirmed.");
+      return;
+    }
+    await reply(api, botToken, message, "Tree Arcade update sent.");
+    return;
+  }
+
   const xMatch = /^https:\/\/(?:www\.)?(?:x|twitter)\.com\/thickquidity\/status\/(\d+)\/?(?:[?#]|$)/i.exec(link);
   const videoMatch = /^https:\/\/(?:youtu\.be\/|(?:(?:www|m)\.)?youtube\.com\/(?:watch\?v=|shorts\/|live\/))([\w-]{11})(?:[?&#/]|$)/i.exec(link);
   const id = (youtube ? videoMatch : xMatch)?.[1];
@@ -299,7 +322,7 @@ export async function handleTelegramSelfServiceUpdate(input: {
     return "ignored";
   }
 
-  if (command === "announce" || command === "youtube") {
+  if (command === "announce" || command === "youtube" || command === "arcade") {
     await handleAnnouncement(input, message, command);
     return "handled";
   }
