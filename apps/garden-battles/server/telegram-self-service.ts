@@ -408,10 +408,14 @@ async function sendDailyMarketBrief(api: TelegramSelfServiceApi, botToken: strin
     hour: "2-digit", hourCycle: "h23",
   }).formatToParts(now);
   const part = (type: string) => local.find(item => item.type === type)?.value;
-  if (part("hour") !== "08") return;
+  const testId = process.env.TELEGRAM_MARKET_TEST_ID;
+  if (part("hour") !== "08" && !testId) return;
   const day = [part("year"), part("month"), part("day")].join("-");
   const directory = process.env.RAILWAY_VOLUME_MOUNT_PATH || "/data";
-  const marker = join(directory, `tree-market-brief-${day}`);
+  const test = !!testId && /^[\w-]+$/.test(testId) &&
+    !existsSync(join(directory, `tree-market-test-${testId}`));
+  if (!test && part("hour") !== "08") return;
+  const marker = join(directory, test ? `tree-market-test-${testId}` : `tree-market-brief-${day}`);
   if (existsSync(marker)) return;
   mkdirSync(directory, {recursive: true});
 
@@ -449,10 +453,10 @@ async function sendDailyMarketBrief(api: TelegramSelfServiceApi, botToken: strin
   });
   const signed = (value: number, digits: number) =>
     `${value > 0 ? "+" : ""}${value.toFixed(digits)}`;
-  await api.sendMessage({
+  const {messageId} = await api.sendMessage({
     botToken, chatId, messageThreadId: topic,
     text: [
-      "🌳 <b>TREE Market Brief</b>",
+      test ? "🌳 <b>TEST · TREE Market Brief</b>" : "🌳 <b>TREE Market Brief</b>",
       `BTC ${dollars.format(price)} (${signed((price / open - 1) * 100, 2)}% in 24h)`,
       `Previous UTC day: low ${dollars.format(low)} · high ${dollars.format(high)}`,
       `Fear &amp; Greed: ${score}/100 · ${label} (${signed(score - prior, 0)} pts)`,
@@ -464,7 +468,7 @@ async function sendDailyMarketBrief(api: TelegramSelfServiceApi, botToken: strin
   });
   writeFileSync(marker + ".tmp", day);
   renameSync(marker + ".tmp", marker);
-  console.log(`[market-brief] Delivered ${day}`);
+  console.log(`[market-brief] Delivered ${test ? `test ${testId}` : day}; message ${messageId}`);
 }
 
 export function startTelegramSelfServiceCommands(input: {
