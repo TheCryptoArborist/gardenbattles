@@ -86,6 +86,8 @@ export const sqliteTelegramDestinationStore: TelegramDestinationStore = {
 };
 
 export const TELEGRAM_SELF_SERVICE_COMMANDS = [
+  { command: "announce", description: "Share a @thickquidity X post from a private chat" },
+  { command: "youtube", description: "Share a Crypto Arborist video from a private chat" },
   { command: "gardenalerts_on", description: "Send matchup alerts here" },
   { command: "gardenalerts_off", description: "Stop alerts here" },
   { command: "gardenalerts_status", description: "Check alerts for this chat or topic" },
@@ -227,6 +229,61 @@ async function isAdministrator(
   return member.status === "creator" || member.status === "administrator";
 }
 
+async function handleAnnouncement(
+  input: {api: TelegramSelfServiceApi; botToken: string},
+  message: TelegramMessage,
+  command: "announce" | "youtube",
+): Promise<void> {
+  const {api, botToken} = input;
+  if (message.chat.type !== "private" || !message.from) return;
+  const youtube = command === "youtube";
+  const group = process.env.TELEGRAM_ANNOUNCEMENT_GROUP_ID;
+  const topic = Number(youtube
+    ? process.env.TELEGRAM_YOUTUBE_TOPIC_ID
+    : process.env.TELEGRAM_X_TOPIC_ID);
+  const channel = process.env.TELEGRAM_YOUTUBE_CHANNEL_ID;
+  if (!group || !Number.isSafeInteger(topic) || topic < 1 || (youtube && !channel)) {
+    await reply(api, botToken, message, "This announcement destination is still being set up.");
+    return;
+  }
+
+  const member = await api.getChatMember({botToken, chatId: group, userId: message.from.id});
+  if (member.status !== "creator" && member.status !== "administrator") {
+    await reply(api, botToken, message, "Only admins of the TREE group can publish announcements.");
+    return;
+  }
+
+  const link = message.text?.trim().split(/\s+/)[1] ?? "";
+  const xMatch = /^https:\/\/(?:www\.)?(?:x|twitter)\.com\/thickquidity\/status\/(\d+)\/?(?:[?#]|$)/i.exec(link);
+  const videoMatch = /^https:\/\/(?:youtu\.be\/|(?:(?:www|m)\.)?youtube\.com\/(?:watch\?v=|shorts\/|live\/))([\w-]{11})(?:[?&#/]|$)/i.exec(link);
+  const id = (youtube ? videoMatch : xMatch)?.[1];
+  if (!id) {
+    await reply(api, botToken, message, youtube
+      ? "Usage: /youtube https://youtu.be/VIDEO_ID"
+      : "Usage: /announce https://x.com/thickquidity/status/POST_ID");
+    return;
+  }
+
+  const announcement = {
+    botToken,
+    text: youtube ? "🌳 New video from The Crypto Arborist" : "🌳 New post from @thickquidity on X",
+    replyMarkup: {inline_keyboard: [[{
+      text: youtube ? "Watch on YouTube" : "View on X",
+      url: youtube ? `https://www.youtube.com/watch?v=${id}` : `https://x.com/thickquidity/status/${id}`,
+    }]]},
+  };
+  const destinations = [
+    {chatId: group, messageThreadId: topic, label: youtube ? "YouTube topic" : "X topic"},
+    ...(youtube && channel ? [{chatId: channel, messageThreadId: null, label: "Telegram channel"}] : []),
+  ];
+  const results = await Promise.allSettled(destinations.map(({chatId, messageThreadId}) =>
+    api.sendMessage({...announcement, chatId, messageThreadId}),
+  ));
+  await reply(api, botToken, message, results.map((result, index) =>
+    `${destinations[index].label}: ${result.status === "fulfilled" ? "sent" : "delivery could not be confirmed"}`,
+  ).join("\n"));
+}
+
 export async function handleTelegramSelfServiceUpdate(input: {
   update: TelegramUpdate;
   botToken: string;
@@ -238,6 +295,11 @@ export async function handleTelegramSelfServiceUpdate(input: {
   const command = parseCommand(message?.text);
   if (!message || !command || !TELEGRAM_SELF_SERVICE_COMMANDS.some((item) => item.command === command)) {
     return "ignored";
+  }
+
+  if (command === "announce" || command === "youtube") {
+    await handleAnnouncement(input, message, command);
+    return "handled";
   }
 
   const battleUrl = input.battleUrl ?? DEFAULT_BATTLE_URL;
