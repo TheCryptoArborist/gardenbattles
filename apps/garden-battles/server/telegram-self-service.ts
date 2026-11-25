@@ -426,10 +426,12 @@ async function sendDailyMarketBrief(api: TelegramSelfServiceApi, botToken: strin
   const candleQuery = new URLSearchParams({
     granularity: "86400", start: start.toISOString(), end: end.toISOString(),
   });
-  const [stats, candles, sentiment] = await Promise.all([
+  const [stats, candles, sentiment, altPrices] = await Promise.all([
     marketJson(`${coinbase}/stats`),
     marketJson(`${coinbase}/candles?${candleQuery}`),
     marketJson("https://api.alternative.me/fng/?limit=2"),
+    marketJson("https://api.coingecko.com/api/v3/simple/price?ids=ethereum,sui,binancecoin,tron&vs_currencies=usd&include_last_updated_at=true")
+      .catch(() => null),
   ]);
   const candle = candles.find((row: number[]) => row[0] === start.getTime() / 1000);
   const price = Number(stats.last);
@@ -453,6 +455,16 @@ async function sendDailyMarketBrief(api: TelegramSelfServiceApi, botToken: strin
   });
   const signed = (value: number, digits: number) =>
     `${value > 0 ? "+" : ""}${value.toFixed(digits)}`;
+  const altDollars = new Intl.NumberFormat("en-US", {
+    style: "currency", currency: "USD", maximumFractionDigits: 4,
+  });
+  const altQuote = (id: string) => {
+    const quote = altPrices?.[id];
+    const age = now.getTime() / 1000 - quote?.last_updated_at;
+    return Number.isFinite(quote?.usd) && quote.usd > 0 && Math.abs(age) < 3600
+      ? altDollars.format(quote.usd)
+      : "unavailable";
+  };
   const {messageId} = await api.sendMessage({
     botToken, chatId, messageThreadId: topic,
     text: [
@@ -460,7 +472,9 @@ async function sendDailyMarketBrief(api: TelegramSelfServiceApi, botToken: strin
       `BTC ${dollars.format(price)} (${signed((price / open - 1) * 100, 2)}% in 24h)`,
       `Previous UTC day: low ${dollars.format(low)} · high ${dollars.format(high)}`,
       `Fear &amp; Greed: ${score}/100 · ${label} (${signed(score - prior, 0)} pts)`,
-      "Sources: Coinbase Exchange and Alternative.me",
+      `ETH ${altQuote("ethereum")} · SUI ${altQuote("sui")}`,
+      `BNB ${altQuote("binancecoin")} · TRX ${altQuote("tron")}`,
+      "Sources: Coinbase Exchange, Alternative.me and CoinGecko",
     ].join("\n"),
     replyMarkup: {inline_keyboard: [[{
       text: "Open Market Insights", url: "https://tree-token.xyz/market-insights/",
