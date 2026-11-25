@@ -1,3 +1,5 @@
+import { existsSync, mkdirSync, renameSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import {
   disableTelegramAlertDestination,
   enableTelegramAlertDestination,
@@ -389,6 +391,82 @@ export async function handleTelegramSelfServiceUpdate(input: {
   return "handled";
 }
 
+async function marketJson(url: string) {
+  const response = await fetch(url, {signal: AbortSignal.timeout(12000)});
+  if (!response.ok) throw new Error(`Market data HTTP ${response.status}`);
+  return response.json();
+}
+
+async function sendDailyMarketBrief(api: TelegramSelfServiceApi, botToken: string) {
+  const chatId = process.env.TELEGRAM_ANNOUNCEMENT_GROUP_ID;
+  const topic = Number(process.env.TELEGRAM_MARKET_TOPIC_ID);
+  if (!chatId || !Number.isSafeInteger(topic) || topic < 1) return;
+
+  const now = new Date();
+  const local = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Chicago", year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", hourCycle: "h23",
+  }).formatToParts(now);
+  const part = (type: string) => local.find(item => item.type === type)?.value;
+  if (part("hour") !== "08") return;
+  const day = [part("year"), part("month"), part("day")].join("-");
+  const directory = process.env.RAILWAY_VOLUME_MOUNT_PATH || "/data";
+  const marker = join(directory, `tree-market-brief-${day}`);
+  if (existsSync(marker)) return;
+  mkdirSync(directory, {recursive: true});
+
+  const end = new Date(now);
+  end.setUTCHours(0, 0, 0, 0);
+  const start = new Date(end.getTime() - 86_400_000);
+  const coinbase = "https://api.exchange.coinbase.com/products/BTC-USD";
+  const candleQuery = new URLSearchParams({
+    granularity: "86400", start: start.toISOString(), end: end.toISOString(),
+  });
+  const [stats, candles, sentiment] = await Promise.all([
+    marketJson(`${coinbase}/stats`),
+    marketJson(`${coinbase}/candles?${candleQuery}`),
+    marketJson("https://api.alternative.me/fng/?limit=2"),
+  ]);
+  const candle = candles.find((row: number[]) => row[0] === start.getTime() / 1000);
+  const price = Number(stats.last);
+  const open = Number(stats.open);
+  const low = Number(candle?.[1]);
+  const high = Number(candle?.[2]);
+  const [latest, previous] = sentiment.data ?? [];
+  const score = Number(latest?.value);
+  const prior = Number(previous?.value);
+  const label = latest?.value_classification;
+  if (![price, open, low, high].every(value => Number.isFinite(value) && value > 0) ||
+      ![score, prior].every(value => Number.isInteger(value) && value >= 0 && value <= 100) ||
+      typeof label !== "string" || !/^(?:Extreme )?(?:Fear|Greed)$|^Neutral$/.test(label) ||
+      Math.abs(now.getTime() / 1000 - Number(latest?.timestamp)) > 48 * 3600 ||
+      !Number.isFinite(Number(latest?.timestamp))) {
+    throw new Error("Market sources returned missing or stale data");
+  }
+
+  const dollars = new Intl.NumberFormat("en-US", {
+    style: "currency", currency: "USD", maximumFractionDigits: 0,
+  });
+  const signed = (value: number, digits: number) =>
+    `${value > 0 ? "+" : ""}${value.toFixed(digits)}`;
+  await api.sendMessage({
+    botToken, chatId, messageThreadId: topic,
+    text: [
+      "🌳 <b>TREE Market Brief</b>",
+      `BTC ${dollars.format(price)} (${signed((price / open - 1) * 100, 2)}% in 24h)`,
+      `Previous UTC day: low ${dollars.format(low)} · high ${dollars.format(high)}`,
+      `Fear &amp; Greed: ${score}/100 · ${label} (${signed(score - prior, 0)} pts)`,
+      "Sources: Coinbase Exchange and Alternative.me",
+    ].join("\n"),
+    replyMarkup: {inline_keyboard: [[{
+      text: "Open Market Insights", url: "https://tree-token.xyz/market-insights/",
+    }]]},
+  });
+  writeFileSync(marker + ".tmp", day);
+  renameSync(marker + ".tmp", marker);
+  console.log(`[market-brief] Delivered ${day}`);
+}
+
 export function startTelegramSelfServiceCommands(input: {
   botToken: string;
   battleUrl?: string;
@@ -398,6 +476,17 @@ export function startTelegramSelfServiceCommands(input: {
   const api = input.api ?? new FetchTelegramSelfServiceApi();
   const store = input.store ?? sqliteTelegramDestinationStore;
   let stopped = false;
+  let marketBusy = false;
+  const checkMarket = async () => {
+    if (marketBusy) return;
+    marketBusy = true;
+    try { await sendDailyMarketBrief(api, input.botToken); }
+    catch (error) { console.warn('[market-brief]', error instanceof Error ? error.message : 'Delivery failed'); }
+    finally { marketBusy = false; }
+  };
+  const marketTimer = setInterval(() => void checkMarket(), 60_000);
+  marketTimer.unref();
+  void checkMarket();
 
   void api.setMyCommands({
     botToken: input.botToken,
@@ -449,5 +538,6 @@ export function startTelegramSelfServiceCommands(input: {
 
   return () => {
     stopped = true;
+    clearInterval(marketTimer);
   };
 }
