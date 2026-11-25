@@ -11,7 +11,8 @@ import { pollTreeForceCompletions } from './treeforce89-telegram.mjs';
 import { namesInNotificationText } from './suins-names.mjs';
 import { pollCanopyCompletions } from './canopy-breaker-telegram.mjs';
 import { GARDEN_BOT_STREAMS, prepareGardenBotEvent } from './garden-bot-telegram.mjs';
-import { TRADEPORT_STREAMS, prepareTradeportEvent } from './tradeport-telegram.mjs';
+import { TRADEPORT_STREAMS, prepareTradeportEvent, SaleNftUnavailableError } from './tradeport-telegram.mjs';
+import { deferTradeportEvent, retryDeferredTradeportEvents } from './tradeport-recovery.mjs';
 
 export const COLLECTION = '0xf6c6d439ea0da2f3e9ba79e4992a7a4c113215fbf54c442ac9020c315f953705';
 const COLLECTION_STREAMS = ['NFTMinted', 'NFTPurchased'].map(kind => `${COLLECTION}::collection::${kind}`);
@@ -58,9 +59,9 @@ export function eventMessage(event) {
   };
 }
 
-// Only advance an event's cursor after Telegram confirms delivery. Persist every
-// successful send, so a later failure on the same page does not replay the page.
-export async function pollStream(type, state, { query = queryEvents, send, save, prepare = async event => event }) {
+// Advance after delivery or confirmed exclusion. An unresolved TradePort object
+// may also advance once its full event is durably saved for separate retry.
+export async function pollStream(type, state, { query = queryEvents, send, save, prepare = async event => event, deferUnresolved }) {
   if (!Object.hasOwn(state.cursors, type)) {
     const page = await query(type, undefined);
     if (!page.pageInfo.endCursor) throw new Error('Missing initial event checkpoint');
@@ -72,7 +73,16 @@ export async function pollStream(type, state, { query = queryEvents, send, save,
   for (let pages = 0; pages < 10; pages++) {
     const page = await query(type, state.cursors[type]);
     for (const edge of page.edges) {
-      const event = await prepare(edge.node);
+      let event;
+      try {
+        event = await prepare(edge.node);
+      } catch (error) {
+        // Network, schema and delivery errors retain their original behavior.
+        // Only a successful lookup with unavailable metadata can be deferred.
+        if (!deferUnresolved || !(error instanceof SaleNftUnavailableError)) throw error;
+        await deferUnresolved(type, edge, state, {save, error});
+        continue;
+      }
       const message = event ? eventMessage(event) : null;
       if (message && !state.deliveredSales?.includes(message.saleKey)) {
         await send(message);
@@ -122,6 +132,20 @@ export function startNftreeTelegramNotifier({listTrials}={}) {
     return result.result;
   };
   const target = {chat_id: chat, ...(thread ? {message_thread_id: Number(thread)} : {})};
+  const sendNotification = async message => {
+    // Retry transient photo errors without advancing. Do not also send a
+    // text alert on a timeout, as Telegram may already have sent the photo.
+    if (!message.photo) {
+      await telegram('sendMessage', {...target, text: message.text, reply_markup: message.reply_markup, disable_web_page_preview: true});
+      return;
+    }
+    try {
+      await telegram('sendPhoto', {...target, photo: message.photo, caption: message.text, reply_markup: message.reply_markup});
+    } catch (error) {
+      if (!(error instanceof Error) || !/^Telegram sendPhoto:/.test(error.message) || !/photo|image|wrong file|failed to get http url/i.test(error.message)) throw error;
+      await telegram('sendMessage', {...target, text: message.text, reply_markup: message.reply_markup, disable_web_page_preview: true});
+    }
+  };
   let running = false;
   let verified = false;
   const poll = async () => {
@@ -136,22 +160,19 @@ export function startNftreeTelegramNotifier({listTrials}={}) {
       }
       for (const type of STREAMS) {
         try {
-        await pollStream(type, state, {save, prepare: TRADEPORT_STREAMS.includes(type) ? prepareTradeportEvent : GARDEN_BOT_STREAMS.includes(type) ? prepareGardenBotEvent : undefined, send: async message => {
-          // Retry transient photo errors without advancing. Do not also send a
-          // text alert on a timeout, as Telegram may already have sent the photo.
-          if (!message.photo) {
-            await telegram('sendMessage', {...target, text: message.text, reply_markup: message.reply_markup, disable_web_page_preview: true});
-            return;
-          }
-          try {
-            await telegram('sendPhoto', {...target, photo: message.photo, caption: message.text, reply_markup: message.reply_markup});
-          } catch (error) {
-            if (!(error instanceof Error) || !/^Telegram sendPhoto:/.test(error.message) || !/photo|image|wrong file|failed to get http url/i.test(error.message)) throw error;
-            await telegram('sendMessage', {...target, text: message.text, reply_markup: message.reply_markup, disable_web_page_preview: true});
-          }
-        }});
+        await pollStream(type, state, {
+          save,
+          prepare: TRADEPORT_STREAMS.includes(type) ? prepareTradeportEvent : GARDEN_BOT_STREAMS.includes(type) ? prepareGardenBotEvent : undefined,
+          deferUnresolved: TRADEPORT_STREAMS.includes(type) ? deferTradeportEvent : undefined,
+          send: sendNotification,
+        });
         } catch (error) { console.error(`[nftree-alerts] ${type}: ${error instanceof Error ? error.message : 'Poll failed'}`); }
       }
+      try {
+        await retryDeferredTradeportEvents(state, {
+          prepare: prepareTradeportEvent, send: sendNotification, format: eventMessage, save,
+        });
+      } catch (error) { console.error('[nftree-alerts] TradePort recovery:', error instanceof Error ? error.message : 'Retry failed'); }
       try {
         await pollCanopyCompletions({state, save, send: message => sendGameAlert(message,(method,body)=>telegram(method,{...target,...body}))});
       } catch (error) { console.error('[nftree-alerts] Canopy Breaker:', error instanceof Error ? error.message : 'Poll failed'); }
