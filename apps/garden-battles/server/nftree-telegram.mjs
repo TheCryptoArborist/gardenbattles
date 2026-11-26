@@ -101,6 +101,54 @@ export async function pollStream(type, state, { query = queryEvents, send, save,
   }
 }
 
+const X_ALERT_ACCOUNT = 'thickquidity';
+
+async function pollXAnnouncements({bearer, state, save, send}) {
+  const get = async (endpoint) => {
+    const response = await fetch(`https://api.x.com/2/${endpoint}`, {
+      headers: {authorization: `Bearer ${bearer}`},
+      signal: AbortSignal.timeout(15000),
+    });
+    if (!response.ok) throw new Error(`X API HTTP ${response.status}`);
+    return response.json();
+  };
+  if (!state.xAnnouncements) {
+    const user = await get(`users/by/username/${X_ALERT_ACCOUNT}`);
+    if (!/^\d+$/.test(user.data?.id || '')) throw new Error('X account lookup returned no user ID');
+    state.xAnnouncements = {userId: user.data.id, startedAt: new Date().toISOString()};
+    try { save(); } catch (error) { delete state.xAnnouncements; throw error; }
+    return;
+  }
+
+  const progress = state.xAnnouncements;
+  const params = new URLSearchParams({exclude: 'retweets,replies', max_results: '100'});
+  if (progress.lastId) params.set('since_id', progress.lastId);
+  else params.set('start_time', progress.startedAt);
+
+  const posts = [];
+  do {
+    const page = await get(`users/${progress.userId}/tweets?${params}`);
+    if (!page.meta) throw new Error('X timeline returned no metadata');
+    posts.push(...(page.data || []));
+    if (!page.meta.next_token) break;
+    params.set('pagination_token', page.meta.next_token);
+  } while (true);
+
+  for (const post of posts.reverse()) {
+    if (!/^\d+$/.test(post.id) || typeof post.text !== 'string') throw new Error('Invalid X post');
+    if (progress.lastId && BigInt(post.id) <= BigInt(progress.lastId)) continue;
+    const url = `https://x.com/${X_ALERT_ACCOUNT}/status/${post.id}`;
+    await send({
+      text: `🌳 New post from @${X_ALERT_ACCOUNT} on X\n\n${[...post.text].slice(0, 240).join('')}${[...post.text].length > 240 ? '…' : ''}`,
+      reply_markup: {inline_keyboard: [[{text: 'View on X', url}]]},
+      disable_web_page_preview: true,
+    });
+    const previousId = progress.lastId;
+    progress.lastId = post.id;
+    try { save(); } catch (error) { progress.lastId = previousId; throw error; }
+  }
+}
+
 export function startNftreeTelegramNotifier({listTrials}={}) {
   if (process.env.ENABLE_NFTREE_TELEGRAM !== 'true') return;
   const token = process.env.TELEGRAM_BOT_TOKEN;
@@ -148,6 +196,9 @@ export function startNftreeTelegramNotifier({listTrials}={}) {
   };
   let running = false;
   let verified = false;
+  const xBearer = process.env.X_ALERT_BEARER_TOKEN;
+  const xChat = process.env.X_ALERT_TELEGRAM_CHAT_ID || process.env.TELEGRAM_ANNOUNCEMENT_CHAT_ID;
+  let nextXPoll = 0;
   const poll = async () => {
     if (running) return;
     running = true;
@@ -157,6 +208,17 @@ export function startNftreeTelegramNotifier({listTrials}={}) {
         if (me.username?.toLowerCase() !== 'nftreeholderbot') throw new Error('Configured bot is not @NFTreeHolderBot');
         verified = true;
         console.log(`[nftree-alerts] Verified @${me.username}; monitoring collection mint and purchase events`);
+      }
+      if (xBearer && xChat && Date.now() >= nextXPoll) {
+        nextXPoll = Date.now() + 5 * 60 * 1000;
+        try {
+          await pollXAnnouncements({
+            bearer: xBearer, state, save,
+            send: message => telegram('sendMessage', {...message, chat_id: xChat}),
+          });
+        } catch (error) {
+          console.error(`[x-alerts] ${error instanceof Error ? error.message : 'Poll failed'}`);
+        }
       }
       for (const type of STREAMS) {
         try {
