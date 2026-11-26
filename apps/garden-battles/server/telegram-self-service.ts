@@ -449,12 +449,13 @@ async function sendDailyMarketBrief(api: TelegramSelfServiceApi, botToken: strin
   const candleQuery = new URLSearchParams({
     granularity: "86400", start: start.toISOString(), end: end.toISOString(),
   });
-  const [stats, candles, sentiment, altPrices] = await Promise.all([
+  const [stats, candles, sentiment, altPrices, treeDashboard] = await Promise.all([
     marketJson(`${coinbase}/stats`),
     marketJson(`${coinbase}/candles?${candleQuery}`),
     marketJson("https://api.alternative.me/fng/?limit=2"),
-    marketJson("https://api.coingecko.com/api/v3/simple/price?ids=ethereum,sui,binancecoin,tron&vs_currencies=usd&include_last_updated_at=true")
+    marketJson("https://api.coingecko.com/api/v3/simple/price?ids=ethereum,sui,binancecoin&vs_currencies=usd&include_last_updated_at=true")
       .catch(() => null),
+    marketJson("https://tree-token.xyz/api/tree-dashboard").catch(() => null),
   ]);
   const candle = candles.find((row: number[]) => row[0] === start.getTime() / 1000);
   const price = Number(stats.last);
@@ -488,6 +489,16 @@ async function sendDailyMarketBrief(api: TelegramSelfServiceApi, botToken: strin
       ? altDollars.format(quote.usd)
       : "unavailable";
   };
+  // The TREE dashboard serves the project's Noodles quote and explicitly flags cached fallback data.
+  const treeMarket = treeDashboard?.live;
+  const treeAge = now.getTime() - Date.parse(treeMarket?.verifiedAt);
+  const treePrice = treeMarket?.data?.price;
+  const treeQuote = treeMarket?.status === "ok" && treeMarket.source === "Noodles.fi" &&
+    Math.abs(treeAge) < 3600_000 && Number.isFinite(treePrice) && treePrice > 0
+    ? new Intl.NumberFormat("en-US", {
+        style: "currency", currency: "USD", maximumSignificantDigits: 6,
+      }).format(treePrice)
+    : null;
   const {messageId} = await api.sendMessage({
     botToken, chatId, messageThreadId: topic,
     text: [
@@ -496,8 +507,8 @@ async function sendDailyMarketBrief(api: TelegramSelfServiceApi, botToken: strin
       `Previous UTC day: low ${dollars.format(low)} · high ${dollars.format(high)}`,
       `Fear &amp; Greed: ${score}/100 · ${label} (${signed(score - prior, 0)} pts)`,
       `ETH ${altQuote("ethereum")} · SUI ${altQuote("sui")}`,
-      `BNB ${altQuote("binancecoin")} · TRX ${altQuote("tron")}`,
-      "Sources: Coinbase Exchange, Alternative.me and CoinGecko",
+      `BNB ${altQuote("binancecoin")} · TREE ${treeQuote ? `${treeQuote} (listed quote)` : "unavailable"}`,
+      "Sources: Coinbase Exchange, Alternative.me, CoinGecko and Noodles.fi",
     ].join("\n"),
     replyMarkup: {inline_keyboard: [[{
       text: "Open Market Insights", url: "https://tree-token.xyz/market-insights/",
