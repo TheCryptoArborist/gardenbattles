@@ -1,4 +1,5 @@
 import {GAME_ALERT_IMAGES} from './game-alert-photo.mjs';
+import {GROVE_CHESS_COVER} from './grove-chess-telegram.mjs';
 const ZONE='America/Chicago',DAY=86400000;
 export const DISCOVERY_GAMES=[
  {id:'treeforce89',label:'TREE FORCE ’89',url:'https://tree-token.xyz/play/treeforce89/',photo:GAME_ALERT_IMAGES.force,objective:'Pilot through enemy waves and take on the Canopy Tyrant.',access:'NFTree access required. Optional paid continues cost 20,000 TREE.',result:'Use Save score after a finished standard run to join the recorded results.'},
@@ -6,6 +7,12 @@ export const DISCOVERY_GAMES=[
  {id:'arborist-trials',label:'Arborist Trials',photo:GAME_ALERT_IMAGES.trialsSpotlight,url:'https://nftree.net/battle/trials',objective:'Take on the daily turn-based strategy challenge with its predetermined hand.',access:'NFTree access required. No paid entry; save your result with a wallet message.',result:'Save a ranked result to appear in the weekly Trials standings.'},
  {id:'garden-bot',label:'Garden Bot',photo:GAME_ALERT_IMAGES.gardenSpotlight,url:'https://nftree.net/battle/garden-bot',objective:'Build growth and outplay the bot in turn-based card strategy.',access:'Official matches use wallet transactions. Review the displayed costs before confirming.',result:'Finish an official match: wins and losses both appear in completion alerts.'},
  {id:'canopy-defense',label:'Canopy Defense',url:'https://tree-token.xyz/play/canopy-defense/',photo:'https://gardenbattles-production.up.railway.app/images/canopy-defense-spotlight.jpg',objective:'The pests are closing in! Plant your defenders, cover the route, and protect the Tree of Life.',access:'NFTree access required. Sap plants defenders; optional supplies, growth upgrades and continues use TREE. Review wallet prompts before paying.',result:'Ready to defend the forest? Choose your defenses and start your next run.'},
+ {
+  id:'grove-chess',label:'Grove Chess',url:'https://tree-token.xyz/play/grove-chess/',photo:GROVE_CHESS_COVER,
+  objective:'Lead your woodland pieces to checkmate in Tree Arcade’s chess game.',
+  access:'Your first two games are free. Own an NFTree to unlock unlimited play.',
+  result:'Customize your chess set based on the rarity of your NFTree.',
+ },
 ];
 const local=ms=>Object.fromEntries(new Intl.DateTimeFormat('en-US',{timeZone:ZONE,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',hourCycle:'h23',minute:'2-digit',second:'2-digit'}).formatToParts(ms).filter(p=>p.type!=='literal').map(p=>[p.type,Number(p.value)]));
 function noon(date){let ms=date+12*3600000;for(let i=0;i<3;i++){const p=local(ms);ms+=date+12*3600000-Date.UTC(p.year,p.month-1,p.day,p.hour,p.minute,p.second);}return ms;}
